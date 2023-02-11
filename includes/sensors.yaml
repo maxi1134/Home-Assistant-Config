@@ -1,0 +1,242 @@
+  - platform: mqtt_room
+    device_id: "iBeacon:fda50693-a4e2-4fb1-afcf-c6eb07647825-10001-19641"  # mac: ac233fa8c2c2
+    name: 'B7Bracelet1'
+    state_topic: 'espresense/rooms'
+    timeout: 60
+    away_timeout: 600
+  - platform: mqtt_room
+    device_id: "iBeacon:73b85512-cebc-4705-905c-18a0e5a2fb75-100-1"  # mac: Galaxy fold
+    name: 'Phone_Fold4'
+    state_topic: 'espresense/rooms'
+    timeout: 60
+    away_timeout: 600
+  - platform: mqtt_room
+    device_id: "iBeacon:d3307e03-fe30-4a45-97f6-57c61b2b4e0b-100-1"  # mac: Phone_GalaxyS10HASS
+    name: 'Phone_GalaxyS10'
+    state_topic: 'espresense/rooms'
+    timeout: 60
+    away_timeout: 600
+  - platform: template
+    sensors:
+      guest_wifi_count:
+       friendly_name: Guest WiFi Count
+       value_template: >-
+          {{ states.device_tracker | selectattr('state', 'eq', 'home') | selectattr('attributes.essid', 'eq', "Chilling Hotspot") | list | count }}
+  - platform: template
+    sensors:
+      dayoftheweek:
+        friendly_name: "Day Of The Week"
+        value_template: >-
+            {{ utcnow().weekday() }}
+  - platform: template
+    sensors:
+      timer_remaining:
+        unit_of_measurement: Minutes
+        value_template: >-
+          {% if states('timer.cooking') == "active" %}
+          {{ ( ( state_attr('timer.cooking', 'finishes_at') | as_timestamp() - utcnow() | as_timestamp() ) / 60 )| round }}
+          {% else %}
+          Timer Off
+          {% endif %}
+        friendly_name: 'Timer Remaining'      
+  - platform: template
+    sensors:
+      bathroom_usage:
+        value_template: >-
+          {% if states('binary_sensor.shower_in_use') == "on" %}
+            Showering
+          {% elif  states('binary_sensor.sensor_bathroom_door_contact') == "off" %}
+            Occupied
+          {% elif  states('binary_sensor.sensor_bathroom_motion_occupancy') == "on" %}
+            Detected
+          {% elif  states('binary_sensor.sensor_bathroom_motion_occupancy') == "off" %}
+            Clear
+          {% endif %}
+        icon_template: >-
+          {% if states('binary_sensor.shower_in_use') == "on" %}
+            mdi:shower-head
+          {% elif  states('binary_sensor.sensor_bathroom_door_contact') == "off" %}
+            mdi:paper-roll-outline
+          {% elif  states('binary_sensor.sensor_bathroom_motion_occupancy') == "on" %}
+            mdi:run
+          {% elif  states('binary_sensor.sensor_bathroom_motion_occupancy') == "off" %}
+            mdi:walk
+          {% endif %}
+        friendly_name: 'Bathroom Usage'            
+  - platform: seventeentrack
+    username: maxi1134@hotmail.ca
+    password: !secret seventeentrack_password
+
+  - platform: qbittorrent
+    url: 'http://192.168.0.20:8080'
+    username: purgatoire
+    password: !secret qbt_password
+  - platform: template
+    sensors:
+      playinglivingroomtv:
+        friendly_name: "Playing on LivingRoom TV"
+        value_template: >-
+          {% if state_attr('media_player.livingroom_chromecast', 'media_series_title') %}
+            {{ state_attr('media_player.livingroom_chromecast', 'media_series_title') }}
+            S{{ state_attr('media_player.livingroom_chromecast', 'media_season') }}
+            E{{ state_attr('media_player.livingroom_chromecast', 'media_episode') }}
+          {% elif  state_attr('media_player.livingroom_chromecast', 'media_album_name') %}
+           {{ state_attr('media_player.livingroom_chromecast', 'media_title') }}  -  {{ state_attr('media_player.livingroom_chromecast', 'media_album_name') }} by {{ state_attr('media_player.livingroom_chromecast', 'media_album_artist') }}
+          {% elif  state_attr('media_player.livingroom_chromecast', 'media_title') %}
+            {{ state_attr('media_player.livingroom_chromecast', 'media_title') }}
+          {% endif %}
+  - platform: template
+    sensors:
+      playinghotboxdowntv:
+        friendly_name: "Playing on Hotbox Down TV"
+        value_template: >-
+          {% if state_attr('media_player.hotbox_down_chromecast', 'media_series_title') %}
+            {{ state_attr('media_player.hotbox_down_chromecast', 'media_series_title') }}
+            S{{ state_attr('media_player.hotbox_down_chromecast', 'media_season') }}
+            E{{ state_attr('media_player.hotbox_down_chromecast', 'media_episode') }}
+          {% elif  state_attr('media_player.hotbox_down_chromecast', 'media_album_name') %}
+           {{ state_attr('media_player.hotbox_down_chromecast', 'media_title') }}  -  {{ state_attr('media_player.hotbox_down_chromecast', 'media_album_name') }} by {{ state_attr('media_player.hotbox_down_chromecast', 'media_album_artist') }}
+          {% elif  state_attr('media_player.hotbox_down_chromecast', 'media_title') %}
+            {{ state_attr('media_player.hotbox_down_chromecast', 'media_title') }}
+          {% endif %}
+  - platform: template
+    sensors:
+      playinghotboxtv:
+        friendly_name: "Playing on Hotbox TV"
+        value_template: >-
+          {% if state_attr('media_player.hotbox_top_chromecast', 'media_series_title') %}
+            {{ state_attr('media_player.hotbox_top_chromecast', 'media_series_title') }}
+            S{{ state_attr('media_player.hotbox_top_chromecast', 'media_season') }}
+            E{{ state_attr('media_player.hotbox_top_chromecast', 'media_episode') }}
+          {% elif  state_attr('media_player.hotbox_top_chromecast', 'media_album_name') %}
+           {{ state_attr('media_player.hotbox_top_chromecast', 'media_title') }}  -  {{ state_attr('media_player.hotbox_top_chromecast', 'media_album_name') }} by {{ state_attr('media_player.hotbox_top_chromecast', 'media_album_artist') }}
+          {% elif  state_attr('media_player.hotbox_top_chromecast', 'media_title') %}
+            {{ state_attr('media_player.hotbox_top_chromecast', 'media_title') }}
+          {% endif %}
+  - platform: template
+    sensors:
+      playingpatiotv:
+        friendly_name: "Playing on Patio TV"
+        value_template: >-
+          {% if state_attr('media_player.patio_chromecast', 'media_series_title') %}
+            {{ state_attr('media_player.patio_chromecast', 'media_series_title') }}
+            S{{ state_attr('media_player.patio_chromecast', 'media_season') }}
+            E{{ state_attr('media_player.patio_chromecast', 'media_episode') }}
+          {% elif  state_attr('media_player.patio_chromecast', 'media_album_name') %}
+           {{ state_attr('media_player.patio_chromecast', 'media_title') }}  -  {{ state_attr('media_player.patio_chromecast', 'media_album_name') }} by {{ state_attr('media_player.patio_chromecast', 'media_album_artist') }}
+          {% elif  state_attr('media_player.patio_chromecast', 'media_title') %}
+            {{ state_attr('media_player.patio_chromecast', 'media_title') }}
+          {% endif %}
+  - platform: template
+    sensors:
+      playingplexmediaplayer:
+        friendly_name: "Playing on Plex Media Player"
+        value_template: >-
+          {% if state_attr('media_player.plex_media_player_desktop', 'media_series_title') %}
+            {{ state_attr('media_player.plex_media_player_desktop', 'media_series_title') }}
+            S{{ state_attr('media_player.plex_media_player_desktop', 'media_season') }}
+            E{{ state_attr('media_player.plex_media_player_desktop', 'media_episode') }}
+          {% elif  state_attr('media_player.plex_media_player_desktop', 'media_album_name') %}
+           {{ state_attr('media_player.plex_media_player_desktop', 'media_title') }}  -  {{ state_attr('media_player.plex_media_player_desktop', 'media_album_name') }} by {{ state_attr('media_player.plex_media_player_desktop', 'media_album_artist') }}
+          {% elif  state_attr('media_player.plex_media_player_desktop', 'media_title') %}
+            {{ state_attr('media_player.plex_media_player_desktop', 'media_title') }}
+          {% endif %}
+  - platform: template
+    sensors:
+      playingbedroomtv:
+        friendly_name: "Playing on Bedroom TV"
+        value_template: >-
+          {% if state_attr('media_player.bedroom_chromecast', 'media_series_title') %}
+            {{ state_attr('media_player.bedroom_chromecast', 'media_series_title') }}
+            S{{ state_attr('media_player.bedroom_chromecast', 'media_season') }}
+            E{{ state_attr('media_player.bedroom_chromecast', 'media_episode') }}
+          {% elif  state_attr('media_player.bedroom_chromecast', 'media_album_name') %}
+           {{ state_attr('media_player.bedroom_chromecast', 'media_title') }}  -  {{ state_attr('media_player.bedroom_chromecast', 'media_album_name') }} by {{ state_attr('media_player.bedroom_chromecast', 'media_album_artist') }}
+          {% elif  state_attr('media_player.bedroom_chromecast', 'media_title') %}
+            {{ state_attr('media_player.bedroom_chromecast', 'media_title') }}
+          {% endif %}
+  - platform: template
+    sensors:
+      bootminutes:
+        friendly_name: "Minutes since boot"
+        value_template: >
+          {{ (as_timestamp(now()) - as_timestamp(states('sensor.uptime'))) // 60|int }}
+          
+  - platform: imap_email_content
+    server: imap.gmail.com
+    name: purgatoire1134_uber
+    port: 993
+    username: !secret gmail_uber_username
+    password: !secret gmail_uber_password
+    senders:
+      - maxi1134@hotmail.ca
+    value_template: >-
+      {% if 'autorisé un paiement' in subject %}
+        On
+      {% elif 'Eats' in subject %}
+        Off
+      {% endif %}    
+
+
+  - platform: template
+    sensors:
+      plex_mnt_combined_free:
+        friendly_name: "Media Merge Left"
+        unit_of_measurement: 'GiB'
+        value_template: >-
+          {{ (states.sensor.plex_mnt_plex01_free.state | float) ++ (states.sensor.plex_mnt_plex02_free.state | float)++ (states.sensor.plex_mnt_plex03_free.state | float)++ (states.sensor.plex_mnt_plex04_free.state | float)++ (states.sensor.plex_mnt_plex05_free.state | float)++ (states.sensor.plex_mnt_plex06_free.state | float)++ (states.sensor.plex_mnt_plex07_free.state | float)++ (states.sensor.plex_mnt_plex08_free.state | float)++ (states.sensor.plex_mnt_plex09_free.state | float)}}
+
+
+
+  - platform: template
+    sensors:
+      security_all_clear:
+        friendly_name: "Security All Clear"
+        value_template: >-
+          {% if is_state('lock.lock_front_door', 'locked') and is_state('lock.back_door', 'locked') and (states.alarm_control_panel.home_alarm.state == "disarmed")  %}
+            Clear
+          {% elif is_state('alarm_control_panel.home_alarm', 'triggered') %}
+            Alarm Triggered
+          {% elif is_state('lock.lock_front_door', 'unlocked') or  is_state('lock.back_door', 'unlocked') %}
+            Door Unlocked
+          {% elif is_state('alarm_control_panel.home_alarm', 'armed_away') %}
+            Armed Away
+          {% elif is_state('alarm_control_panel.home_alarm', 'armed_home') %}
+            Armed Home
+          {% else %}
+            Edgecase
+          {% endif %}
+        icon_template: >-
+          {% if is_state('lock.lock_front_door', 'locked') and is_state('lock.back_door', 'locked') and (states.alarm_control_panel.home_alarm.state == "disarmed")  %}
+            mdi:shield-home
+          {% elif is_state('alarm_control_panel.home_alarm', 'triggered') %}
+            mdi:alarm-light
+          {% elif is_state('lock.lock_front_door', 'unlocked') or  is_state('lock.back_door', 'unlocked') %}
+            mdi:door-open
+          {% elif is_state('alarm_control_panel.home_alarm', 'armed_away') %}
+            mdi:shield-lock
+          {% elif is_state('alarm_control_panel.home_alarm', 'armed_home') %}
+            mdi:shield-account
+          {% else %}
+            mdi:microsoft-edge-legacy
+          {% endif %}
+          
+
+  - platform: discord_game
+    token: !secret discord_game_token
+    members:
+      - 156149779443875840  #Maxi 
+  - platform: systemmonitor
+    resources:
+      - type: disk_use_percent
+        arg: / 
+      - type: memory_use_percent      
+      - type: processor_use     
+      - type: processor_temperature
+      - type: last_boot
+      - type: ipv4_address
+        arg: eth0
+      - type: throughput_network_in
+        arg: eth0
+      - type: throughput_network_out
+        arg: eth0    

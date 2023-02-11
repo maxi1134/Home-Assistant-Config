@@ -1,0 +1,52 @@
+esphome:
+  name: esp32-soundlevel-patio
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: "KDMdBvbtZybLE9rkUnPwm8o2w+3gSRMuq9HGZFTVHXM="
+
+ota:
+  password: "e5f548493564acb109bd53672a50dcfb"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Esp32-Soundlevel-Patio"
+    password: "ubDsV3KZrNbq"
+
+captive_portal:
+
+sensor:
+   - platform: adc
+     pin: GPIO36
+     name: "Sound level"
+     update_interval: "2s"
+     # see https://esphome.io/components/sensor/adc.html
+     id: adc_mic_reading
+     attenuation: auto
+     
+     
+   - platform: ct_clamp
+     sensor: adc_mic_reading
+     name: "Sound level Averaged"
+     sample_duration: 250ms
+     update_interval: 500ms  
+     
+binary_sensor:
+  - platform: gpio
+    pin: GPIO4
+    name: "Sound detected Binary"
+    filters:
+      - delayed_off: 8s

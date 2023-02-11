@@ -1,0 +1,131 @@
+  - platform: bayesian
+    name: 'Maxi sleeping'
+    prior: 0.11
+    probability_threshold: 0.8
+    observations:
+      - entity_id: 'light.group_bedroom_lights'
+        prob_given_true: 0.7
+        prob_given_false: 0.1
+        platform: 'state'
+        to_state: 'off'
+      - entity_id: 'person.maximiliano'
+        prob_given_true: 0.5
+        prob_given_false: 0.1
+        platform: 'state'
+        to_state: 'home'
+      - entity_id: 'binary_sensor.sensor_bedroom_door_contact'
+        prob_given_true: 0.88
+        prob_given_false: 0.125
+        platform: 'state'
+        to_state: 'off'
+      - entity_id: 'sensor.phone_galaxy_fold_4_media_session'
+        prob_given_true: 0.1
+        prob_given_false: 0.5
+        platform: 'state'
+        to_state: 'Playing'
+  - platform: bayesian
+    name: 'Shower in use'
+    prior: 0.10
+    probability_threshold: 0.80
+    observations:
+      - entity_id: 'switch.bathroom_fan'
+        prob_given_true: 0.7
+        prob_given_false: 0.1
+        platform: 'state'
+        to_state: 'on'
+      - entity_id: 'binary_sensor.sensor_bathroom_door_contact'
+        prob_given_true: 0.7
+        prob_given_false: 0.1
+        platform: 'state'
+        to_state: 'off'
+  - platform: template
+    sensors:
+      motion_home:
+        friendly_name: "Motion Home"
+        device_class: motion
+        delay_off:
+          minutes: 5
+        value_template: >-
+          {{ is_state('binary_sensor.sensor_thierry_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_server_workstation_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_patio_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_livingroom_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_livingroom_window_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_kitchen_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_hotbox_exit_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_hotbox_down_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_entrance_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_bedroom_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_bathroom_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_dungeon_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_hotbox_top_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_kitchen_entry_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_livingroom_entry_motion_occupancy', 'on') }}
+      motion_livingroom:
+        friendly_name: "Motion LivingRoom"
+        device_class: motion
+        delay_off:
+          minutes: 5
+        value_template: >-
+          {{ is_state('binary_sensor.sensor_kitchen_entry_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_livingroom_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_livingroom_window_motion_occupancy', 'on') }}
+      motion_front:
+        friendly_name: "Motion Front"
+        device_class: motion
+        delay_off:
+          minutes: 5
+        value_template: >-
+          {{ is_state('binary_sensor.motion_livingroom', 'on')
+             or is_state('sensor.b7bracelet1', 'bedroom')
+             or is_state('sensor.b7bracelet1', 'chillingroom')
+             or is_state('binary_sensor.sensor_entrance_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_dungeon_motion_occupancy', 'on')
+             or is_state('binary_sensor.sensor_bedroom_motion_occupancy', 'on')
+             }}
+      user_home:
+        friendly_name: "Users Present"
+        delay_off:
+          minutes: 7
+        value_template: >-
+          {% set ns = namespace(home=0) %}
+            {% for who in states.person %}
+                {% set location = who.state %}
+                {% if location == "home" %}
+                    {% set ns.home = 1 %}
+                {% endif%}
+            {% endfor %}
+            {{ns.home}}
+      hotbox_all_motion:
+        friendly_name: "Motion Hotbox All"
+        delay_off:
+          minutes: 0
+        value_template: >-
+          {{ is_state('binary_sensor.sensor_hotbox_down_motion_occupancy', 'on')
+             and is_state('binary_sensor.sensor_hotbox_top_motion_occupancy', 'on') }}
+      hotbox_all_motion_off:
+        friendly_name: "Motion Hotbox All off"
+        delay_off:
+          minutes: 0
+        value_template: >-
+          {{ is_state('binary_sensor.sensor_hotbox_down_motion_occupancy', 'off')
+             and is_state('binary_sensor.sensor_hotbox_top_motion_occupancy', 'off') }}
+      front_open:
+        friendly_name: "Front Inside door"
+        delay_off:
+          minutes: 2
+        value_template: >-
+          {{ not is_state('binary_sensor.sensor_front_door_contact', 'off') }}
+      front_motion_extended:
+        friendly_name: "Motion front camera"
+        delay_off:
+          minutes: 5
+        value_template: >-
+          {{ not is_state('binary_sensor.frontmotion', 'off') }}
+      all_sleeping:
+        friendly_name: "All Sleeping"
+        delay_off:
+          minutes: 10
+        value_template: >-
+          {{ is_state('binary_sensor.maxi_sleeping', 'on')
+             and is_state('binary_sensor.nate_sleeping', 'on') }}

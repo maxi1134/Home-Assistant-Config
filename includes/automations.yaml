@@ -1,0 +1,393 @@
+- id: '1544133392091'
+  alias: Door Lock
+  trigger:
+  - entity_id: lock.front_door
+    from: locked
+    platform: state
+    to: unlocked
+  condition: []
+  action:
+  - delay: '300'
+  - data:
+      entity_id: lock.front_door
+    service: lock.lock
+  mode: single
+- id: '1549475211560'
+  alias: Unlock Door
+  trigger:
+  - event_data:
+      action: unlock_door
+    event_type: mobile_app_notification_action
+    platform: event
+  condition: []
+  action:
+  - data:
+      color_name: green
+      entity_id: light.door
+    service: light.turn_on
+  - data: {}
+    service: lock.unlock
+    target:
+      entity_id: lock.lock_front_door
+- id: '1549475211561'
+  alias: Trigger alarm while armed away
+  trigger:
+  - entity_id: binary_sensor.motion_bathroom
+    platform: state
+    to: 'on'
+  - entity_id: binary_sensor.motion_bedroom
+    platform: state
+    to: 'on'
+  - entity_id: binary_sensor.motion_dungeon
+    platform: state
+    to: 'on'
+  - entity_id: binary_sensor.hotbox_exit
+    platform: state
+    to: 'on'
+  - entity_id: binary_sensor.motion_hotbox_top
+    platform: state
+    to: 'on'
+  - entity_id: binary_sensor.motion_kitchen_entry
+    platform: state
+    to: 'on'
+  - entity_id: binary_sensor.motion_kitchen
+    platform: state
+    to: 'on'
+  - entity_id: binary_sensor.door_front
+    from: 'off'
+    platform: state
+    to: 'on'
+  - entity_id: binary_sensor.door_server
+    from: 'off'
+    platform: state
+    to: 'on'
+  condition:
+  - condition: state
+    entity_id: alarm_control_panel.home_alarm
+    state: armed_away
+  action:
+  - data:
+      entity_id: alarm_control_panel.home_alarm
+    entity_id: alarm_control_panel.home_alarm
+    service: alarm_control_panel.alarm_trigger
+  - data:
+      entity_id: light.maxi
+    service: light.turn_off
+- id: '1549475211521'
+  alias: Arm alarm when everyone away
+  trigger:
+  - entity_id: binary_sensor.people_home
+    for:
+      hours: 0
+      minutes: 20
+      seconds: 0
+      milliseconds: 0
+    platform: state
+    to: 'off'
+  condition: []
+  action:
+  - data:
+      entity_id: alarm_control_panel.home_alarm
+    entity_id: alarm_control_panel.home_alarm
+    service: alarm_control_panel.alarm_arm_away
+- id: '1549472211521'
+  alias: Disarm alarm when door unlocked
+  trigger:
+  - platform: state
+    entity_id: lock.front_door
+    to: unlocked
+  condition:
+  - condition: state
+    entity_id: alarm_control_panel.home_alarm
+    state: armed_away
+  action:
+    service: alarm_control_panel.alarm_disarm
+    entity_id: alarm_control_panel.home_alarm
+- id: '1566413230414'
+  alias: 'Notif: Lights up'
+  trigger:
+  - event_data:
+      action: light_door
+    event_type: html5_notification.clicked
+    platform: event
+  condition: []
+  action:
+  - data:
+      color_name: purple
+      entity_id: light.door
+    service: light.turn_on
+  - delay: '2'
+  - data:
+      color_name: silver
+      entity_id: light.door
+    service: light.turn_on
+- id: '1590091541648'
+  alias: Clean The Kitchen
+  description: Send the vacuum to the Kitchen
+  trigger:
+  - platform: webhook
+    webhook_id: vacuum-kitchen
+  condition: []
+  action:
+  - data:
+      command: app_zoned_clean
+      params:
+      - - 31042
+        - 24956
+        - 37523
+        - 25886
+        - 1
+      - - 30932
+        - 24815
+        - 32741
+        - 26061
+        - 1
+      - - 32442
+        - 25833
+        - 35761
+        - 28903
+        - 1
+    entity_id: vacuum.xiaomi_vacuum_cleaner
+    service: vacuum.send_command
+- id: '1590092907091'
+  alias: Clean The Dungeon
+  description: Send vacuum to the dungeon
+  trigger:
+  - platform: webhook
+    webhook_id: vacuum-dungeon
+  condition: []
+  action:
+  - data:
+      command: app_zoned_clean
+      params:
+      - - 22832
+        - 27114
+        - 26009
+        - 31394
+        - 1
+    entity_id: vacuum.xiaomi_vacuum_cleaner
+    service: vacuum.send_command
+- id: '1590093334449'
+  alias: Clean the bedroom
+  description: Send Vacuum to bedroom
+  trigger:
+  - platform: webhook
+    webhook_id: vacuum-bedroom
+  condition: []
+  action:
+  - data:
+      command: app_zoned_clean
+      params:
+      - - 18821
+        - 27079
+        - 23005
+        - 31394
+        - 1
+    entity_id: vacuum.xiaomi_vacuum_cleaner
+    service: vacuum.send_command
+- id: '1590095280989'
+  alias: Clean the Living Room
+  description: Send Vacuum to the living room
+  trigger:
+  - platform: webhook
+    webhook_id: vacuum-livingroom
+  condition: []
+  action:
+  - data:
+      command: app_zoned_clean
+      params:
+      - - 25915
+        - 24728
+        - 30979
+        - 28517
+        - 1
+    entity_id: vacuum.xiaomi_vacuum_cleaner
+    service: vacuum.send_command
+- id: '1590095536732'
+  alias: Clean the hotbox
+  description: Send vacuum to the hotbox
+  trigger:
+  - platform: webhook
+    webhook_id: vacuum-hotbox
+  condition: []
+  action:
+  - data:
+      command: app_zoned_clean
+      params:
+      - - 35840
+        - 26763
+        - 39473
+        - 28833
+        - 1
+      - - 35792
+        - 25833
+        - 37585
+        - 27289
+        - 1
+    entity_id: vacuum.xiaomi_vacuum_cleaner
+    service: vacuum.send_command
+- id: '1590095699257'
+  alias: Clean the Hallway
+  description: Send robovac to the hallway
+  trigger:
+  - platform: webhook
+    webhook_id: vacuum-hallway
+  condition: []
+  action:
+  - data:
+      command: app_zoned_clean
+      params:
+      - - 19796
+        - 24833
+        - 25978
+        - 27236
+        - 1
+    entity_id: vacuum.xiaomi_vacuum_cleaner
+    service: vacuum.send_command
+- id: '1590095744034'
+  alias: Clean the Bathroom
+  description: Send Vacuum to the bathroom
+  trigger:
+  - platform: webhook
+    webhook_id: vacuum-bathroom
+  condition: []
+  action:
+  - data:
+      command: app_zoned_clean
+      params:
+      - - 30932
+        - 26079
+        - 32552
+        - 29693
+        - 1
+    entity_id: vacuum.xiaomi_vacuum_cleaner
+    service: vacuum.send_command
+- id: '1590095869095'
+  alias: Clean Thierrys Room
+  description: Send Vacuum to thierry's room
+  trigger:
+  - platform: webhook
+    webhook_id: vacuum-thierry
+  condition: []
+  action:
+  - data:
+      command: app_zoned_clean
+      params:
+      - - 26214
+        - 28535
+        - 30397
+        - 31236
+        - 1
+    entity_id: vacuum.xiaomi_vacuum_cleaner
+    service: vacuum.send_command
+- id: '1590095869172'
+  alias: Clean Thierrys Room
+  description: Send Vacuum to thierry's room
+  trigger:
+  - platform: webhook
+    webhook_id: vacuum-thierry
+  condition: []
+  action:
+  - data:
+      command: app_zoned_clean
+      params:
+      - - 26214
+        - 28535
+        - 30397
+        - 31236
+        - 1
+    entity_id: vacuum.xiaomi_vacuum_cleaner
+    service: vacuum.send_command
+- alias: Plex Assistant Automation
+  id: '123234523534'
+  trigger:
+  - event_data:
+      action: call_service
+    event_type: ifttt_webhook_received
+    platform: event
+  condition:
+    condition: template
+    value_template: '{{ trigger.event.data.service == ''plex_assistant.command'' }}'
+  action:
+  - data_template:
+      command: '{{ trigger.event.data.command }}'
+    service_template: '{{ trigger.event.data.service }}'
+- id: '1604278729715'
+  alias: Timer Setting
+  description: ''
+  trigger: []
+  condition: []
+  action:
+  - service: timer.start
+    data:
+      duration: '{{ states(''input_datetime.kitchen_timer'') }}'
+    entity_id: timer.cooking
+  - service: input_datetime.set_datetime
+    data:
+      time: 00:00:00
+    entity_id: input_datetime.kitchen_timer
+  mode: single
+- id: '1634368360346'
+  alias: Wait For Someone
+  description: ''
+  trigger:
+  - platform: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: wait_for_someone
+  condition:
+  - condition: state
+    entity_id: person.maxi
+    state: home
+    attribute: source
+  action:
+  - service: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.waiting_someone
+  mode: single
+- id: '1639001920238'
+  alias: Kitchen Lights
+  description: This automation slowly turns on the lights when there is motion, and
+    then slowly turns them off when there is none.
+  trigger:
+  - platform: state
+    entity_id: binary_sensor.motion_kitchen_entrance
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+      milliseconds: 0
+  condition:
+  - condition: state
+    entity_id: light.kitchen_lights
+    state: 'off'
+  action:
+  - repeat:
+      count: '20'
+      sequence:
+      - service: light.turn_on
+        target:
+          entity_id: light.kitchen_lights
+        data:
+          transition: 15
+          color_name: white
+          brightness: 255
+  mode: single
+- id: '1648606439952'
+  alias: Clean the $
+  description: ''
+  trigger:
+  - platform: event
+    event_type: ifttt_webhook_received
+    event_data:
+      action: call_service
+  condition:
+  - condition: template
+    value_template: '{{ trigger.event.data.service == ''automation.trigger'' }}'
+  action:
+  - data_template:
+      entity_id: automation.clean_the_{{ trigger.event.data.command }}
+    service_template: automation.trigger
+  mode: single
