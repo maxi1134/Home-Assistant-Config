@@ -1,7 +1,6 @@
-# Home-Assistant-Config
-This is my home-asssitant configuration!
 
-You will find my lovelace dashboards under .storage.
-And my node-red flows under node-red.
+## Main Tablet interface
 
+Insert gif or link to demo
 
+![](assets/Tablet_S7FE/framed_music_playing.gif.png)
