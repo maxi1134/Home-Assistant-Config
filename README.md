@@ -30,7 +30,6 @@ Its code is under ".storage/lovelace.lovelace_hub"
 
 
 <p align="middle">
-  <img src="assets/Hub_HotboxTop/preview.png" width="45%" />
-  <img src="assets/Hub_HotboxTop/animated_show_play.gif" width="45%" />
+  <img src="assets/Hub_HotboxTop/animated_show_play.gif" width="95%" />
 </p>
 
