@@ -1,3 +1,7 @@
+# Maxi's Configuration of Home-Assistant
+As promised, a repo with most of my config files.
+Do not hesitate to open up an issue if you have any specific question on the YAML code I made.
+
 
 ## Main Tablet interface
 
