@@ -2,7 +2,7 @@
 ## Main Tablet interface
 
 Here you can find some images of the main tablet interface. 
-It's code is under ".storage/lovelace.tablet_entrance_dashboard"
+Its code is under ".storage/lovelace.tablet_entrance_dashboard"
 
 
 <p align="middle">
