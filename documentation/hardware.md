@@ -30,3 +30,23 @@
 | RAM      | 8Gb   |   
 | HDDs   | 2*6TB (raid 1)  | Backups |
 | UPS|      750VA |
+
+## Network Hardware
+
+| Part      | Description | 
+| ----------- | ----------- |
+| Router      | 	USG-3P |
+| Access Points (3)      | U6-Lite   |   
+| Access Points (1)      | U6-PRO  |   
+| Switches (3)   | USW-Flex-Mini | 
+| Switches (2)|   USW-Lite-8-PoE |
+| Cable      | Ethernet Cat6   |   
+
+## Security Hardware
+
+| Part      | Description |  Usage | 
+| ----------- | ----------- | -- |
+| PTZ Camera      | Reolink RLC-423    |   
+| Bullet Camera      | Brillcam 4k   |   
+| Selfie Camera   |  Revotech Minicam     |  Face recognition|
+| Vandal-Proof Camera   | Geovision Camera    |  Sketchy alley camera |
