@@ -46,3 +46,15 @@ Its code is under ".storage/lovelace.lovelace_hub"
   <img src="assets/Hub_HotboxTop/animated_show_play.gif" width="95%" />
 </p>
 
+## Kitchen Hub
+This is the default interface for the kitchen Hub
+It offers preselected music, lights control and current media playback control.
+You can also find a timer that triggers all the speakers across the house.
+
+Its code is under ".storage/lovelace.lovelace_hub"
+
+
+<p align="middle">
+  <img src="assets/Hub_Kitchen/framed_demo.gif" width="95%" />
+</p>
+

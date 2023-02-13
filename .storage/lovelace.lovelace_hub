@@ -1164,7 +1164,7 @@
           ]
         },
         {
-          "theme": "synthwave",
+          "theme": "greenwave",
           "title": "kitchen hub",
           "path": "kitchen-hub",
           "type": "panel",
@@ -1257,6 +1257,10 @@
                             {
                               "entity": "media_player.kitchen_speaker",
                               "state_not": "off"
+                            },
+                            {
+                              "entity": "media_player.group_home_speakers",
+                              "state": "off"
                             }
                           ],
                           "card": {
@@ -1279,6 +1283,10 @@
                             {
                               "entity": "media_player.kitchen_high_speaker",
                               "state_not": "off"
+                            },
+                            {
+                              "entity": "media_player.group_home_speakers",
+                              "state": "off"
                             }
                           ],
                           "card": {
@@ -1293,6 +1301,104 @@
                             "replace_mute": "play_stop",
                             "volume_stateless": false,
                             "scale": "1.5"
+                          }
+                        },
+                        {
+                          "type": "conditional",
+                          "conditions": [
+                            {
+                              "entity": "media_player.group_home_speakers",
+                              "state_not": "off"
+                            }
+                          ],
+                          "card": {
+                            "type": "vertical-stack",
+                            "cards": [
+                              {
+                                "type": "custom:mini-media-player",
+                                "entity": "media_player.group_home_speakers",
+                                "group": true,
+                                "volume_stateless": false,
+                                "toggle_power": false,
+                                "artwork": "material",
+                                "source": "full",
+                                "replace_mute": "stop",
+                                "shortcuts": {
+                                  "columns": 5,
+                                  "buttons": [
+                                    {
+                                      "icon": "mdi:skip-next",
+                                      "type": "service",
+                                      "id": "media_player.media_seek",
+                                      "data": {
+                                        "entity_id": [
+                                          "media_player.kitchen_speaker",
+                                          "media_player.kitchen_high_speaker"
+                                        ],
+                                        "seek_position": 56000
+                                      }
+                                    },
+                                    {
+                                      "icon": "mdi:play-pause",
+                                      "type": "service",
+                                      "id": "media_player.media_play_pause",
+                                      "data": {
+                                        "entity_id": [
+                                          "media_player.kitchen_speaker",
+                                          "media_player.kitchen_high_speaker"
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "icon": "mdi:volume-minus",
+                                      "type": "service",
+                                      "id": "media_player.volume_down",
+                                      "data": {
+                                        "entity_id": [
+                                          "media_player.kitchen_speaker",
+                                          "media_player.kitchen_high_speaker"
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "icon": "mdi:volume-plus",
+                                      "type": "service",
+                                      "id": "media_player.volume_up",
+                                      "data": {
+                                        "entity_id": [
+                                          "media_player.kitchen_speaker",
+                                          "media_player.kitchen_high_speaker"
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "icon": "mdi:stop",
+                                      "type": "service",
+                                      "id": "media_player.turn_off",
+                                      "data": {
+                                        "entity_id": [
+                                          "media_player.kitchen_speaker",
+                                          "media_player.kitchen_high_speaker"
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                "sound_mode": "full",
+                                "info": "scroll",
+                                "name": "Kitchen Speakers",
+                                "icon": "mdi:speaker-wireless",
+                                "hide": {
+                                  "volume": true,
+                                  "power": true,
+                                  "controls": true
+                                },
+                                "scale": "1.2",
+                                "card_mod": {
+                                  "style": "ha-card {\n  height: 160px;\n}\n"
+                                }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -1313,19 +1419,31 @@
                           "type": "horizontal-stack",
                           "cards": [
                             {
-                              "show_name": true,
-                              "show_icon": true,
-                              "type": "button",
-                              "tap_action": {
-                                "action": "call-service",
-                                "service": "automation.trigger",
-                                "service_data": {
-                                  "entity_id": "automation.timer_setting"
+                              "type": "conditional",
+                              "conditions": [
+                                {
+                                  "entity": "timer.cooking",
+                                  "state_not": "active"
                                 }
-                              },
-                              "icon_height": "40px",
-                              "theme": "slate_red",
-                              "icon": "mdi:google-play"
+                              ],
+                              "card": {
+                                "show_name": true,
+                                "show_icon": true,
+                                "type": "button",
+                                "tap_action": {
+                                  "action": "call-service",
+                                  "service": "automation.trigger",
+                                  "data": {
+                                    "skip_condition": true
+                                  },
+                                  "target": {
+                                    "entity_id": "automation.timer_setting"
+                                  }
+                                },
+                                "icon_height": "60px",
+                                "theme": "slate_red",
+                                "icon": "mdi:google-play"
+                              }
                             },
                             {
                               "type": "conditional",
@@ -1336,6 +1454,8 @@
                                 }
                               ],
                               "card": {
+                                "show_name": true,
+                                "show_icon": true,
                                 "type": "button",
                                 "tap_action": {
                                   "action": "call-service",
@@ -1344,10 +1464,9 @@
                                     "entity_id": "timer.cooking"
                                   }
                                 },
-                                "icon_height": "46px",
+                                "icon_height": "60px",
                                 "theme": "slate_red",
-                                "icon": "mdi:cancel",
-                                "show_icon": true
+                                "icon": "mdi:cancel"
                               }
                             }
                           ]
@@ -1357,18 +1476,193 @@
                           "entity": "input_datetime.kitchen_timer",
                           "hour_mode": 24,
                           "hour_step": 1,
-                          "minute_step": 5,
+                          "minute_step": 10,
                           "second_step": 30,
                           "name": "",
                           "layout": {
                             "embedded": false,
-                            "name": "header",
-                            "align_controls": "center"
+                            "name": "inside",
+                            "align_controls": "center",
+                            "hour_mode": "single",
+                            "thin": false
                           },
                           "link_values": true,
                           "hide": {
                             "name": true,
-                            "seconds": false
+                            "seconds": true
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "horizontal-stack",
+                      "cards": [
+                        {
+                          "show_state": false,
+                          "show_name": false,
+                          "camera_view": "auto",
+                          "entity": "media_player.ytube_group_home_speakers",
+                          "aspect_ratio": "1",
+                          "type": "picture-entity",
+                          "image": "/local/msucicovers/supermix.jpg",
+                          "tap_action": {
+                            "action": "call-service",
+                            "service": "media_player.play_media",
+                            "data": {
+                              "media_content_id": "RDTMAK5uy_kset8DisdE7LSD4TNjEVvrKRTmG7a56sY",
+                              "media_content_type": "playlist",
+                              "enqueue": "play"
+                            },
+                            "target": {
+                              "entity_id": "media_player.ytube_group_home_speakers"
+                            }
+                          },
+                          "hold_action": {
+                            "action": "none"
+                          },
+                          "camera_image": "",
+                          "state_filter": {
+                            "off": "saturate(1)"
+                          }
+                        },
+                        {
+                          "show_state": false,
+                          "show_name": false,
+                          "camera_view": "auto",
+                          "entity": "media_player.ytube_group_home_speakers",
+                          "aspect_ratio": "1",
+                          "type": "picture-entity",
+                          "image": "/local/msucicovers/mix1.jpg",
+                          "tap_action": {
+                            "action": "call-service",
+                            "service": "media_player.play_media",
+                            "data": {
+                              "media_content_id": "RDTMAK5uy_nGQKSMIkpr4o9VI_2i56pkGliD6FQRo50",
+                              "media_content_type": "playlist",
+                              "enqueue": "play"
+                            },
+                            "target": {
+                              "entity_id": "media_player.ytube_group_home_speakers"
+                            }
+                          },
+                          "hold_action": {
+                            "action": "none"
+                          },
+                          "camera_image": "",
+                          "state_filter": {
+                            "off": "saturate(1)"
+                          }
+                        },
+                        {
+                          "show_state": false,
+                          "show_name": false,
+                          "camera_view": "auto",
+                          "entity": "media_player.ytube_group_home_speakers",
+                          "aspect_ratio": "1",
+                          "type": "picture-entity",
+                          "image": "/local/msucicovers/mix2.jpg",
+                          "tap_action": {
+                            "action": "call-service",
+                            "service": "media_player.play_media",
+                            "data": {
+                              "media_content_id": "RDTMAK5uy_lz2owBgwWf1mjzyn_NbxzMViQzIg8IAIg",
+                              "media_content_type": "playlist",
+                              "enqueue": "play"
+                            },
+                            "target": {
+                              "entity_id": "media_player.ytube_group_home_speakers"
+                            }
+                          },
+                          "hold_action": {
+                            "action": "none"
+                          },
+                          "camera_image": "",
+                          "state_filter": {
+                            "off": "saturate(1)"
+                          }
+                        },
+                        {
+                          "show_state": false,
+                          "show_name": false,
+                          "camera_view": "auto",
+                          "entity": "media_player.ytube_group_home_speakers",
+                          "aspect_ratio": "1",
+                          "type": "picture-entity",
+                          "image": "/local/msucicovers/mix3.jpg",
+                          "tap_action": {
+                            "action": "call-service",
+                            "service": "media_player.play_media",
+                            "data": {
+                              "media_content_id": "RDTMAK5uy_k5UUl0lmrrfrjMpsT0CoMpdcBz1ruAO1k",
+                              "media_content_type": "playlist",
+                              "enqueue": "play"
+                            },
+                            "target": {
+                              "entity_id": "media_player.ytube_group_home_speakers"
+                            }
+                          },
+                          "hold_action": {
+                            "action": "none"
+                          },
+                          "camera_image": "",
+                          "state_filter": {
+                            "off": "saturate(1)"
+                          }
+                        },
+                        {
+                          "show_state": false,
+                          "show_name": false,
+                          "camera_view": "auto",
+                          "entity": "media_player.ytube_group_home_speakers",
+                          "aspect_ratio": "1",
+                          "type": "picture-entity",
+                          "image": "/local/msucicovers/mix4.jpg",
+                          "tap_action": {
+                            "action": "call-service",
+                            "service": "media_player.play_media",
+                            "data": {
+                              "media_content_id": "RDTMAK5uy_nTsa0Irmcu2li2-qHBoZxtrpG9HuC3k_Q",
+                              "media_content_type": "playlist",
+                              "enqueue": "play"
+                            },
+                            "target": {
+                              "entity_id": "media_player.ytube_group_home_speakers"
+                            }
+                          },
+                          "hold_action": {
+                            "action": "none"
+                          },
+                          "camera_image": "",
+                          "state_filter": {
+                            "off": "saturate(1)"
+                          }
+                        },
+                        {
+                          "show_state": false,
+                          "show_name": false,
+                          "camera_view": "auto",
+                          "entity": "media_player.ytube_group_home_speakers",
+                          "aspect_ratio": "1",
+                          "type": "picture-entity",
+                          "image": "/local/msucicovers/discovermix.jpg",
+                          "tap_action": {
+                            "action": "call-service",
+                            "service": "media_player.play_media",
+                            "data": {
+                              "media_content_id": "RDTMAK5uy_n_5IN6hzAOwdCnM8D8rzrs3vDl12UcZpA",
+                              "media_content_type": "playlist",
+                              "enqueue": "play"
+                            },
+                            "target": {
+                              "entity_id": "media_player.ytube_group_home_speakers"
+                            }
+                          },
+                          "hold_action": {
+                            "action": "none"
+                          },
+                          "camera_image": "",
+                          "state_filter": {
+                            "off": "saturate(1)"
                           }
                         }
                       ]
