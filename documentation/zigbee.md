@@ -28,5 +28,6 @@ This is a list of the various pieces of hardware I use, have used, or plan to us
 |[Xiaomi Motion Sensor](https://www.zigbee2mqtt.io/devices/RTCGQ11LM.html#xiaomi-rtcgq11lm)| Motion Sensor | :heavy_check_mark: | Overall Solid Motion sensor | 5 |
 |[Xiaomi Motion Sensor](https://www.zigbee2mqtt.io/devices/RTCGQ01LM.html#xiaomi-rtcgq01lm)| Motion Sensor | :heavy_check_mark: | Overall Solid Motion sensor | 10 |
 |[Ikea Motion Sensor](https://www.zigbee2mqtt.io/devices/E1525_E1745.html#ikea-e1525%252Fe1745)| Motion Sensor | :heavy_check_mark: | Cheaper than the competition and reliable | 10 |
-|[Xiaomi FP1 mmwave Sensor](https://www.zigbee2mqtt.io/devices/RTCZCGQ11LM.html#xiaomi-rtczcgq11lm)| Microwave Sensor | :heavy_check_mark: | Regions are now supported! | 1 |
-|[Xiaomi Thermometer sensor](https://www.zigbee2mqtt.io/devices/WSDCGQ11LM.html#xiaomi-wsdcgq11lm)| Temperature/Humidity Sensor | :heavy_check_mark: | Work well under their rated temprature ( tested down to -35 ) | 6 |
+|[Xiaomi FP1 MMwave Sensor](https://www.zigbee2mqtt.io/devices/RTCZCGQ11LM.html#xiaomi-rtczcgq11lm)| Microwave Sensor | :heavy_check_mark: | Regions are now supported! | 1 |
+|[Xiaomi Thermometer Sensor](https://www.zigbee2mqtt.io/devices/WSDCGQ11LM.html#xiaomi-wsdcgq11lm)| Temperature/Humidity Sensor | :heavy_check_mark: | Work well under their rated temprature ( tested down to -35 ) | 6 |
+|[Xiaomi Water Detector](https://www.zigbee2mqtt.io/devices/WSDCGQ11LM.html#xiaomi-wsdcgq11lmhttps://www.zigbee2mqtt.io/devices/SJCGQ11LM.html#xiaomi-sjcgq11lm)| Temperature/Humidity Sensor | :heavy_check_mark: | Saved me from many water incidents | 1 |
