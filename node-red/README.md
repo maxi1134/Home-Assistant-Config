@@ -51,5 +51,5 @@ To summarize, the nomenclature of the entity names in Home Assistant provides a 
 
 
 ##  In regard to media_player.plex_* entities
-These entities are the players created by the plex integration. I recommend following usual nomenclature, but inserting `plex_` inbetween `media_player.` and the device regular name, such as `group_hotbox_speakers`.
+These entities are the players created by the plex integration. I recommend following usual nomenclature, but inserting `plex_` inbetween `media_player.` and the device regular name, such as `group_hotbox_speakers`.  
 `media_player.group_hotbox_speakers` would become `media_player.plex_group_hotbox_speakers`
