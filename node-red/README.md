@@ -34,7 +34,7 @@ For speaker groups, the naming convention consists of four parts, separated by d
 5. "speakers": This part of the name indicates that the entity represents a group of speakers.
 
 
-##  Further refinded CHATGPT Answer
+##  General nomenclature rules to follow
 
 
 The nomenclature of the entity names in my Home Assistant follows a consistent pattern that provides important information about the type of device, its location, and any sublocation or grouping information.
