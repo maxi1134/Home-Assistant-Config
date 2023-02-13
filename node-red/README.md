@@ -5,7 +5,7 @@
   <img src="/assets/node-red/example_flow.png" width="95%" />
 </p>
 
-##You will need to follow the following nomenclature:
+## You will need to follow the following nomenclature:
 
 "media_player": This part of the name refers to the type of entity, in this case, a media player. This is a device that can play audio and/or video content.
 
