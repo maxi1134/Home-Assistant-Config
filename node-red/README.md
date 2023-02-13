@@ -48,3 +48,8 @@ In some cases, the entity name may also include information about groups. For ex
 Similarly, the entity name `media_player.group_hotbox_upper_speakers` represents a group of media player speakers, located in the hotbox room and specifically in the upper part of the room. The `"group_"` prefix, `"hotbox"` part of the name indicating the room location, and `"upper"` part of the name specifying the sublocation, combined with the `"speakers"` suffix indicate that the entity is a group of speakers in the upper part of the hotbox room.
 
 To summarize, the nomenclature of the entity names in Home Assistant provides a clear and concise way of identifying the type of device, its location, sublocation, and any grouping information.
+
+
+##  In regard of media_player.plex_* entities
+These entities are the players created by the plex integration. I recommend following usual nomenclature, but inserting `plex_` inbetween `media_player.` and the device regular name, such as `group_hotbox_speakers`.
+`media_player.group_hotbox_speakers` would become `media_player.plex_group_hotbox_speakers`
