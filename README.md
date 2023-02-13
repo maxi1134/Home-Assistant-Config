@@ -20,6 +20,7 @@ Its code is under ".storage/lovelace.tablet_entrance_dashboard"
   <img src="assets/Tablet_S7FE/framed_vacuum_panel_lowres.gif" width="30%" />
   <img src="assets/Tablet_S7FE/framed_climate_panel_lowres.gif" width="30%" />
 </p>
+
 ## Office hub
 This is the default interface for the office Samsung A7 Lite tablet.
 It offers a view of the front door which is located beside the office, a selection of TV-shows and music to be started on the nearby media devices.
