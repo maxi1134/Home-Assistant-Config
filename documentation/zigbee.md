@@ -20,4 +20,4 @@ This is a list of the various pieces of hardware I use, have used, or plan to us
 | Model | Device Type | Buy Again? | Some Notes |
 | ----- | ----------- | :--------: | ---------- |
 |[Sonoff Zigbee 3.0 Dongle](https://sonoff.tech/product/gateway-and-sensors/sonoff-zigbee-3-0-usb-dongle-plus-p/) | Coordinator | :heavy_check_mark: | Don't forget to update the Firmware!|
-|[Ikea Symfonisk](https://www.zigbee2mqtt.io/devices/E1744.html#ikea-e1744)| Remote | :grey_question: | It sometimes spam commands until touched again. |
+|[Ikea Symfonisk Dial](https://www.zigbee2mqtt.io/devices/E1744.html#ikea-e1744)| Remote | :grey_question: | It sometimes spam commands until touched again. |
