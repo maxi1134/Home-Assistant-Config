@@ -7,8 +7,8 @@ Here, I will compile a list of my Zigbee devices and my thought on them.
 | :---: | --- |
 | :heavy_check_mark: | Yes |
 | :pause_button: | Waiting on the next generation of this. |
-| :grey_question: | Maybe - it's not bad, but I'm looking something better |
-| :thumbsdown: | Unlikely, it's not terrible, but it has issues |
+| :grey_question: | Maybe - it's not bad, but I'm looking for something better |
+| :thumbsdown: | Unlikely, it's not terrible, but it has some issues |
 | :small_red_triangle: | There's a newer version that's better |
 | :no_entry: | Discontinued |
 | :warning: | Won't buy again |
