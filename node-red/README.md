@@ -1,6 +1,6 @@
 # Node-red Flows
 
-## Node-red entity nomenclature to use with REGEX flows such as;
+# Node-red entity nomenclature to use with REGEX flows such as;
 <p align="middle">
   <img src="/assets/node-red/example_flow.png" width="95%" />
 </p>
@@ -53,3 +53,19 @@ To summarize, the nomenclature of the entity names in Home Assistant provides a 
 ##  In regard to media_player.plex_* entities
 These entities are the players created by the plex integration. I recommend following usual nomenclature, but inserting `plex_` inbetween `media_player.` and the device regular name, such as `group_hotbox_speakers`.  
 `media_player.group_hotbox_speakers` would become `media_player.plex_group_hotbox_speakers`
+
+## Naming Convention for Home Assistant Motion Sensor Entities
+
+When you add a motion sensor to Home Assistant while using my automatic regex flows. The entity name should follow a specific format, which includes:
+
+- `binary_sensor`: This is the entity domain, which indicates that the entity represents a binary sensor. Binary sensors are sensors that can detect the presence or absence of something, such as motion or a door opening/closing.
+- `{location}_{sublocation}_motion_occupancy`: This is the entity name, which includes the location and sublocation (if applicable) of the motion sensor, followed by the words "motion" and "occupancy" to indicate that the sensor is detecting motion and occupancy status.
+
+The location and sublocation are typically descriptive names that indicate where the sensor is located in your home. Here are some examples of motion sensor entity names that follow this format:
+
+- `binary_sensor.living_room_motion_occupancy`: This entity represents a motion sensor located in the living room.
+- `binary_sensor.kitchen_ceiling_motion_occupancy`: This entity represents a motion sensor mounted on the ceiling in the kitchen.
+- `binary_sensor.basement_stairs_motion_occupancy`: This entity represents a motion sensor located on the stairs leading to the basement.
+
+By following this naming convention, it becomes easy to identify and organize the motion sensors in your home. You can also use these entities in Home Assistant automations and scripts to create custom actions based on motion detection.
+
