@@ -69,3 +69,30 @@ The location and sublocation are typically descriptive names that indicate where
 
 By following this naming convention, it becomes easy to identify and organize the motion sensors in your home. You can also use these entities in Home Assistant automations and scripts to create custom actions based on motion detection.
 
+
+## Naming Convention for Home Assistant Light Entities
+
+My Home Assistant lights also use a specific naming convention for their entities to make it easy for all to identify and control them. The naming convention includes four parts: Type, Location, Sub Location, and Suffix. 
+
+#### Type and Location
+The type is always "light." followed by the location, which identifies the room or area where the light is located. For example, `light.livingroom_center_light` identifies a light that is located in the living room, in the center of the room. Similarly, `light.kitchen_1_light` identifies a light that is located in the kitchen, and `light.office_lamp1_light` identifies a lamp in the office.
+
+#### Sub Location
+
+The sub-location is an optional field that provides more specific information about the location of the light. For example, `light.hotbox_down_behind_tv_light` identifies a light that is located in the hotbox (a specific area of the home), below the TV, and behind it. Similarly, `light.bathroom_door_light` identifies a light that is located in the bathroom, and specifically by the door.
+
+#### Suffix
+
+The suffix is a descriptive word or phrase that indicates the purpose or type of light. For example, `light.bedroom_chandelier_light` identifies a light in the bedroom that is a chandelier. Similarly, `light.office_quotra_light` identifies a light that is connected to the Quotra brand. Other examples of this naming convention include `light.hotbox_top_quotra_light` and `light.chillingroom_colo_light`.
+
+## Groups
+
+In addition to the individual lights identified by their Location, Sub Location, and Suffix, there are also groups of lights that are identified by the Location and always end with the word "lights." These groups allow users to control multiple lights in a specific location with a single command. For example, `light.group_livingroom_lights` refers to a group of lights in the living room that can be turned on or off together. Similarly, `light.group_bedroom_lights` refers to a group of lights in the bedroom, and `light.group_kitchen_lights` refers to a group of lights in the kitchen. Other examples of this naming convention include `light.group_all_lights` for all the lights in the smart home and `light.group_all_outside_lights` for all the outdoor lights.
+
+In addition to these general groups, there are also more specific groups that include the type of light in their names. For example, `light.group_all_inside_lights` refers to all the inside lights in the smart home, while `light.group_all_zigbee_lights` refers to all the lights that are connected via Zigbee. These specific groups allow for even more granular control and customization of the lighting in the smart home.
+
+It is worth noting that some lights are identified as "main" or "decorative." This distinction allows users to easily differentiate between lights that provide ambient lighting for a room and those that serve a more decorative purpose. For example, `light.group_chillingroom_main_lights` refers to the main lights in the chilling room, while `light.group_chillingroom_decorative_lights` refers to the decorative lights in the same room.
+
+Overall, the naming convention used by Home Assistant entities for lights is designed to make it easy for users to identify and control their lighting in a convenient and efficient manner.
+
+
