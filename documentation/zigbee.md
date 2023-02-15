@@ -38,3 +38,5 @@ These items are all linked to Z2M using the Z2M EDGE addon on Home-Assistant!
 |[Xiaomi Door Sensor](https://www.zigbee2mqtt.io/devices/MCCGQ11LM.html#xiaomi-mccgq11lm)| Door Sensor | :heavy_check_mark: | reliable door sensor | 7 |
 |[Xiaomi Magic Cube](https://www.zigbee2mqtt.io/devices/MFKZQ01LM.html#xiaomi-mfkzq01lm)| Remote | :warning: | Very cool, but very gimmicky | 1 |
 |[Sonoff Smart Plug](https://www.zigbee2mqtt.io/devices/S31ZB.html#sonoff-s31zb)| Smart Plug | :heavy_check_mark: | Reliable, but no consumption sensor | 9 |
+|[Schlague Century Lock](https://www.zigbee2mqtt.io/devices/BE468.html#schlage-be468)| Lock | :no_entry: | Reliable at -35c since 4 winters | 1 |
+|[Quotra Circle Lamp](https://www.zigbee2mqtt.io/devices/QV-RGBCCT.html#quotra-vision-qv-rgbcct)| Lock | :no_entry: | Very neat, but has a physical button that can over-ride smart controls | 2 |
