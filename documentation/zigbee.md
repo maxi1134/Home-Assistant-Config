@@ -1,5 +1,6 @@
 Here, I will compile a list of my Zigbee devices and my thought on them.
 
+These items are all linked to Z2M using the Z2M EDGE addon on Home-Assistant!
 
 ## Buy again notes:
 
