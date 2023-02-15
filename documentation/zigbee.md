@@ -35,3 +35,4 @@ Here, I will compile a list of my Zigbee devices and my thought on them.
 |[Ikea Blinds](https://www.zigbee2mqtt.io/devices/E1757.html#ikea-e1757)| Blinds | :grey_question: | They are a pain to connect to Z2M but work perfectly once connected | 2 |
 |[Xiaomi Door Sensor](https://www.zigbee2mqtt.io/devices/MCCGQ01LM.html#xiaomi-mccgq01lm)| Door Sensor | :heavy_check_mark: | reliable door sensor | 1 |
 |[Xiaomi Door Sensor](https://www.zigbee2mqtt.io/devices/MCCGQ11LM.html#xiaomi-mccgq11lm)| Door Sensor | :heavy_check_mark: | reliable door sensor | 7 |
+|[Xiaomi Magic Cube](https://www.zigbee2mqtt.io/devices/MFKZQ01LM.html#xiaomi-mfkzq01lm)| Remote | :warning: | Very cool, but very gimmicky | 1 |
