@@ -7,3 +7,5 @@ Do not hesitate to open up an issue if you have any specific question on the YAM
 <br>
 [My lovelace interfaces are here!](.storage/) <br>
 [My node-red flows here!](node-red/) <br>
+<br>
+[Regarding indoor-location-tracking](/documentation/indoor_localization.md)
