@@ -1,4 +1,8 @@
-# Maxi's Configuration of Home-Assistant
+<h1 align="center">My home Assistant Configuration</h1>
+<h3 align="center">Offered to you by Maxi1134</h3>
+
+<br>
+
 As promised, a repo with most of my config files.
 Do not hesitate to open up an issue if you have any specific question on the YAML code I made.
 
