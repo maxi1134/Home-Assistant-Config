@@ -36,3 +36,4 @@ Here, I will compile a list of my Zigbee devices and my thought on them.
 |[Xiaomi Door Sensor](https://www.zigbee2mqtt.io/devices/MCCGQ01LM.html#xiaomi-mccgq01lm)| Door Sensor | :heavy_check_mark: | reliable door sensor | 1 |
 |[Xiaomi Door Sensor](https://www.zigbee2mqtt.io/devices/MCCGQ11LM.html#xiaomi-mccgq11lm)| Door Sensor | :heavy_check_mark: | reliable door sensor | 7 |
 |[Xiaomi Magic Cube](https://www.zigbee2mqtt.io/devices/MFKZQ01LM.html#xiaomi-mfkzq01lm)| Remote | :warning: | Very cool, but very gimmicky | 1 |
+|[Sonoff Smart Plug](https://www.zigbee2mqtt.io/devices/S31ZB.html#sonoff-s31zb)| Smart Plug | :heavy_check_mark: | Reliable, but no consumption sensor | 9 |
