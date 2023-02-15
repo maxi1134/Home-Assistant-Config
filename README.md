@@ -1,6 +1,6 @@
-<h1 align="center">My home Assistant Configuration</h1>
+<p><h1 align="center">My home Assistant Configuration</h1>
 <h3 align="center">Offered to you by Maxi1134</h3>
-
+</p>
 <br>
 
 As promised, a repo with most of my config files.
