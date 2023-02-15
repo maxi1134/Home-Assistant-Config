@@ -6,3 +6,7 @@ This allows for a high level of precisions when it comes to knowing in which roo
   
 The software used for this is [free and open source](https://espresense.com/). And regularly updated as well!
 
+
+<p align="middle">
+  <img src="/assets/misc/esp32map.png" width="90%" />
+<p>
