@@ -1,4 +1,4 @@
-Here, I will compile a list of my Zigbee devices and my thought on them.
+Here, I will compile a list of my wifi devices and my thought on them.
 
 
 ## Buy again notes:
