@@ -140,7 +140,7 @@ Automations:
 
         Return the PTZ camera to the "Doorway" position 10 minutes after it looks elsewhere
 
-    - Drug Closet:
+    - Trip Closet:
 
         Entering the closet should turn on the light unless "Sleep mode" is on
 
@@ -153,6 +153,10 @@ Automations:
           Turn off the lights and restrict the motion sensor
 
           Restrics the entrance inner light brightness to 40%
+
+        Party Mode: #Party mode is detected through wifi count
+
+          Start a random effect on the addressable leds upon each entering
 
     - Living Room:
 
@@ -170,14 +174,6 @@ Automations:
 
           Close the blinds
 
-        Nate Sleep Mode: #Nate Sleep mode is turned on and off by bayesian sensor
-
-          Mutes the Livingroom TV speaker
-
-          Mutes the Livingroom Window speaker
-
-          Restrics the Livingroom Library speaker to 25% volume
-
         Movie mode: #Movie mode is triggered by a bayesian sensor that looks for the lenght of the media playing and it's categorization 
 
           Turn the lights to purple at 30% brightness during media playback
@@ -188,7 +184,7 @@ Automations:
 
           Lowers the entrance tablet's brightness to 1%
 
-        Drug Mode: #Drug mode is a toggle virtual switch
+        Trip Mode: #trip mode is a toggle virtual switch
 
           Close the blinds
 
@@ -272,9 +268,9 @@ Automations:
 
         Turn the TV on on occupancy detected
 
-        Pause playback on chromecast  for 20 minutes if the occupancy is off [Unless party/kink/drug mode is on]
+        Pause playback on chromecast  for 20 minutes if the occupancy is off [Unless party/kink/Trip mode is on]
 
-        Stop playback on chromecast completely 30 minutes after occupancy off [Unless party/kink/drug mode is on]
+        Stop playback on chromecast completely 30 minutes after occupancy off [Unless party/kink/Trip mode is on]
 
         When Roku changes to Xbox turn the lights to green and set the brightness to 35%
 
@@ -362,7 +358,7 @@ Event automations:
 
       Close the bedroom blinds
 
-    - Drug Mode: #Triggers on saying "Ok google, it's morbing time"
+    - Trip Mode: #Triggers on saying "Ok google, it's morbing time"
 
           Close all blinds
 
