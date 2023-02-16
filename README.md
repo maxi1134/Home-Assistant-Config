@@ -32,6 +32,12 @@ And of course, do not hesitate to open up an issue if you have any specific ques
 </p>
 
 
+<h5 align="center">An interactive plan with projected shadows and lights</h5>
+<p align="center">
+  <img src="/assets/interactive_plan/color_doors_demo.gif" width="90%" />
+</p>
+
+
 ### Links:
 <p align="center">
 <a href="documentation/hardware.md"><img src="https://img.shields.io/badge/Hardware%20Specifications-purple" alt="This is what runs everything"></a> <a href=".storage/"><img src="https://img.shields.io/badge/Nodered%20Flows-red" alt="Read the README!"></a> <br>
