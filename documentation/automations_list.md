@@ -126,24 +126,6 @@ Automations:
 
           Turn night lights on upon motion while this mode is active
 
-    - Bedroom Nate:
-
-        Sleeping mutes the Livingroom  speakers near the door
-
-        Sleeping reduces the Livingroom  tv volume 
-
-        Double tap for white 
-
-        Triple tap for red 
-
-        Sleep Mode: #Sleep mode is turned on and off by bayesian sensor
-
-          Mutes the Livingroom TV speaker
-
-          Mutes the Livingroom Window speaker
-
-          Restrics the Livingroom Library speaker to 25% volume
-
     - Entrance:
 
         Auto-Lock the door after 3 minutes when the Front door is closed
