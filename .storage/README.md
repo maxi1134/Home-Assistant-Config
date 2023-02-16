@@ -70,9 +70,9 @@ Its code is under ".storage/lovelace.lovelace_hub"
 Here we have an interactive plan that takes in accounts; Shadows, Colors, Door states and more!
 Its code is under ".storage/lovelace.lovelace_hub"
 
-<br>
+
 
 <p align="middle">
-  <img src="/assets/interactive plan/color_doors_demo.gif" width="80%" />
+  <img src="/assets/interactive_plan/color_doors_demo.gif" width="80%" />
 </p>
 
