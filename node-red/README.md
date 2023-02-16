@@ -2,7 +2,7 @@
 
 
 
-<a href="documentation/automations_list.md"><img src="https://img.shields.io/badge/Automations%20List-purple" alt="A part of me lives here">
+<a href="/documentation/automations_list.md"><img src="https://img.shields.io/badge/Automations%20List-purple" alt="A part of me lives here">
 
 # Node-red entity nomenclature to use with REGEX flows such as;
 <p align="middle">
