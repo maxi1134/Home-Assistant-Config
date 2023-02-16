@@ -13,7 +13,7 @@ Here, I will compile a list of my wifi devices and my thought on them.
 | :no_entry: | Discontinued |
 | :warning: | Won't buy again |
 
-# Zigbee devices
+# WiFi devices
 
 | Model | Device Type | Buy Again? | Some Notes |  Quantity In Use     |
 | ----- | ----------- | :--------: | ---------- | :---: |
