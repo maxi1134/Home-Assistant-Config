@@ -27,6 +27,7 @@ Its code is under ".storage/lovelace.tablet_livingroom_dashboard"
   <img src="/assets/Tablet_A8/musicdemo.gif" width="45%" />
   <img src="/assets/Tablet_A8/drhousedemo.gif" width="45%" />
 </p>
+
 ## Office hub
 This is the default interface for the office Samsung A7 Lite tablet.
 It offers a view of the front door which is located beside the office, a selection of TV-shows and music to be started on the nearby media devices.
@@ -68,7 +69,6 @@ Its code is under ".storage/lovelace.lovelace_hub"
 ## Interactive Plan
 Here we have an interactive plan that takes in accounts; Shadows, Colors, Door states and more!
 Its code is under ".storage/lovelace.lovelace_hub"
-
 
 <p align="middle">
   <img src="/assets/interactive plan/color_doors_demo.gif" width="95%" />
