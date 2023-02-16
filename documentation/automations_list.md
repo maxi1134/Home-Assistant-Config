@@ -1,7 +1,7 @@
 # Automations List
 ### Here you will find an almost complete and almost kept-to-date list of all my automations!
 
-<a href="/node-red"><img src="https://img.shields.io/badge/Node-red%20FLows-purple" alt="Red leader standing by, or something">
+<a href="/node-red"><img src="https://img.shields.io/badge/Nodered%20FLows-purple" alt="Red leader standing by, or something">
 
 
 
