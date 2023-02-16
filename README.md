@@ -16,6 +16,12 @@ This takes us to 2023, where I decided to share my 5 years of work as to help pe
 
 And of course, do not hesitate to open up an issue if you have any specific question on the YAML code I made.
 
+### A Few Screenshots;
+
+<p align="middle">
+  <img src="/assets/Tablet_A8/musicdemo.gif" width="45%" />
+  <img src="/assets/Tablet_S7FE/framed_light_panel_lowres.gif" width="45%" />
+</p>
 
 
 ### Links:
