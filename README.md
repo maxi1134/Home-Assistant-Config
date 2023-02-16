@@ -18,6 +18,7 @@ And of course, do not hesitate to open up an issue if you have any specific ques
 
 ### A Few Screenshots;
 
+<h5 align="center">Wall Displays</h5>
 <p align="middle">
   <img src="/assets/Tablet_A8/musicdemo.gif" width="43%" />
   <img src="/assets/Tablet_S7FE/framed_light_panel_lowres.gif" width="38%" />
