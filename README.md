@@ -24,6 +24,13 @@ And of course, do not hesitate to open up an issue if you have any specific ques
   <img src="/assets/Tablet_S7FE/framed_light_panel_lowres.gif" width="38%" />
 </p>
 
+<h5 align="center">Some Node-Red automations</h5>
+<p align="middle">
+  <img src="/assets/node-red/musicdeexample_flow_microwave.png" width="90%" />
+  <img src="/assets/node-red/example_flow.png" width="90%" />
+  <img src="/assets/node-red/example_flow_2.png" width="90%" />
+</p>
+
 
 ### Links:
 
