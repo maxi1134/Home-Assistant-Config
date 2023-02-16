@@ -38,7 +38,7 @@ And of course, do not hesitate to open up an issue if you have any specific ques
 [Most of my Zigbee IoT devices are listed here!](documentation/zigbee.md) <br>
 <br>
 <a href=".storage/"><img src="https://img.shields.io/badge/Lovelace%20Interfaces-orange" alt="Actually my .storage folder, but eh!"></a> <br>
-<a href=".storage/"><img src="https://img.shields.io/badge/Node\-red%20Flows-orange" alt="Read the README!"></a> <br>
+<a href=".storage/"><img src="https://img.shields.io/badge/Node-red%20Flows-orange" alt="Read the README!"></a> <br>
  <br>
 <br>
 <a href="/documentation/indoor_localization.md"><img src="https://img.shields.io/badge/Indoor%20Localization-orange" alt="They know where you are..."></a> <br>
