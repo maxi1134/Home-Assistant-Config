@@ -34,11 +34,12 @@ And of course, do not hesitate to open up an issue if you have any specific ques
 
 ### Links:
 
-[You can find most of my hardware specifications here!](documentation/hardware.md) <br>
-[Most of my Zigbee IoT devices are listed here!](documentation/zigbee.md) <br>
+<a href="documentation/hardware.md"><img src="https://img.shields.io/badge/Hardware%20Specifications-purple" alt="This is what runs everything"></a> <br>
+<a href="documentation/zigbee.md"><img src="https://img.shields.io/badge/Zigbee%20Devices-green" alt="This is what runs everything"></a> <br>
+
 <br>
 <a href=".storage/"><img src="https://img.shields.io/badge/Lovelace%20Interfaces-orange" alt="Actually my .storage folder, but eh!"></a> <br>
-<a href=".storage/"><img src="https://img.shields.io/badge/Node-red%20Flows-orange" alt="Read the README!"></a> <br>
+<a href=".storage/"><img src="https://img.shields.io/badge/Nodered%20Flows-red" alt="Read the README!"></a> <br>
  <br>
 <br>
-<a href="/documentation/indoor_localization.md"><img src="https://img.shields.io/badge/Indoor%20Localization-orange" alt="They know where you are..."></a> <br>
+<a href="/documentation/indoor_localization.md"><img src="https://img.shields.io/badge/Indoor%20Localization-blue" alt="They know where you are..."></a> <br>
