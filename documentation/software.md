@@ -7,6 +7,11 @@ Here you will find different informations regarding the various systems that I r
 My Home Assistant installation went through multiple iterations;
 From Generic X86 custom install, to a Home Assistant Container and, finally to a VM running the [Home Assistant Operating system](https://www.home-assistant.io/installation/generic-x86-64#install-home-assistant-operating-system) on top of a [Proxmox](https://www.proxmox.com/en/) host.
 
+#### Some notes;
+
+##### On users
+I try to create one "local access only" user per dashboard device as this allows me to know which tablet made what action and what moment. Thus offering more granularity in the logbook than a simple generic account for all dashboards.
+
 <table>
 <tr><th> VM Specs </th><th> Installed Software </th></tr>
 <tr><td>
@@ -36,6 +41,28 @@ From Generic X86 custom install, to a Home Assistant Container and, finally to a
 
 
 ## Plex
+As you can imagine, the Plex integration didn't escape the multiple iterations path neither.
+What started as a "Dell Powerdge 2900" with 8*1Tb drives, quickly became the monster that it is today. Going from CPU transcoding to a dedicated GPU for the task, this allows me to store most movies and shows in HEVC. This in returns saves space on the drives thanks to the better compression.
+
+
+#### Some notes;
+
+##### On encoding
+Not all systems can transcode multiple streams at once. Storing everything in HEVC/H265 comes with space saving, but at the cost of higher power and ressource usages during transcoding.
+
+*But maxi; what is transcoding?* you may ask. Transcoding is the process by which your Media server will convert the format/encoding of a file before sending it to the client. This usually happens when the client does not support every specification of the original format/encoding.
+
+
+##### On subtitles
+Not all subtitles are created equal, I *HIGHLY* recommend streamlining your subtitles witht he SRT format, which does not requires to be "burned-in" on the image like PSG subtitles. As "burning-in" subtitles requires to decode and re-encode the video file before sending it to the client.
+
+##### On downloads caching
+You may wonder why I have a 500SDD sitting empty 99% of the time. Well, there is an actual reason behind this! 
+The reason being that continious low-speed writes to a drive will keep the read/write heads always busy during the downloads. This in return will make read access slower, which would increase buffering for the plex Users. 
+To mitigate this, all downloads are initially saved to the SSD cache drive, before being copied over the mechanical drives at full speed.
+Since adding the SSD cache drive, the IoWait issues on my plex VMs have greatly dimisnished.
+
+
 
 <table>
 <tr><th> VM Specs </th><th> Installed Software </th></tr>
@@ -70,7 +97,18 @@ From Generic X86 custom install, to a Home Assistant Container and, finally to a
 
 </td></tr> </table>
 
-## Frigate/ML
+## Frigate/Machine Learning
+
+Have you ever wondered what it would be to let your guests in during a party without actually having to go to the door, or click a button? *Well I did!*
+
+This lead me to many trial and errors with "Facebox", "Double-Take" and the likes.
+Which can be found in the "Face-reco" flows under /node-red/flows/.
+
+During a whole summer, the door would let people in. But always with hiccups, such as the photo not being taken in time, either too late or too soon. Or the pictures being simply too blurry.
+
+This project is mainly in standby for now, but I should return to it sooner or later. 
+
+
 
 <table>
 <tr><th> VM Specs </th><th> Installed Software </th></tr>
