@@ -28,6 +28,8 @@ Here, I will compile a list of my wifi devices and my thought on them.
 
 | Model | Device Type | Buy Again? | Some Notes |  Quantity In Use     |
 | ----- | ----------- | :--------: | ---------- | :---: |
+| Chromecast | Smart TV Dongle | :small_red_triangle: | Very decent integration into Home-Assistant| 1 | 
+|[Chromecast Ultra](https://www.bestbuy.com/site/google-chromecast-ultra-4k-streaming-media-player-black/5578628.p?skuId=5578628) | Smart TV Dongle | :small_red_triangle: | Very decent integration into Home-Assistant| 3 | 
 |[Google Nest Mini](https://store.google.com/product/google_nest_mini?hl=en-US&pli=1) | Smart speaker | :heavy_check_mark: | | 11|
 |[Google Home Mini](https://store.google.com/product/google_nest_mini?hl=en-US&pli=1)| Smart Speaker | :small_red_triangle: || 5 |
 |[LIFX Tiles](https://support.lifx.com/lifx-tile-H1b_fuiLu)| Smart Lights | :no_entry: | Very pretty, but one set out of two broke (Firmware issues) | 1 |
