@@ -1,4 +1,4 @@
-<p align="center"> # Documentation </p>
+<h1><p align="center">  Documentation  </p></h1>
 
 In this folder, you will find various documents presenting my installation;
 
@@ -8,3 +8,4 @@ I will also maintain several lists such as; <br>
 [A List of Wifi Devices](wifidevices.md)  <br>
 [A list of Zigbee Devices](zigbee.md)  <br>
 [A list of used softwares](software.md)
+
