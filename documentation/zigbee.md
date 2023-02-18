@@ -25,7 +25,7 @@ These items are all linked to Z2M using the Z2M EDGE addon on Home-Assistant!
 | Model | Device Type | Buy Again? | Some Notes |  Quantity In Use     |
 | ----- | ----------- | :--------: | ---------- | :---: |
 |[Sonoff Zigbee 3.0 Dongle](https://sonoff.tech/product/gateway-and-sensors/sonoff-zigbee-3-0-usb-dongle-plus-p/) | Coordinator | :heavy_check_mark: | Don't forget to update the Firmware!| 1|
-|[Ikea Symfonisk Dial](https://www.zigbee2mqtt.io/devices/E1744.html#ikea-e1744)| Remote | :no_entry: | It sometimes spam commands until touched again. | 10 |
+|[Ikea Symfonisk Dial](https://www.zigbee2mqtt.io/devices/E1744.html#ikea-e1744)| Remote | :no_entry: | It sometimes spam commands until touched again. | 11 |
 |[Philips Hue Bulb](https://www.zigbee2mqtt.io/devices/9290012573A.html#philips-9290012573a)| Bulb | :heavy_check_mark: | Great color render! | 6 |
 |[Philips Hue Bulb](https://www.zigbee2mqtt.io/devices/9290022166.html#philips-9290022166)| Bulb | :heavy_check_mark: | Great color render! | 12 |
 |[Philips Hue Bulb](https://www.zigbee2mqtt.io/devices/9290023351.html#philips-9290023351)| Bulb | :heavy_check_mark: | Warm White only | 2 |
