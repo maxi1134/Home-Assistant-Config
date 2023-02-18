@@ -53,4 +53,4 @@ Running a homelab is not always easy, especially when comes time to route, segre
 |[LIFX Tiles](https://support.lifx.com/lifx-tile-H1b_fuiLu)| Smart Lights | :no_entry: | Very pretty, but one set out of two broke (Firmware issues) | 1 |
 |[LIFX Nightvision BR30](https://www.lifx.com/products/lifx-color-br30-nightvision-edition-1pk)| Smart Bulb | :thumbsdown: | Very bright, but has wifi connectivity issues | 1 |
 |[LIFX Color E26 ](https://www.lifx.com/products/lifx-color-1pk)| Smart Bulb | :thumbsdown: | Very bright, but has wifi connectivity issues | 1 |
-|[ESP32 ](https://www.espressif.com/en/products/modules/esp32)| micro-controllers | :heavy_check_mark:  | Use ad BLE trackers | 7 |
+|[ESP32 ](https://www.espressif.com/en/products/modules/esp32)| Micro-Controllers | :heavy_check_mark:  | Used as BLE trackers | 7 |
