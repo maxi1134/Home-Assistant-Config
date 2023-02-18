@@ -1,5 +1,23 @@
-Here, I will compile a list of my wifi devices and my thought on them.
+# Network Infrastructure
 
+
+
+
+## Network Segregation:
+
+Running a homelab is not always easy, especially when comes time to route, segregate and firewall multiple networks, each with a very specific use. I ended up with with 6 different networks:
+1) Private LAN
+   - This network is meant for my usage only. This is where all the main machines are connected, Servers and Main PC. No guests are allowed on this network.
+2) Friends LAN
+   - This is the "Hotspot" network that I offer to my guests during events. They cannot interact with other networks except for the "Google Cast" network, to allow them to cast to the speakers and chromecasts.
+3) IoT LAN
+   - This network is reserved for the IoT devices, a few ports are allowed in and out to the "Home-Assistant" Virtual Machine, such as LIFX ports and MQTT ports.
+4) Google Home Network
+   - This network is reserved for the very chatty Google Home devices. MDNS is enabled from this network to "Private" and "Friends" lan, to allow for control and cast of media content.
+5) Game Server LAN
+   - This network is higly restricted as the machine living on it is directly exposed to the internet on many ports to allow for game servers such as; Minecraft, Valheim, Conan, ARK, 7 days to die, Project Zomboid. Only a few ports are allowed within the lan. I.e: Inbound port 22 from my PC.
+6) Cameras
+   - This network is only accessible from the "Frigate" machine. Cameras can only see that machine and cannot ping home.
 
 ## Buy again notes:
 
