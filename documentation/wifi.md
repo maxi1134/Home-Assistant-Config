@@ -16,7 +16,7 @@ Running a homelab is not always easy, especially when comes time to route, segre
    - This network is reserved for the very chatty Google Home devices. MDNS is enabled from this network to "Private" and "Friends" lan, to allow for control and cast of media content.
 5) Game Server LAN
    - This network is higly restricted as the machine living on it is directly exposed to the internet on many ports to allow for game servers such as; Minecraft, Valheim, Conan, ARK, 7 days to die, Project Zomboid. Only a few ports are allowed within the lan. I.e: Inbound port 22 from my PC.
-6) Cameras
+6) Cameras LAN
    - This network is only accessible from the "Frigate" machine. Cameras can only see that machine and cannot ping home.
 
 ## Buy again notes:
