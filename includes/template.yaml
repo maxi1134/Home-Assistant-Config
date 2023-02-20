@@ -117,6 +117,41 @@
           EDGECASE
           {% endif %}
           {{ ns.roomname }}
+      - name: "Where is maxi sleeping?(Chat GPT Improved)"
+        unique_id: maxi_sleeping_spot_chatgpt
+        state: >-
+          {% set ns = namespace(sleeper=0, sleeparraystates=[], roomname="initial", control='', sleeparray=[]) %}
+
+          {% set room = states.sensor.b7bracelet1.state %}
+
+          {% if states.binary_sensor.maxi_alone.state == "on" %}
+            {% set sleeparray = states.input_boolean | selectattr('entity_id', 'contains', 'sleeper') | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list %}
+            {% if sleeparray | length > 1 %} 
+              {% for input_boolean in states.input_boolean %}
+                {% if input_boolean.entity_id in sleeparray %}         
+                  {% if room in input_boolean.entity_id %}         
+                    {%set ns.roomname = input_boolean.entity_id.split('_') | last%} 
+                  {% else %}
+                    {% set ns.roomname = "unsure" %}                      
+                  {% endif %}       
+                {% endif %} 
+              {% endfor %}  
+            {% elif sleeparray | length == 1 %} 
+              {% set ns.roomname = sleeparray[0].split('_') | last %}
+            {% else %}
+              {%set ns.roomname = "unsure" %}
+            {% endif %}   
+          {% elif states.binary_sensor.maxi_alone.state == "off" %}
+            {% for input_boolean in states.input_boolean %}
+              {% if input_boolean.entity_id | contains('sleeper') and input_boolean.state == "on" and room in input_boolean.entity_id %}
+                {% set ns.roomname = input_boolean.entity_id.split('_') | last %}
+              {% endif %} 
+            {% endfor %}  
+          {% else %}
+            EDGECASE
+          {% endif %}
+          {{ ns.roomname }}
+
   - binary_sensor:
       - name: "All Present Sleeping"
         delay_off:
