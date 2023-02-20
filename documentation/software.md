@@ -142,3 +142,41 @@ This project is mainly in standby for now, but I should return to it sooner or l
 </td></tr> </table>
 
 
+
+
+## Asustor-6404T NAS
+
+With great power, comes great back-up needs.
+
+A few years ago, I had a dream of losing data from my main server.This lead me to purchase a NAS the day after, with enough storage to backup all my config files.
+
+I've opted to go with two 6Tb drives configured in Raid1 as a main volume. With two drive bays still available for further expansion.
+
+The NAS also runs a few softwares that I consider secondary and unworthy of running on the main rig.
+
+
+
+<table>
+<tr><th> HW Specs </th><th> Installed Software </th></tr>
+<tr><td>
+
+
+
+| Part      | Description |  Usage |
+| ----------- | ----------- | -----------  |
+| CPU      | 	Intel Celeron J3455 |   
+| RAM      | 8Gb   |   
+| HDDs   | 2*6TB (raid 1)  | Backups |
+| UPS|      750VA |
+
+</td><td>
+
+| Software | Usage |
+| :----- | -----------: |
+|[Adguard Home](https://adguard.com/en/adguard-home/overview.html)| Local DNS with Adblock | 
+|[PhotoPrism](https://www.photoprism.app/)| Photo Manager | 
+|[Nextcloud](https://machinebox.io/)| Private Cloud | 
+
+</td></tr> </table>
+
+
