@@ -152,6 +152,58 @@
           {% endif %}
           {{ ns.roomname }}
 
+      - name: "Where is maxi sleeping?(V2)"
+        unique_id: maxi_sleeping_spot_v2
+        state: >-
+          {% set ns = namespace(sleeper=0, sleeparraystates=[], allowed_ids=[], roomname="initial", control='', sleeparray=[], motionarrays=[], motion_sensors=[]) %}  {# create a namespace object to store variables #}
+          {% set room = states.sensor.b7bracelet1.state %}  {# get the current room sensor state #}
+
+          {% if states.binary_sensor.maxi_alone.state == "on" %}  {# if the maxi_alone sensor is on, indicating there is only maxi present #}
+            {% set sleeparray = states.input_boolean | selectattr('entity_id', 'contains', 'sleeper') | selectattr('state', 'eq', 'on') | map(attribute='entity_id') | list %}  {# get a list of all the input_boolean entities that are "sleeper" and are "on" #}
+            {% if sleeparray | length > 1 %}  {# if there is more than one "sleeper" input_boolean that is "on" #}
+              {% for input_boolean in states.input_boolean %}  {# loop through each input_boolean #}
+                {% if input_boolean.entity_id in sleeparray %}  {# if the current input_boolean is in the list of "sleeper" input_booleans that are "on" #}
+                  {% if room in input_boolean.entity_id %}  {# if the current input_boolean is in the current room #}
+                    {% set ns.roomname = input_boolean.entity_id.split('_') | last %}  {# set the roomname to the last part of the entity_id, after splitting it by '_' #}
+                  {% elif not room in input_boolean.entity_id and ns.roomname == "initial" %}  {# if the current input_boolean is not in the current room and the previous if has not changed it#}
+                          {% for name in sleeparray %}
+                          {% set sleepername = name.split('_') | last %}      
+                          {% set ns.allowed_ids = ns.allowed_ids + [sleepername] %}      
+                          {% endfor %}      
+                          {% for state in states.binary_sensor -%} 
+                                  {%- if state.attributes.get('device_class') == 'motion' -%}
+                                      {% for allowed_rooms in ns.allowed_ids %}                        
+                                        {% set index = loop.index0 %}
+                                        {% if ns.allowed_ids[index] in state.entity_id and "binary_sensor.sensor_" in state.entity_id %} 
+                                          {% set sensor = {'entity_id': state.entity_id, 'last_changed': state.last_changed} %}
+                                          {% set ns.motion_sensors = ns.motion_sensors + [sensor] %}
+                                        {%- endif %}
+                                      {% endfor %}
+                                  {% endif %}
+                          {% endfor %}            
+                    {% set sorted_sensors = ns.motion_sensors | sort(attribute='last_changed') %}
+                    {% set last_sensor = sorted_sensors | last %}
+                    {% set room_before_split =last_sensor.entity_id | replace('binary_sensor.sensor_','')| replace('_motion_occupancy','')%}
+                    {% set ns.roomname = room_before_split.split('_') | first %}
+                  {% endif %}
+                {% endif %} 
+              {% endfor %} 
+            {% elif sleeparray | length == 1 %}  {# if there is only one "sleeper" input_boolean that is "on" #}
+              {% set ns.roomname = sleeparray[0].split('_') | last %}  {# set the roomname to the last part of the entity_id of the only "sleeper" input_boolean that is "on" #}
+            {% else %}  {# if there are no "sleeper" input_booleans that are "on" #}
+              {% set ns.roomname = "unsure" %}  {# set the roomname to "unsure" #}
+            {% endif %}   
+          {% elif states.binary_sensor.maxi_alone.state == "off" %}  {# if the maxi_alone sensor is off, it indicates that there is more than maxi present #}
+            {% for input_boolean in states.input_boolean %}
+              {% if input_boolean.entity_id | contains('sleeper') and input_boolean.state == "on" and room in input_boolean.entity_id %}
+                {% set ns.roomname = input_boolean.entity_id.split('_') | last %}
+              {% endif %} 
+            {% endfor %}  
+          {% else %}
+            EDGECASE
+          {% endif %}
+          {{ ns.roomname}}
+
   - binary_sensor:
       - name: "All Present Sleeping"
         delay_off:
