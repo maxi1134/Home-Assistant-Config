@@ -109,6 +109,70 @@
           {% endif %}
           {{ ns.roomname}}
 
+      - name: "Maxi current Activity"
+        unique_id: maxi_current_activity
+        state: >-          
+          {% set rooms = ["office","bedroom","kitchen","hotbox","closet","livingroom","server"] %}
+          {% set ns = namespace( activityname="unsure", mediaactiverooms=[], allowed_ids=[], motion_sensors=[], room = states.sensor.b7bracelet1.state ) %}  {# create a namespace object to store variables #}
+          {% set room = states.sensor.b7bracelet1.state %}  {# get the current room sensor state #}
+          
+          {% if states.binary_sensor.maxi_alone.state == "on" %}  {# if the maxi_alone sensor is on, indicating there is only maxi present #}
+              {# Set the activity as gaming if a game is launched #}
+              {% if states('binary_sensor.maxi_sleeping') == "on" %}          
+                    {% set ns.activityname = "Sleeping in the " + states('sensor.where_is_maxi_sleeping')  %}
+                    
+                    
+              {% elif states('sensor.currentgamemaxi') != "idle" %}          
+                    {% set ns.activityname = "Playing " +  states('sensor.currentgamemaxi') %}
+                    
+              {% elif ns.activityname == "unsure" %}
+                {% for room in rooms %} {# Here we iterate over the rooms to get all those that are not "off" as far as media goes #}
+                  {% for media_player in states.media_player -%} 
+                    {%- if room in media_player.entity_id and "plex" not in media_player.entity_id and "owntone" not in media_player.entity_id and "roku" not in media_player.entity_id and "speaker" not in media_player.entity_id -%}  
+                      {%- if media_player.state == 'playing' -%}                                   
+                        {%- set ns.mediaactiverooms = ns.mediaactiverooms + [room] -%}   
+                      {%- endif -%}
+                    {%- endif -%}
+                  {% endfor %}        
+                {% endfor %}                
+                    {% if ns.mediaactiverooms | length > 0 %}                    
+                    {# Check if I am in a room with mediaplayback #}
+                    {% for activeroom in ns.mediaactiverooms %}
+                      {% if ns.room in activeroom %}                                                       
+                    {% set ns.activityname = "Watching TV in the " + room %}
+                      {% endif %}
+                    {% endfor %}          
+                        
+                      {% if ns.activityname == "unsure" %}
+                        {# Check for motionsensors in the rooms with active playback and then store them in a list #}
+                        {% for allowed_rooms in ns.mediaactiverooms %}                        
+                          {% set index = loop.index0 %}            
+                          {% for state in states.binary_sensor -%} 
+                            {% if ns.mediaactiverooms[index] in state.entity_id and "binary_sensor.sensor_" in state.entity_id %} 
+                              {% set sensor = {'entity_id': state.entity_id, 'last_changed': state.last_changed} %}
+                                {% set ns.motion_sensors = ns.motion_sensors + [sensor] %}
+                            {%- endif %}
+                          {% endfor %}
+                        {% endfor %}
+                        
+                        {# sorts the motion sensor list to output the active room where there was last motion#}
+                        {% set sorted_sensors = ns.motion_sensors | sort(attribute='last_changed') %}
+                        {% set last_sensor = sorted_sensors | last %}
+                        
+                        {# set the lastroomname variant #}
+                        {% set room_before_split =last_sensor.entity_id | replace('binary_sensor.sensor_','')| replace('_motion_occupancy','')%}                            
+                        {% set ns.lasttvactiveroom = room_before_split.split('_') | first %}                            
+                        {% set ns.activityname = "Watching TV in the " + ns.lasttvactiveroom %}
+                        {% endif %}
+                     {% endif %}
+              {% endif %} 
+          {% elif states.binary_sensor.maxi_alone.state == "off" %}  {# if the maxi_alone sensor is off, it indicates that there is more than maxi present #}
+ 
+          {% else %}
+            EDGECASE
+          {% endif %}
+          {{ns.activityname}}
+
   - binary_sensor:
       - name: "All Present Sleeping"
         delay_off:
