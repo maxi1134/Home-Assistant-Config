@@ -111,7 +111,7 @@
 
       - name: "Maxi current Activity"
         unique_id: maxi_current_activity
-        state: >-                    
+        state: >-
           {% set rooms = ["office","bedroom","kitchen","hotbox","closet","livingroom","server"] %}
           {% set ns = namespace( activityname="unsure", mediaactiverooms=[], allowed_ids=[], motion_sensors=[], room = states.sensor.b7bracelet1.state, active_motion_sensors = [] ) %}  {# create a namespace object to store variables #}
           {% set room = states('sensor.b7bracelet1') %}
@@ -134,29 +134,29 @@
                         {# set the lastroomname variant #}
                         {% set room_before_split =last_sensor.entity_id | replace('binary_sensor.sensor_','')| replace('_motion_occupancy','')%}                            
                         {% set ns.lasttvactiveroom = room_before_split.split('_') | first %}     
+                            
+              {% if states.binary_sensor.maxi_alone.state == "on" %}  {# if the maxi_alone sensor is on, indicating there is only maxi present #}
+                  {# Set the activity as gaming if a game is launched #}
+                  {% if states('binary_sensor.maxi_sleeping') == "on" %}          
+                        {% set ns.activityname = "Sleeping in the " + states('sensor.where_is_maxi_sleeping')  %}
                         
-          {% if states.binary_sensor.maxi_alone.state == "on" %}  {# if the maxi_alone sensor is on, indicating there is only maxi present #}
-              {# Set the activity as gaming if a game is launched #}
-              {% if states('binary_sensor.maxi_sleeping') == "on" %}          
-                    {% set ns.activityname = "Sleeping in the " + states('sensor.where_is_maxi_sleeping')  %}
-                    
-                    
-              {% elif states('sensor.currentgamemaxi') != "idle" %}          
-                    {% set ns.activityname = "Playing " +  states('sensor.currentgamemaxi') %}
-                    
-              {% elif room == "office" and states('sensor.maxi1134_8202') != "idle" %}          
-                    {% set ns.activityname = "Using the computer " %}
-                    
-              {% elif ns.activityname == "unsure" %}
-                {% for room in rooms %} {# Here we iterate over the rooms to get all those that are not "off" as far as media goes #}
-                  {% for media_player in states.media_player -%} 
-                    {%- if room in media_player.entity_id and "plex" not in media_player.entity_id and "owntone" not in media_player.entity_id and "roku" not in media_player.entity_id and "speaker" not in media_player.entity_id -%}  
-                      {%- if media_player.state == 'playing' -%}                                   
-                        {%- set ns.mediaactiverooms = ns.mediaactiverooms + [room] -%}   
-                      {%- endif -%}
-                    {%- endif -%}
-                  {% endfor %}        
-                {% endfor %}                
+                        
+                  {% elif states('sensor.currentgamemaxi') != "idle" %}          
+                        {% set ns.activityname = "Playing " +  states('sensor.currentgamemaxi') %}
+                        
+                  {% elif room == "office" and states('sensor.maxi1134_8202') != "idle" %}          
+                        {% set ns.activityname = "Using the computer " %}
+                        
+                  {% elif ns.activityname == "unsure" %}
+                    {% for room in rooms %} {# Here we iterate over the rooms to get all those that are not "off" as far as media goes #}
+                      {% for media_player in states.media_player -%} 
+                        {%- if room in media_player.entity_id and "plex" not in media_player.entity_id and "owntone" not in media_player.entity_id and "roku" not in media_player.entity_id and "speaker" not in media_player.entity_id -%}  
+                          {%- if media_player.state == 'playing' -%}                                   
+                            {%- set ns.mediaactiverooms = ns.mediaactiverooms + [room] -%}   
+                          {%- endif -%}
+                        {%- endif -%}
+                      {% endfor %}        
+                    {% endfor %}                
                     {% if ns.mediaactiverooms | length > 0 %}                    
                     {# Check if I am in a room with mediaplayback #}
                     {% for activeroom in ns.mediaactiverooms %}
