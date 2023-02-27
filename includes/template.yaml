@@ -1,3 +1,33 @@
+  - binary_sensor:
+      - name: "All Present Sleeping"
+        delay_off:
+          minutes: 7
+        state: >
+          {% if ((is_state('person.maximiliano', 'home') and is_state('binary_sensor.maxi_sleeping', 'on' ) ) or not is_state('person.maximiliano', 'home' ))  %}on{% else  %}off{% endif %}
+      - name: "Sensor Patio Occupancy" 
+        delay_off:
+          minutes: 7
+        state: >
+         {{ not is_state('sensor.patiocam_person_count', "0")
+             or not is_state('binary_sensor.sensor_patio_motion_occupancy', 'off')
+             or not is_state('binary_sensor.sensor_patio_ceiling_motion_occupancy', 'off')
+             }}
+      - name: "Bathroom Occupancy"
+        delay_off:
+          minutes: 2
+        state: >
+         {{ is_state('binary_sensor.sensor_bathroom_motion_occupancy', "on")
+             or is_state('binary_sensor.sensor_bathroom_door_contact', 'off') and is_state('switch.bathroom_fan', 'on')
+             }}
+      - name: "Maxi's ears busy"
+        unique_id: "maxisearsbusy" 
+        state: >
+         {{ (not is_state('sensor.currentgamemaxi', "idle") and is_state('sensor.b7bracelet1', "office" ))
+             or (is_state('media_player.maxi_pc_mediaplayer', 'playing') and ("chrome" in "sensor.maxi_pc_activewindow"))
+             or ( is_state('media_player.bedroom_chromecast', 'playing') and state_attr('media_player.bedroom_chromecast', 'is_volume_muted') == false )
+             or is_state('binary_sensor.maxi_pc_microphoneactive', 'on')
+             }}
+
   - sensor:
       - name: "current time"
         state: >-
@@ -113,19 +143,13 @@
         unique_id: maxi_current_activity
         state: >-
             {% set rooms = ["office","bedroom","kitchen","hotbox","closet","livingroom","server"] %}
-            {% set ns = namespace( activityname="unsure", mediaactiverooms=[],partnershome=0,active_sleepers_amount=0, allowed_ids=[],active_sleeper_rooms=[], motion_sensors=[], room = states.sensor.b7bracelet1.state, active_motion_sensors = [] ) %}  {# create a namespace object to store variables #}
+            {% set ns = namespace( activityname="unsure", mediaactiverooms=[],active_sleepers_amount=0, allowed_ids=[],active_sleeper_rooms=[], motion_sensors=[], room = states.sensor.b7bracelet1.state, active_motion_sensors = [] ) %}  {# create a namespace object to store variables #}
             {% set room = states('sensor.b7bracelet1') %}
             {% set guestshome = states('sensor.guest_wifi_count') | int %}
-
-            {# set the ammount of partners home #}
-            {% if states('person.maximiliano') == "home" %}   {# If I am home, the amount should be zone.home -1 #}
-              {% set ns.partnershome = states('zone.home')  | int - 1  %}
-            {% else %}{# If I am not home, the amount should be zone.home #}
-              {% set ns.partnershome = states('zone.home')  | int  %}
-            {% endif %}
+            {% set partnershome = states('sensor.amount_partners_home') | int }}
 
             {# Set peoplehome to the amount of people #}
-            {% set peoplehome = guestshome + ns.partnershome  %}
+            {% set peoplehome = guestshome + partnershome  %}
 
             {# Check for motionsensors in the rooms and then store them in a list #}
             {% for allowed_rooms in rooms %}
@@ -202,11 +226,11 @@
                   {% endif %}
                 {% endif %} 
             {% elif states.binary_sensor.maxi_alone.state == "off" %}  {# if the maxi_alone sensor is off, it indicates that there is more than maxi present #}
-              {% if guestshome == 0 and ns.partnershome > 0  %} {# If mor than one user is home, and no guest are there.  #}
+              {% if guestshome == 0 and partnershome > 0  %} {# If mor than one user is home, and no guest are there.  #}
                       {# Need to greatly expand this to know what we are doing #}
                     {% if states('binary_sensor.maxi_sleeping') == "on"%}        {# if maxi is sleeing #}   
                         {% set ns.activityname = "Sleeping"  %}             
-                    {% elif ns.active_sleepers_amount < ns.partnershome | int and states('binary_sensor.maxi_sleeping') == "off" %} {# Trigger if less people are asleep than are present and that is not maxi #}
+                    {% elif ns.active_sleepers_amount < partnershome | int and states('binary_sensor.maxi_sleeping') == "off" %} {# Trigger if less people are asleep than are present and that is not maxi #}
                         {% if room in ns.mediaactiverooms %}
                             {% set ns.activityname = "Watching TV with girls in the " + room %}     
                         {% elif states('zone.home') == 2 and states('person.alexe') == home and room == "closet" and states('input_boolean.sleeper_in_closet') == "off" %}
@@ -215,7 +239,7 @@
                             {% set ns.activityname = "Playtime" %}            {% else %}
                             {% set ns.activityname = "With girls in the " + room %}
                         {% endif %}
-                    {% elif ns.active_sleepers_amount >=  ns.partnershome  | int and states('binary_sensor.maxi_sleeping') == "off" %} {# if more sleepers than users and maxi is awake#}
+                    {% elif ns.active_sleepers_amount >=  partnershome  | int and states('binary_sensor.maxi_sleeping') == "off" %} {# if more sleepers than users and maxi is awake#}
                         {% if states('sensor.currentgamemaxi') != "idle" %}          
                           {% set ns.activityname = "Playing " +  states('sensor.currentgamemaxi') %}         
                         {% elif room == "office" and states('sensor.maxi1134_8202') != "idle" %}    
@@ -234,32 +258,12 @@
               EDGECASE
             {% endif %}
             {{ns.activityname }}  
-  - binary_sensor:
-      - name: "All Present Sleeping"
-        delay_off:
-          minutes: 7
-        state: >
-          {% if ((is_state('person.maximiliano', 'home') and is_state('binary_sensor.maxi_sleeping', 'on' ) ) or not is_state('person.maximiliano', 'home' ))  %}on{% else  %}off{% endif %}
-      - name: "Sensor Patio Occupancy" 
-        delay_off:
-          minutes: 7
-        state: >
-         {{ not is_state('sensor.patiocam_person_count', "0")
-             or not is_state('binary_sensor.sensor_patio_motion_occupancy', 'off')
-             or not is_state('binary_sensor.sensor_patio_ceiling_motion_occupancy', 'off')
-             }}
-      - name: "Bathroom Occupancy"
-        delay_off:
-          minutes: 2
-        state: >
-         {{ is_state('binary_sensor.sensor_bathroom_motion_occupancy', "on")
-             or is_state('binary_sensor.sensor_bathroom_door_contact', 'off') and is_state('switch.bathroom_fan', 'on')
-             }}
-      - name: "Maxi's ears busy"
-        unique_id: "maxisearsbusy" 
-        state: >
-         {{ (not is_state('sensor.currentgamemaxi', "idle") and is_state('sensor.b7bracelet1', "office" ))
-             or (is_state('media_player.maxi_pc_mediaplayer', 'playing') and ("chrome" in "sensor.maxi_pc_activewindow"))
-             or ( is_state('media_player.bedroom_chromecast', 'playing') and state_attr('media_player.bedroom_chromecast', 'is_volume_muted') == false )
-             or is_state('binary_sensor.maxi_pc_microphoneactive', 'on')
-             }}
+      - name: "amount partners home"
+        state: >-
+          {# set the ammount of partners home #}
+          {% if states('person.maximiliano') == "home" %}   {# If I am home, the amount should be zone.home -1 #}
+            {% set partnershome = states('zone.home')  | int - 1  %}
+          {% else %}{# If I am not home, the amount should be zone.home #}
+            {% set partnershome = states('zone.home')  | int  %}
+          {% endif %}
+          {{partnershome}}
