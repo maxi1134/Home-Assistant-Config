@@ -86,7 +86,46 @@
             {% if  state_attr('sensor.steam_maxi', 'game') %}
             {{state_attr('sensor.steam_maxi', 'game')}}
             {% else %}idle
+            {% endif %} 
+      - name: "amount partners home"
+        state: >-
+            {# set the ammount of partners home #}
+            {% if states('person.maximiliano') == "home" %}   {# If I am home, the amount should be zone.home -1 #}
+              {% set partnershome = states('zone.home')  | int - 1  %}
+            {% else %}{# If I am not home, the amount should be zone.home #}
+              {% set partnershome = states('zone.home')  | int  %}
             {% endif %}
+            {{partnershome}}
+
+      - name: "last active room"
+        state: >-
+            {% set rooms = ["office","bedroom","kitchen","hotbox","closet","livingroom","server"] %}
+            {# Check for motionsensors in the rooms and then store them in a list #}
+            {% set ns = namespace( active_motion_sensors = [] )%}
+            {% for allowed_rooms in rooms %}
+              {% for state in states.binary_sensor -%} 
+                {% if allowed_rooms in state.entity_id and "binary_sensor.sensor_" in state.entity_id %} 
+                  {% set sensor = {'entity_id': state.entity_id, 'last_changed': state.last_changed} %}
+                    {% set ns.active_motion_sensors = ns.active_motion_sensors + [sensor] %}
+                {%- endif %}
+              {% endfor %}
+            {% endfor %}
+
+
+
+            {# sorts the motion sensor list to output the active room where there was last motion#}
+            {% set sorted_sensors = ns.active_motion_sensors | sort(attribute='last_changed') %}
+            {% set last_sensor = sorted_sensors | last %}
+
+            {# set the lasttvactiveroom variant #}
+            {% set room_before_split =last_sensor.entity_id | replace('binary_sensor.sensor_','')| replace('_motion_occupancy','')%}                            
+            {% set lasttvactiveroom = room_before_split.split('_') | first %}     
+            {{lasttvactiveroom}}
+
+
+
+
+
       - name: "Where is maxi sleeping?"
         unique_id: maxi_sleeping_spot
         state: >-
@@ -146,38 +185,26 @@
             {% set ns = namespace( activityname="unsure", mediaactiverooms=[],active_sleepers_amount=0, allowed_ids=[],active_sleeper_rooms=[], motion_sensors=[], room = states.sensor.b7bracelet1.state, active_motion_sensors = [] ) %}  {# create a namespace object to store variables #}
             {% set room = states('sensor.b7bracelet1') %}
             {% set guestshome = states('sensor.guest_wifi_count') | int %}
-            {% set partnershome = states('sensor.amount_partners_home') | int }}
+            {% set partnershome = states('sensor.amount_partners_home') | int %}
 
             {# Set peoplehome to the amount of people #}
-            {% set peoplehome = guestshome + partnershome  %}
-
-            {# Check for motionsensors in the rooms and then store them in a list #}
-            {% for allowed_rooms in rooms %}
-              {% for state in states.binary_sensor -%} 
-                {% if allowed_rooms in state.entity_id and "binary_sensor.sensor_" in state.entity_id %} 
-                  {% set sensor = {'entity_id': state.entity_id, 'last_changed': state.last_changed} %}
-                    {% set ns.active_motion_sensors = ns.active_motion_sensors + [sensor] %}
-                {%- endif %}
-              {% endfor %}
-            {% endfor %}
-
-
-            {# sorts the motion sensor list to output the active room where there was last motion#}
-            {% set sorted_sensors = ns.active_motion_sensors | sort(attribute='last_changed') %}
-            {% set last_sensor = sorted_sensors | last %}
+            {% set peoplehome = guestshome + partnershome  %}                         
+            {% set ns.lasttvactiveroom = states('sensor.last_active_room') %}     
 
 
 
-            {# set the ns.lasttvactiveroom variant #}
-            {% set room_before_split =last_sensor.entity_id | replace('binary_sensor.sensor_','')| replace('_motion_occupancy','')%}                            
-            {% set ns.lasttvactiveroom = room_before_split.split('_') | first %}     
+
             {# Check for sleepers in the rooms #}          
             {% for state in states.input_boolean -%} 
               {% if state.state == "on" and "input_boolean.sleeper_" in state.entity_id %} 
                 {% set sensor = state.entity_id | replace('input_boolean.sleeper_in_','') %}
                   {% set ns.active_sleeper_rooms = ns.active_sleeper_rooms + [sensor] %}
               {%- endif %}
-            {% endfor %}              
+            {% endfor %}    
+
+
+
+
             {% set ns.active_sleepers_amount = ns.active_sleeper_rooms | length %}
             {# Check for active media in the rooms #}     
             {% for media_player in states.media_player -%} 
@@ -204,23 +231,7 @@
                   {% set ns.activityname = "Watching TV in the " + room %}
                     {% endif %}
                   {% endfor %}          
-                    {% if ns.activityname == "unsure" %}
-                      {# Check for motionsensors in the rooms with active playback and then store them in a list #}
-                      {% for allowed_rooms in ns.mediaactiverooms %}                        
-                        {% set index = loop.index0 %}            
-                        {% for state in states.binary_sensor -%} 
-                          {% if ns.mediaactiverooms[index] in state.entity_id and "binary_sensor.sensor_" in state.entity_id %} 
-                            {% set sensor = {'entity_id': state.entity_id, 'last_changed': state.last_changed} %}
-                              {% set ns.motion_sensors = ns.motion_sensors + [sensor] %}
-                          {%- endif %}
-                        {% endfor %}
-                      {% endfor %}          
-                      {# sorts the motion sensor list to output the active room where there was last motion#}
-                      {% set sorted_sensors = ns.motion_sensors | sort(attribute='last_changed') %}
-                      {% set last_sensor = sorted_sensors | last %}          
-                      {# set the lastroomname variant #}
-                      {% set room_before_split =last_sensor.entity_id | replace('binary_sensor.sensor_','')| replace('_motion_occupancy','')%}                            
-                      {% set ns.lasttvactiveroom = room_before_split.split('_') | first %}                            
+                    {% if ns.activityname == "unsure" %}                        
                       {% set ns.activityname = "Watching TV in the " + ns.lasttvactiveroom %}
                       {% endif %}
                   {% endif %}
@@ -257,13 +268,4 @@
             {% else %}
               EDGECASE
             {% endif %}
-            {{ns.activityname }}  
-      - name: "amount partners home"
-        state: >-
-          {# set the ammount of partners home #}
-          {% if states('person.maximiliano') == "home" %}   {# If I am home, the amount should be zone.home -1 #}
-            {% set partnershome = states('zone.home')  | int - 1  %}
-          {% else %}{# If I am not home, the amount should be zone.home #}
-            {% set partnershome = states('zone.home')  | int  %}
-          {% endif %}
-          {{partnershome}}
+            {{ns.activityname }} 
