@@ -97,6 +97,19 @@
             {% endif %}
             {{partnershome | int }}
 
+      - name: "amount friends home"
+        state: >-
+             {# Set friendshome to the amount of friends #}
+             {% set friendshome = states('sensor.guest_wifi_count') - states('sensor.amount_partners_home')  %}  
+
+
+      - name: "amount people home"
+        state: >-
+             {# Set peoplehome to the amount of people #}
+             {% set people = states('sensor.amount_friends_home') + states('sensor.amount_partners_home')  %}  
+
+      
+
       - name: "last active room"
         state: >-
             {% set rooms = ["office","bedroom","kitchen","hotbox","closet","livingroom","server"] %}
@@ -132,11 +145,15 @@
         state: >-
             {% set ns = namespace( activityname="unsure", mediaactiverooms=[],lasttvactiveroom = states('sensor.last_active_room'), active_sleepers_amount=0, allowed_ids=[],active_sleeper_rooms=[], motion_sensors=[], room = states.sensor.b7bracelet1.state, active_motion_sensors = [] ) %}  {# create a namespace object to store variables #}
             {% set room = states('sensor.b7bracelet1') %}
-            {% set guestshome = states('sensor.guest_wifi_count') | int  %}
             {% set partnershome = states('sensor.amount_partners_home') | int  %}
 
+            {# Set guesthome to the amount of people #}            
+            {% set guestshome = states('sensor.guest_wifi_count') | int  %}  
+
             {# Set peoplehome to the amount of people #}
-            {% set peoplehome = guestshome + partnershome  %}                 
+            {% set peoplehome = states('sensor.amount_people_home')  %}  
+
+
             {# Check for sleepers in the rooms #}          
             {% for state in states.input_boolean -%} 
               {% if state.state == "on" and "input_boolean.sleeper_" in state.entity_id %} 
