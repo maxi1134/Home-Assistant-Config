@@ -176,19 +176,9 @@
             {# Set peoplehome to the amount of people #}
             {% set peoplehome = states('sensor.amount_people_home')  %}  
 
-
-            {# Check for sleepers in the rooms #}          
-            {% for state in states.input_boolean -%} 
-              {% if state.state == "on" and "input_boolean.sleeper_" in state.entity_id %} 
-                {% set sensor = state.entity_id | replace('input_boolean.sleeper_in_','') %}
-                  {% set ns.active_sleeper_rooms = ns.active_sleeper_rooms + [sensor] %}
-              {%- endif %}
-            {% endfor %}    
+            {% set ns.active_sleepers_amount = states('sensor.active_sleeper_amount') %}
 
 
-
-
-            {% set ns.active_sleepers_amount = ns.active_sleeper_rooms | length %}
             {# Check for active media in the rooms #}     
             {% for media_player in states.media_player -%} 
               {%- if  "plex" not in media_player.entity_id and "owntone" not in media_player.entity_id and "roku" not in media_player.entity_id and "speaker" not in media_player.entity_id -%}  
@@ -197,7 +187,9 @@
                   {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname.split('_') | first] -%}   
                 {%- endif -%}
               {%- endif -%}
-            {% endfor %}                         
+            {% endfor %}      
+
+
             {% if states.binary_sensor.maxi_alone.state == "on" %}  {# if the maxi_alone sensor is on, indicating there is only maxi present #}
                 {# Set the activity as gaming if a game is launched #}
                 {% if states('binary_sensor.maxi_sleeping') == "on" %}          
