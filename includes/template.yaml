@@ -155,11 +155,24 @@
             {{ ns.active_sleeper_rooms }}
 
 
-            
+
       - name: "active_sleeper_amount"
         state: >-
             {{ states('sensor.active_sleeper_rooms') | wordcount }}
 
+            
+      - name: "active_chromecast_rooms"
+        state: >-
+            {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
+            {% for media_player in states.media_player -%} 
+              {%- if  "plex" not in media_player.entity_id and "owntone" not in media_player.entity_id and "roku" not in media_player.entity_id and "speaker" not in media_player.entity_id -%}  
+                {%- if media_player.state == 'playing' -%}
+                {% set currentroomname = media_player.entity_id | replace('media_player.','') | replace('chromecast.','') %}
+                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname.split('_') | first] -%}   
+                {%- endif -%}
+              {%- endif -%}
+            {% endfor %} 
+            {{ ns.mediaactiverooms | unique | list}}
 
 
 
@@ -171,26 +184,10 @@
             {% set room = states('sensor.maxi_location') %}
 
             {% set partnershome = states('sensor.amount_partners_home') | int  %}
-
-
-            {# Set guesthome to the amount of people #}            
-            {% set friendshome = states('sensor.amount_friends_home') | int  %}  
-
-            {# Set peoplehome to the amount of people #}
-            {% set peoplehome = states('sensor.amount_people_home')  %}  
-
+            {% set friendshome = states('sensor.amount_friends_home') | int  %} {# Set friendshome to the amount of people #} 
+            {% set peoplehome = states('sensor.amount_people_home')  %}{# Set peoplehome to the amount of people #}
             {% set ns.active_sleepers_amount = states('sensor.active_sleeper_amount') %}
-
-
-            {# Check for active media in the rooms #}     
-            {% for media_player in states.media_player -%} 
-              {%- if  "plex" not in media_player.entity_id and "owntone" not in media_player.entity_id and "roku" not in media_player.entity_id and "speaker" not in media_player.entity_id -%}  
-                {%- if media_player.state == 'playing' -%}
-                {% set currentroomname = media_player.entity_id | replace('media_player.','') | replace('chromecast.','') %}
-                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname.split('_') | first] -%}   
-                {%- endif -%}
-              {%- endif -%}
-            {% endfor %}      
+            {% set ns.mediaactiverooms = states('sensor.active_chromecast_rooms') %}   
 
 
             {% if states.binary_sensor.maxi_alone.state == "on" %}  {# if the maxi_alone sensor is on, indicating there is only maxi present #}
