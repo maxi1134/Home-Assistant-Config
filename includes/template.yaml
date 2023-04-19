@@ -173,6 +173,18 @@
               {%- endif -%}
             {% endfor %} 
             {{ ns.mediaactiverooms | unique | list}}
+      - name: "active_speakers_rooms"
+        state: >-
+            {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
+            {% for media_player in states.media_player -%} 
+              {%- if  "plex" not in media_player.entity_id and "owntone" not in media_player.entity_id and "roku" not in media_player.entity_id and "chromecast" not in media_player.entity_id and "group" not in media_player.entity_id -%}  
+                {%- if media_player.state == 'playing' -%}
+                {% set currentroomname = media_player.entity_id | replace('media_player.','') | replace('chromecast.','') %}
+                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname.split('_') | first] -%}   
+                {%- endif -%}
+              {%- endif -%}
+            {% endfor %} 
+            {{ ns.mediaactiverooms | unique | list}}
 
 
 
