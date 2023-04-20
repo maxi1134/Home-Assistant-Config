@@ -14,7 +14,7 @@
              }}
       - name: "Maxi's ears busy"
         unique_id: "maxisearsbusy" 
-        state: >
+        state: >-
          {{ (not is_state('sensor.currentgamemaxi', "idle") and is_state('sensor.maxi_location', "office" ))
              or (is_state('media_player.maxi_pc_mediaplayer', 'playing') and ("chrome" in "sensor.maxi_pc_activewindow"))
              or ( is_state('media_player.bedroom_chromecast', 'playing') and state_attr('media_player.bedroom_chromecast', 'is_volume_muted') == false )
@@ -192,7 +192,7 @@
         state: >-
             {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
             {% for media_player in states.media_player -%} 
-              {%- if  "plex" not in media_player.entity_id and "speaker" in media_player.entity_id and "owntone" not in media_player.entity_id and "roku" not in media_player.entity_id and "chromecast" not in media_player.entity_id and "group" not in media_player.entity_idd and "display" not in media_player.entity_id -%}  
+              {%- if  "plex" not in media_player.entity_id and "speaker" in media_player.entity_id and "owntone" not in media_player.entity_id and "roku" not in media_player.entity_id and "chromecast" not in media_player.entity_id and "group" not in media_player.entity_id and "display" not in media_player.entity_id -%}  
                 {%- if media_player.state == 'playing' -%}
                 {% set currentroomname = media_player.entity_id | replace('media_player.','') | replace('speaker.','') %}
                   {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname.split('_') | first] -%}   
@@ -277,7 +277,47 @@
               EDGECASE
             {% endif %}
             {{ns.activityname }}
+      - name: "Maxi sleeping location"
+        unique_id: maxi_sleeping_spot_new
+        state: >-
+            {% set room = states.sensor.maxi_location.state %}  {# get the current maxi location sensor state #}
+            {% set sleeperamount = states('sensor.active_sleeper_amount') | int %}
+            {% set activesleeperrooms = states('sensor.active_sleeper_rooms') %}
+            {% set lasttvactiveroom = states('sensor.last_active_room') %}  
+            {% set phone_sleep_confidence = states('sensor.phone_fold4_sleep_confidence') | int %}
+            {% set sleepingspot = "awake" %}
 
+            {% if sleeperamount > 0 %}
+              {% if states.binary_sensor.maxi_alone.state == "on" %}  {# if the maxi_alone sensor is on, indicating there is only maxi present #}
+                {% if sleeperamount > 1 %}  {# if there is more than one "sleeper" input_boolean that is "on" #}
+                {% if room in activesleeperrooms %}
+                    {% set sleepingspot = room %}
+                  {% elif lasttvactiveroom in activesleeperrooms  %}
+                    {% set sleepingspot = lasttvactiveroom %}
+                  {% else %}
+                  {# this below code set sleepingspots as the last sleeper that eas turned on#}
+                  {% set sleepingspot =  states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search',"input_boolean.sleeper_") | sort(attribute='last_updated', reverse=True) | map(attribute="entity_id") | first | default | replace("input_boolean.sleeper_in_","") %}  
+                  {% endif %}
+              
+                {% elif sleeperamount == 1 %}  {# if there is only one "sleeper" input_boolean that is "on" #}
+                  {% set sleepingspot =  states.sensor.active_sleepers.attributes.rooms.1%}  {# set the roomname to the only "sleeper" input_boolean that is "on" #}
+                {% endif %}  
+              
+              {% elif states.binary_sensor.maxi_alone.state == "off" %}  {# if the maxi_alone sensor is off, it indicates that there is more than maxi present #}
+                  {# this below code set sleepingspots as the last sleeper that was turned on#}
+                  {% set sleepingspot = states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search',"input_boolean.sleeper_") | sort(attribute='last_updated', reverse=True) | map(attribute="entity_id") | first | default | replace("input_boolean.sleeper_in_","") %}  
+              {% elif states.binary_sensor.maxi_alone.state == "not_home" %}  {# if maxi is not home #}
+                  {# check phone sleep confidence to determine if I am sleeping #}
+                  {% if phone_sleep_confidence > 94 and room != "not_home"  %} {# Assume I am sleeping if confidence is over 94% #}
+                    {% set sleepingspot = room %} {# set sleeping spot at current outside of home location #}
+                  {% endif %}
+              {% endif %}
+            {% else %}
+              {% if phone_sleep_confidence > 94 %}
+                      {% set sleepingspot = room %} {# set sleeping spot at current outside of home location #}
+              {% endif %}
+            {% endif %}
+            {{ sleepingspot}}
       - name: "Where is maxi sleeping?"
         unique_id: maxi_sleeping_spot
         state: >-
