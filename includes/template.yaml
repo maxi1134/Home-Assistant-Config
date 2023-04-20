@@ -160,7 +160,16 @@
             {% endfor %}
             {{ ns.active_sleeper_rooms }}
 
-
+      - name: "active_sleepers"
+        state: >-
+          {{ states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search',"input_boolean.sleeper_") | list | count }}
+        attributes:
+          rooms: >
+            {% set ns = namespace(items=[]) %}
+            {% for inp in states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search',"input_boolean.sleeper_") %}
+              {% set ns.items = ns.items  + [ (loop.index, inp.entity_id  | replace('input_boolean.sleeper_in_','') ) ] %}
+            {% endfor %}
+            {{ dict.from_keys(ns.items) }}
 
       - name: "active_sleeper_amount"
         state: >-
