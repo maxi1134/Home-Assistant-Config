@@ -418,7 +418,7 @@
             {% set friendshome = states('sensor.amount_friends_home') | int  %} {# Set friendshome to the amount of people #} 
             {% set peoplehome = states('sensor.amount_people_home')  %}{# Set peoplehome to the amount of people #}
             {% set ns.active_sleepers_amount = states('sensor.active_sleeper_amount') %}
-            {% set ns.mediaactiverooms = states('sensor.active_chromecast_rooms') %}   
+            {% set ns.active_chromecasts_room = state_attr('sensor.active_media_playback', 'chromecasts') %}   
 
 
             {% if states.binary_sensor.maxi_alone.state == "on" %}  {# if the maxi_alone sensor is on, indicating there is only maxi present #}
@@ -431,9 +431,9 @@
                 {% elif room == "office" and states('sensor.maxi1134_8202') != "idle" %}         
                       {% set ns.activityname = "Using the computer" %}          
                 {% elif ns.activityname == "unsure" %}    
-                  {% if ns.mediaactiverooms | length > 0 %}                    
+                  {% if ns.active_chromecasts_room | length > 0 %}                    
                   {# Check if I am in a room with mediaplayback #}
-                  {% for activeroom in ns.mediaactiverooms %}
+                  {% for activeroom in ns.active_chromecasts_room %}
                     {% if ns.room in activeroom %}                                                       
                   {% set ns.activityname = "Watching TV in the " + room %}
                     {% endif %}
@@ -452,7 +452,7 @@
                     {% if states('sensor.is_maxi_asleep') == "asleep"%}        {# if maxi is sleeping #}   
                         {% set ns.activityname = "whereg"  %}             
                     {% elif ns.active_sleepers_amount < partnershome and states('sensor.is_maxi_asleep') == "awake" %} {# Trigger if less people are asleep than are present and that is not maxi #}
-                        {% if room in ns.mediaactiverooms %}
+                        {% if room in ns.active_chromecasts_room %}
                             {% set ns.activityname = "Watching TV with girls in the " + room %}     
                         {% elif states('zone.home') == 2 and states('person.alexe') == home and room == "closet" and states('input_boolean.sleeper_in_closet') == "off" %}
                             {% set ns.activityname = "Playtime" %}                
@@ -465,7 +465,7 @@
                           {% set ns.activityname = "Playing " +  states('sensor.currentgamemaxi') %}         
                         {% elif room == "office" and states('sensor.maxi1134_8202') != "idle" %}    
                           {% set ns.activityname = "Using the computer" %}
-                        {% elif room in ns.mediaactiverooms %}
+                        {% elif room in ns.active_chromecasts_room %}
                             {% set ns.activityname = "Watching TV in the " + room %}  
                         {% else %}
                             {% set ns.activityname = "todetermine" %}  
