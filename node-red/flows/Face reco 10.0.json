@@ -381,6 +381,18 @@
     ]
   },
   {
+    "id": "9d2c5efccbfa3ff3",
+    "type": "junction",
+    "z": "cd7a606d7931c143",
+    "x": 400,
+    "y": 1180,
+    "wires": [
+      [
+        "3037a23aa5395299"
+      ]
+    ]
+  },
+  {
     "id": "8356b51a9007c3b7",
     "type": "http request",
     "z": "cd7a606d7931c143",
@@ -1888,8 +1900,8 @@
     "mustacheAltTags": false,
     "outputProperties": [],
     "queue": "none",
-    "x": 830,
-    "y": 920,
+    "x": 850,
+    "y": 960,
     "wires": [
       []
     ]
@@ -1915,8 +1927,8 @@
     "mustacheAltTags": false,
     "outputProperties": [],
     "queue": "none",
-    "x": 500,
-    "y": 1000,
+    "x": 520,
+    "y": 960,
     "wires": [
       [
         "6b34a4c899761c04"
@@ -2028,7 +2040,7 @@
     "id": "5197a8dcb4f7e262",
     "type": "api-call-service",
     "z": "cd7a606d7931c143",
-    "name": "Save Facecam Ring.jpg For Debug",
+    "name": "Save Facecam Ring.jpg For Notification",
     "server": "7ab5c227.a3ce8c",
     "version": 5,
     "debugenabled": false,
@@ -2045,7 +2057,7 @@
     "mustacheAltTags": false,
     "outputProperties": [],
     "queue": "none",
-    "x": 460,
+    "x": 480,
     "y": 760,
     "wires": [
       []
@@ -2126,6 +2138,707 @@
     "y": 840,
     "wires": [
       []
+    ]
+  },
+  {
+    "id": "4423e08885d9c47a",
+    "type": "switch",
+    "z": "cd7a606d7931c143",
+    "name": "Recod Faces 1/0",
+    "property": "payload.data.entity_id",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "eq",
+        "v": "camera.facecam_static",
+        "vt": "str"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 1,
+    "x": 890,
+    "y": 1620,
+    "wires": [
+      [
+        "9ef8317eb45d790c"
+      ]
+    ]
+  },
+  {
+    "id": "98110b9f0d94d180",
+    "type": "function",
+    "z": "cd7a606d7931c143",
+    "name": "Javascript",
+    "func": "var d = new Date();\nvar h = d.getHours();\nvar m = d.getMinutes();\nvar s = d.getSeconds();\n\nvar confidence = 0;\nif (typeof msg.payload.confidence !==\"undefined\"){\nvar confidence = msg.payload.confidence;\n}\n\n\nvar who = msg.payload.event.reply_text.toLowerCase().replace(\" \",\"\");\nvar replacestring = \"https://hass.purgatoire.ca/local/portraits/\" + who.toLowerCase();\nvar replacestring1 = msg.payload.event.image.replace(replacestring);\nvar replacestring2 = replacestring1.split(\"-\");\nvar camera = replacestring2[1];\n\n\n\n\nvar newMsg = {\n    \"image\": msg.payload.event.image,\n    \"payload\": {\n        \"name\": who,\n        \"data\": {\n            \"filename\":\"/config/double-take/\" + who +  \"/\" + camera + \"_\" + h + m + s + \"_\" + confidence + \".jpg\",\n            \"entity_id\": camera,\n            // \"1\": replacestring,\n            // \"2\": replacestring1,\n            // \"3\": replacestring2\n        }\n    }\n};\nreturn newMsg;",
+    "outputs": 1,
+    "noerr": 1,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 700,
+    "y": 1620,
+    "wires": [
+      [
+        "b9510e224007f3df",
+        "4423e08885d9c47a"
+      ]
+    ]
+  },
+  {
+    "id": "9ef8317eb45d790c",
+    "type": "api-call-service",
+    "z": "cd7a606d7931c143",
+    "name": "snapshot",
+    "server": "7ab5c227.a3ce8c",
+    "version": 5,
+    "debugenabled": false,
+    "domain": "camera",
+    "service": "snapshot",
+    "areaId": [],
+    "deviceId": [],
+    "entityId": [],
+    "data": "",
+    "dataType": "json",
+    "mergeContext": "",
+    "mustacheAltTags": false,
+    "outputProperties": [
+      {
+        "property": "payload666",
+        "propertyType": "msg",
+        "value": "",
+        "valueType": "data"
+      }
+    ],
+    "queue": "none",
+    "x": 1060,
+    "y": 1620,
+    "wires": [
+      [
+        "42166207338579d1",
+        "66870ae54d415f31"
+      ]
+    ]
+  },
+  {
+    "id": "315f5569a3cd1e1f",
+    "type": "switch",
+    "z": "cd7a606d7931c143",
+    "name": "",
+    "property": "payload.event.action_1_title",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "eq",
+        "v": "Who is this?",
+        "vt": "str"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 1,
+    "x": 570,
+    "y": 1580,
+    "wires": [
+      [
+        "98110b9f0d94d180",
+        "b9510e224007f3df"
+      ]
+    ]
+  },
+  {
+    "id": "b9510e224007f3df",
+    "type": "debug",
+    "z": "cd7a606d7931c143",
+    "name": "actionable",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 890,
+    "y": 1580,
+    "wires": []
+  },
+  {
+    "id": "42166207338579d1",
+    "type": "debug",
+    "z": "cd7a606d7931c143",
+    "name": "result of snapchot",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 1450,
+    "y": 1620,
+    "wires": []
+  },
+  {
+    "id": "66870ae54d415f31",
+    "type": "function",
+    "z": "cd7a606d7931c143",
+    "name": "Javascript",
+    "func": "var d = new Date();\nvar m = d.getMilliseconds();\nvar url = msg.image;\n\nvar url = url.replace(\"https:\\/\\/hass.purgatoire.ca\\/local\", \"\\/config\\/www\");\n\nvar newMsg = {\n \"name\": msg.payload.name,\n \"url\": \"http://192.168.0.14:3000/api/train/retrain/\" + msg.payload.name.toLowerCase(),\n \"data\":{\n    \"data\":{\n\t\"file_path\": url,\n\t\"name\": msg.payload.name.toLowerCase(),\n\t\"url\": \"http://192.168.0.14:3000/api/train/retrain/\" + msg.payload.name.toLowerCase()\n}}\n};\nreturn newMsg;\n",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1220,
+    "y": 1580,
+    "wires": [
+      [
+        "d4e4c5ed18f66b1e",
+        "59387ed647db9b45"
+      ]
+    ]
+  },
+  {
+    "id": "abb2babfbaf1f043",
+    "type": "server-events",
+    "z": "cd7a606d7931c143",
+    "name": "",
+    "server": "7ab5c227.a3ce8c",
+    "version": 2,
+    "eventType": "mobile_app_notification_action",
+    "exposeToHomeAssistant": false,
+    "eventData": "",
+    "haConfig": [
+      {
+        "property": "name",
+        "value": ""
+      },
+      {
+        "property": "icon",
+        "value": ""
+      }
+    ],
+    "waitForRunning": true,
+    "outputProperties": [
+      {
+        "property": "payload",
+        "propertyType": "msg",
+        "value": "",
+        "valueType": "eventData"
+      },
+      {
+        "property": "topic",
+        "propertyType": "msg",
+        "value": "$outputData(\"eventData\").event_type",
+        "valueType": "jsonata"
+      },
+      {
+        "property": "event_type",
+        "propertyType": "msg",
+        "value": "$outputData(\"eventData\").event_type",
+        "valueType": "jsonata"
+      }
+    ],
+    "x": 330,
+    "y": 1620,
+    "wires": [
+      [
+        "df207d122707860f",
+        "315f5569a3cd1e1f"
+      ]
+    ]
+  },
+  {
+    "id": "d4e4c5ed18f66b1e",
+    "type": "debug",
+    "z": "cd7a606d7931c143",
+    "name": "",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 1410,
+    "y": 1520,
+    "wires": []
+  },
+  {
+    "id": "59387ed647db9b45",
+    "type": "http request",
+    "z": "cd7a606d7931c143",
+    "name": "POST request",
+    "method": "GET",
+    "ret": "txt",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 1440,
+    "y": 1580,
+    "wires": [
+      [
+        "62169a06464057b2",
+        "19d14fb87189e552"
+      ]
+    ]
+  },
+  {
+    "id": "df207d122707860f",
+    "type": "debug",
+    "z": "cd7a606d7931c143",
+    "name": "actionable",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 570,
+    "y": 1660,
+    "wires": []
+  },
+  {
+    "id": "62169a06464057b2",
+    "type": "debug",
+    "z": "cd7a606d7931c143",
+    "name": "",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 1690,
+    "y": 1520,
+    "wires": []
+  },
+  {
+    "id": "19d14fb87189e552",
+    "type": "function",
+    "z": "cd7a606d7931c143",
+    "name": "Javascript",
+    "func": "var d = new Date();\nvar m = d.getMilliseconds();\nvar url = msg.data.data.file_path;\n\n\nvar snapshot = url.replace(\"\\/config\\/www\",\"https:\\/\\/hass.purgatoire.ca\\/local\");\n\nvar newMsg = {\n \"payload\": {\n  \"data\": {\n  \"message\": \"Faces learning for\" + \" \" + msg.name,\n  \"data\": {\n    \"image\": snapshot\n  }\n}\n }\n};\nreturn newMsg;\n",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1700,
+    "y": 1580,
+    "wires": [
+      [
+        "f0ec948dd57314cf",
+        "19661f924505b1f0"
+      ]
+    ]
+  },
+  {
+    "id": "f0ec948dd57314cf",
+    "type": "api-call-service",
+    "z": "cd7a606d7931c143",
+    "name": "",
+    "server": "7ab5c227.a3ce8c",
+    "version": 5,
+    "debugenabled": false,
+    "domain": "notify",
+    "service": "notify",
+    "areaId": [],
+    "deviceId": [],
+    "entityId": [],
+    "data": "",
+    "dataType": "json",
+    "mergeContext": "",
+    "mustacheAltTags": false,
+    "outputProperties": [],
+    "queue": "none",
+    "x": 1920,
+    "y": 1580,
+    "wires": [
+      [
+        "19661f924505b1f0"
+      ]
+    ]
+  },
+  {
+    "id": "19661f924505b1f0",
+    "type": "debug",
+    "z": "cd7a606d7931c143",
+    "name": "",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 1910,
+    "y": 1520,
+    "wires": []
+  },
+  {
+    "id": "b20fb29fbb0e92c3",
+    "type": "function",
+    "z": "cd7a606d7931c143",
+    "name": "Javascript",
+    "func": "var d = new Date();\nvar name = msg.payload.name;\nvar m = d.getMilliseconds();\nvar snapshot = msg.payload.data.filename;\nvar url = \"http://192.168.0.12:8765/picture/8/current/?\" + m;\n\nvar snapshot = snapshot.replace(\"\\/config\\/www\",\"https:\\/\\/hass.purgatoire.ca\\/local\");\n\n\nvar newMsg = {\n\t\"payload\": {\n\t\t\"data\": {\n\t\t\t\"message\": \"Doorbell Alert\",\n\t\t\t\"title\": name + \" is at the door\",\n\t\t\t\"data\": {\n\t\t\t\t\"image\": snapshot,\n\t\t\t\t\"actions\": [{\n\t\t\t\t\t\t\"action\": \"REPLY\",\n\t\t\t\t\t\t\"title\": \"Who is this?\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"action\": \"unlock_door\",\n\t\t\t\t\t\t\"title\": \"Unlock The Door\"\n\t\t\t\t\t}\n\n\t\t\t\t]\n\t\t\t}\n\t\t}\n\t}\n};\nreturn newMsg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 3780,
+    "y": 960,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "b25e207878661b2c",
+    "type": "function",
+    "z": "cd7a606d7931c143",
+    "name": "Notification setter Facecam",
+    "func": "var name = \"Someone\";\nvar url1 = \"https://hass.purgatoire.ca/local/reolinkring.jpg\";\nvar url2 = \"https://hass.purgatoire.ca/local/ring.jpg\";\nvar random = Date.now();\n\nvar newMsg = {\n\t\"payload\": {\n\t\t\"data\": {\n\t\t\t\"message\": \"Doorbell Alert\",\n\t\t\t\"title\": name + \" is at the door\",\n\t\t\t\"data\": {\n\t\t\t\t\"sticky\": 'true',\n\t\t\t\t\"clickAction\": '/phone-landing/reolink?kiosk=1',\n\t\t\t\t\"priority\": 'high',\n\t\t\t\t\"image\": url2 + \"?\" + random,\n\t\t\t\t\"actions\": [{\n\t\t\t\t\t\"action\": \"REPLY\",\n\t\t\t\t\t\"title\": \"Enter Text\",\n\t\t\t\t\t\"id\": \"test\"\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\t\"action\": \"REPLY\",\n\t\t\t\t\t\"title\": \"Who is this?\"\n\t\t\t\t}\n\n\t\t\t\t]\n\t\t\t}\n\t\t}\n\t}\n};\nreturn newMsg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 680,
+    "y": 1940,
+    "wires": [
+      [
+        "222adf3ff52bb56b"
+      ]
+    ]
+  },
+  {
+    "id": "222adf3ff52bb56b",
+    "type": "api-call-service",
+    "z": "cd7a606d7931c143",
+    "name": "",
+    "server": "7ab5c227.a3ce8c",
+    "version": 5,
+    "debugenabled": false,
+    "domain": "notify",
+    "service": "mobile_app_phone_fold4",
+    "areaId": [],
+    "deviceId": [],
+    "entityId": [],
+    "data": "{\"message\":\"Bedroom door open\"}",
+    "dataType": "json",
+    "mergeContext": "",
+    "mustacheAltTags": false,
+    "outputProperties": [],
+    "queue": "none",
+    "x": 990,
+    "y": 1940,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "cdd8368d7ec62007",
+    "type": "inject",
+    "z": "cd7a606d7931c143",
+    "name": "",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 460,
+    "y": 1940,
+    "wires": [
+      [
+        "b25e207878661b2c"
+      ]
+    ]
+  },
+  {
+    "id": "69374fa045af0f29",
+    "type": "server-events",
+    "z": "cd7a606d7931c143",
+    "name": "",
+    "server": "7ab5c227.a3ce8c",
+    "version": 2,
+    "eventType": "mobile_app_notification_action",
+    "exposeToHomeAssistant": false,
+    "haConfig": [
+      {
+        "property": "name",
+        "value": ""
+      },
+      {
+        "property": "icon",
+        "value": ""
+      }
+    ],
+    "waitForRunning": true,
+    "outputProperties": [
+      {
+        "property": "payload",
+        "propertyType": "msg",
+        "value": "",
+        "valueType": "eventData"
+      },
+      {
+        "property": "topic",
+        "propertyType": "msg",
+        "value": "$outputData(\"eventData\").event_type",
+        "valueType": "jsonata"
+      },
+      {
+        "property": "event_type",
+        "propertyType": "msg",
+        "value": "$outputData(\"eventData\").event_type",
+        "valueType": "jsonata"
+      }
+    ],
+    "x": 210,
+    "y": 1180,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "b45d57ca910aa00a",
+    "type": "debug",
+    "z": "cd7a606d7931c143",
+    "name": "actionable",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 850,
+    "y": 1060,
+    "wires": []
+  },
+  {
+    "id": "3037a23aa5395299",
+    "type": "switch",
+    "z": "cd7a606d7931c143",
+    "name": "",
+    "property": "payload.event.action_1_title",
+    "propertyType": "msg",
+    "rules": [
+      {
+        "t": "eq",
+        "v": "Enter Text",
+        "vt": "str"
+      }
+    ],
+    "checkall": "true",
+    "repair": false,
+    "outputs": 1,
+    "x": 590,
+    "y": 1240,
+    "wires": [
+      [
+        "5de91924ccdfd213",
+        "1d1b25f4293ccb29"
+      ]
+    ]
+  },
+  {
+    "id": "5de91924ccdfd213",
+    "type": "function",
+    "z": "cd7a606d7931c143",
+    "name": "Javascript",
+    "func": "var text = msg.payload.event.reply_text;\n\n\n\nvar newMsg = {\n    \"text\": msg.payload.event.image,\n    \"payload\": {\n        \"data\": {\n            \"value\": text\n        }\n    }\n};\nreturn newMsg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 700,
+    "y": 1300,
+    "wires": [
+      [
+        "1d1b25f4293ccb29",
+        "a1a86be780be8c05"
+      ]
+    ]
+  },
+  {
+    "id": "1d1b25f4293ccb29",
+    "type": "debug",
+    "z": "cd7a606d7931c143",
+    "name": "actionable",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 890,
+    "y": 1180,
+    "wires": []
+  },
+  {
+    "id": "bb528875b4e072c4",
+    "type": "api-call-service",
+    "z": "cd7a606d7931c143",
+    "name": "",
+    "server": "7ab5c227.a3ce8c",
+    "version": 5,
+    "debugenabled": false,
+    "domain": "notify",
+    "service": "notify",
+    "areaId": [],
+    "deviceId": [],
+    "entityId": [],
+    "data": "",
+    "dataType": "json",
+    "mergeContext": "",
+    "mustacheAltTags": false,
+    "outputProperties": [],
+    "queue": "none",
+    "x": 1820,
+    "y": 1200,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "a1a86be780be8c05",
+    "type": "api-call-service",
+    "z": "cd7a606d7931c143",
+    "name": "",
+    "server": "7ab5c227.a3ce8c",
+    "version": 5,
+    "debugenabled": false,
+    "domain": "input_text",
+    "service": "set_value",
+    "areaId": [],
+    "deviceId": [],
+    "entityId": [
+      "input_text.front_door_phone_text"
+    ],
+    "data": "",
+    "dataType": "json",
+    "mergeContext": "",
+    "mustacheAltTags": false,
+    "outputProperties": [],
+    "queue": "none",
+    "x": 910,
+    "y": 1300,
+    "wires": [
+      [
+        "02ab65fbc3bcee71"
+      ]
+    ]
+  },
+  {
+    "id": "07b704ad7ee12b91",
+    "type": "api-call-service",
+    "z": "cd7a606d7931c143",
+    "name": "",
+    "server": "7ab5c227.a3ce8c",
+    "version": 5,
+    "debugenabled": false,
+    "domain": "input_text",
+    "service": "set_value",
+    "areaId": [],
+    "deviceId": [],
+    "entityId": [
+      "input_text.front_door_phone_text"
+    ],
+    "data": "{\"value\":\"Empty\"}",
+    "dataType": "json",
+    "mergeContext": "",
+    "mustacheAltTags": false,
+    "outputProperties": [],
+    "queue": "none",
+    "x": 1610,
+    "y": 1300,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "a540155a2c49b4e2",
+    "type": "inject",
+    "z": "cd7a606d7931c143",
+    "name": "",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 1140,
+    "y": 1120,
+    "wires": [
+      [
+        "07b704ad7ee12b91"
+      ]
+    ]
+  },
+  {
+    "id": "02ab65fbc3bcee71",
+    "type": "trigger",
+    "z": "cd7a606d7931c143",
+    "name": "",
+    "op1": "",
+    "op2": "Empty",
+    "op1type": "nul",
+    "op2type": "str",
+    "duration": "2",
+    "extend": false,
+    "overrideDelay": false,
+    "units": "min",
+    "reset": "",
+    "bytopic": "all",
+    "topic": "topic",
+    "outputs": 1,
+    "x": 1150,
+    "y": 1300,
+    "wires": [
+      [
+        "07b704ad7ee12b91"
+      ]
     ]
   }
 ]
