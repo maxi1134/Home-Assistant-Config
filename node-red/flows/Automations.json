@@ -6468,7 +6468,7 @@
       {
         "property": "entity_id",
         "logic": "is",
-        "value": "light\\.(?!.*?all.*?)(?!.*?main.*?)(?!.*?decorative.*?)(.*?group.*?).*?_(.*?lights.*?).*",
+        "value": "light\\.(?!.*?all.*?)(?!.*?main.*?)(?!.*?decorative.*?)(.*?group.*?).*?(.*?kitchen.*?)_(.*?lights.*?).*",
         "valueType": "re"
       },
       {
@@ -6612,25 +6612,6 @@
     "wires": []
   },
   {
-    "id": "83b26396e93048fb",
-    "type": "function",
-    "z": "ad8c570ec4ac394a",
-    "name": "Generate warm saturated color ( to edit)",
-    "func": "var entity_id = msg.payload.entity_id;\n\nvar r = Math.round(Math.random() * 4)\nvar hue1 = (Math.round(Math.random() * 100) + 250); //generate a random number up to 150\nvar hue2 = Math.round(Math.random() * 40); //generate a random number up to 150\n//var huef = hue + 250;\nvar saturation = (Math.round(Math.random() * 20) + 80 )\nswitch(r) {\n  case 1:\n    var hue = hue1\n    break;\n  case 2:\n    var hue = hue1\n    break;\n  case 3:\n    var hue = hue1\n    break;\n  case 4:\n    var hue = hue2\n    break;\n}\n\nvar hs_color = hue + \",\" + saturation;\n\n\n\n\nvar hs_color_array = hs_color.split(\",\");\nvar newMsg = {\n    \"payload\": {\n        \"data\": {\n            \"hs_color\": hs_color_array,\n            \"entity_id\": entity_id,\n            \"brightness_pct\": 100,\n            \n            \n}\n        }\n    }\n;\nreturn newMsg;",
-    "outputs": 1,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 1920,
-    "y": 580,
-    "wires": [
-      [
-        "0aa5225356e7f714"
-      ]
-    ]
-  },
-  {
     "id": "0aa5225356e7f714",
     "type": "api-call-service",
     "z": "ad8c570ec4ac394a",
@@ -6649,10 +6630,12 @@
     "mustacheAltTags": false,
     "outputProperties": [],
     "queue": "none",
-    "x": 2190,
-    "y": 580,
+    "x": 2130,
+    "y": 600,
     "wires": [
-      []
+      [
+        "f5fe4ede1dcb28cf"
+      ]
     ]
   },
   {
@@ -6671,8 +6654,8 @@
     "z": "ad8c570ec4ac394a",
     "name": "Call light_on service",
     "info": "",
-    "x": 2190,
-    "y": 540,
+    "x": 2170,
+    "y": 560,
     "wires": []
   },
   {
@@ -6747,8 +6730,8 @@
     "tosidebar": true,
     "console": false,
     "tostatus": false,
-    "complete": "payload",
-    "targetType": "msg",
+    "complete": "true",
+    "targetType": "full",
     "statusVal": "",
     "statusType": "auto",
     "x": 1670,
@@ -6760,19 +6743,146 @@
     "type": "function",
     "z": "ad8c570ec4ac394a",
     "name": "Generate warm saturated color ( to edit)",
-    "func": "let rgb = [255, 175, 252];\nlet entity_ids = msg.payload.attributes.entity_id;\n\nlet complementaryColors = generateComplementaryColors(rgb, entity_ids);\n\n\nfunction generateComplementaryColors(rgb, entity_ids) {\n  let complementaryColors = [];\n  let numColors = entity_ids.length;\n  for (let i = 0; i < numColors; i++) {\n    let r = (255 - rgb[0]) * (i + 1) / numColors;\n    let g = (255 - rgb[1]) * (i + 1) / numColors;\n    let b = (255 - rgb[2]) * (i + 1) / numColors;\n    complementaryColors.push({ entity_id: entity_ids[i], color: [r, g, b] });\n  }\n  return complementaryColors;\n}\n\n\nvar newMsg = {\"payload\":{ \n              \"data\":{\n                \"rgb\": complementaryColors\n              }\n            }};\n\nreturn newMsg;",
+    "func": "let rgb = [50, 200, 100];\nlet entity_ids = msg.payload.attributes.entity_id;\n\nlet complementaryColors = generateComplementaryColors(rgb, entity_ids);\n\n\nfunction generateComplementaryColors(hsl, entity_ids) {\n  let complementaryColors = [];\n  let numColors = entity_ids.length;\n  for (let i = 0; i < numColors; i++) {\n    let h = (hsl[0] + (i + 1) * (360 / numColors)) % 360;\n    let s = 100;\n    complementaryColors.push({ entity_id: entity_ids[i], hs_color: [h, s] });\n  }\n  return complementaryColors;\n}\n\nvar newMsg = {\"payload\":    complementaryColors \n\n           };\n\nreturn newMsg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1380,
+    "y": 580,
+    "wires": [
+      [
+        "a79fdeeab8077e74",
+        "2b49c035fb659639"
+      ]
+    ]
+  },
+  {
+    "id": "2b49c035fb659639",
+    "type": "split",
+    "z": "ad8c570ec4ac394a",
+    "name": "Split entities",
+    "splt": "\\n",
+    "spltType": "str",
+    "arraySplt": 1,
+    "arraySpltType": "len",
+    "stream": false,
+    "addname": "",
+    "x": 1690,
+    "y": 500,
+    "wires": [
+      [
+        "b3cad8ff2777804e"
+      ]
+    ]
+  },
+  {
+    "id": "ebc0d05df3462685",
+    "type": "debug",
+    "z": "ad8c570ec4ac394a",
+    "name": "debug 263",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 2170,
+    "y": 500,
+    "wires": []
+  },
+  {
+    "id": "b3cad8ff2777804e",
+    "type": "change",
+    "z": "ad8c570ec4ac394a",
+    "name": "",
+    "rules": [
+      {
+        "t": "move",
+        "p": "payload",
+        "pt": "msg",
+        "to": "payload.data",
+        "tot": "msg"
+      }
+    ],
+    "action": "",
+    "property": "",
+    "from": "",
+    "to": "",
+    "reg": false,
+    "x": 1890,
+    "y": 500,
+    "wires": [
+      [
+        "0aa5225356e7f714",
+        "ebc0d05df3462685"
+      ]
+    ]
+  },
+  {
+    "id": "f5fe4ede1dcb28cf",
+    "type": "debug",
+    "z": "ad8c570ec4ac394a",
+    "name": "debug 264",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 2330,
+    "y": 580,
+    "wires": []
+  },
+  {
+    "id": "6350223e7f4f5744",
+    "type": "inject",
+    "z": "ad8c570ec4ac394a",
+    "name": "",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 690,
+    "y": 494,
+    "wires": [
+      [
+        "3e380e11087941f4"
+      ]
+    ]
+  },
+  {
+    "id": "4c3d200cf272d5bd",
+    "type": "function",
+    "z": "ad8c570ec4ac394a",
+    "name": "Generate warm saturated color ( to edit)",
+    "func": "let rgb = [50, 200, 100];\nlet entity_ids = msg.payload.attributes.entity_id;\n\nlet complementaryColors = generateComplementaryColors(rgb, entity_ids);\n\n\nfunction generateComplementaryColors(rgb, entity_ids) {\n  let complementaryColors = [];\n  let numColors = entity_ids.length;\n  for (let i = 0; i < numColors; i++) {\n    let r = (255 - rgb[0]) * (i + 1) / numColors;\n    let g = (255 - rgb[1]) * (i + 1) / numColors;\n    let b = (255 - rgb[2]) * (i + 1) / numColors;\n    complementaryColors.push({ entity_id: entity_ids[i], rgb_color: [r, g, b] });\n  }\n  return complementaryColors;\n}\n\n\nvar newMsg = {\"payload\":    complementaryColors \n\n           };\n\nreturn newMsg;",
     "outputs": 1,
     "noerr": 0,
     "initialize": "",
     "finalize": "",
     "libs": [],
     "x": 1360,
-    "y": 580,
+    "y": 520,
     "wires": [
-      [
-        "83b26396e93048fb",
-        "a79fdeeab8077e74"
-      ]
+      []
     ]
   }
 ]
