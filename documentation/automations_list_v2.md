@@ -1,6 +1,7 @@
 
 
 
+
 # Automations List
 
 ### Here you will find an almost complete and almost kept-to-date list of all my automations!
@@ -84,6 +85,14 @@
   - Automatically adjust the bathroom speaker volume
   - Mute the main speaker when the shower speaker is started and stops it when not needed anymore
   - Automatically start the bathroom fan when humidity goes over 65%
-  - Raise the speaker volume when the bathroom fan goes on 
+  - Raise the speaker volume when the bathroom fan goes on
+- [Bedroom](/node-red/flows/Bedroom.json):
+   - Turn on the "Sleeper in bedroom" boolean input when the "Sleeper in bedroom" sensors goes to on
+   - Turn off the "Sleeper in bedroom" boolean input when the bedroom lights are turned on
+   - Connect the dial to the dial subflow
+   - Turn on thunderstorm sounds on the speaker when I go to sleep
+- [Office](/node-red/flows/Office.json):
+  - Connect the dial to the dial subflow
+  - Add artists playing on speaker to Lidarr for automatic acquisition
+  - Control blinds through the blind buttons
   - 
-  
