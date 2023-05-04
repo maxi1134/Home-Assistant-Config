@@ -50,7 +50,7 @@
   - Generate and set warm colors on each light group when "kink party" is turned on
   - Generate an improved color loop when "trippy lights effect" is turned on
   - Return lights to white when "trippy lights effect" is turned off- 
-- [Security/conditions](/node-red/flows/Security%2Fconditions.json):
+- [Security/conditions](/node-red/flows/Security_conditions.json):
    - Notifify my phone upon breach in my bedroom
    - Automatically set the following boolean inputs to off after a set amount of time
      - Waiting Uber
