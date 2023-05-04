@@ -65,6 +65,7 @@
      - Waiting someone
    - Automatically set the the following boolean inputs to off after a condition is met
       - Acid time
+    - Trigger the alarm system upon motion and notify and broadcast an alarm
 - [Alexe](/node-red/flows/Alexe.json):
    - Tells Alexe take out the dog from 9 am until the dog is seen by Frigate on one of the cameras
 - [Carla](/node-red/flows/Carla.json):
@@ -74,6 +75,7 @@
 - [Back Door](/node-red/flows/Back%20door.json):
    - Automatically lock the door when it is closed
    - Announce if someone is using the door to enter or exit
+   - Turn back door lights on when someone is detected
 - [Front Door](/node-red/flows/Front%20Door.json):
   - Automatically turn the porch light on and off depending on the sun position
   - Brighten the porch light when someone is passing in front of the front door camera
@@ -121,7 +123,7 @@
    - Harrass me when the fridge door is left open
    - Alert us when there is a water leak behind the washer
    - Broadcast an alert when the ktichen timer is finished until someone enters the kitchen
-   - Set "Kitchen timer" to match the kitchen's speaker timer and alarm   - 
+   - Set "Kitchen timer" to match the kitchen's speaker timer and alarm 
 - [Hotbox Down](/node-red/flows/Hotbox%20Down.json):
   - Connect the dial to the dial subflow
   - Automatically recast the Lovelace interface to the nest hub when needed
@@ -132,3 +134,44 @@
      - Turn off the Xbox
      - Unmute hotbox down media players once the guests are awake and exit the room
      - Toggle "Do not disturb" on the nest hub depending on sleeping state
+- [Hotbox Top](/node-red/flows/Hotbox%20Top.json):
+  - Connect the dial to the dial subflow
+   - Adjust lights when Netflix, Plex, or Xbox is used on the TV's roku
+   - Turn on Xbox one if the Xbox input is selected
+   - Open the TV on the Chromecast upon entering Hotbox top
+   - Adjust the hotbox top volume media when someone goes to sleep
+  - Automatically recast the Lovelace interface to the nest hub when needed
+- [Living Room](/node-red/flows/Living%20Room.json):
+  - Adjust volume when the AC turns on and off
+  - Slightly open the blinds when the AC turns on
+  - Close the blinds when the AC turns off
+  - Control blinds through the blind button
+  - Toggle speaker's mute depending on sleeping state
+  - Toggle the lights depending on sleeping state
+  - Toggle the TV depending on sleeping state
+  - Toggle hallway speaker volume depending on sleeping state
+  - Connect the dial to the dial subflow
+  - Connect the second dial to the dial subflow
+- [PTZ Camera](/node-red/flows/PTZ%20Camera.json):
+  - Return the PTZ camera to its original position after 10 minutes if no package is awated
+- [Phone](/node-red/flows/Phone.json):
+   - Tell me that a phone call is incoming on a nearby speaker
+- [Tablets](/node-red/flows/Tablets.json):
+   - Control S7 FE batterly level with a smart plug
+   - Control A7 lite batterly level with a smart plug
+- [Vacuum](/node-red/flows/Vacuum.json):
+   - Broadcast an alert if the vacuum is stuck until it is unstuck
+   - Automatically vacuum the entrance once 4 guests have entered  
+- [Hallway](/node-red/flows/Hallway.json):
+  - Connect the dial to the dial subflow
+- [Server](/node-red/flows/Server.json):
+  - Connect the dial to the dial subflow
+  - Detect when the server door is left open and broadcast regular alerts based on current temperature
+- [Patio](/node-red/flows/Patio.json):
+  - Turn off the lights when someone goes to sleep  
+  - Alert me when people are too noisy on the patio during a party
+- [Face Reco](/node-red/flows/Face%20Reco.json):
+  - Receive and process the "Enter Text" actionnable notification
+  - Receive and process the "Who is this" actionnable notification
+  - Reset all the associated booleans when the door locks
+  - Tries to detect who is at the door and let them in if they are recognized and a few conditions are met
