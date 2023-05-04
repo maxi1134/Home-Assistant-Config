@@ -61,11 +61,16 @@
      - Sleeper in Hotbox
      - Sleeper in Livingroom
      - Sleeper in Patio
+     - Sleeper in Closet
      - Waiting someone
    - Automatically set the the following boolean inputs to off after a condition is met
       - Acid time
 - [Alexe](/node-red/flows/Alexe.json):
    - Tells Alexe take out the dog from 9 am until the dog is seen by Frigate on one of the cameras
+- [Carla](/node-red/flows/Carla.json):
+   - Tells Carla to move her car at 8:45 and 9:15 if she is present
+- [Fay](/node-red/flows/Fay.json):
+   - Create a calendar event when Fay text me a pending task
 - [Back Door](/node-red/flows/Back%20door.json):
    - Automatically lock the door when it is closed
    - Announce if someone is using the door to enter or exit
@@ -95,3 +100,35 @@
   - Connect the dial to the dial subflow
   - Add artists playing on speaker to Lidarr for automatic acquisition
   - Control blinds through the blind button
+  - Slightly open the blinds when the AC turns on
+  - Close the blinds when the AC turns off
+  - Adjust volume when the AC turns on and off
+  - Set "Wallpaper Engine" background color to the same color as the lights
+- [Chilling Room](/node-red/flows/Chilling%20Room.json):
+  - Connect the dial to the dial subflow
+  - Set a random effect on the tree when it turns on
+- [Closet](/node-red/flows/Closet.json):
+  - Mute the hallway speaker if someone is sleeping in the closet
+  - Automatically adjust the control tablet's brightness to follow the lights.
+  - Automatically turns on the light depending on certain conditions
+  - Turn off the lights when someone is sleeping
+  - Turn off the tablet's screen when someone is sleeping
+  - Turn on the Sleeper more when someone press the dial
+  - Control the unique dial contorls of the closet
+- [Kitchen](/node-red/flows/Kitchen.json):
+   - Connect the dial to the dial subflow
+   - Announce house-wide when the pasta water is boiling
+   - Harrass me when the fridge door is left open
+   - Alert us when there is a water leak behind the washer
+   - Broadcast an alert when the ktichen timer is finished until someone enters the kitchen
+   - Set "Kitchen timer" to match the kitchen's speaker timer and alarm   - 
+- [Hotbox Down](/node-red/flows/Hotbox%20Down.json):
+  - Connect the dial to the dial subflow
+  - Automatically recast the Lovelace interface to the nest hub when needed
+  - Toggle the sleeping mode when someone double pressed the sleep button
+     - Toggle the lights depending on sleeping state
+     - Mute and turn off hotbox down media players
+     - Toggle the Hotbox Down Television depending on sleeping state
+     - Turn off the Xbox
+     - Unmute hotbox down media players once the guests are awake and exit the room
+     - Toggle "Do not disturb" on the nest hub depending on sleeping state
