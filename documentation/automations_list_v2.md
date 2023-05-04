@@ -95,4 +95,3 @@
   - Connect the dial to the dial subflow
   - Add artists playing on speaker to Lidarr for automatic acquisition
   - Control blinds through the blind buttons
-  - 
