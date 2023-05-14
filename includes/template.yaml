@@ -149,18 +149,19 @@
             {% for allowed_rooms in rooms %}
               {% for state in states.binary_sensor -%} 
                 {% if allowed_rooms in state.entity_id and "binary_sensor.sensor_" in state.entity_id and "occupancy" in state.entity_id %} 
-                  {% set sensor = {'entity_id': state.entity_id, 'last_changed': state.last_changed} %}
+                  {% set sensor = {'entity_id': state.entity_id,'state': state.state, 'last_changed': state.last_changed} %}
                     {% set ns.active_motion_sensors = ns.active_motion_sensors + [sensor] %}
                 {%- endif %}
               {% endfor %}
             {% endfor %}
-
-
-
             {# sorts the motion sensor list to output the active room where there was last motion#}
-            {% set sorted_sensors = ns.active_motion_sensors | sort(attribute='last_changed') %}
-            {% set last_sensor = sorted_sensors | last %}
-
+            {% if  ns.active_motion_sensors | selectattr('state', 'eq', 'on')| sort(attribute='last_changed') %}
+                {% set sorted_sensors = ns.active_motion_sensors | selectattr('state', 'eq', 'on')| sort(attribute='last_changed') %}
+                {% set last_sensor = sorted_sensors | last %}
+            {% else %} {# If no sensor is on, take latest active sensor#}
+                {% set sorted_sensors = ns.active_motion_sensors | sort(attribute='last_changed') %}
+                {% set last_sensor = sorted_sensors | last %}
+            {% endif %}
             {# set the lasttvactiveroom variant #}
             {% set room_before_split =last_sensor.entity_id | replace('binary_sensor.sensor_','')| replace('_motion_occupancy','')%}                            
             {% set lasttvactiveroom = room_before_split.split('_') | first %}     
