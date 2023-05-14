@@ -6,11 +6,13 @@
 
 # Indoor Localisation Detection
 
-Since I am always trying new things, I've explored indoor-localisation using 7 ESP32s and a [Minew Bracelet](https://www.minew.com/products/b7-wristband-beacon.html) attached to my ankle.  
+Since I am always trying new things, I've explored indoor-localisation using 7 ESP32s and a [Minew Bracelet](https://www.minew.com/products/b7-wristband-beacon.html) attached to my ankle.  Alternatively, if the ankle monitor is not detected while I am still considered at home, my phone and watch BLE signals are checked to determine my current location.  
+[Here you can find the code to that sensor](https://github.com/maxi1134/Home-Assistant-Config/blob/540436b0e1385e61b6bbdbc0f0b78f143336ccb6/include/template.yaml#LL75C6-L75C6)  
+  
 This allows for a high level of precisions when it comes to knowing in which room I am located.  
   
   
-The software used for this is [free and open source](https://espresense.com/). And regularly updated as well!
+As for the the software used for this, it is [free and open source](https://espresense.com/).
 
 ### The ESP32s are located as follow in the appartment, offering good detection in "main" rooms, and being less precise with others. <br>
 <p align="middle">
