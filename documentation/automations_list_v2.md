@@ -98,6 +98,7 @@
    - Turn off the "Sleeper in bedroom" boolean input when the bedroom lights are turned on
    - Connect the dial to the dial subflow
    - Turn on thunderstorm sounds on the speaker when I go to sleep
+   - Philip ecogreen tap control flow
 - [Office](/node-red/flows/Office.json):
   - Connect the dial to the dial subflow
   - Add artists playing on speaker to Lidarr for automatic acquisition
