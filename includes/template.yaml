@@ -32,6 +32,13 @@
               off
             {% endif %}
   - sensor:
+
+      - name: "Existing Rooms"
+        unique_id: existing_rooms
+        state: >-
+          {% set areas = states  | selectattr('attributes.device_class', 'defined')   | map(attribute='entity_id')  | map('area_id') | unique | reject('none') | list %}
+          {{ areas }}
+          
       - name: "current time"
         state: >-
           {{now().strftime('%H:%M %p')}}
@@ -143,7 +150,7 @@
 
       - name: "last active room"
         state: >-
-            {% set rooms = ["office","bedroom","kitchen","hotbox","closet","livingroom","server"] %}
+            {% set rooms = states('sensor.existing_rooms') %}
             {# Check for motionsensors in the rooms and then store them in a list #}
             {% set ns = namespace( active_motion_sensors = [] )%}
             {% for allowed_rooms in rooms %}
@@ -408,9 +415,6 @@
                     {% endif %}        
               {% elif friendshome > 0   %}     {# if we have more people over than users #}{# assume a chilling #}
                         {% set ns.activityname = "Chilling" %}
-
-
-
               {% else %}
               {% endif %}                      
             {% else %}
@@ -419,4 +423,11 @@
             {{ns.activityname }}            
       - name: "plex token"
         unique_id: plex_token
-        state: !secret plex_token
+        state: !secret plex_token   
+
+
+      - name: "Maxi Location v3"
+        unique_id: maxi_location_v3
+        state: >-
+          {% set areas = states  | selectattr('attributes.device_class', 'defined')   | map(attribute='entity_id')  | map('area_id') | unique | reject('none') | list %}
+          {{ areas }}
