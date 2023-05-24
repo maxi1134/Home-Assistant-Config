@@ -445,5 +445,26 @@
       - name: "Maxi Location v3"
         unique_id: maxi_location_v3
         state: >-
-          {% set areas = states  | selectattr('attributes.device_class', 'defined')   | map(attribute='entity_id')  | map('area_id') | unique | reject('none') | list %}
-          {{ areas }}
+            {% set braceletroom = states('sensor.b7bracelet1') %}
+            {% set watchroom = states('sensor.watch_galaxy4') %}
+            {% set watchonbody = states('binary_sensor.galaxy_watch_4_on_body_sensor') %}
+            {% set phoneroom = states('sensor.phone_fold4') %}
+            {% set gpslocation = states('device_tracker.phone_galaxy_fold_4') %}
+            {% set lastactiveroom = states('sensor.last_active_room') %}
+            {% set maxialone = states('binary_sensor.maxi_alone') %}
+            {% if maxialone == "off" %}
+              {% if watchonbody == "on" and watchroom != "not_home" %}                   
+                {% set location = watchroom %}
+              {% elif braceletroom != "not_home" %}      
+                {% set location = braceletroom %}
+              {% elif phoneroom != "not_home" %}
+                {% set location = phoneroom %}
+              {% elif gpslocation != "not_home"%}
+                {% set location = "At " + gpslocation %}
+              {% else %}
+                {% set location = unkown %}
+              {% endif %}
+            {% else %}
+                {% set location = lastactiveroom %}
+            {% endif %}
+            {{ location }}
