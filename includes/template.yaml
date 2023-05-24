@@ -11,13 +11,13 @@
              or  is_state('binary_sensor.sensor_patio_ceiling_motion_occupancy', 'on')
              }}
       - name: "maxi is talking"
-        unique_id: "maxi_talking" 
+        unique_id: "maxi_is_talking" 
         state: >-
            {{ (not is_state('sensor.phone_fold4_phone_state', "idle"))
              or is_state('binary_sensor.pc_maxi_desktop_microphoneactive', 'on')
              }}
       - name: "maxi is listening"
-        unique_id: "maxi_listening" 
+        unique_id: "maxi_is_listening" 
         state: >-
             {{ ( is_state('sensor.phone_fold4_media_session', "Playing")
               or not is_state('sensor.phone_fold4_phone_state', "idle")
@@ -34,15 +34,17 @@
   - sensor:
 
       - name: "Existing Rooms"
-        unique_id: existing_rooms
+        unique_id: "existing_rooms"
         state: >-
           {% set areas = states  | selectattr('attributes.device_class', 'defined')   | map(attribute='entity_id')  | map('area_id') | unique | reject('none') | list %}
           {{ areas }}
-          
+
       - name: "current time"
+        unique_id: "current_time"
         state: >-
           {{now().strftime('%H:%M %p')}}
       - name: "Closet Lights Brightness"
+        unique_id: "closet_lights_brightness" 
         state: >-
           {% if state_attr('light.group_closet_lights', 'brightness')  %}
             {{ state_attr('light.group_closet_lights', 'brightness') }}
@@ -50,6 +52,7 @@
               1
           {% endif %}
       - name: "Office Lights color"
+        unique_id: "office_lights_color" 
         state: >-
           {% if state_attr('light.group_office_lights', 'rgb_color')  %}
             {{ state_attr('light.group_office_lights', 'rgb_color') }}
@@ -57,6 +60,7 @@
               0
           {% endif %}
       - name: "Playing on Bedroom Speaker"
+        unique_id: "playing_on_bedroom_speaker" 
         state: >-
           {% if state_attr('media_player.bedroom_speaker', 'media_series_title') %}
             {{ state_attr('media_player.bedroom_speaker', 'media_series_title') }}
@@ -68,6 +72,7 @@
             {{ state_attr('media_player.bedroom_speaker', 'app_name') }}
           {% endif %}
       - name: "Playing on home group Speaker"
+        unique_id: "playing_on_home_group_speaker" 
         state: >-
           {% if state_attr('media_player.group_home_speakers', 'media_series_title') %}
             {{ state_attr('media_player.group_home_speakers', 'media_series_title') }}
@@ -124,6 +129,7 @@
             {% endif %} 
 
       - name: "amount partners home"
+        unique_id: "amount_partners_home"
         state: >-
             {# set the ammount of partners home #}
             {% if states('person.maximiliano') == "home" %}   {# If I am home, the amount should be zone.home -1 #}
@@ -134,6 +140,7 @@
             {{partnershome | int }}
 
       - name: "amount friends home"
+        unique_id: "amount_friends_home"
         state: >-
              {# Set friendshome to the amount of friends #}
              {% set friendshome = states('sensor.guest_wifi_count') | int - states('sensor.amount_partners_home') | int  %}
@@ -141,6 +148,7 @@
 
 
       - name: "amount people home"
+        unique_id: amount_people_home
         state: >-
              {# Set peoplehome to the amount of people #}
              {% set peoplehome = states('sensor.amount_friends_home') | int + states('sensor.amount_partners_home') | int  %} 
@@ -149,6 +157,7 @@
       
 
       - name: "last active room"
+        unique_id: last_active_room
         state: >-
             {% set rooms = states('sensor.existing_rooms') %}
             {# Check for motionsensors in the rooms and then store them in a list #}
@@ -175,6 +184,7 @@
             {{lasttvactiveroom}}
 
       - name: "active_sleeper_rooms"
+        unique_id: "active_sleeper_rooms"
         state: >-
             {% set ns = namespace(active_sleeper_rooms = []) %}  {# create a namespace object to store variables #}
             {%- for boolean in states.input_boolean -%} 
@@ -186,6 +196,7 @@
             {{ ns.active_sleeper_rooms }}
 
       - name: "active_sleepers"
+        unique_id: "active_sleepers"
         state: >-
           {{ states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search',"input_boolean.sleeper_") | list | count }}
         attributes:
@@ -197,11 +208,13 @@
             {{ dict.from_keys(ns.items) }}
 
       - name: "active_sleeper_amount"
+        unique_id: "active_sleeper_amount"
         state: >-
             {{ states('sensor.active_sleeper_rooms') | wordcount }}
 
             
       - name: "active_chromecast_rooms"
+        unique_id: "active_chromecast_rooms"
         state: >-
             {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
             {% for media_player in states.media_player -%} 
@@ -214,6 +227,7 @@
             {% endfor %} 
             {{ ns.mediaactiverooms | unique | list}}
       - name: "active_speakers_rooms"
+        unique_id: "active_speakers_rooms"
         state: >-
             {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
             {% for media_player in states.media_player -%} 
@@ -230,6 +244,7 @@
 
 
       - name: "active_media_playback"
+        unique_id: "active_media_playback"
         state: >-
             {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
             {% for media_player in states.media_player -%} 
@@ -273,6 +288,7 @@
 
 
       - name: Is maxi asleep?
+        unique_id: "is_maxi_asleep"
         state: >
             {% set room = states.sensor.maxi_location.state %}  {# get the current maxi location sensor state #}
             {% set sleeperamount = states('sensor.active_sleeper_amount') | int %}
