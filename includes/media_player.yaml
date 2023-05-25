@@ -68,9 +68,6 @@
   - name: Universal Group Home Speakers
     unique_id: universal_group_home_speakers
     platform: universal
-    children:
-      - media_player.plex_group_home_speakers
-      - media_player.group_home_speakers
     commands:
       media_next_track:
         service: media_player.media_seek
@@ -113,11 +110,23 @@
         data:
           volume_level: "{{ volume_level }}"
     state_template: >
-        {% if states('media_player.plex_group_home_speakers') != "unavailable" %}
-          {{states('media_player.plex_group_home_speakers')}}
-        {% else %}
-          {{states('media_player.group_home_speakers')}}
-        {% endif %}
+            {% set ns = namespace( final_entity = "" )%}
+            {% for media_player in states.media_player %} 
+              {% if "plex" in media_player.entity_id  %}
+                {% set entity = media_player.entity_id %}
+                {% set media_title = state_attr( entity, 'media_title') %}
+                  {% if state_attr( 'media_player.group_home_speakers', 'media_title') %}
+                    {% if ( media_title | string ) in state_attr( 'media_player.group_home_speakers', 'media_title') %}
+                    {% set ns.final_entity = entity %}
+                    {% endif %}
+                  {% endif %}
+              {% endif %}
+            {% endfor %}
+            {% if ns.final_entity != "" %}
+            {{states(ns.final_entity)}}
+            {% else %}
+            off
+            {% endif %}
     attributes: 
       is_volume_muted:  media_player.group_home_speakers|is_volume_muted
       volume_level:  media_player.group_home_speakers|volume_level      
@@ -252,3 +261,85 @@
     source: media_player.office_roku|source    
     source_list: remote.office_roku|source_list
     device_class: tv
+
+
+  - platform: media_player_template
+    media_players:
+      template_group_home_speakers:
+        friendly_name: Template Group Home Speakers
+        device_class: speaker
+        value_template: >
+                {% set ns = namespace( final_entity = "" )%}
+                {% for media_player in states.media_player %} 
+                  {% if "plex" in media_player.entity_id  %}
+                    {% set entity = media_player.entity_id %}
+                    {% set media_title = state_attr( entity, 'media_title') %}
+                      {% if state_attr( 'media_player.group_home_speakers', 'media_title') %}
+                        {% if ( media_title | string ) in state_attr( 'media_player.group_home_speakers', 'media_title') %}
+                        {% set ns.final_entity = entity %}
+                        {% endif %}
+                      {% endif %}
+                  {% endif %}
+                {% endfor %}
+                {% if ns.final_entity != "" %}
+                {{states(ns.final_entity)}}
+                {% else %}
+                off
+                {% endif %}
+        next:
+          service: media_player.media_seek
+          data_template:
+            entity_id: media_player.group_home_speakers
+            seek_position: 56000
+        turn_on:
+          service: media_player.turn_on
+          data_template:
+            entity_id: media_player.group_home_speakers
+        stop:
+          service: media_player.media_stop
+          data_template:
+            entity_id: media_player.group_home_speakers
+        turn_off:
+          service: media_player.turn_off
+          data_template:
+            entity_id: media_player.group_home_speakers
+        volume_up:
+          service: media_player.volume_up
+          data_template:
+            entity_id: media_player.group_home_speakers
+        volume_down:
+          service: media_player.volume_down
+          data_template:
+            entity_id: media_player.group_home_speakers
+        mute:
+          service: media_player.volume_mute
+          data_template:
+            entity_id: media_player.group_home_speakers
+        set_volume:
+          service: media_player.volume_set
+          data_template:
+            entity_id: media_player.group_home_speakers
+            volume_level: "{{ volume }}"
+        current_is_muted_template: "{{state_attr( 'media_player.group_home_speakers', 'is_volume_muted') }}"
+        media_image_url_template: >
+                {% set ns = namespace( final_entity = "" )%}
+                {% for media_player in states.media_player %} 
+                  {% if "plex" in media_player.entity_id  %}
+                    {% set entity = media_player.entity_id %}
+                    {% set media_title = state_attr( entity, 'media_title') %}
+                      {% if state_attr( 'media_player.group_home_speakers', 'media_title') %}
+                        {% if ( media_title | string ) in state_attr( 'media_player.group_home_speakers', 'media_title') %}
+                        {% set ns.final_entity = entity %}
+                        {% endif %}
+                      {% endif %}
+                  {% endif %}
+                {% endfor %}
+                {% if ns.final_entity != "" %}
+                  {{state_attr(ns.final_entity, 'entity_picture')}}
+                {% else %}
+                {% endif %}
+        title_template: "{{state_attr( 'media_player.group_home_speakers', 'media_title') }}"
+        album_template: "{{ state_attr( 'media_player.group_home_speakers', 'media_album_name')}}"
+        artist_template: "{{ state_attr( 'media_player.group_home_speakers', 'media_album_artist') }}"
+        unique_id: template_group_home_speakers
+        media_content_type_template: music
