@@ -701,7 +701,7 @@
     "type": "function",
     "z": "450c81641a10c42d",
     "name": "JavascriptNotification setter Reolink",
-    "func": "var name = \"Someone\";\nvar url1 = \"https://hass.purgatoire.ca/local/reolinkring.jpg\";\nvar url2 = \"https://hass.purgatoire.ca/local/ring.jpg\";\nvar random = Date.now();\n\nvar newMsg = {\n\t\"payload\": {\n\t\t\"data\": {\n\t\t\t\"message\": \"Doorbell Alert\",\n\t\t\t\"title\": name + \" is at the door\",\n\t\t\t\"data\": {\n\t\t\t\t\"sticky\": 'true',\n\t\t\t\t\"clickAction\": '/phone-landing/reolink?kiosk=1',\n\t\t\t\t\"priority\": 'high',\n\t\t\t\t\"image\": url1 + \"?\" + random,\n\t\t\t\t\"actions\": [{\n\t\t\t\t\t\t\"action\": \"REPLY\",\n\t\t\t\t\t\t\"title\": \"Enter Text\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"action\": \"unlock_door\",\n\t\t\t\t\t\t\"title\": \"Unlock The Door\"\n\t\t\t\t\t}\n\n\t\t\t\t]\n\t\t\t}\n\t\t}\n\t}\n};\nreturn newMsg;",
+    "func": "var name = \"Someone\";\nvar url = msg.frontdoor.responseUrl.split('?');\nvar url2 = url[1].replace('url=http://192.168.0.15:8123/', 'https://hass.purgatoire.ca/').split('&');\nvar urlfinal = url2[0];\n\nvar random = Date.now();\n\nvar newMsg = {\n\t\"payload\": {\n\t\t\"data\": {\n\t\t\t\"message\": \"Doorbell Alert\",\n\t\t\t\"title\": name + \" is at the door\",\n\t\t\t\"data\": {\n\t\t\t\t\"sticky\": 'true',\n\t\t\t\t\"clickAction\": '/phone-landing/reolink?kiosk=1',\n\t\t\t\t\"priority\": 'high',\n\t\t\t\t\"image\": urlfinal + \"?\" + random,\n\t\t\t\t\"actions\": [{\n\t\t\t\t\t\t\"action\": \"REPLY\",\n\t\t\t\t\t\t\"title\": \"Enter Text\"\n\t\t\t\t\t},\n\t\t\t\t\t{\n\t\t\t\t\t\t\"action\": \"unlock_door\",\n\t\t\t\t\t\t\"title\": \"Unlock The Door\"\n\t\t\t\t\t}\n\n\t\t\t\t]\n\t\t\t}\n\t\t}\n\t}\n};\nreturn newMsg;\n\n\n",
     "outputs": 1,
     "noerr": 0,
     "initialize": "",
@@ -3315,12 +3315,15 @@
     "id": "1b5e8dc4ed913300",
     "type": "switch",
     "z": "450c81641a10c42d",
-    "name": "Match Not Null?",
+    "name": "Match Not Empty?",
     "property": "matches",
     "propertyType": "msg",
     "rules": [
       {
-        "t": "nnull"
+        "t": "nempty"
+      },
+      {
+        "t": "empty"
       },
       {
         "t": "null"
@@ -3328,12 +3331,15 @@
     ],
     "checkall": "false",
     "repair": false,
-    "outputs": 2,
-    "x": 2440,
+    "outputs": 3,
+    "x": 2450,
     "y": 1380,
     "wires": [
       [
         "2929b2bc450dd368"
+      ],
+      [
+        "91cd40af7f2cd956"
       ],
       [
         "91cd40af7f2cd956"
@@ -3365,7 +3371,7 @@
     "type": "function",
     "z": "450c81641a10c42d",
     "name": "Face Extractor compare by CHATGPT 4.0",
-    "func": "let data = msg.payload;\n//Assuming the JSON is stored in a variable called data\n//Initialize an empty array to store the payload objects\nlet payload = [];\n\n//Loop through the data array and check if there are any matches\nfor (let i = 0; i < data.length; i++) {\n\tlet matches = data[i].matches;\n\tif (matches.length > 0) {\n\t\t//Find the match with the highest confidence value\n\t\tlet maxConfidence = 0;\n\t\tlet maxMatch = null;\n\t\tfor (let j = 0; j < matches.length; j++) {\n\t\t\tlet confidence = matches[j].confidence;\n\t\t\tif (confidence > maxConfidence) {\n\t\t\t\tmaxConfidence = confidence;\n\t\t\t\tmaxMatch = matches[j];\n\t\t\t}\n\t\t}\n\t\t//Add the entire payload object with the highest confidence match to the payload array\n\t\tpayload.push(data[i]);\n\t} else {\n\t\t//If there are no matches, loop through the data array again and compare the camera names\n\t\tfor (let k = i + 1; k < data.length; k++) {\n\t\t\tlet camera1 = data[i].camera;\n\t\t\tlet camera2 = data[k].camera;\n\t\t\t//If the camera names are different, create a new payload object with both cameras and their urls and responseUrls\n\t\t\tif (camera1 !== camera2) {\n\t\t\t\tlet url1 = data[i].url;\n\t\t\t\tlet responseUrl1 = data[i].responseUrl;\n\t\t\t\tlet url2 = data[k].url;\n\t\t\t\tlet responseUrl2 = data[k].responseUrl;\n\t\t\t\tlet newPayload = {};\n\t\t\t\tnewPayload[camera1] = { url: url1, responseUrl: responseUrl1 };\n\t\t\t\tnewPayload[camera2] = { url: url2, responseUrl: responseUrl2 };\n\t\t\t\t//Add the new payload object to the payload array\n\t\t\t\tpayload.push(newPayload);\n\t\t\t}\n\t\t}\n\t}\n}\n\n\nreturn payload;\n\n\n",
+    "func": "let data = msg.payload;\n//Assuming the JSON is stored in a variable called data\n//Initialize an empty array to store the payload objects\nlet payload = [];\n\n//Check if the data array has only one element\nif (data.length === 1) {\n\t//Output the data array as it is\n\tpayload = data;\n} else {\n\t//Loop through the data array and check if there are any matches\n\tfor (let i = 0; i < data.length; i++) {\n\t\tlet matches = data[i].matches;\n\t\tif (matches.length > 0) {\n\t\t\t//Find the match with the highest confidence value\n\t\t\tlet maxConfidence = 0;\n\t\t\tlet maxMatch = null;\n\t\t\tfor (let j = 0; j < matches.length; j++) {\n\t\t\t\tlet confidence = matches[j].confidence;\n\t\t\t\tif (confidence > maxConfidence) {\n\t\t\t\t\tmaxConfidence = confidence;\n\t\t\t\t\tmaxMatch = matches[j];\n\t\t\t\t}\n\t\t\t}\n\t\t\t//Add the entire payload object with the highest confidence match to the payload array\n\t\t\tpayload.push(data[i]);\n\t\t} else {\n\t\t\t//If there are no matches, loop through the data array again and compare the camera names\n\t\t\tfor (let k = i + 1; k < data.length; k++) {\n\t\t\t\tlet camera1 = data[i].camera;\n\t\t\t\tlet camera2 = data[k].camera;\n\t\t\t\t//If the camera names are different, create a new payload object with both cameras and their urls and responseUrls\n\t\t\t\tif (camera1 !== camera2) {\n\t\t\t\t\tlet url1 = data[i].url;\n\t\t\t\t\tlet responseUrl1 = data[i].responseUrl;\n\t\t\t\t\tlet url2 = data[k].url;\n\t\t\t\t\tlet responseUrl2 = data[k].responseUrl;\n\t\t\t\t\tlet newPayload = {};\n\t\t\t\t\tnewPayload[camera1] = { url: url1, responseUrl: responseUrl1 };\n\t\t\t\t\tnewPayload[camera2] = { url: url2, responseUrl: responseUrl2 };\n\t\t\t\t\t//Add the new payload object to the payload array\n\t\t\t\t\tpayload.push(newPayload);\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}\n}\n\n\n//Output the payload array\nreturn payload;\n\n\n",
     "outputs": 1,
     "noerr": 0,
     "initialize": "",
@@ -3495,7 +3501,7 @@
     "type": "function",
     "z": "450c81641a10c42d",
     "name": "JavascriptNotification setter Faceshot",
-    "func": "var name = \"Someone\";\nvar url1 = \"https://hass.purgatoire.ca/local/reolinkring.jpg\";\nvar url2 = \"https://hass.purgatoire.ca/local/ring.jpg\";\nvar random = Date.now();\n\n\nvar newMsg = {\n\t\"payload\": {\n\t\t\"data\": {\n\t\t\t\"message\": \"Doorbell Alert\",\n\t\t\t\"title\": name + \" is at the door\",\n\t\t\t\"data\": {\n\t\t\t\t\"image\": url2,\n\t\t\t\t\"actions\": [{\n\t\t\t\t\t\"action\": \"REPLY\",\n\t\t\t\t\t\"title\": \"Who is this?\"\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\t\"action\": \"unlock_door\",\n\t\t\t\t\t\"title\": \"Unlock The Door\"\n\t\t\t\t}\n\n\t\t\t\t]\n\t\t\t}\n\t\t}\n\t}\n};\nreturn newMsg;",
+    "func": "var name = \"Someone\";\nvar url = msg.faceshot.responseUrl.split('?');\nvar url2 = url[1].replace('url=http://192.168.0.15:8123/', 'https://hass.purgatoire.ca/').split('&');\nvar urlfinal = url2[0];\n\nvar random = Date.now();\n\nvar newMsg = {\n\t\"payload\": {\n\t\t\"data\": {\n\t\t\t\"message\": \"Doorbell Alert\",\n\t\t\t\"title\": name + \" is at the door\",\n\t\t\t\"data\": {\n\t\t\t\t\"sticky\": 'true',\n\t\t\t\t\"clickAction\": '/phone-landing/reolink?kiosk=1',\n\t\t\t\t\"priority\": 'high',\n\t\t\t\t\"image\": urlfinal + \"?\" + random,\n\t\t\t\t\"actions\": [{\n\t\t\t\t\t\"action\": \"REPLY\",\n\t\t\t\t\t\"title\": \"Who is this?\"\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\t\"action\": \"unlock_door\",\n\t\t\t\t\t\"title\": \"Unlock The Door\"\n\t\t\t\t}\n\n\t\t\t\t]\n\t\t\t}\n\t\t}\n\t}\n};\nreturn newMsg;",
     "outputs": 1,
     "noerr": 0,
     "initialize": "",
@@ -3590,6 +3596,23 @@
     "libs": [],
     "x": 2200,
     "y": 1580,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "fa1efd9daaacace7",
+    "type": "function",
+    "z": "450c81641a10c42d",
+    "name": "Face Extractor compare by CHATGPT 4.0 working",
+    "func": "let data = msg.payload;\n//Assuming the JSON is stored in a variable called data\n//Initialize an empty array to store the payload objects\nlet payload = [];\n\n//Loop through the data array and check if there are any matches\nfor (let i = 0; i < data.length; i++) {\n\tlet matches = data[i].matches;\n\tif (matches.length > 0) {\n\t\t//Find the match with the highest confidence value\n\t\tlet maxConfidence = 0;\n\t\tlet maxMatch = null;\n\t\tfor (let j = 0; j < matches.length; j++) {\n\t\t\tlet confidence = matches[j].confidence;\n\t\t\tif (confidence > maxConfidence) {\n\t\t\t\tmaxConfidence = confidence;\n\t\t\t\tmaxMatch = matches[j];\n\t\t\t}\n\t\t}\n\t\t//Add the entire payload object with the highest confidence match to the payload array\n\t\tpayload.push(data[i]);\n\t} else {\n\t\t//If there are no matches, loop through the data array again and compare the camera names\n\t\tfor (let k = i + 1; k < data.length; k++) {\n\t\t\tlet camera1 = data[i].camera;\n\t\t\tlet camera2 = data[k].camera;\n\t\t\t//If the camera names are different, create a new payload object with both cameras and their urls and responseUrls\n\t\t\tif (camera1 !== camera2) {\n\t\t\t\tlet url1 = data[i].url;\n\t\t\t\tlet responseUrl1 = data[i].responseUrl;\n\t\t\t\tlet url2 = data[k].url;\n\t\t\t\tlet responseUrl2 = data[k].responseUrl;\n\t\t\t\tlet newPayload = {};\n\t\t\t\tnewPayload[camera1] = { url: url1, responseUrl: responseUrl1 };\n\t\t\t\tnewPayload[camera2] = { url: url2, responseUrl: responseUrl2 };\n\t\t\t\t//Add the new payload object to the payload array\n\t\t\t\tpayload.push(newPayload);\n\t\t\t}\n\t\t}\n\t}\n}\n\n\nreturn payload;\n\n\n",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 2230,
+    "y": 1540,
     "wires": [
       []
     ]
