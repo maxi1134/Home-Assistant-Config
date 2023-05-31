@@ -283,7 +283,7 @@
     "id": "a6ee972424e25404",
     "type": "junction",
     "z": "450c81641a10c42d",
-    "x": 4060,
+    "x": 4100,
     "y": 1460,
     "wires": [
       [
@@ -753,7 +753,8 @@
     "y": 1400,
     "wires": [
       [
-        "c5a435a10e0237a1"
+        "c5a435a10e0237a1",
+        "526fbeafe6da4f45"
       ]
     ]
   },
@@ -1297,7 +1298,9 @@
     "x": 4650,
     "y": 1280,
     "wires": [
-      []
+      [
+        "7a681aa6f5a6c94c"
+      ]
     ]
   },
   {
@@ -1322,7 +1325,9 @@
     "x": 4670,
     "y": 1460,
     "wires": [
-      []
+      [
+        "7dfcb7d8a254db2a"
+      ]
     ]
   },
   {
@@ -1893,7 +1898,7 @@
     "timeout": "5",
     "timeoutUnits": "seconds",
     "rate": "1",
-    "nbRateUnits": "30",
+    "nbRateUnits": "1",
     "rateUnits": "second",
     "randomFirst": "1",
     "randomLast": "5",
@@ -1901,7 +1906,7 @@
     "drop": true,
     "allowrate": false,
     "outputs": 1,
-    "x": 220,
+    "x": 210,
     "y": 1340,
     "wires": [
       [
@@ -3233,23 +3238,6 @@
     ]
   },
   {
-    "id": "17e329b6ac53871f",
-    "type": "function",
-    "z": "450c81641a10c42d",
-    "name": "Face Extractor compare by CHATGPT",
-    "func": "var data = msg.payload;\nlet highestConfidence = null;\n\ndata.matches.forEach((matchArray) => {\n\tmatchArray.forEach((matchObj) => {\n\t\tif (highestConfidence === null || matchObj.confidence > highestConfidence.confidence) {\n\t\t\thighestConfidence = matchObj;\n\t\t}\n\t});\n});\n\nvar newMsg = { \n\t\"match\": highestConfidence\n\t\t\n\t\n}\n\nreturn newMsg;\n",
-    "outputs": 1,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 2070,
-    "y": 1540,
-    "wires": [
-      []
-    ]
-  },
-  {
     "id": "6cf321a7b89133c1",
     "type": "debug",
     "z": "450c81641a10c42d",
@@ -3414,9 +3402,9 @@
     "type": "function",
     "z": "450c81641a10c42d",
     "name": "Face Extractor compare by CHATGPT",
-    "func": "const data = msg.payload;\n\n// Initialize variables to track the highest confidence and corresponding payload\nlet highestConfidence = -Infinity;\nlet payloadWithHighestConfidence = null;\n\n// Iterate over each payload object\ndata.forEach(payload => {\n\tconst matches = payload.matches;\n\n\t// Iterate over the matches within the payload\n\tmatches.forEach(match => {\n\t\tconst confidence = match.confidence;\n\n\t\t// Check if the current confidence is higher than the highest recorded confidence\n\t\tif (confidence > highestConfidence) {\n\t\t\thighestConfidence = confidence;\n\t\t\tpayloadWithHighestConfidence = payload;\n\t\t}\n\t});\n});\n\nvar newMsg = { \n\t\"match\": payloadWithHighestConfidence\n\t\t\n\t\n}\n\nreturn newMsg;\n",
+    "func": "const data = msg.payload;\n\n// Initialize variables to track the highest confidence and corresponding payload\nlet highestConfidence = -Infinity;\nlet payloadWithHighestConfidence = null;\n\n// Iterate over each payload object\ndata.forEach(payload => {\n\tconst matches = payload.matches;\n\n\t// Iterate over the matches within the payload\n\tmatches.forEach(match => {\n\t\tconst confidence = match.confidence;\n\n\t\t// Check if the current confidence is higher than the highest recorded confidence\n\t\tif (confidence > highestConfidence) {\n\t\t\thighestConfidence = confidence;\n\t\t\tpayloadWithHighestConfidence = payload;\n\t\t}\n\t});\n});\n\nif (payloadWithHighestConfidence !== null) {\n\tvar newMsg = {\n\t\t\"match\": payloadWithHighestConfidence\n\t}\n} else {\n\tvar newMsg = {\n\t\t\"urls\": {\n\t\t\t\"faceshot\" \n\t\t}\n}\n\nreturn newMsg;\n",
     "outputs": 1,
-    "noerr": 0,
+    "noerr": 5,
     "initialize": "",
     "finalize": "",
     "libs": [],
@@ -3491,7 +3479,7 @@
     "type": "function",
     "z": "450c81641a10c42d",
     "name": "Notif setter",
-    "func": "var name = msg.match.matches[0].name;\nvar url = msg.match.responseUrl.split('?');\nvar urlfinal = url[1].replace('url=http://192.168.0.15:8123/', 'https://hass.purgatoire.ca/');\n\nvar newMsg = {\n\t\"payload\": {\n\t\t\"data\": {\n\t\t\t\"message\": \"Doorbell Alert\",\n\t\t\t\"title\": name + \" is at the door\",\n\t\t\t\"data\": {\n\t\t\t\t\"sticky\": 'true',\n\t\t\t\t\"clickAction\": '/phone-landing/reolink?kiosk=1',\n\t\t\t\t\"priority\": 'high',\n\t\t\t\t\"image\": urlfinal\n\t\t\t}\n\t\t}\n\t}\n};\nreturn newMsg;\n",
+    "func": "var name = msg.match.matches[0].name;\nvar url = msg.match.responseUrl.split('?');\nvar urlfinal = url[1].replace('url=http://192.168.0.15:8123/', 'https://hass.purgatoire.ca/');\nvar random = Date.now();\n\nvar newMsg = {\n\t\"payload\": {\n\t\t\"data\": {\n\t\t\t\"message\": \"Doorbell Alert\",\n\t\t\t\"title\": name + \" is at the door\",\n\t\t\t\"data\": {\n\t\t\t\t\"sticky\": 'true',\n\t\t\t\t\"clickAction\": '/phone-landing/reolink?kiosk=1',\n\t\t\t\t\"priority\": 'high',\n\t\t\t\t\"image\": urlfinal + \"?\" + random,\n\t\t\t\t\"actions\": [{\n\t\t\t\t\t\"action\": \"REPLY\",\n\t\t\t\t\t\"title\": \"Enter Text\"\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\t\"action\": \"unlock_door\",\n\t\t\t\t\t\"title\": \"Unlock The Door\"\n\t\t\t\t}\n\n\t\t\t\t]\n\t\t\t}\n\t\t}\n\t}\n};\nreturn newMsg;\n",
     "outputs": 1,
     "noerr": 0,
     "initialize": "",
@@ -3503,6 +3491,93 @@
       [
         "21c8c9ef879dd219"
       ]
+    ]
+  },
+  {
+    "id": "7dfcb7d8a254db2a",
+    "type": "debug",
+    "z": "450c81641a10c42d",
+    "name": "Notification",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 4910,
+    "y": 1460,
+    "wires": []
+  },
+  {
+    "id": "7a681aa6f5a6c94c",
+    "type": "debug",
+    "z": "450c81641a10c42d",
+    "name": "Notification",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 4890,
+    "y": 1280,
+    "wires": []
+  },
+  {
+    "id": "526fbeafe6da4f45",
+    "type": "function",
+    "z": "450c81641a10c42d",
+    "name": "JavascriptNotification setter Faceshot",
+    "func": "var name = \"Someone\";\nvar url1 = \"https://hass.purgatoire.ca/local/reolinkring.jpg\";\nvar url2 = \"https://hass.purgatoire.ca/local/ring.jpg\";\nvar random = Date.now();\n\n\nvar newMsg = {\n\t\"payload\": {\n\t\t\"data\": {\n\t\t\t\"message\": \"Doorbell Alert\",\n\t\t\t\"title\": name + \" is at the door\",\n\t\t\t\"data\": {\n\t\t\t\t\"image\": url2,\n\t\t\t\t\"actions\": [{\n\t\t\t\t\t\"action\": \"REPLY\",\n\t\t\t\t\t\"title\": \"Who is this?\"\n\t\t\t\t},\n\t\t\t\t{\n\t\t\t\t\t\"action\": \"unlock_door\",\n\t\t\t\t\t\"title\": \"Unlock The Door\"\n\t\t\t\t}\n\n\t\t\t\t]\n\t\t\t}\n\t\t}\n\t}\n};\nreturn newMsg;",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 3910,
+    "y": 1460,
+    "wires": [
+      [
+        "a6ee972424e25404"
+      ]
+    ]
+  },
+  {
+    "id": "0bd60b390e99bc4a",
+    "type": "debug",
+    "z": "450c81641a10c42d",
+    "name": "NO",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 3650,
+    "y": 1540,
+    "wires": []
+  },
+  {
+    "id": "ac8795a8fde6f0b3",
+    "type": "function",
+    "z": "450c81641a10c42d",
+    "name": "Face Extractor compare by CHATGPT working",
+    "func": "const data = msg.payload;\n\n// Initialize variables to track the highest confidence and corresponding payload\nlet highestConfidence = -Infinity;\nlet payloadWithHighestConfidence = null;\n\n// Iterate over each payload object\ndata.forEach(payload => {\n\tconst matches = payload.matches;\n\n\t// Iterate over the matches within the payload\n\tmatches.forEach(match => {\n\t\tconst confidence = match.confidence;\n\n\t\t// Check if the current confidence is higher than the highest recorded confidence\n\t\tif (confidence > highestConfidence) {\n\t\t\thighestConfidence = confidence;\n\t\t\tpayloadWithHighestConfidence = payload;\n\t\t}\n\t});\n});\n\n\nvar newMsg = { \n\t\"match\": payloadWithHighestConfidence\n\t\t\n\t\n}\n\nreturn newMsg;\n",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 2200,
+    "y": 1660,
+    "wires": [
+      []
     ]
   }
 ]
