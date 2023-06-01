@@ -6823,5 +6823,198 @@
     "x": 840,
     "y": 3600,
     "wires": []
+  },
+  {
+    "id": "85a17f73812eadfd",
+    "type": "server-state-changed",
+    "z": "3ad1e0957e6ec22e",
+    "name": "",
+    "server": "7ab5c227.a3ce8c",
+    "version": 4,
+    "exposeToHomeAssistant": false,
+    "haConfig": [
+      {
+        "property": "name",
+        "value": ""
+      },
+      {
+        "property": "icon",
+        "value": ""
+      }
+    ],
+    "entityidfilter": "sensor.maxi_location_v3",
+    "entityidfiltertype": "exact",
+    "outputinitially": false,
+    "state_type": "str",
+    "haltifstate": "",
+    "halt_if_type": "str",
+    "halt_if_compare": "is",
+    "outputs": 1,
+    "output_only_on_state_change": false,
+    "for": "0",
+    "forType": "num",
+    "forUnits": "minutes",
+    "ignorePrevStateNull": false,
+    "ignorePrevStateUnknown": false,
+    "ignorePrevStateUnavailable": false,
+    "ignoreCurrentStateUnknown": false,
+    "ignoreCurrentStateUnavailable": false,
+    "outputProperties": [
+      {
+        "property": "payload",
+        "propertyType": "msg",
+        "value": "",
+        "valueType": "entityState"
+      },
+      {
+        "property": "data",
+        "propertyType": "msg",
+        "value": "",
+        "valueType": "eventData"
+      },
+      {
+        "property": "topic",
+        "propertyType": "msg",
+        "value": "",
+        "valueType": "triggerId"
+      }
+    ],
+    "x": 220,
+    "y": 4660,
+    "wires": [
+      [
+        "45ca173cf9eb5cc6"
+      ]
+    ]
+  },
+  {
+    "id": "8f7ec59bd06743f5",
+    "type": "comment",
+    "z": "3ad1e0957e6ec22e",
+    "name": "Detect where maxi is",
+    "info": "",
+    "x": 150,
+    "y": 4620,
+    "wires": []
+  },
+  {
+    "id": "509fc142fa4b0cdb",
+    "type": "function",
+    "z": "3ad1e0957e6ec22e",
+    "name": "Extract room from media player entity an extract off speakers to regex",
+    "func": "var motion_entity_id = msg.data.event.new_state.entity_id; // binary_sensor.sensor_bedroom_motion_occupancy\nvar motion_entity_id_split = motion_entity_id.split(\".\");// split on the dot to separate domain and entity\nvar motion_entity_id_wihtout_binary = motion_entity_id_split[1].replace(\"media_player_\", \"\").replace(\"_chromecast\", \"\");// remove sensor_ and more substrings\nvar regex = \"^media_player\\.(?!.*?speakers.*?).*\" + motion_entity_id_wihtout_binary + \".*_speaker\"; \nconst rules_object = [{ 'property': 'entity_id' ,  'logic': 'is' , 'value': regex ,  'valueType': 're' },{ 'property': 'state' ,  'logic': 'is_not' , 'value': \"on\" ,  'valueType': 'str' }];// arranges the array \n\nvar msg = {\n    \"payload\":{ \"rules\": rules_object},\"room\": motion_entity_id_wihtout_binary\n\n}\nreturn msg;\n",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1090,
+    "y": 4660,
+    "wires": [
+      [
+        "9a29cee6a4511015"
+      ]
+    ]
+  },
+  {
+    "id": "9a29cee6a4511015",
+    "type": "ha-get-entities",
+    "z": "3ad1e0957e6ec22e",
+    "name": "Get entities",
+    "server": "7ab5c227.a3ce8c",
+    "version": 0,
+    "rules": [],
+    "output_type": "split",
+    "output_empty_results": false,
+    "output_location_type": "msg",
+    "output_location": "payload.results",
+    "output_results_count": 1,
+    "x": 1510,
+    "y": 4660,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "35d587fb7d21fde7",
+    "type": "comment",
+    "z": "3ad1e0957e6ec22e",
+    "name": "Generate the regex for the get entity node",
+    "info": "",
+    "x": 1120,
+    "y": 4620,
+    "wires": []
+  },
+  {
+    "id": "62ebfe7c69804cca",
+    "type": "comment",
+    "z": "3ad1e0957e6ec22e",
+    "name": "Get speakers entities",
+    "info": "",
+    "x": 1520,
+    "y": 4620,
+    "wires": []
+  },
+  {
+    "id": "45ca173cf9eb5cc6",
+    "type": "api-current-state",
+    "z": "3ad1e0957e6ec22e",
+    "name": "Media playback on speakers",
+    "server": "7ab5c227.a3ce8c",
+    "version": 3,
+    "outputs": 2,
+    "halt_if": "on",
+    "halt_if_type": "str",
+    "halt_if_compare": "is",
+    "entity_id": "sensor.active_media_playback",
+    "state_type": "str",
+    "blockInputOverrides": false,
+    "outputProperties": [
+      {
+        "property": "payload",
+        "propertyType": "msg",
+        "value": "",
+        "valueType": "entityState"
+      },
+      {
+        "property": "data",
+        "propertyType": "msg",
+        "value": "",
+        "valueType": "entity"
+      }
+    ],
+    "for": "0",
+    "forType": "num",
+    "forUnits": "minutes",
+    "override_topic": false,
+    "state_location": "payload",
+    "override_payload": "msg",
+    "entity_location": "data",
+    "override_data": "msg",
+    "x": 520,
+    "y": 4660,
+    "wires": [
+      [
+        "9124facfd9110ab5"
+      ],
+      []
+    ]
+  },
+  {
+    "id": "9124facfd9110ab5",
+    "type": "debug",
+    "z": "3ad1e0957e6ec22e",
+    "name": "debug 271",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "true",
+    "targetType": "full",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 810,
+    "y": 4460,
+    "wires": []
   }
 ]
