@@ -176,5 +176,5 @@
   - Receive and process the "Who is this" actionnable notification
   - Reset all the associated booleans when the door locks
   - Tries to detect who is at the door and let them in if they are recognized and a few conditions are met
-- [Face Reco](/node-red/flows/Neighbors.json):
+- [Neighbors](/node-red/flows/Neighbors.json):
   - Automatically mute the wiim receivers between 2AM and Noon
