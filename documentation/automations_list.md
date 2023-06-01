@@ -319,10 +319,13 @@ Automations:
             Turn off and restricts the server lights
 
             Turn off the TV
+    - Neighbors:
+
+        Automatically mute the big speakers betweeen 2am and noon.
 
     - Maxi's Phone:
 
-        Upon ringing, announce a call is incoming on the closest speaker in relation Maxi
+      Upon ringing, announce a call is incoming on the closest speaker in relation Maxi
 
       Trigger speakers nearby Maxi when the alarm goes off on the phone
 
