@@ -1,5 +1,6 @@
   - binary_sensor:
       - name: "All Present Sleeping"
+        unique_id: all_present_sleeping
         delay_off:
           minutes: 0
         state: >
@@ -242,6 +243,36 @@
 
 
 
+
+      - name: "active_motion"
+        unique_id: "active_motion"
+        state: >-
+            {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
+            {% for motion_sensor in states.binary_sensor -%} 
+              {%- if  "occupancy" in motion_sensor.entity_id -%}  
+                {%- if motion_sensor.state == 'on' -%}
+                {% set currentroomname = motion_sensor.entity_id | replace('binary_sensor.','') | replace('sensor_','') | replace('fp2_','') | replace('_motion_occupancy.','') %}
+                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname.split('_') | first] -%}   
+                {%- endif -%}
+              {%- endif -%}
+            {% endfor %} 
+            {% if ns.mediaactiverooms  | list | length > 0 %}
+            on
+            {% else %}
+            off
+            {%endif%}
+        attributes:
+          rooms: >-
+            {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
+            {% for motion_sensor in states.binary_sensor -%} 
+              {%- if  "occupancy" in motion_sensor.entity_id -%}  
+                {%- if motion_sensor.state == 'on' -%}
+                {% set currentroomname = motion_sensor.entity_id | replace('binary_sensor.','') | replace('sensor_','') | replace('fp2_','') | replace('_motion_occupancy.','') %}
+                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname.split('_') | first] -%}   
+                {%- endif -%}
+              {%- endif -%}
+            {% endfor %} 
+            {{ ns.mediaactiverooms | unique | list}}
 
       - name: "active_media_playback"
         unique_id: "active_media_playback"
