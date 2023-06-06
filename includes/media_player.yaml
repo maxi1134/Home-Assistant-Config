@@ -671,3 +671,88 @@
         media_episode_template: "{{state_attr( 'media_player.hotbox_down_chromecast', 'media_episode') }}"
         media_season_template: "{{state_attr( 'media_player.hotbox_down_chromecast', 'media_season') }}"
         unique_id: template_hotbox_down_chromecast
+
+        
+
+      template_office_chromecast:
+        friendly_name: Template Office Chromecast
+        device_class: speaker
+        value_template: >
+                {% set ns = namespace( cast_entity = "media_player.office_chromecast", template_entity = "" ) %}
+                {% set ns.final_entity = ns.cast_entity %}   {# Declare Varibles#}                
+                {% for media_player in states.media_player %} 
+                  {% if "plex" in media_player.entity_id  %}
+                    {% set entity = media_player.entity_id %}
+                    {% set media_title = state_attr( entity, 'media_title') %}
+                      {% if state_attr( ns.final_entity, 'media_title') %}
+                        {% if ( media_title | string ) in state_attr( ns.cast_entity, 'media_title') %}
+                        {% set ns.template_entity = entity %}
+                        {% endif %}
+                      {% endif %}
+                  {% endif %}
+                {% endfor %}
+                {% if ns.final_entity != ns.cast_entity %}
+                  {{states(ns.template_entity)}}
+                {% elif state_attr( ns.cast_entity, 'media_title')  %} 
+                  {{states(ns.cast_entity)}}
+                {% else %}
+                  off
+                {% endif %}
+        next:
+          service: media_player.media_seek
+          data_template:
+            entity_id: media_player.office_chromecast
+            seek_position: 56000
+        turn_on:
+          service: media_player.turn_on
+          data_template:
+            entity_id: media_player.office_chromecast
+        stop:
+          service: media_player.media_stop
+          data_template:
+            entity_id: media_player.office_chromecast
+        turn_off:
+          service: media_player.turn_off
+          data_template:
+            entity_id: media_player.office_chromecast
+        volume_up:
+          service: media_player.volume_up
+          data_template:
+            entity_id: media_player.office_chromecast
+        volume_down:
+          service: media_player.volume_down
+          data_template:
+            entity_id: media_player.office_chromecast
+        mute:
+          service: media_player.volume_mute
+          data_template:
+            entity_id: media_player.office_chromecast
+        set_volume:
+          service: media_player.volume_set
+          data_template:
+            entity_id: media_player.office_chromecast
+            volume_level: "{{ volume }}"
+        current_is_muted_template: "{{state_attr( 'media_player.office_chromecast', 'is_volume_muted') }}"
+        media_image_url_template: >
+                {% set ns = namespace( final_entity = "" )%}
+                {% for media_player in states.media_player %} 
+                  {% if "plex" in media_player.entity_id  %}
+                    {% set entity = media_player.entity_id %}
+                    {% set media_series_title = state_attr( entity, 'media_series_title') %}
+                      {% if state_attr( 'media_player.office_chromecast', 'media_series_title') %}
+                        {% if ( media_series_title | string ) in state_attr( 'media_player.office_chromecast', 'media_series_title') %}
+                        {% set ns.final_entity = entity %}
+                        {% endif %}
+                      {% endif %}
+                  {% endif %}
+                {% endfor %}
+                {% if ns.template_entity != ns.cast_entity and ns.template_entity != "" %}                   
+                  {{state_attr(ns.template_entity, 'entity_picture')}}
+                {% elif state_attr( ns.cast_entity, 'entity_picture')  %} 
+                  {{state_attr(ns.cast_entity, 'entity_picture')}} 
+                {% else %}
+                {% endif %}
+        media_series_title_template: "{{state_attr( 'media_player.office_chromecast', 'media_series_title') }}"
+        media_episode_template: "{{state_attr( 'media_player.office_chromecast', 'media_episode') }}"
+        media_season_template: "{{state_attr( 'media_player.office_chromecast', 'media_season') }}"
+        unique_id: template_office_chromecast
