@@ -18,7 +18,7 @@ Running a homelab is not always easy, especially when comes time to route, segre
    - This is the "Hotspot" network that I offer to my guests during events. They cannot interact with other networks except for the "Google Cast" network, to allow them to cast to the speakers and chromecasts.
 3) IoT LAN
    - This network is reserved for the IoT devices, a few ports are allowed in and out to the "Home-Assistant" Virtual Machine, such as LIFX ports and MQTT ports.
-4) Google Home Network
+4) Google Cast Network
    - This network is reserved for the very chatty Google Home devices. MDNS is enabled from this network to "Private" and "Friends" lan, to allow for control and cast of media content.
 5) Game Server LAN
    - This network is higly restricted as the machine living on it is directly exposed to the internet on many ports to allow for game servers such as; Minecraft, Valheim, Conan, ARK, 7 days to die, Project Zomboid. Only a few ports are allowed within the lan. I.e: Inbound port 22 from my PC.
@@ -52,7 +52,7 @@ Running a homelab is not always easy, especially when comes time to route, segre
 
 | Model | Device Type | Buy Again? | Some Notes |  Quantity In Use     |
 | ----- | ----------- | :--------: | ---------- | :---: |
-|[Wiim Pro](https://wiimhome.com/WiiMPro/Overview) | Smart Speaker Receiver | :heavy_check_mark: | Very decent integration into Home-Assistant through the cast integration| 2 | 
+|[Wiim Pro](https://wiimhome.com/WiiMPro/Overview) | Smart Speaker Receiver | :heavy_check_mark: | Very decent integration into Home-Assistant through the cast integration| 3 | 
 | Chromecast | Smart TV Dongle | :small_red_triangle: | Very decent integration into Home-Assistant| 1 | 
 |[Chromecast Ultra](https://www.bestbuy.com/site/google-chromecast-ultra-4k-streaming-media-player-black/5578628.p?skuId=5578628) | Smart TV Dongle | :small_red_triangle: | Very decent integration into Home-Assistant| 3 | 
 |[Google Nest Hub](https://store.google.com/us/product/nest_hub_2nd_gen?hl=en-US) | Smart Hub | :warning: | You "can" cast your Home-Assistant interface on them| 2 | 
