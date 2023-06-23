@@ -15,7 +15,7 @@
 | GPU2   | 1070ti        |  Machine Learning |
 | HDDs   | 8*8TB       |  Plex Storage|
 | SSD1   | 2TB PCIe3 M.2      |  Operating Systems |
-| SS2   | 500GB PCIe3 M.2        |  Incoming Download Cache |
+| SSD2   | 500GB PCIe3 M.2        |  Incoming Download Cache |
 | UPS|      1500VA |
 
 ## TrueNas Host Specifications
