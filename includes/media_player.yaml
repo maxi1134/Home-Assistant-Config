@@ -1087,7 +1087,7 @@
         friendly_name: Template Following Media Player
         device_class: speaker
         value_template: >
-                {% set ns = namespace( cast_entity = "media_player.livingroom_chromecast", template_entity = "" ) %}
+                {% set ns = namespace( cast_entity = "media_player.office_speaker", template_entity = "" ) %}
                 {% set ns.final_entity = ns.cast_entity %}   {# Declare Variables#}                
                 {% for media_player in states.media_player %} 
                   {% if "plex" in media_player.entity_id and media_player.state != "unavailable" %}
@@ -1147,9 +1147,7 @@
                     {% endif %}
                     {% endif %}
                   {% endif %}
-                {% endfor %}
-                {% for entity in ns.final_entities %}
-                - {{entity}}{% endfor %}
+                {% endfor %}{{ ns.final_entities }}
             seek_position: 56000
         turn_on:
           service: media_player.turn_on
@@ -1181,9 +1179,7 @@
                     {% endif %}
                     {% endif %}
                   {% endif %}
-                {% endfor %}
-                {% for entity in ns.final_entities %}
-                - {{entity}}{% endfor %}
+                {% endfor %}{{ ns.final_entities }}
         stop:
           service: media_player.media_stop
           data_template:
@@ -1214,9 +1210,7 @@
                     {% endif %}
                     {% endif %}
                   {% endif %}
-                {% endfor %}
-                {% for entity in ns.final_entities %}
-                - {{entity}}{% endfor %}
+                {% endfor %}{{ ns.final_entities }}
         turn_off:
           service: media_player.turn_off
           data_template:
@@ -1247,9 +1241,7 @@
                     {% endif %}
                     {% endif %}
                   {% endif %}
-                {% endfor %}
-                {% for entity in ns.final_entities %}
-                - {{entity}}{% endfor %}
+                {% endfor %}{{ ns.final_entities }}
         volume_up:
           service: media_player.volume_up
           data_template:
@@ -1280,9 +1272,7 @@
                     {% endif %}
                     {% endif %}
                   {% endif %}
-                {% endfor %}
-                {% for entity in ns.final_entities %}
-                - {{entity}}{% endfor %}
+                {% endfor %}{{ ns.final_entities }}
         volume_down:
           service: media_player.volume_down
           data_template:
@@ -1313,9 +1303,7 @@
                     {% endif %}
                     {% endif %}
                   {% endif %}
-                {% endfor %}
-                {% for entity in ns.final_entities %}
-                - {{entity}}{% endfor %}
+                {% endfor %}{{ ns.final_entities }}
         mute:
           service: media_player.volume_mute
           data_template:
@@ -1346,9 +1334,7 @@
                     {% endif %}
                     {% endif %}
                   {% endif %}
-                {% endfor %}
-                {% for entity in ns.final_entities %}
-                - {{entity}}{% endfor %}
+                {% endfor %}{{ ns.final_entities }}
         set_volume:
           service: media_player.volume_set
           data_template:
@@ -1379,44 +1365,143 @@
                     {% endif %}
                     {% endif %}
                   {% endif %}
-                {% endfor %}
-                {% for entity in ns.final_entities %}
-                - {{entity}}{% endfor %}
+                {% endfor %}{{ ns.final_entities }}
             volume_level: "{{ volume }}"
-        current_is_muted_template: "{{state_attr( 'media_player.livingroom_chromecast', 'is_volume_muted') }}"
+        current_is_muted_template: "{{state_attr( 'media_player.office_speaker', 'is_volume_muted') }}"
         media_image_url_template: >
-                {% set ns = namespace( cast_entity = "media_player.livingroom_chromecast", template_entity = "" ) %}
-                {% set ns.final_entity = ns.cast_entity %}   {# Declare Variables#}                
+                {% set location = states('sensor.maxi_location_v3') %}  
+                {% set ns = namespace( entities = [], final_entities = []  )%}
+                
                 {% for media_player in states.media_player %} 
-                  {% if "plex" in media_player.entity_id and media_player.state != "unavailable" %}
+                  {% if location in media_player.entity_id  and  "template" not in media_player.entity_id and "plex" not in media_player.entity_id and media_player.state != "unavailable" and media_player.state != "off" %}
                     {% set entity = media_player.entity_id %}
                     {% set media_title = state_attr( entity, 'media_title') %}
                     {% set media_series_title = state_attr( entity, 'media_series_title') %}
                     {% set media_series_episode = state_attr( entity, 'media_espisode') %}
                     {% set media_series_season = state_attr( entity, 'media_season') %}
-                      {% if state_attr( ns.final_entity, 'media_title') %}
-                        {% if  state_attr( ns.cast_entity, 'media_title') in ( media_title | string )%}
-                        {% set ns.template_entity = entity %}
-                        {% endif %}
-                      {% elif state_attr( ns.final_entity, 'media_series_title') %}
-                        {% if  state_attr( ns.cast_entity, 'media_series_title') in ( media_series_title | string )%}
-                        {% set ns.template_entity = entity %}
-                        {% endif %}
-                      {% endif %}                      
+                    {% set ns.entities = ns.entities + [entity] %}
                   {% endif %}                  
-                {% endfor %}                
-                {% if ns.template_entity == "" %}
-                    {% set ns.template_entity = ns.cast_entity %}
-                {% endif %}
-                {% if ns.template_entity != ns.cast_entity %}                  
+                {% endfor %}  
+                
+                {% for entity in ns.entities %}  
+                {% set is_muted = state_attr(entity, "is_volume_muted") %}
+                  {% if is_muted == false %}
+                     {% if "speaker" in entity %}
+                       {% set ns.final_entities = ns.final_entities + [entity] %}
+                    {% endif %}
+                    {% if ns.final_entities | length == 0 %}
+                     {% if "chromecast" in entity %}
+                       {% set ns.final_entities = ns.final_entities + [entity] %}
+                    {% endif %}
+                    {% endif %}
+                  {% endif %}
+                {% endfor %}
+
+                {% set ns = namespace( cast_entity = ns.final_entities | random, template_entity = "" ) %}
+                {% set ns.final_entity = ns.cast_entity %}   {# Declare Variables#}                
+                {% for media_player in states.media_player %} 
+                  {% if "plex" in media_player.entity_id  %}
+                    {% set entity = media_player.entity_id %}
+                    {% set media_title = state_attr( entity, 'media_title') %}
+                      {% if state_attr( ns.final_entity, 'media_title') %}
+                        {% if ( media_title | string ) in state_attr( ns.cast_entity, 'media_title') %}
+                        {% set ns.template_entity = entity %}
+                        {% endif %}
+                      {% endif %}
+                  {% endif %}
+                {% endfor %}
+                {% if ns.template_entity != ns.cast_entity and ns.template_entity != "" %}                   
                   {{state_attr(ns.template_entity, 'entity_picture')}}
-                {% elif state_attr( ns.cast_entity, 'media_title')  %} 
+                {% elif state_attr( ns.cast_entity, 'entity_picture')  %} 
                   {{state_attr(ns.cast_entity, 'entity_picture')}} 
                 {% else %}
                   off
                 {% endif %}
-        media_series_title_template: "{{state_attr( 'media_player.livingroom_chromecast', 'media_series_title') }}"
-        title_template: "{{state_attr( 'media_player.livingroom_chromecast', 'media_title') }}"
-        media_episode_template: "{{state_attr( 'media_player.livingroom_chromecast', 'media_episode') }}"
-        media_season_template: "{{state_attr( 'media_player.livingroom_chromecast', 'media_season') }}"
+        title_template: >
+                {% set location = states('sensor.maxi_location_v3') %}  
+                {% set ns = namespace( entities = [], final_entities = []  )%}
+                
+                {% for media_player in states.media_player %} 
+                  {% if location in media_player.entity_id  and  "template" not in media_player.entity_id and "plex" not in media_player.entity_id and media_player.state != "unavailable" and media_player.state != "off" %}
+                    {% set entity = media_player.entity_id %}
+                    {% set media_title = state_attr( entity, 'media_title') %}
+                    {% set media_series_title = state_attr( entity, 'media_series_title') %}
+                    {% set media_series_episode = state_attr( entity, 'media_espisode') %}
+                    {% set media_series_season = state_attr( entity, 'media_season') %}
+                    {% set ns.entities = ns.entities + [entity] %}
+                  {% endif %}                  
+                {% endfor %}  
+                
+                {% for entity in ns.entities %}  
+                {% set is_muted = state_attr(entity, "is_volume_muted") %}
+                  {% if is_muted == false %}
+                     {% if "speaker" in entity %}
+                       {% set ns.final_entities = ns.final_entities + [entity] %}
+                    {% endif %}
+                    {% if ns.final_entities | length == 0 %}
+                     {% if "chromecast" in entity %}
+                       {% set ns.final_entities = ns.final_entities + [entity] %}
+                    {% endif %}
+                    {% endif %}
+                  {% endif %}
+                {% endfor %}
+                {{state_attr( ns.final_entities | random , 'media_title' ) }}
+        album_template: >
+                {% set location = states('sensor.maxi_location_v3') %}  
+                {% set ns = namespace( entities = [], final_entities = []  )%}
+                
+                {% for media_player in states.media_player %} 
+                  {% if location in media_player.entity_id  and  "template" not in media_player.entity_id and "plex" not in media_player.entity_id and media_player.state != "unavailable" and media_player.state != "off" %}
+                    {% set entity = media_player.entity_id %}
+                    {% set media_title = state_attr( entity, 'media_title') %}
+                    {% set media_series_title = state_attr( entity, 'media_series_title') %}
+                    {% set media_series_episode = state_attr( entity, 'media_espisode') %}
+                    {% set media_series_season = state_attr( entity, 'media_season') %}
+                    {% set ns.entities = ns.entities + [entity] %}
+                  {% endif %}                  
+                {% endfor %}  
+                
+                {% for entity in ns.entities %}  
+                {% set is_muted = state_attr(entity, "is_volume_muted") %}
+                  {% if is_muted == false %}
+                     {% if "speaker" in entity %}
+                       {% set ns.final_entities = ns.final_entities + [entity] %}
+                    {% endif %}
+                    {% if ns.final_entities | length == 0 %}
+                     {% if "chromecast" in entity %}
+                       {% set ns.final_entities = ns.final_entities + [entity] %}
+                    {% endif %}
+                    {% endif %}
+                  {% endif %}
+                {% endfor %}
+                {{state_attr( ns.final_entities | random , 'media_album_name' ) }}
+        artist_template: >
+                {% set location = states('sensor.maxi_location_v3') %}  
+                {% set ns = namespace( entities = [], final_entities = []  )%}
+                
+                {% for media_player in states.media_player %} 
+                  {% if location in media_player.entity_id  and  "template" not in media_player.entity_id and "plex" not in media_player.entity_id and media_player.state != "unavailable" and media_player.state != "off" %}
+                    {% set entity = media_player.entity_id %}
+                    {% set media_title = state_attr( entity, 'media_title') %}
+                    {% set media_series_title = state_attr( entity, 'media_series_title') %}
+                    {% set media_series_episode = state_attr( entity, 'media_espisode') %}
+                    {% set media_series_season = state_attr( entity, 'media_season') %}
+                    {% set ns.entities = ns.entities + [entity] %}
+                  {% endif %}                  
+                {% endfor %}  
+                
+                {% for entity in ns.entities %}  
+                {% set is_muted = state_attr(entity, "is_volume_muted") %}
+                  {% if is_muted == false %}
+                     {% if "speaker" in entity %}
+                       {% set ns.final_entities = ns.final_entities + [entity] %}
+                    {% endif %}
+                    {% if ns.final_entities | length == 0 %}
+                     {% if "chromecast" in entity %}
+                       {% set ns.final_entities = ns.final_entities + [entity] %}
+                    {% endif %}
+                    {% endif %}
+                  {% endif %}
+                {% endfor %}
+                {{state_attr( ns.final_entities | random , 'media_album_artist' ) }}
         unique_id: template_following_media_player
