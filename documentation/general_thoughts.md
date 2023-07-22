@@ -10,7 +10,7 @@
 
 # Some things I've learned the hard way
 
-### Here you will find things that I wish I had knew sooner!
+### Here you will find things that I wish I had known sooner!
 ##### (These are all opinions, and none of this is officially recommended nor disrecommended by HA)
 #### On user accounts
 Ideally, you should strive to create one account per device, endpoint, and user.
