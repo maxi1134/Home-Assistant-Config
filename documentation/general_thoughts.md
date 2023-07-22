@@ -12,7 +12,7 @@
 
 ### Here you will find things that I wish I had knew sooner!
 ##### (These are all opinions, and none of this is officially recommended nor disrecommended by HA)
-#### On User Accounts
+#### On user accounts
 Ideally, you should strive to create one account per device, endpoint, and user.
 This will allow you for better debugging in the logboog, where each user's actions are logged.
 
@@ -31,9 +31,22 @@ I personally recommend having one network for IoT devices, one for media players
 
 This will allow for more granular control of what can see what. Allowing more control over your network.
 
-#### On Standardization
+#### On standardization
 No one likes to do work twice, this is where standardization comes in handy.
 By always following the same naming convention you will be able to reuse and recycle your automations (Node-red or HA) by simply changing parts of the called entity_id. 
 This will make for an easier refactoring and allow for better usage of subflows in node-red.
 
 [More in-depth info on how I use this in Node-red here](/node-red)
+
+#### On updating
+Although some people chose to do periodic updates, I chose to update as soon as an update is released.
+This allows for the obtention of the latest bugfixes, you can even go a step further and use beta-releases.
+
+He who lives dangerously, can sometimes be rewarded. ᵃⁿᵈ ʷᵉ ⁿᵉᵉᵈ ᵇᵉᵗᵃ ᵗᵉˢᵗᵉʳˢ
+
+
+#### On the cloud
+Avoid that thing like the pest, it has latency, it will break if your internet is down, and it will one day close. 
+
+You should strive to keep everything local, this will improve your life.
+ 
