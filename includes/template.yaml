@@ -148,7 +148,22 @@
              {% set friendshome = states('sensor.guest_wifi_count') | int - states('sensor.amount_partners_home') | int  %}
              {{friendshome}}
         unit_of_measurement: "friends"
+        attributes:
+          friends: >
+            {% set ns = namespace(friends=[]) %}
+            {% for device_tracker in states.device_tracker | selectattr('state','eq','home')  | selectattr('entity_id','search',"phone_") %}
+             {% if  state_attr(device_tracker.entity_id, "essid") == "Chilling Hotspot" %}
+               {% set name  = device_tracker.entity_id | replace('device_tracker.phone_','') | replace('_',' ') | capitalize  %}
+              {% set ns.friends = ns.friends  + [name] %}
+             {% endif %}
+            {% endfor %}
+            {{ ns.friends }}
 
+
+      - name: "which friends home"
+        unique_id: "which_friends_home"
+        state: >-
+          {{ state_attr('sensor.amount_friends_home', "friends") | list  }}
 
       - name: "amount people home"
         unique_id: amount_people_home
