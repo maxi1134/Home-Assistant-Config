@@ -212,39 +212,14 @@
     ]
   },
   {
-    "id": "0532ec8d34489382",
-    "type": "junction",
-    "z": "3ad1e0957e6ec22e",
-    "x": 3320,
-    "y": 1940,
-    "wires": [
-      [
-        "e0565cdb0b796f1c"
-      ]
-    ]
-  },
-  {
     "id": "c78ba01e2c786587",
     "type": "junction",
     "z": "3ad1e0957e6ec22e",
-    "x": 3320,
+    "x": 3180,
     "y": 2180,
     "wires": [
       [
         "6e0313cad534393b"
-      ]
-    ]
-  },
-  {
-    "id": "d9af6305bfca66cb",
-    "type": "junction",
-    "z": "3ad1e0957e6ec22e",
-    "x": 2400,
-    "y": 2160,
-    "wires": [
-      [
-        "0afc0df8b99137f4",
-        "95bba2044f5c5736"
       ]
     ]
   },
@@ -2060,239 +2035,6 @@
     "wires": []
   },
   {
-    "id": "4049d7ea688e5999",
-    "type": "trigger-state",
-    "z": "3ad1e0957e6ec22e",
-    "name": "",
-    "server": "7ab5c227.a3ce8c",
-    "version": 2,
-    "exposeToHomeAssistant": false,
-    "haConfig": [
-      {
-        "property": "name",
-        "value": ""
-      },
-      {
-        "property": "icon",
-        "value": ""
-      }
-    ],
-    "entityid": "^binary_sensor\\.(?!.*?bedroom.*?)(?!.*?closet.*?)sensor_.*_occupancy$",
-    "entityidfiltertype": "regex",
-    "debugenabled": false,
-    "constraints": [
-      {
-        "targetType": "this_entity",
-        "targetValue": "",
-        "propertyType": "current_state",
-        "propertyValue": "new_state.state",
-        "comparatorType": "is",
-        "comparatorValueDatatype": "str",
-        "comparatorValue": "on"
-      },
-      {
-        "targetType": "this_entity",
-        "targetValue": "",
-        "propertyType": "previous_state",
-        "propertyValue": "old_state.state",
-        "comparatorType": "is",
-        "comparatorValueDatatype": "str",
-        "comparatorValue": "off"
-      }
-    ],
-    "inputs": 0,
-    "outputs": 2,
-    "customoutputs": [],
-    "outputinitially": false,
-    "state_type": "str",
-    "enableInput": false,
-    "x": 310,
-    "y": 1920,
-    "wires": [
-      [
-        "e7b77b2c06a247e4"
-      ],
-      []
-    ]
-  },
-  {
-    "id": "ee9e766f8f53369d",
-    "type": "function",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Extract room from motion sensor entity an extract off lights to regex",
-    "func": "var motion_entity_id = msg.data.event.new_state.entity_id; // binary_sensor.sensor_bedroom_motion_occupancy\nvar motion_entity_id_split = motion_entity_id.split(\".\");// split on the dot to separate domain and entity\nvar motion_entity_id_wihtout_binary = motion_entity_id_split[1].replace(\"sensor_\", \"\").replace(\"_motion\", \"\").replace(\"_fp1\", \"\").replace(\"fp2_\", \"\").replace(\"_presence\", \"\").replace(\"_occupancy\", \"\").replace(\"_entry\", \"\").replace(\"_exit\", \"\");// remove sensor_ and more substrings\nvar regex = \"^light\\\\.(?!.*?group.*?)(?!.*?notification.*?)(?!.*?lights.*?).*\" + motion_entity_id_wihtout_binary + \".*\"; \nconst rules_object = [{ 'property': 'entity_id' ,  'logic': 'is' , 'value': regex ,  'valueType': 're' },{ 'property': 'state' ,  'logic': 'is_not' , 'value': \"on\" ,  'valueType': 'str' }];// arranges the array \n\nvar msg = {\n    \"payload\":{ \"rules\": rules_object},\"room\": motion_entity_id_wihtout_binary\n\n}\nreturn msg;\n\n",
-    "outputs": 1,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 960,
-    "y": 1920,
-    "wires": [
-      [
-        "848b2a1d24e34dda",
-        "f2e21ab9750b87f0"
-      ]
-    ]
-  },
-  {
-    "id": "848b2a1d24e34dda",
-    "type": "ha-get-entities",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Get entities",
-    "server": "7ab5c227.a3ce8c",
-    "version": 0,
-    "rules": [],
-    "output_type": "split",
-    "output_empty_results": false,
-    "output_location_type": "msg",
-    "output_location": "payload.results",
-    "output_results_count": 1,
-    "x": 1330,
-    "y": 1920,
-    "wires": [
-      [
-        "163ecddc5fc7bee3"
-      ]
-    ]
-  },
-  {
-    "id": "e0970f0b1ecebfd3",
-    "type": "function",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Brightness selector",
-    "func": "var d = new Date();\nvar h = d.getHours();\n\nif (h > 22){\n    var brightness_percentage = \"95\";\n}\nelse if (h >= 0 && h <= 2 ){\n    var brightness_percentage = \"85\";\n}\nelse if (h > 2 && h<8){\n    var brightness_percentage = \"60\";\n}\nelse if (h >= 8 && h<9){\n    var brightness_percentage = \"70\";\n}\nelse{\n    var brightness_percentage = \"100\";\n}\nmsg=\n{\n    \"payload\":{\n        \"data\": {\n        \"entity_id\": msg.payload.entity_id,\n        \"brightness_pct\": brightness_percentage,\n        \"color_name\":  \"white\"\n    }\n    }\n}\nreturn msg;",
-    "outputs": 1,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 3850,
-    "y": 1900,
-    "wires": [
-      [
-        "386c9a340f0f46e2"
-      ]
-    ]
-  },
-  {
-    "id": "386c9a340f0f46e2",
-    "type": "api-call-service",
-    "z": "3ad1e0957e6ec22e",
-    "name": "",
-    "server": "7ab5c227.a3ce8c",
-    "version": 5,
-    "debugenabled": false,
-    "domain": "light",
-    "service": "turn_on",
-    "areaId": [],
-    "deviceId": [],
-    "entityId": [],
-    "data": "",
-    "dataType": "jsonata",
-    "mergeContext": "",
-    "mustacheAltTags": false,
-    "outputProperties": [],
-    "queue": "none",
-    "x": 4170,
-    "y": 1900,
-    "wires": [
-      []
-    ]
-  },
-  {
-    "id": "275ed39b36b16c36",
-    "type": "function",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Extract room from sleeper sensor entity",
-    "func": "var room = msg.room\nvar regex = \"sleeper_in_\" + room.replace('_down',''); \nconst rules_object = [{ 'property': 'entity_id' ,  'logic': 'is' , 'value': regex ,  'valueType': 're' },{ 'property': 'state' ,  'logic': 'is' , 'value': \"on\" ,  'valueType': 'str' }];// arranges the array \n\nvar msg = {\n    \"payload\":{ \"rules\": rules_object},\n    \"entity\": msg.entity\n\n}\nreturn msg;\n\n",
-    "outputs": 1,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 1900,
-    "y": 1920,
-    "wires": [
-      [
-        "b0b9957822ff494a",
-        "c4a38887b7e05264"
-      ]
-    ]
-  },
-  {
-    "id": "b0b9957822ff494a",
-    "type": "ha-get-entities",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Get entities",
-    "server": "7ab5c227.a3ce8c",
-    "version": 0,
-    "rules": [],
-    "output_type": "array",
-    "output_empty_results": true,
-    "output_location_type": "msg",
-    "output_location": "payload.results",
-    "output_results_count": 1,
-    "x": 2210,
-    "y": 1920,
-    "wires": [
-      [
-        "e6806ef89c5f75b0",
-        "cb105d4b155eed87"
-      ]
-    ]
-  },
-  {
-    "id": "163ecddc5fc7bee3",
-    "type": "change",
-    "z": "3ad1e0957e6ec22e",
-    "name": "rules",
-    "rules": [
-      {
-        "t": "move",
-        "p": "payload",
-        "pt": "msg",
-        "to": "entity",
-        "tot": "msg"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 1570,
-    "y": 1920,
-    "wires": [
-      [
-        "275ed39b36b16c36"
-      ]
-    ]
-  },
-  {
-    "id": "e6806ef89c5f75b0",
-    "type": "switch",
-    "z": "3ad1e0957e6ec22e",
-    "name": "",
-    "property": "payload.results",
-    "propertyType": "msg",
-    "rules": [
-      {
-        "t": "empty"
-      }
-    ],
-    "checkall": "true",
-    "repair": false,
-    "outputs": 1,
-    "x": 2530,
-    "y": 1920,
-    "wires": [
-      [
-        "c371cf447e1111df"
-      ]
-    ]
-  },
-  {
     "id": "b5bf8a875890d348",
     "type": "trigger-state",
     "z": "3ad1e0957e6ec22e",
@@ -2365,106 +2107,6 @@
       ],
       []
     ]
-  },
-  {
-    "id": "86ae82e8c0617477",
-    "type": "comment",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Detect motion across ocupancy sensors",
-    "info": "",
-    "x": 170,
-    "y": 1880,
-    "wires": []
-  },
-  {
-    "id": "ae02c611ff97c852",
-    "type": "comment",
-    "z": "3ad1e0957e6ec22e",
-    "name": "(Ignores \"Nate\",\"Bedroom\" and \"Dungeon\" sensors)",
-    "info": "",
-    "x": 530,
-    "y": 1880,
-    "wires": []
-  },
-  {
-    "id": "8d371488af329946",
-    "type": "comment",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Generate the regex for the get entity node",
-    "info": "",
-    "x": 960,
-    "y": 1880,
-    "wires": []
-  },
-  {
-    "id": "316ca0017b3279e9",
-    "type": "comment",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Get off light entities",
-    "info": "",
-    "x": 1330,
-    "y": 1880,
-    "wires": []
-  },
-  {
-    "id": "be624019d7ea0248",
-    "type": "comment",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Move payload to entity",
-    "info": "",
-    "x": 1560,
-    "y": 1880,
-    "wires": []
-  },
-  {
-    "id": "37dfb4c4bbc27b89",
-    "type": "comment",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Prepare regex to check if someone is sleeping in the room",
-    "info": "",
-    "x": 1910,
-    "y": 1880,
-    "wires": []
-  },
-  {
-    "id": "259de9b9194d60a4",
-    "type": "comment",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Get sleeper entities in an array",
-    "info": "",
-    "x": 2250,
-    "y": 1880,
-    "wires": []
-  },
-  {
-    "id": "a80f258083452dfa",
-    "type": "comment",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Make sure the array is empty",
-    "info": "",
-    "x": 2520,
-    "y": 1880,
-    "wires": []
-  },
-  {
-    "id": "900758f64c63b16a",
-    "type": "comment",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Select color, brightness and set entity_id",
-    "info": "",
-    "x": 3860,
-    "y": 1860,
-    "wires": []
-  },
-  {
-    "id": "912fe586bb874838",
-    "type": "comment",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Turn the lights on",
-    "info": "",
-    "x": 4140,
-    "y": 1860,
-    "wires": []
   },
   {
     "id": "84c65edb9ad601cf",
@@ -2586,69 +2228,6 @@
     "info": "",
     "x": 880,
     "y": 2280,
-    "wires": []
-  },
-  {
-    "id": "e47712f83178e21d",
-    "type": "api-current-state",
-    "z": "3ad1e0957e6ec22e",
-    "name": "",
-    "server": "7ab5c227.a3ce8c",
-    "version": 3,
-    "outputs": 2,
-    "halt_if": "off",
-    "halt_if_type": "str",
-    "halt_if_compare": "is",
-    "entity_id": "binary_sensor.all_present_sleeping",
-    "state_type": "str",
-    "blockInputOverrides": true,
-    "outputProperties": [],
-    "for": 0,
-    "forType": "num",
-    "forUnits": "minutes",
-    "override_topic": false,
-    "state_location": "payload",
-    "override_payload": "msg",
-    "entity_location": "data",
-    "override_data": "msg",
-    "x": 3510,
-    "y": 1900,
-    "wires": [
-      [
-        "e0970f0b1ecebfd3"
-      ],
-      [
-        "e0565cdb0b796f1c"
-      ]
-    ]
-  },
-  {
-    "id": "e0565cdb0b796f1c",
-    "type": "function",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Brightness selector",
-    "func": "var d = new Date();\nvar h = d.getHours();\n\nif (h > 22){\n    var brightness_percentage = \"45\";\n}\nelse if (h >= 0 && h <= 2 ){\n    var brightness_percentage = \"40\";\n}\nelse if (h > 2 && h<8){\n    var brightness_percentage = \"25\";\n}\nelse if (h >= 8 && h<9){\n    var brightness_percentage = \"35\";\n}\nelse{\n    var brightness_percentage = \"50\";\n}\nmsg=\n{\n    \"payload\":{\n        \"data\": {\n        \"entity_id\": msg.payload.entity_id,\n        \"brightness_pct\": brightness_percentage,\n        \"color_name\":  \"white\"\n    }\n    }\n}\nreturn msg;",
-    "outputs": 1,
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 3850,
-    "y": 1940,
-    "wires": [
-      [
-        "386c9a340f0f46e2"
-      ]
-    ]
-  },
-  {
-    "id": "7c2f441880266182",
-    "type": "comment",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Check if all are sleeping",
-    "info": "",
-    "x": 3480,
-    "y": 1860,
     "wires": []
   },
   {
@@ -4518,83 +4097,12 @@
     ]
   },
   {
-    "id": "76d981c6efbdf599",
-    "type": "api-current-state",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Acid time",
-    "server": "7ab5c227.a3ce8c",
-    "version": 3,
-    "outputs": 2,
-    "halt_if": "off",
-    "halt_if_type": "str",
-    "halt_if_compare": "is",
-    "entity_id": "input_boolean.acid_time",
-    "state_type": "str",
-    "blockInputOverrides": true,
-    "outputProperties": [],
-    "for": 0,
-    "forType": "num",
-    "forUnits": "minutes",
-    "override_topic": false,
-    "state_location": "payload",
-    "override_payload": "msg",
-    "entity_location": "data",
-    "override_data": "msg",
-    "x": 3100,
-    "y": 1920,
-    "wires": [
-      [
-        "e47712f83178e21d"
-      ],
-      [
-        "0532ec8d34489382"
-      ]
-    ]
-  },
-  {
     "id": "f6bd0e7c3db3ad74",
     "type": "subflow:9e515b8aa75a9cdd",
     "z": "3ad1e0957e6ec22e",
     "name": "",
     "x": 1110,
     "y": 2320,
-    "wires": []
-  },
-  {
-    "id": "c371cf447e1111df",
-    "type": "change",
-    "z": "3ad1e0957e6ec22e",
-    "name": "rules",
-    "rules": [
-      {
-        "t": "move",
-        "p": "entity",
-        "pt": "msg",
-        "to": "payload",
-        "tot": "msg"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 2790,
-    "y": 1920,
-    "wires": [
-      [
-        "76d981c6efbdf599"
-      ]
-    ]
-  },
-  {
-    "id": "669ce1ec86d62658",
-    "type": "comment",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Move entity to payload",
-    "info": "",
-    "x": 2780,
-    "y": 1880,
     "wires": []
   },
   {
@@ -4983,40 +4491,6 @@
         "f59af640c5f71144"
       ]
     ]
-  },
-  {
-    "id": "c4a38887b7e05264",
-    "type": "debug",
-    "z": "3ad1e0957e6ec22e",
-    "name": "debug 214",
-    "active": true,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": false,
-    "complete": "true",
-    "targetType": "full",
-    "statusVal": "",
-    "statusType": "auto",
-    "x": 2170,
-    "y": 1760,
-    "wires": []
-  },
-  {
-    "id": "cb105d4b155eed87",
-    "type": "debug",
-    "z": "3ad1e0957e6ec22e",
-    "name": "debug 215",
-    "active": true,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": false,
-    "complete": "true",
-    "targetType": "full",
-    "statusVal": "",
-    "statusType": "auto",
-    "x": 2370,
-    "y": 1760,
-    "wires": []
   },
   {
     "id": "76761c4f46f05454",
@@ -6764,40 +6238,6 @@
     "wires": []
   },
   {
-    "id": "e7b77b2c06a247e4",
-    "type": "debug",
-    "z": "3ad1e0957e6ec22e",
-    "name": "debug 268",
-    "active": true,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": false,
-    "complete": "true",
-    "targetType": "full",
-    "statusVal": "",
-    "statusType": "auto",
-    "x": 790,
-    "y": 1800,
-    "wires": []
-  },
-  {
-    "id": "f2e21ab9750b87f0",
-    "type": "debug",
-    "z": "3ad1e0957e6ec22e",
-    "name": "debug 269",
-    "active": true,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": false,
-    "complete": "true",
-    "targetType": "full",
-    "statusVal": "",
-    "statusType": "auto",
-    "x": 1270,
-    "y": 1780,
-    "wires": []
-  },
-  {
     "id": "07de97ce5b3ea831",
     "type": "switch",
     "z": "3ad1e0957e6ec22e",
@@ -6952,13 +6392,13 @@
     "type": "function",
     "z": "3ad1e0957e6ec22e",
     "name": "Brightness selector",
-    "func": "var d = new Date();\nvar h = d.getHours();\n\nif (h > 22){\n    var brightness_percentage = \"95\";\n}\nelse if (h >= 0 && h <= 2 ){\n    var brightness_percentage = \"85\";\n}\nelse if (h > 2 && h<8){\n    var brightness_percentage = \"60\";\n}\nelse if (h >= 8 && h<9){\n    var brightness_percentage = \"70\";\n}\nelse{\n    var brightness_percentage = \"100\";\n}\nmsg=\n{\n    \"payload\":{\n        \"data\": {\n        \"entity_id\": msg.payload.entity_id,\n        \"brightness_pct\": brightness_percentage,\n        \"color_name\":  \"white\"\n    }\n    }\n}\nreturn msg;",
+    "func": "var d = new Date();\nvar h = d.getHours();\n\nif (h > 22){\n    var brightness_percentage = \"95\";\n}\nelse if (h >= 0 && h <= 2 ){\n    var brightness_percentage = \"85\";\n}\nelse if (h > 2 && h<8){\n    var brightness_percentage = \"60\";\n}\nelse if (h >= 8 && h<9){\n    var brightness_percentage = \"70\";\n}\nelse{\n    var brightness_percentage = \"100\";\n}\nmsg=\n{\n    \"payload\":{\n        \"data\": {\n        \"entity_id\": msg.payload.entity.entity_id,\n        \"brightness_pct\": brightness_percentage,\n        \"color_name\":  \"white\"\n    }\n    }\n}\nreturn msg;",
     "outputs": 1,
     "noerr": 0,
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 3850,
+    "x": 3710,
     "y": 2140,
     "wires": [
       [
@@ -6985,7 +6425,7 @@
     "mustacheAltTags": false,
     "outputProperties": [],
     "queue": "none",
-    "x": 4170,
+    "x": 4030,
     "y": 2140,
     "wires": [
       []
@@ -7042,9 +6482,9 @@
     "id": "95a4c5dd36cd88b2",
     "type": "comment",
     "z": "3ad1e0957e6ec22e",
-    "name": "Generate the regex for the get entity node",
+    "name": "Generate the regex for get entity node",
     "info": "",
-    "x": 960,
+    "x": 1050,
     "y": 2120,
     "wires": []
   },
@@ -7074,7 +6514,7 @@
     "z": "3ad1e0957e6ec22e",
     "name": "Select color, brightness and set entity_id",
     "info": "",
-    "x": 3860,
+    "x": 3720,
     "y": 2100,
     "wires": []
   },
@@ -7084,7 +6524,7 @@
     "z": "3ad1e0957e6ec22e",
     "name": "Turn the lights on",
     "info": "",
-    "x": 4140,
+    "x": 4000,
     "y": 2100,
     "wires": []
   },
@@ -7111,7 +6551,7 @@
     "override_payload": "msg",
     "entity_location": "data",
     "override_data": "msg",
-    "x": 3510,
+    "x": 3370,
     "y": 2140,
     "wires": [
       [
@@ -7127,13 +6567,13 @@
     "type": "function",
     "z": "3ad1e0957e6ec22e",
     "name": "Brightness selector",
-    "func": "var d = new Date();\nvar h = d.getHours();\n\nif (h > 22){\n    var brightness_percentage = \"45\";\n}\nelse if (h >= 0 && h <= 2 ){\n    var brightness_percentage = \"40\";\n}\nelse if (h > 2 && h<8){\n    var brightness_percentage = \"25\";\n}\nelse if (h >= 8 && h<9){\n    var brightness_percentage = \"35\";\n}\nelse{\n    var brightness_percentage = \"50\";\n}\nmsg=\n{\n    \"payload\":{\n        \"data\": {\n        \"entity_id\": msg.payload.entity_id,\n        \"brightness_pct\": brightness_percentage,\n        \"color_name\":  \"white\"\n    }\n    }\n}\nreturn msg;",
+    "func": "var d = new Date();\nvar h = d.getHours();\n\nif (h > 22){\n    var brightness_percentage = \"45\";\n}\nelse if (h >= 0 && h <= 2 ){\n    var brightness_percentage = \"40\";\n}\nelse if (h > 2 && h<8){\n    var brightness_percentage = \"25\";\n}\nelse if (h >= 8 && h<9){\n    var brightness_percentage = \"35\";\n}\nelse{\n    var brightness_percentage = \"50\";\n}\nmsg=\n{\n    \"payload\":{\n        \"data\": {\n        \"entity_id\": msg.payload.entity.entity_id,\n        \"brightness_pct\": brightness_percentage,\n        \"color_name\":  \"white\"\n    }\n    }\n}\nreturn msg;",
     "outputs": 1,
     "noerr": 0,
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 3850,
+    "x": 3710,
     "y": 2180,
     "wires": [
       [
@@ -7147,7 +6587,7 @@
     "z": "3ad1e0957e6ec22e",
     "name": "Check if all are sleeping",
     "info": "",
-    "x": 3480,
+    "x": 3340,
     "y": 2100,
     "wires": []
   },
@@ -7174,7 +6614,7 @@
     "override_payload": "msg",
     "entity_location": "data",
     "override_data": "msg",
-    "x": 3100,
+    "x": 2980,
     "y": 2160,
     "wires": [
       [
@@ -7184,43 +6624,6 @@
         "c78ba01e2c786587"
       ]
     ]
-  },
-  {
-    "id": "0afc0df8b99137f4",
-    "type": "change",
-    "z": "3ad1e0957e6ec22e",
-    "name": "rules",
-    "rules": [
-      {
-        "t": "move",
-        "p": "entity",
-        "pt": "msg",
-        "to": "payload",
-        "tot": "msg"
-      }
-    ],
-    "action": "",
-    "property": "",
-    "from": "",
-    "to": "",
-    "reg": false,
-    "x": 2710,
-    "y": 2160,
-    "wires": [
-      [
-        "5fee30b61a27e6e5"
-      ]
-    ]
-  },
-  {
-    "id": "a698f9a57f869486",
-    "type": "comment",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Move entity to payload",
-    "info": "",
-    "x": 2780,
-    "y": 2120,
-    "wires": []
   },
   {
     "id": "e0dea2b09c9b5232",
@@ -7235,8 +6638,8 @@
     "targetType": "full",
     "statusVal": "",
     "statusType": "auto",
-    "x": 1950,
-    "y": 2100,
+    "x": 2190,
+    "y": 2200,
     "wires": []
   },
   {
@@ -7253,7 +6656,7 @@
     "statusVal": "",
     "statusType": "auto",
     "x": 790,
-    "y": 2040,
+    "y": 2120,
     "wires": []
   },
   {
@@ -7269,8 +6672,8 @@
     "targetType": "full",
     "statusVal": "",
     "statusType": "auto",
-    "x": 1270,
-    "y": 2020,
+    "x": 1350,
+    "y": 2200,
     "wires": []
   },
   {
@@ -7308,41 +6711,7 @@
     "wires": [
       [
         "e0dea2b09c9b5232",
-        "d0599e2fa55de2b9"
-      ]
-    ]
-  },
-  {
-    "id": "e7a0425f010f94f3",
-    "type": "inject",
-    "z": "3ad1e0957e6ec22e",
-    "name": "",
-    "props": [
-      {
-        "p": "payload"
-      },
-      {
-        "p": "topic",
-        "vt": "str"
-      },
-      {
-        "p": "data",
-        "v": "{\"event_type\":\"state_changed\",\"entity_id\":\"binary_sensor.sensor_office_motion_occupancy\",\"event\":{\"entity_id\":\"binary_sensor.sensor_office_motion_occupancy\",\"old_state\":{\"entity_id\":\"binary_sensor.sensor_office_motion_occupancy\",\"state\":\"off\",\"attributes\":{\"battery\":100,\"device\":{\"applicationVersion\":11,\"dateCode\":\"20160524\",\"friendlyName\":\"sensor_hallway_motion\",\"hardwareVersion\":2,\"ieeeAddr\":\"0x00158d0002275fd4\",\"manufacturerID\":4151,\"manufacturerName\":\"LUMI\",\"model\":\"RTCGQ01LM\",\"networkAddress\":36327,\"powerSource\":\"Battery\",\"softwareBuildID\":\"3000-0001\",\"stackVersion\":2,\"type\":\"EndDevice\",\"zclVersion\":1},\"linkquality\":29,\"occupancy\":false,\"power_outage_count\":23115,\"voltage\":3035,\"device_class\":\"motion\",\"friendly_name\":\"Hallway Motion_occupancy\"},\"last_changed\":\"2023-08-02T15:45:12.640577+00:00\",\"last_updated\":\"2023-08-02T15:45:12.640577+00:00\",\"context\":{\"id\":\"01H6VESCE0WYF8ZX13SQC5N487\",\"parent_id\":null,\"user_id\":null},\"original_state\":\"off\"},\"new_state\":{\"entity_id\":\"binary_sensor.sensor_office_motion_occupancy\",\"state\":\"on\",\"attributes\":{\"battery\":100,\"device\":{\"applicationVersion\":11,\"dateCode\":\"20160524\",\"friendlyName\":\"sensor_hallway_motion\",\"hardwareVersion\":2,\"ieeeAddr\":\"0x00158d0002275fd4\",\"manufacturerID\":4151,\"manufacturerName\":\"LUMI\",\"model\":\"RTCGQ01LM\",\"networkAddress\":36327,\"powerSource\":\"Battery\",\"softwareBuildID\":\"3000-0001\",\"stackVersion\":2,\"type\":\"EndDevice\",\"zclVersion\":1},\"linkquality\":29,\"occupancy\":false,\"power_outage_count\":23115,\"voltage\":3035,\"device_class\":\"motion\",\"friendly_name\":\"Hallway Motion_occupancy\"},\"last_changed\":\"2023-08-02T15:50:28.404423+00:00\",\"last_updated\":\"2023-08-02T15:50:28.404423+00:00\",\"context\":{\"id\":\"01H6VF30SMTSYD1N217CFJ7GQT\",\"parent_id\":null,\"user_id\":\"7f1de31122574f6fa2215e519d6083ea\"},\"original_state\":\"on\",\"timeSinceChangedMs\":5}},\"origin\":\"LOCAL\",\"time_fired\":\"2023-08-02T15:50:28.404423+00:00\",\"context\":{\"id\":\"01H6VF30SMTSYD1N217CFJ7GQT\",\"parent_id\":null,\"user_id\":\"7f1de31122574f6fa2215e519d6083ea\"}}",
-        "vt": "json"
-      }
-    ],
-    "repeat": "",
-    "crontab": "",
-    "once": false,
-    "onceDelay": 0.1,
-    "topic": "binary_sensor.sensor_office_motion_occupancy",
-    "payload": "on",
-    "payloadType": "str",
-    "x": 2250,
-    "y": 2280,
-    "wires": [
-      [
-        "ff0f60a09e8cd06c"
+        "51dbd35861e70217"
       ]
     ]
   },
@@ -7359,8 +6728,8 @@
     "targetType": "full",
     "statusVal": "",
     "statusType": "auto",
-    "x": 1550,
-    "y": 2080,
+    "x": 1590,
+    "y": 2200,
     "wires": []
   },
   {
@@ -7401,71 +6770,96 @@
     "id": "d0599e2fa55de2b9",
     "type": "switch",
     "z": "3ad1e0957e6ec22e",
-    "name": "Is \"room\" in \"room_sleepers\"",
-    "property": "room_sleepers",
+    "name": "Is \"active_sleeper_present\" 0?",
+    "property": "payload.active_sleeper_present",
     "propertyType": "msg",
     "rules": [
       {
-        "t": "cont",
-        "v": "room",
-        "vt": "msg"
-      },
-      {
-        "t": "nempty"
-      },
-      {
-        "t": "empty"
+        "t": "eq",
+        "v": "0",
+        "vt": "num"
       }
     ],
     "checkall": "false",
     "repair": false,
-    "outputs": 3,
-    "x": 2240,
+    "outputs": 1,
+    "x": 2650,
     "y": 2160,
     "wires": [
       [
-        "040ff1b377abd616"
-      ],
-      [
-        "d9af6305bfca66cb"
-      ],
-      [
-        "d9af6305bfca66cb"
+        "5fee30b61a27e6e5"
       ]
     ]
-  },
-  {
-    "id": "040ff1b377abd616",
-    "type": "debug",
-    "z": "3ad1e0957e6ec22e",
-    "name": "Sleeper Active",
-    "active": true,
-    "tosidebar": true,
-    "console": false,
-    "tostatus": false,
-    "complete": "true",
-    "targetType": "full",
-    "statusVal": "",
-    "statusType": "auto",
-    "x": 2520,
-    "y": 2140,
-    "wires": []
   },
   {
     "id": "5dfa51babbba06ed",
     "type": "comment",
     "z": "3ad1e0957e6ec22e",
-    "name": "Check if there is an active sleeper in the room",
-    "info": "",
-    "x": 2250,
+    "name": "Check that \"active_sleeper_present\" is off",
+    "info": " - ",
+    "x": 2660,
     "y": 2120,
     "wires": []
   },
   {
-    "id": "95bba2044f5c5736",
+    "id": "e596935b261be053",
+    "type": "inject",
+    "z": "3ad1e0957e6ec22e",
+    "name": "hotbox down motion",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      },
+      {
+        "p": "data",
+        "v": "{\"event_type\":\"state_changed\",\"entity_id\":\"binary_sensor.sensor_hotbox_down_motion_occupancy\",\"event\":{\"entity_id\":\"binary_sensor.sensor_hotbox_down_motion_occupancy\",\"old_state\":{\"entity_id\":\"binary_sensor.sensor_hotbox_down_motion_occupancy\",\"state\":\"off\",\"attributes\":{\"battery\":100,\"device\":{\"applicationVersion\":11,\"friendlyName\":\"sensor_hotbox_down_motion\",\"ieeeAddr\":\"0x00158d0002281294\",\"manufacturerID\":4151,\"manufacturerName\":\"LUMI\",\"model\":\"RTCGQ01LM\",\"networkAddress\":28396,\"powerSource\":\"Battery\",\"type\":\"EndDevice\"},\"linkquality\":87,\"occupancy\":false,\"power_outage_count\":77,\"voltage\":3075,\"device_class\":\"motion\",\"friendly_name\":\"Hotbox Down Motion_occupancy\"},\"last_changed\":\"2023-08-03T13:07:10.739670+00:00\",\"last_updated\":\"2023-08-03T13:07:10.739670+00:00\",\"context\":{\"id\":\"01H6XR4QRKMSW2KB245H9T6KFT\",\"parent_id\":null,\"user_id\":null},\"original_state\":\"off\"},\"new_state\":{\"entity_id\":\"binary_sensor.sensor_hotbox_down_motion_occupancy\",\"state\":\"on\",\"attributes\":{\"battery\":100,\"device\":{\"applicationVersion\":11,\"friendlyName\":\"sensor_hotbox_down_motion\",\"ieeeAddr\":\"0x00158d0002281294\",\"manufacturerID\":4151,\"manufacturerName\":\"LUMI\",\"model\":\"RTCGQ01LM\",\"networkAddress\":28396,\"powerSource\":\"Battery\",\"type\":\"EndDevice\"},\"linkquality\":87,\"occupancy\":false,\"power_outage_count\":77,\"voltage\":3075,\"device_class\":\"motion\",\"friendly_name\":\"Hotbox Down Motion_occupancy\"},\"last_changed\":\"2023-08-03T13:28:46.214518+00:00\",\"last_updated\":\"2023-08-03T13:28:46.214518+00:00\",\"context\":{\"id\":\"01H6XSC8W6W0RJ9N7G6RVXA89K\",\"parent_id\":null,\"user_id\":\"7f1de31122574f6fa2215e519d6083ea\"},\"original_state\":\"on\",\"timeSinceChangedMs\":4}},\"origin\":\"LOCAL\",\"time_fired\":\"2023-08-03T13:28:46.214518+00:00\",\"context\":{\"id\":\"01H6XSC8W6W0RJ9N7G6RVXA89K\",\"parent_id\":null,\"user_id\":\"7f1de31122574f6fa2215e519d6083ea\"}}",
+        "vt": "json"
+      }
+    ],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "binary_sensor.sensor_hotbox_down_motion_occupancy",
+    "payload": "on",
+    "payloadType": "str",
+    "x": 510,
+    "y": 2200,
+    "wires": [
+      [
+        "ff0f60a09e8cd06c"
+      ]
+    ]
+  },
+  {
+    "id": "51dbd35861e70217",
+    "type": "function",
+    "z": "3ad1e0957e6ec22e",
+    "name": "Check if any sleeper is in the triggered room",
+    "func": "var room = msg.room;\nvar room_sleepers = msg.room_sleepers;\nvar active = 0;\n\nvar active = compareArrayToString(room_sleepers, room);\n\n\nvar msg = {\n    \"payload\": {\n    \"room\": room,\n    \"room_sleepers\": room_sleepers,\n    \"entity\": msg.entity,\n    \"active_sleeper_present\": active,\n     \"data\": msg.data\n    },\n    \"entity_id\": msg.entity.entity_id\n\n}\nreturn msg;\n\nfunction compareArrayToString(array, string) {\n    // loop through the array\n    for (let i = 0; i < array.length; i++) {\n        // check if the string contains the current array element\n        if (string.includes(array[i])) {\n            // return 1 if found\n            return 1;\n        }\n    }\n    // return off if none found\n    return 0;\n}\n",
+    "outputs": 1,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 2290,
+    "y": 2160,
+    "wires": [
+      [
+        "d0599e2fa55de2b9",
+        "9c11a0a5f77492b5"
+      ]
+    ]
+  },
+  {
+    "id": "9c11a0a5f77492b5",
     "type": "debug",
     "z": "3ad1e0957e6ec22e",
-    "name": "debug 299",
+    "name": "debug 300",
     "active": true,
     "tosidebar": true,
     "console": false,
@@ -7474,8 +6868,18 @@
     "targetType": "full",
     "statusVal": "",
     "statusType": "auto",
-    "x": 2530,
+    "x": 2570,
     "y": 2200,
+    "wires": []
+  },
+  {
+    "id": "ab99a49d19ea27a0",
+    "type": "comment",
+    "z": "3ad1e0957e6ec22e",
+    "name": "Check if a trip is ongoing",
+    "info": " - ",
+    "x": 2970,
+    "y": 2120,
     "wires": []
   }
 ]
