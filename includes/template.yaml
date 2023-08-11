@@ -395,9 +395,11 @@
               {% elif states.binary_sensor.maxi_alone.state == "off" and states.person.maximiliano.state == "home" %}  {# if the maxi_alone sensor is off, it indicates that there is more than maxi present #}
                   {# this below code set sleepingspots as the last sleeper that was turned on#}
                   {% set last_sleeping_spot = states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search',"input_boolean.sleeper_") | sort(attribute='last_updated', reverse=True) | map(attribute="entity_id") | first | default | replace("input_boolean.sleeper_in_","") %}  
-                  {% if last_sleeping_spot == maxilocation %}
-                  {% set sleepingspot = last_sleeping_spot %}
-                  {% endif %}
+                    {% if maxilocation in activesleeperrooms | string   %}
+                      {% set sleepingspot = maxilocation %}
+                    {% elif last_sleeping_spot == maxilocation %}                    
+                      {% set sleepingspot = last_sleeping_spot %}
+                    {% endif %}
               {% elif states.person.maximiliano.state != "home" %}  {# if maxi is not home #}
                   {# check phone sleep confidence to determine if I am sleeping #}
                   {% if phone_sleep_confidence > 94  %} {# Assume I am sleeping if confidence is over 94% #}
