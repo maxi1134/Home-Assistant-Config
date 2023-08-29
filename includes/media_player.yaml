@@ -2477,30 +2477,24 @@
                 {{ state_attr( 'media_player.group_home_speakers', 'media_artist') }}
                 {% endif %}
         unique_id: template_unmuted_home_speakers
+
+
+        
       template_following_media_player:
         friendly_name: Template Following Media Playe
         value_template: >
-                {% set location = states('sensor.maxi_location_v3') %}  
-                {% set ns = namespace( entities = [], final_entities = []  )%}
-                {% for media_player in states.media_player %} 
-                  {% if location in media_player.entity_id and media_player.state != "unavailable" and media_player.state != "off" %}
-                    {% set entity = media_player.entity_id %}
-                    {% set state = media_player.state %}
-                    {% set ns.entities = ns.entities + [entity] %}
-                  {% endif %}                  
-                {% endfor %}                  
-                {% for entity in ns.entities %}  
-                {% set is_muted = state_attr(entity, "is_volume_muted") %}
-                    {% set state = states( entity ) %}
-                    {% if "chromecast" in entity and "template" in entity and state != none %}
-                       {% set ns.final_entities = ns.final_entities + [entity] %}
-                    {% endif %}
-                {% endfor %}
-                {% if ns.final_entities | length > 0 %}
-                {{ states(ns.final_entities | first )  }}
-                {% else %}
-                  off
-                {% endif %}
+              {% set following_speaker = states('media_player.template_following_speaker') %}
+              {% set following_chromecast = states('media_player.template_following_chromecast') %}
+              {% set ns = namespace( following_media_player_entity = "none"  ) %}
+              {% for media_player in states.media_player %} 
+                {% if "following_speaker" in media_player.entity_id and media_player.state != "unavailable" and media_player.state != "off" and state_attr(media_player.entity_id,'is_volume_muted') != true %}
+                  {% set ns.following_media_player_entity = media_player.entity_id %}
+                {% elif "following_chromecast" in media_player.entity_id and media_player.state != "unavailable" and media_player.state != "off" and state_attr(media_player.entity_id,'is_volume_muted') != true %}
+                {% set ns.following_media_player_entity = media_player.entity_id %}
+                {% endif %}                  
+              {% endfor %}
+              {{ states(ns.following_media_player_entity)  }}
+
         next:
           service: media_player.media_seek
           data_template:
