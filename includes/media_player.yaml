@@ -1937,29 +1937,29 @@
             volume_level: "{{ volume }}"
         current_is_muted_template: "{{state_attr( 'media_player.office_speaker', 'is_volume_muted') }}"
         current_volume_template: "{{state_attr( 'media_player.livingroom_chromecast', 'volume_level') }}"
-        media_image_url_template: >
+        media_image_url_template: >                
                 {% set location = states('sensor.maxi_location_v3') %}  
-                {% set ns = namespace( entities = [], final_entities = []  )%}
+                {% set ns = namespace( entities = [],entity_picture = ""  )%}
                 
                 {% for media_player in states.media_player %} 
-                  {% if location in media_player.entity_id and media_player.state != "unavailable" and media_player.state != "off" %}
+                  {% if location in media_player.entity_id and "roku" not in media_player.entity_id and "speaker" in media_player.entity_id and media_player.state != "unavailable" and media_player.state != "off" %}
                     {% set entity = media_player.entity_id %}
-                    {% set entity_picture = state_attr( entity, 'entity_picture') %}
+                    {% if  state_attr( entity, 'entity_picture') != none %}
+                        {% set ns.entity_picture = state_attr( entity, 'entity_picture') %}
+                    {% elif  state_attr( entity, 'entity_picture_local') != none %}
+                        {% set ns.entity_picture = state_attr( entity, 'entity_picture_local') %}
+                    {% endif %}  
                     {% set ns.entities = ns.entities + [entity] %}
                   {% endif %}                  
                 {% endfor %}                  
                 {% for entity in ns.entities %}  
-                {% set is_muted = state_attr(entity, "is_volume_muted") %}
-                {% if is_muted == false %}
-                    {% set entity_picture = state_attr( entity, 'entity_picture') %}
-                    {% if "speaker" in entity and entity_picture != none %}
-                       {% set ns.final_entities = ns.final_entities + [entity] %}
-                    {% endif %}
-                  {% endif %}
+                    {% if  state_attr( entity, 'entity_picture') != none %}
+                        {% set ns.entity_picture = state_attr( entity, 'entity_picture') %}
+                    {% elif  state_attr( entity, 'entity_picture_local') != none %}
+                        {% set ns.entity_picture = state_attr( entity, 'entity_picture_local') %}
+                    {% endif %}                    
                 {% endfor %}
-                {% if ns.final_entities | length > 0 %}
-                {{state_attr( ns.final_entities | first , 'entity_picture' ) }}
-                {% endif %}
+                {{ "http://192.168.0.15:8123" + ns.entity_picture }}
         title_template: >
                 {% set location = states('sensor.maxi_location_v3') %}  
                 {% set ns = namespace( entities = [], final_entities = []  )%}
@@ -2031,7 +2031,7 @@
                   {% endif %}
         unique_id: template_following_speaker
 
-###################################################################################################
+######################################Template Following Chromecast#############################################################
       template_following_chromecast:
         friendly_name: Template Following Chromecast
         device_class: tv
