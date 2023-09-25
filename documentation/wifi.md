@@ -52,7 +52,7 @@ Running a homelab is not always easy, especially when comes time to route, segre
 
 | Model | Device Type | Buy Again? | Some Notes |  Quantity In Use     |
 | ----- | ----------- | :--------: | ---------- | :---: |
-|[Wiim Pro](https://wiimhome.com/WiiMPro/Overview) | Smart Speaker Receiver | :heavy_check_mark: | Very decent integration into Home-Assistant through the cast integration| 3 | 
+|[Wiim Pro](https://wiimhome.com/WiiMPro/Overview) | Smart Speaker Receiver | :heavy_check_mark: | Very decent integration into Home-Assistant through the cast and Airplay/SlimProto integrations| 3 | 
 | Chromecast | Smart TV Dongle | :small_red_triangle: | Very decent integration into Home-Assistant| 1 | 
 |[Chromecast Ultra](https://www.bestbuy.com/site/google-chromecast-ultra-4k-streaming-media-player-black/5578628.p?skuId=5578628) | Smart TV Dongle | :small_red_triangle: | Very decent integration into Home-Assistant| 3 | 
 |[Google Nest Hub](https://store.google.com/us/product/nest_hub_2nd_gen?hl=en-US) | Smart Hub | :warning: | You "can" cast your Home-Assistant interface on them| 2 | 
