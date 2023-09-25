@@ -56,7 +56,7 @@ Running a homelab is not always easy, especially when comes time to route, segre
 | Chromecast | Smart TV Dongle | :small_red_triangle: | Very decent integration into Home-Assistant| 1 | 
 |[Chromecast Ultra](https://www.bestbuy.com/site/google-chromecast-ultra-4k-streaming-media-player-black/5578628.p?skuId=5578628) | Smart TV Dongle | :small_red_triangle: | Very decent integration into Home-Assistant| 3 | 
 |[Google Nest Hub](https://store.google.com/us/product/nest_hub_2nd_gen?hl=en-US) | Smart Hub | :warning: | You "can" cast your Home-Assistant interface on them| 2 | 
-|[Google Nest Mini](https://store.google.com/product/google_nest_mini?hl=en-US&pli=1) | Smart speaker | :heavy_check_mark: | | 9|
+|[Google Nest Mini](https://store.google.com/product/google_nest_mini?hl=en-US&pli=1) | Smart speaker | :warning: | WiiM products are superior and offer in some cases Chromecast capabilities! | 9|
 |[Google Home Mini](https://store.google.com/product/google_nest_mini?hl=en-US&pli=1)| Smart Speaker | :small_red_triangle: || 4 |
 |[LIFX Tiles](https://support.lifx.com/lifx-tile-H1b_fuiLu)| Smart Lights | :no_entry: | Very pretty, but one set out of two broke (Firmware issues) | 1 |
 |[LIFX Nightvision BR30](https://www.lifx.com/products/lifx-color-br30-nightvision-edition-1pk)| Smart Bulb | :thumbsdown: | Very bright, but has wifi connectivity issues | 1 |
