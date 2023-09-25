@@ -124,13 +124,15 @@
       - name: "amount partners home"
         unique_id: "amount_partners_home"
         state: >-
-            {# set the ammount of partners home #}
-            {% if states('person.maximiliano') == "home" %}   {# If I am home, the amount should be zone.home -1 #}
-              {% set partnershome = states('zone.home')  | int - 1  %}
-            {% else %}{# If I am not home, the amount should be zone.home #}
-              {% set partnershome = states('zone.home')  | int  %}
+            {# set the amount of partners home #}
+            {% set ns = namespace(total_partners = 0) %} {# set namespace user amount at 0 #}
+            {% for person in states.person %} {# iterate over existing persons #}
+            {% if person.state == "home" and "maximiliano" not in person.entity_id and "jordan" not in person.entity_id %}
+              {% set ns.total_partners = ns.total_partners + 1 %}
             {% endif %}
-            {{partnershome | int }}
+            {% endfor %}            
+            {{ ns.total_partners }}{# output total_partners at home #}
+            
         unit_of_measurement: "partners"
 
       - name: "amount friends home"
