@@ -129,8 +129,8 @@
                       "type": "conditional",
                       "conditions": [
                         {
-                          "entity": "input_boolean.party_mode",
-                          "state_not": "onhh"
+                          "entity": "sensor.amount_friends_home",
+                          "state_not": "0"
                         }
                       ],
                       "card": {
@@ -1554,6 +1554,386 @@
         },
         {
           "theme": "synthwave",
+          "title": "security_subview",
+          "path": "security-subview",
+          "icon": "mdi:cctv",
+          "subview": true,
+          "type": "panel",
+          "badges": [],
+          "cards": [
+            {
+              "type": "vertical-stack",
+              "cards": [
+                {
+                  "square": true,
+                  "columns": 10,
+                  "type": "grid",
+                  "cards": [
+                    {
+                      "show_name": false,
+                      "show_icon": true,
+                      "type": "button",
+                      "tap_action": {
+                        "action": "navigate",
+                        "navigation_path": "/tablet-entrance-dashboard/main-view"
+                      },
+                      "icon": "mdi:arrow-left-thick",
+                      "show_state": false,
+                      "hold_action": {
+                        "action": "navigate",
+                        "navigation_path": "/tablet-entrance-dashboard/main-view"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "type": "horizontal-stack",
+                  "cards": [
+                    {
+                      "type": "entity",
+                      "entity": "lock.lock_front_door"
+                    },
+                    {
+                      "type": "entity",
+                      "entity": "lock.back_door"
+                    }
+                  ]
+                },
+                {
+                  "type": "alarm-panel",
+                  "states": [
+                    "arm_home",
+                    "arm_away",
+                    "arm_night"
+                  ],
+                  "entity": "alarm_control_panel.home_alarm"
+                },
+                {
+                  "type": "custom:frigate-card",
+                  "elements": [
+                    {
+                      "type": "custom:frigate-card-menu-state-icon",
+                      "entity": "lock.lock_front_door",
+                      "tap_action": {
+                        "action": "toggle"
+                      }
+                    },
+                    {
+                      "type": "custom:frigate-card-menu-state-icon",
+                      "entity": "light.front_door_light",
+                      "tap_action": {
+                        "action": "toggle"
+                      },
+                      "hold_action": {
+                        "action": "more-info"
+                      }
+                    },
+                    {
+                      "type": "custom:frigate-card-menu-state-icon",
+                      "entity": "input_boolean.waiting_someone",
+                      "tap_action": {
+                        "action": "toggle"
+                      }
+                    },
+                    {
+                      "type": "custom:frigate-card-conditional",
+                      "conditions": {
+                        "view": [
+                          "live"
+                        ],
+                        "camera": [
+                          "camera.front_door_go2rtc"
+                        ]
+                      },
+                      "elements": [
+                        {
+                          "type": "icon",
+                          "icon": "mdi:package",
+                          "style": {
+                            "background": "rgba(255, 255, 255, 0.25)",
+                            "border-radius": "5px",
+                            "right": "25px",
+                            "bottom": "0px"
+                          },
+                          "tap_action": {
+                            "action": "call-service",
+                            "service": "script.turn_on",
+                            "service_data": {
+                              "entity_id": "script.ptz_to_package"
+                            }
+                          }
+                        },
+                        {
+                          "type": "icon",
+                          "icon": "mdi:car",
+                          "style": {
+                            "background": "rgba(255, 255, 255, 0.25)",
+                            "border-radius": "5px",
+                            "right": "50px",
+                            "bottom": "25px"
+                          },
+                          "tap_action": {
+                            "action": "call-service",
+                            "service": "script.turn_on",
+                            "service_data": {
+                              "entity_id": "script.ptz_to_street"
+                            }
+                          }
+                        },
+                        {
+                          "type": "icon",
+                          "icon": "mdi:door",
+                          "style": {
+                            "background": "rgba(255, 255, 255, 0.25)",
+                            "border-radius": "5px",
+                            "right": "0px",
+                            "bottom": "25px"
+                          },
+                          "tap_action": {
+                            "action": "call-service",
+                            "service": "script.turn_on",
+                            "service_data": {
+                              "entity_id": "script.ptz_to_doorway"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "live": {
+                    "draggable": true,
+                    "lazy_load": false,
+                    "preload": false,
+                    "auto_play": "selected",
+                    "auto_pause": "unselected",
+                    "auto_mute": "all",
+                    "auto_unmute": "never",
+                    "transition_effect": "slide"
+                  },
+                  "menu": {
+                    "style": "overlay",
+                    "position": "top",
+                    "alignment": "right",
+                    "buttons": {
+                      "media_player": {
+                        "alignment": "opposing",
+                        "priority": 62,
+                        "enabled": false
+                      },
+                      "download": {
+                        "enabled": false
+                      },
+                      "snapshots": {
+                        "enabled": false
+                      },
+                      "frigate": {
+                        "enabled": false
+                      },
+                      "live": {
+                        "priority": 66
+                      },
+                      "cameras": {
+                        "enabled": false
+                      },
+                      "camera_ui": {
+                        "enabled": false
+                      }
+                    }
+                  },
+                  "cameras": [
+                    {
+                      "camera_entity": "camera.front_door_go2rtc",
+                      "live_provider": "ha",
+                      "webrtc_card": {
+                        "url": "rtsp://192.168.0.14:8554/test_ffmpeg_camera",
+                        "entity": "camera.front_door"
+                      },
+                      "title": "Front Door",
+                      "dependencies": {
+                        "all_cameras": true
+                      },
+                      "frigate": {
+                        "url": "http://192.168.0.14:5000/",
+                        "camera_name": "front_door"
+                      }
+                    }
+                  ],
+                  "view": {
+                    "default": "live",
+                    "camera_select": "clips",
+                    "dark_mode": "on",
+                    "timeout_seconds": 60,
+                    "scan": {
+                      "enabled": true
+                    }
+                  },
+                  "dimensions": {
+                    "aspect_ratio_mode": "unconstrained"
+                  },
+                  "media_gallery": {
+                    "controls": {
+                      "thumbnails": {
+                        "size": 175
+                      }
+                    }
+                  },
+                  "cameras_global": {
+                    "jsmpeg": {
+                      "options": {
+                        "disableWebAssembly": true
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "glance",
+                  "entities": [
+                    {
+                      "entity": "binary_sensor.sensor_front_outside_door_contact",
+                      "name": "Front Out"
+                    },
+                    {
+                      "entity": "binary_sensor.sensor_front_door_contact",
+                      "name": "Front Door"
+                    },
+                    {
+                      "entity": "binary_sensor.sensor_chillingroom_door_contact",
+                      "name": "Bedroom Door"
+                    },
+                    {
+                      "entity": "binary_sensor.sensor_bedroom_door_contact",
+                      "name": "Nate door"
+                    },
+                    {
+                      "entity": "binary_sensor.sensor_bathroom_door_contact",
+                      "name": "Bathroom Door"
+                    },
+                    {
+                      "entity": "binary_sensor.sensor_fridge_door_contact",
+                      "name": "Fridge door"
+                    },
+                    {
+                      "entity": "binary_sensor.sensor_server_door_contact",
+                      "name": "Server Door"
+                    },
+                    {
+                      "entity": "binary_sensor.sensor_patio_door_contact",
+                      "name": "Patio Door"
+                    }
+                  ],
+                  "columns": 4
+                },
+                {
+                  "type": "glance",
+                  "entities": [
+                    {
+                      "entity": "binary_sensor.sensor_office_motion_occupancy",
+                      "name": "Office",
+                      "tap_action": {
+                        "action": "none"
+                      },
+                      "hold_action": {
+                        "action": "more-info"
+                      }
+                    },
+                    {
+                      "entity": "binary_sensor.sensor_chillingroom_motion_occupancy",
+                      "name": "ChillingRoom",
+                      "tap_action": {
+                        "action": "none"
+                      },
+                      "hold_action": {
+                        "action": "more-info"
+                      }
+                    },
+                    {
+                      "entity": "binary_sensor.sensor_hallway_motion_occupancy",
+                      "name": "Hallway",
+                      "tap_action": {
+                        "action": "none"
+                      },
+                      "hold_action": {
+                        "action": "more-info"
+                      }
+                    },
+                    {
+                      "entity": "binary_sensor.sensor_livingroom_motion_occupancy",
+                      "name": "Living Room",
+                      "tap_action": {
+                        "action": "none"
+                      },
+                      "hold_action": {
+                        "action": "more-info"
+                      }
+                    },
+                    {
+                      "entity": "binary_sensor.sensor_bathroom_motion_occupancy",
+                      "name": "Bathroom",
+                      "tap_action": {
+                        "action": "none"
+                      },
+                      "hold_action": {
+                        "action": "more-info"
+                      }
+                    },
+                    {
+                      "entity": "binary_sensor.sensor_kitchen_motion_occupancy",
+                      "name": "Kitchen",
+                      "tap_action": {
+                        "action": "none"
+                      },
+                      "hold_action": {
+                        "action": "more-info"
+                      }
+                    },
+                    {
+                      "entity": "binary_sensor.sensor_hotbox_down_motion_occupancy",
+                      "name": "HB Down",
+                      "tap_action": {
+                        "action": "none"
+                      },
+                      "hold_action": {
+                        "action": "more-info"
+                      }
+                    },
+                    {
+                      "entity": "binary_sensor.sensor_hotbox_top_motion_occupancy",
+                      "name": "HB Top",
+                      "tap_action": {
+                        "action": "none"
+                      },
+                      "hold_action": {
+                        "action": "more-info"
+                      }
+                    },
+                    {
+                      "entity": "binary_sensor.server_motion_occupancy",
+                      "name": "Server",
+                      "tap_action": {
+                        "action": "none"
+                      },
+                      "hold_action": {
+                        "action": "more-info"
+                      }
+                    },
+                    {
+                      "entity": "binary_sensor.sensor_patio_motion_occupancy",
+                      "name": "Patio",
+                      "tap_action": {
+                        "action": "none"
+                      },
+                      "hold_action": {
+                        "action": "more-info"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "theme": "synthwave",
           "subview": true,
           "type": "panel",
           "title": "vacuum_subview",
@@ -2421,386 +2801,6 @@
                           "entity_id": "vacuum.xiaomi_vacuum_cleaner",
                           "fan_speed": "Silent"
                         }
-                      }
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "theme": "synthwave",
-          "title": "security_subview",
-          "path": "security-subview",
-          "icon": "mdi:cctv",
-          "subview": true,
-          "type": "panel",
-          "badges": [],
-          "cards": [
-            {
-              "type": "vertical-stack",
-              "cards": [
-                {
-                  "square": true,
-                  "columns": 10,
-                  "type": "grid",
-                  "cards": [
-                    {
-                      "show_name": false,
-                      "show_icon": true,
-                      "type": "button",
-                      "tap_action": {
-                        "action": "navigate",
-                        "navigation_path": "/tablet-entrance-dashboard/main-view"
-                      },
-                      "icon": "mdi:arrow-left-thick",
-                      "show_state": false,
-                      "hold_action": {
-                        "action": "navigate",
-                        "navigation_path": "/tablet-entrance-dashboard/main-view"
-                      }
-                    }
-                  ]
-                },
-                {
-                  "type": "horizontal-stack",
-                  "cards": [
-                    {
-                      "type": "entity",
-                      "entity": "lock.lock_front_door"
-                    },
-                    {
-                      "type": "entity",
-                      "entity": "lock.back_door"
-                    }
-                  ]
-                },
-                {
-                  "type": "alarm-panel",
-                  "states": [
-                    "arm_home",
-                    "arm_away",
-                    "arm_night"
-                  ],
-                  "entity": "alarm_control_panel.home_alarm"
-                },
-                {
-                  "type": "custom:frigate-card",
-                  "elements": [
-                    {
-                      "type": "custom:frigate-card-menu-state-icon",
-                      "entity": "lock.lock_front_door",
-                      "tap_action": {
-                        "action": "toggle"
-                      }
-                    },
-                    {
-                      "type": "custom:frigate-card-menu-state-icon",
-                      "entity": "light.front_door_light",
-                      "tap_action": {
-                        "action": "toggle"
-                      },
-                      "hold_action": {
-                        "action": "more-info"
-                      }
-                    },
-                    {
-                      "type": "custom:frigate-card-menu-state-icon",
-                      "entity": "input_boolean.waiting_someone",
-                      "tap_action": {
-                        "action": "toggle"
-                      }
-                    },
-                    {
-                      "type": "custom:frigate-card-conditional",
-                      "conditions": {
-                        "view": [
-                          "live"
-                        ],
-                        "camera": [
-                          "camera.front_door_go2rtc"
-                        ]
-                      },
-                      "elements": [
-                        {
-                          "type": "icon",
-                          "icon": "mdi:package",
-                          "style": {
-                            "background": "rgba(255, 255, 255, 0.25)",
-                            "border-radius": "5px",
-                            "right": "25px",
-                            "bottom": "0px"
-                          },
-                          "tap_action": {
-                            "action": "call-service",
-                            "service": "script.turn_on",
-                            "service_data": {
-                              "entity_id": "script.ptz_to_package"
-                            }
-                          }
-                        },
-                        {
-                          "type": "icon",
-                          "icon": "mdi:car",
-                          "style": {
-                            "background": "rgba(255, 255, 255, 0.25)",
-                            "border-radius": "5px",
-                            "right": "50px",
-                            "bottom": "25px"
-                          },
-                          "tap_action": {
-                            "action": "call-service",
-                            "service": "script.turn_on",
-                            "service_data": {
-                              "entity_id": "script.ptz_to_street"
-                            }
-                          }
-                        },
-                        {
-                          "type": "icon",
-                          "icon": "mdi:door",
-                          "style": {
-                            "background": "rgba(255, 255, 255, 0.25)",
-                            "border-radius": "5px",
-                            "right": "0px",
-                            "bottom": "25px"
-                          },
-                          "tap_action": {
-                            "action": "call-service",
-                            "service": "script.turn_on",
-                            "service_data": {
-                              "entity_id": "script.ptz_to_doorway"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  ],
-                  "live": {
-                    "draggable": true,
-                    "lazy_load": false,
-                    "preload": false,
-                    "auto_play": "selected",
-                    "auto_pause": "unselected",
-                    "auto_mute": "all",
-                    "auto_unmute": "never",
-                    "transition_effect": "slide"
-                  },
-                  "menu": {
-                    "style": "overlay",
-                    "position": "top",
-                    "alignment": "right",
-                    "buttons": {
-                      "media_player": {
-                        "alignment": "opposing",
-                        "priority": 62,
-                        "enabled": false
-                      },
-                      "download": {
-                        "enabled": false
-                      },
-                      "snapshots": {
-                        "enabled": false
-                      },
-                      "frigate": {
-                        "enabled": false
-                      },
-                      "live": {
-                        "priority": 66
-                      },
-                      "cameras": {
-                        "enabled": false
-                      },
-                      "camera_ui": {
-                        "enabled": false
-                      }
-                    }
-                  },
-                  "cameras": [
-                    {
-                      "camera_entity": "camera.front_door_go2rtc",
-                      "live_provider": "ha",
-                      "webrtc_card": {
-                        "url": "rtsp://192.168.0.14:8554/test_ffmpeg_camera",
-                        "entity": "camera.front_door"
-                      },
-                      "title": "Front Door",
-                      "dependencies": {
-                        "all_cameras": true
-                      },
-                      "frigate": {
-                        "url": "http://192.168.0.14:5000/",
-                        "camera_name": "front_door"
-                      }
-                    }
-                  ],
-                  "view": {
-                    "default": "live",
-                    "camera_select": "clips",
-                    "dark_mode": "on",
-                    "timeout_seconds": 60,
-                    "scan": {
-                      "enabled": true
-                    }
-                  },
-                  "dimensions": {
-                    "aspect_ratio_mode": "unconstrained"
-                  },
-                  "media_gallery": {
-                    "controls": {
-                      "thumbnails": {
-                        "size": 175
-                      }
-                    }
-                  },
-                  "cameras_global": {
-                    "jsmpeg": {
-                      "options": {
-                        "disableWebAssembly": true
-                      }
-                    }
-                  }
-                },
-                {
-                  "type": "glance",
-                  "entities": [
-                    {
-                      "entity": "binary_sensor.sensor_front_outside_door_contact",
-                      "name": "Front Out"
-                    },
-                    {
-                      "entity": "binary_sensor.sensor_front_door_contact",
-                      "name": "Front Door"
-                    },
-                    {
-                      "entity": "binary_sensor.sensor_chillingroom_door_contact",
-                      "name": "Bedroom Door"
-                    },
-                    {
-                      "entity": "binary_sensor.sensor_bedroom_door_contact",
-                      "name": "Nate door"
-                    },
-                    {
-                      "entity": "binary_sensor.sensor_bathroom_door_contact",
-                      "name": "Bathroom Door"
-                    },
-                    {
-                      "entity": "binary_sensor.sensor_fridge_door_contact",
-                      "name": "Fridge door"
-                    },
-                    {
-                      "entity": "binary_sensor.sensor_server_door_contact",
-                      "name": "Server Door"
-                    },
-                    {
-                      "entity": "binary_sensor.sensor_patio_door_contact",
-                      "name": "Patio Door"
-                    }
-                  ],
-                  "columns": 4
-                },
-                {
-                  "type": "glance",
-                  "entities": [
-                    {
-                      "entity": "binary_sensor.sensor_office_motion_occupancy",
-                      "name": "Office",
-                      "tap_action": {
-                        "action": "none"
-                      },
-                      "hold_action": {
-                        "action": "more-info"
-                      }
-                    },
-                    {
-                      "entity": "binary_sensor.sensor_chillingroom_motion_occupancy",
-                      "name": "ChillingRoom",
-                      "tap_action": {
-                        "action": "none"
-                      },
-                      "hold_action": {
-                        "action": "more-info"
-                      }
-                    },
-                    {
-                      "entity": "binary_sensor.sensor_hallway_motion_occupancy",
-                      "name": "Hallway",
-                      "tap_action": {
-                        "action": "none"
-                      },
-                      "hold_action": {
-                        "action": "more-info"
-                      }
-                    },
-                    {
-                      "entity": "binary_sensor.sensor_livingroom_motion_occupancy",
-                      "name": "Living Room",
-                      "tap_action": {
-                        "action": "none"
-                      },
-                      "hold_action": {
-                        "action": "more-info"
-                      }
-                    },
-                    {
-                      "entity": "binary_sensor.sensor_bathroom_motion_occupancy",
-                      "name": "Bathroom",
-                      "tap_action": {
-                        "action": "none"
-                      },
-                      "hold_action": {
-                        "action": "more-info"
-                      }
-                    },
-                    {
-                      "entity": "binary_sensor.sensor_kitchen_motion_occupancy",
-                      "name": "Kitchen",
-                      "tap_action": {
-                        "action": "none"
-                      },
-                      "hold_action": {
-                        "action": "more-info"
-                      }
-                    },
-                    {
-                      "entity": "binary_sensor.sensor_hotbox_down_motion_occupancy",
-                      "name": "HB Down",
-                      "tap_action": {
-                        "action": "none"
-                      },
-                      "hold_action": {
-                        "action": "more-info"
-                      }
-                    },
-                    {
-                      "entity": "binary_sensor.sensor_hotbox_top_motion_occupancy",
-                      "name": "HB Top",
-                      "tap_action": {
-                        "action": "none"
-                      },
-                      "hold_action": {
-                        "action": "more-info"
-                      }
-                    },
-                    {
-                      "entity": "binary_sensor.server_motion_occupancy",
-                      "name": "Server",
-                      "tap_action": {
-                        "action": "none"
-                      },
-                      "hold_action": {
-                        "action": "more-info"
-                      }
-                    },
-                    {
-                      "entity": "binary_sensor.sensor_patio_motion_occupancy",
-                      "name": "Patio",
-                      "tap_action": {
-                        "action": "none"
-                      },
-                      "hold_action": {
-                        "action": "more-info"
                       }
                     }
                   ]
