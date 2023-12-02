@@ -1,8 +1,8 @@
 <p align="center">
-<a href="/documentation/hardware.md"><img src="https://img.shields.io/badge/Hardware%20Specifications-purple" alt="This is what runs everything"></a> <a href="/node-red/"><img src="https://img.shields.io/badge/Nodered%20Flows-red" alt="Read the README!"></a> 
-<a href="/documentation/zigbee.md"><img src="https://img.shields.io/badge/Zigbee%20Devices-green" alt="This is what runs everything"></a>  <a href="/.storage/"><img src="https://img.shields.io/badge/Lovelace%20Interfaces-orange" alt="Actually my .storage folder, but eh!"></a>
-<a href="/documentation/indoor_localization.md"><img src="https://img.shields.io/badge/Indoor%20Localization-blue" alt="They know where you are..."></a> 
-<a href="/documentation/software.md"><img src="https://img.shields.io/badge/Software%20Usage-cyan" alt="Some deets on the softs"></a> <a href="/documentation/wifi.md"><img src="https://img.shields.io/badge/Networking-violet" alt="Some deets on the softs"></a> <br></p></p>
+<a href="/homeassistant/documentation/hardware.md"><img src="https://img.shields.io/badge/Hardware%20Specifications-purple" alt="This is what runs everything"></a> <a href="/homeassistant/node-red/"><img src="https://img.shields.io/badge/Nodered%20Flows-red" alt="Read the README!"></a> 
+<a href="/homeassistant/documentation/zigbee.md"><img src="https://img.shields.io/badge/Zigbee%20Devices-green" alt="This is what runs everything"></a>  <a href="/homeassistant/.storage/"><img src="https://img.shields.io/badge/Lovelace%20Interfaces-orange" alt="Actually my .storage folder, but eh!"></a>
+<a href="/homeassistant/documentation/indoor_localization.md"><img src="https://img.shields.io/badge/Indoor%20Localization-blue" alt="They know where you are..."></a> 
+<a href="/homeassistant/documentation/software.md"><img src="https://img.shields.io/badge/Software%20Usage-cyan" alt="Some deets on the softs"></a> <a href="/homeassistant/documentation/wifi.md"><img src="https://img.shields.io/badge/Networking-violet" alt="Some deets on the softs"></a> <br></p></p>
 
 ## Main Tablet interface
 
@@ -11,15 +11,15 @@ Its code is under ".storage/lovelace.tablet_entrance_dashboard"
 
 
 <p align="middle">
-  <img src="/assets/Tablet_S7FE/framed_music_playing_lowres.gif" width="30%" />
-  <img src="/assets/Tablet_S7FE/framed_light_panel_lowres.gif" width="30%" />
-  <img src="/assets/Tablet_S7FE/framed_security_panel_lowres.gif" width="30%" />
+  <img src="/homeassistant/assets/Tablet_S7FE/framed_music_playing_lowres.gif" width="30%" />
+  <img src="/homeassistant/assets/Tablet_S7FE/framed_light_panel_lowres.gif" width="30%" />
+  <img src="/homeassistant/assets/Tablet_S7FE/framed_security_panel_lowres.gif" width="30%" />
 </p>
 
 <p align="middle">
-  <img src="/assets/Tablet_S7FE/framed_music_panel_lowres.gif" width="30%" />
-  <img src="/assets/Tablet_S7FE/framed_vacuum_panel_lowres.gif" width="30%" />
-  <img src="/assets/Tablet_S7FE/framed_climate_panel_lowres.gif" width="30%" />
+  <img src="/homeassistant/assets/Tablet_S7FE/framed_music_panel_lowres.gif" width="30%" />
+  <img src="/homeassistant/assets/Tablet_S7FE/framed_vacuum_panel_lowres.gif" width="30%" />
+  <img src="/homeassistant/assets/Tablet_S7FE/framed_climate_panel_lowres.gif" width="30%" />
 </p>
 
 ## Livingroom Tablet interface
@@ -29,8 +29,8 @@ Its code is under ".storage/lovelace.tablet_livingroom_dashboard"
 
 
 <p align="middle">
-  <img src="/assets/Tablet_A8/musicdemo.gif" width="45%" />
-  <img src="/assets/Tablet_A8/drhousedemo.gif" width="45%" />
+  <img src="/homeassistant/assets/Tablet_A8/musicdemo.gif" width="45%" />
+  <img src="/homeassistant/assets/Tablet_A8/drhousedemo.gif" width="45%" />
 </p>
 
 ## Office hub
@@ -42,7 +42,7 @@ Its code is under ".storage/lovelace.lovelace_hub"
 
 
 <p align="middle">
-  <img src="/assets/Hub_Office/framed_show_start_preview.gif" width="95%" />
+  <img src="/homeassistant/assets/Hub_Office/framed_show_start_preview.gif" width="95%" />
 </p>
 
 
@@ -55,7 +55,7 @@ Its code is under ".storage/lovelace.lovelace_hub"
 
 
 <p align="middle">
-  <img src="/assets/Hub_HotboxTop/animated_show_play.gif" width="95%" />
+  <img src="/homeassistant/assets/Hub_HotboxTop/animated_show_play.gif" width="95%" />
 </p>
 
 ## Kitchen Hub
@@ -67,7 +67,7 @@ Its code is under ".storage/lovelace.lovelace_hub"
 
 
 <p align="middle">
-  <img src="/assets/Hub_Kitchen/framed_demo.gif" width="95%" />
+  <img src="/homeassistant/assets/Hub_Kitchen/framed_demo.gif" width="95%" />
 </p>
 
 
@@ -78,6 +78,6 @@ Its code is under ".storage/lovelace.lovelace_hub"
 
 
 <p align="middle">
-  <img src="/assets/interactive_plan/color_doors_demo.gif" width="80%" />
+  <img src="/homeassistant/assets/interactive_plan/color_doors_demo.gif" width="80%" />
 </p>
 

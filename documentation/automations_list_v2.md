@@ -8,9 +8,9 @@
 
   
 
-<p  align="center">  <a  href="/node-red"><img  src="https://img.shields.io/badge/Nodered%20FLows-purple"  alt="Red leader standing by, or something"></p> 
+<p  align="center">  <a  href="/addon_configs/a0d7b954_nodered"><img  src="https://img.shields.io/badge/Nodered%20FLows-purple"  alt="Red leader standing by, or something"></p> 
 
-- [House-Wide](/node-red/flows/House-Wide.json):
+- [House-Wide](addon_configs/a0d7b954_noderedflows/House-Wide.json):
   - Set ACs to away or present depending on users presence
   - Turn all lights off when all users are away
   - Set alarm to away when all users are away
@@ -37,7 +37,7 @@
      - Start music on each speaker group when "party mode" is turned on
    - Reload tablets when hass is rebooted
    - Turn on "Waiting Uber" when an uber email is detected
-- [Trigger-Based](/node-red/flows/Trigger-Based.json):
+- [Trigger-Based](addon_configs/a0d7b954_noderedflows/Trigger-Based.json):
   - Start visuals on all inactive TVs
   - Generate and set "Fake white" on each active light group
   - Generate and set warm saturated colors on each active light
@@ -51,7 +51,7 @@
   - Generate and set warm colors on each light group when "kink party" is turned on
   - Generate an improved color loop when "trippy lights effect" is turned on
   - Return lights to white when "trippy lights effect" is turned off- 
-- [Security/Conditions](/node-red/flows/Security_conditions.json):
+- [Security/Conditions](addon_configs/a0d7b954_noderedflows/Security_conditions.json):
    - Notifify my phone upon breach in my bedroom
    - Automatically set the following boolean inputs to off after a set amount of time
      - Waiting Uber
@@ -66,17 +66,17 @@
    - Automatically set the the following boolean inputs to off after a condition is met
       - Acid time
     - Trigger the alarm system upon motion and notify and broadcast an alarm
-- [Alexe](/node-red/flows/Alexe.json):
+- [Alexe](addon_configs/a0d7b954_noderedflows/Alexe.json):
    - Tells Alexe take out the dog from 9 am until the dog is seen by Frigate on one of the cameras
-- [Carla](/node-red/flows/Carla.json):
+- [Carla](addon_configs/a0d7b954_noderedflows/Carla.json):
    - Tells Carla to move her car at 8:45 and 9:15 if she is present
-- [Fay](/node-red/flows/Fay.json):
+- [Fay](addon_configs/a0d7b954_noderedflows/Fay.json):
    - Create a calendar event when Fay text me a pending task
-- [Back Door](/node-red/flows/Back%20door.json):
+- [Back Door](addon_configs/a0d7b954_noderedflows/Back%20door.json):
    - Automatically lock the door when it is closed
    - Announce if someone is using the door to enter or exit
    - Turn back door lights on when someone is detected
-- [Front Door](/node-red/flows/Front%20Door.json):
+- [Front Door](addon_configs/a0d7b954_noderedflows/Front%20Door.json):
   - Automatically turn the porch light on and off depending on the sun position
   - Brighten the porch light when someone is passing in front of the front door camera
   - Lock the door when the front door is closed
@@ -85,7 +85,7 @@
   - Let people with "conditional" pins in if I am present and announce them
   - Detect who is entering and announce them while disabling the alarm system
   - Turn all lights to green when someone exits
-- [Bathroom](/node-red/flows/Bathroom.json):
+- [Bathroom](addon_configs/a0d7b954_noderedflows/Bathroom.json):
   - Start muzak in the bathroom when someone enters
   - Stop the bathroom speaker when appropriate
   - Automatically turns the light off when appropriate
@@ -93,13 +93,13 @@
   - Mute the main speaker when the shower speaker is started and stops it when not needed anymore
   - Automatically start the bathroom fan when humidity goes over 65%
   - Raise the speaker volume when the bathroom fan goes on
-- [Bedroom](/node-red/flows/Bedroom.json):
+- [Bedroom](addon_configs/a0d7b954_noderedflows/Bedroom.json):
    - Turn on the "Sleeper in bedroom" boolean input when the "Sleeper in bedroom" sensors goes to on
    - Turn off the "Sleeper in bedroom" boolean input when the bedroom lights are turned on
    - Connect the dial to the dial subflow
    - Turn on thunderstorm sounds on the speaker when I go to sleep
    - Philip ecogreen tap control flow
-- [Office](/node-red/flows/Office.json):
+- [Office](addon_configs/a0d7b954_noderedflows/Office.json):
   - Connect the dial to the dial subflow
   - Add artists playing on speaker to Lidarr for automatic acquisition
   - Control blinds through the blind button
@@ -107,10 +107,10 @@
   - Close the blinds when the AC turns off
   - Adjust volume when the AC turns on and off
   - Set "Wallpaper Engine" background color to the same color as the lights
-- [Chilling Room](/node-red/flows/Chilling%20Room.json):
+- [Chilling Room](addon_configs/a0d7b954_noderedflows/Chilling%20Room.json):
   - Connect the dial to the dial subflow
   - Set a random effect on the tree when it turns on
-- [Closet](/node-red/flows/Closet.json):
+- [Closet](addon_configs/a0d7b954_noderedflows/Closet.json):
   - Mute the hallway speaker if someone is sleeping in the closet
   - Automatically adjust the control tablet's brightness to follow the lights.
   - Automatically turns on the light depending on certain conditions
@@ -118,14 +118,14 @@
   - Turn off the tablet's screen when someone is sleeping
   - Turn on the Sleeper more when someone press the dial
   - Control the unique dial contorls of the closet
-- [Kitchen](/node-red/flows/Kitchen.json):
+- [Kitchen](addon_configs/a0d7b954_noderedflows/Kitchen.json):
    - Connect the dial to the dial subflow
    - Announce house-wide when the pasta water is boiling
    - Harrass me when the fridge door is left open
    - Alert us when there is a water leak behind the washer
    - Broadcast an alert when the ktichen timer is finished until someone enters the kitchen
    - Set "Kitchen timer" to match the kitchen's speaker timer and alarm 
-- [Hotbox Down](/node-red/flows/Hotbox%20Down.json):
+- [Hotbox Down](addon_configs/a0d7b954_noderedflows/Hotbox%20Down.json):
   - Connect the dial to the dial subflow
   - Automatically recast the Lovelace interface to the nest hub when needed
   - Toggle the sleeping mode when someone double pressed the sleep button
@@ -135,14 +135,14 @@
      - Turn off the Xbox
      - Unmute hotbox down media players once the guests are awake and exit the room
      - Toggle "Do not disturb" on the nest hub depending on sleeping state
-- [Hotbox Top](/node-red/flows/Hotbox%20Top.json):
+- [Hotbox Top](addon_configs/a0d7b954_noderedflows/Hotbox%20Top.json):
   - Connect the dial to the dial subflow
    - Adjust lights when Netflix, Plex, or Xbox is used on the TV's roku
    - Turn on Xbox one if the Xbox input is selected
    - Open the TV on the Chromecast upon entering Hotbox top
    - Adjust the hotbox top volume media when someone goes to sleep
   - Automatically recast the Lovelace interface to the nest hub when needed
-- [Living Room](/node-red/flows/Living%20Room.json):
+- [Living Room](addon_configs/a0d7b954_noderedflows/Living%20Room.json):
   - Adjust volume when the AC turns on and off
   - Slightly open the blinds when the AC turns on
   - Close the blinds when the AC turns off
@@ -153,28 +153,28 @@
   - Toggle hallway speaker volume depending on sleeping state
   - Connect the dial to the dial subflow
   - Connect the second dial to the dial subflow
-- [PTZ Camera](/node-red/flows/PTZ%20Camera.json):
+- [PTZ Camera](addon_configs/a0d7b954_noderedflows/PTZ%20Camera.json):
   - Return the PTZ camera to its original position after 10 minutes if no package is awated
-- [Phone](/node-red/flows/Phone.json):
+- [Phone](addon_configs/a0d7b954_noderedflows/Phone.json):
    - Tell me that a phone call is incoming on a nearby speaker
-- [Tablets](/node-red/flows/Tablets.json):
+- [Tablets](addon_configs/a0d7b954_noderedflows/Tablets.json):
    - Control S7 FE batterly level with a smart plug
    - Control A7 lite batterly level with a smart plug
-- [Vacuum](/node-red/flows/Vacuum.json):
+- [Vacuum](addon_configs/a0d7b954_noderedflows/Vacuum.json):
    - Broadcast an alert if the vacuum is stuck until it is unstuck
    - Automatically vacuum the entrance once 4 guests have entered  
-- [Hallway](/node-red/flows/Hallway.json):
+- [Hallway](addon_configs/a0d7b954_noderedflows/Hallway.json):
   - Connect the dial to the dial subflow
-- [Server](/node-red/flows/Server.json):
+- [Server](addon_configs/a0d7b954_noderedflows/Server.json):
   - Connect the dial to the dial subflow
   - Detect when the server door is left open and broadcast regular alerts based on current temperature
-- [Patio](/node-red/flows/Patio.json):
+- [Patio](addon_configs/a0d7b954_noderedflows/Patio.json):
   - Turn off the lights when someone goes to sleep  
   - Alert me when people are too noisy on the patio during a party
-- [Face Reco](/node-red/flows/Face%20Reco.json):
+- [Face Reco](addon_configs/a0d7b954_noderedflows/Face%20Reco.json):
   - Receive and process the "Enter Text" actionnable notification
   - Receive and process the "Who is this" actionnable notification
   - Reset all the associated booleans when the door locks
   - Tries to detect who is at the door and let them in if they are recognized and a few conditions are met
-- [Neighbors](/node-red/flows/Neighbors.json):
+- [Neighbors](addon_configs/a0d7b954_noderedflows/Neighbors.json):
   - Automatically mute the wiim receivers between 2AM and Noon
