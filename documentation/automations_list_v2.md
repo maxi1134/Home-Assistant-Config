@@ -66,8 +66,6 @@
    - Automatically set the the following boolean inputs to off after a condition is met
       - Acid time
     - Trigger the alarm system upon motion and notify and broadcast an alarm
-- [Alexe](/node-red/flows/Alexe.json):
-   - Tells Alexe take out the dog from 9 am until the dog is seen by Frigate on one of the cameras
 - [Carla](/node-red/flows/Carla.json):
    - Tells Carla to move her car at 8:45 and 9:15 if she is present
 - [Fay](/node-red/flows/Fay.json):
