@@ -8,7 +8,7 @@
 
   
 
-<p  align="center">  <a  href="/addon_configs/a0d7b954_nodered"><img  src="https://img.shields.io/badge/Nodered%20FLows-purple"  alt="Red leader standing by, or something"></p> 
+<p  align="center">  <a  href="/node-red/"><img  src="https://img.shields.io/badge/Nodered%20FLows-purple"  alt="Red leader standing by, or something"></p> 
 
 - [House-Wide](/node-red/flows/House-Wide.json):
   - Set ACs to away or present depending on users presence
