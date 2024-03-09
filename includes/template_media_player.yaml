@@ -1,3 +1,137 @@
+  template_office_speakers_v4:
+        friendly_name: Template Office Wiim Speaker
+        device_class: speaker
+        value_template: >
+              {{ states("media_player.office_wiim_speaker")   }}
+        next:
+          service: media_player.media_seek
+          data_template:
+            entity_id: media_player.office_wiim_speaker
+            seek_position: >
+                    {{ state_attr( "media_player.office_wiim_speaker", "media_duration" )  }} 
+        turn_on:
+          service: media_player.turn_on
+          data_template:
+            entity_id:            
+              -  media_player.office_speaker
+              -  media_player.office_wiim_speaker
+        stop:
+          service: media_player.media_stop
+          data_template:
+            entity_id:            
+              -  media_player.office_speaker
+              -  media_player.office_wiim_speaker
+        turn_off:
+          service: media_player.turn_off
+          data_template:
+            entity_id:            
+              -  media_player.office_speaker
+              -  media_player.office_wiim_speaker
+        volume_up:
+          service: media_player.volume_up
+          data_template:
+            entity_id:            
+              -  media_player.office_speaker
+              -  media_player.office_wiim_speaker
+        play:
+          service: media_player.media_play
+          data_template:
+            entity_id:            
+              -  media_player.office_speaker
+              -  media_player.office_wiim_speaker
+        play_pause:
+          service: media_player.media_play_pause
+          data_template:
+            entity_id:            
+              -  media_player.office_speaker
+              -  media_player.office_wiim_speaker
+        pause:
+          service: media_player.media_pause
+          data_template:
+            entity_id:            
+              -  media_player.office_speaker
+              -  media_player.office_wiim_speaker
+        volume_down:
+          service: media_player.volume_down
+          data_template:
+            entity_id:            
+              -  media_player.office_speaker
+              -  media_player.office_wiim_speaker
+        mute:
+          service: media_player.volume_mute
+          data_template:
+            is_volume_muted: "true"
+            entity_id:            
+              -  media_player.office_speaker
+              -  media_player.office_wiim_speaker
+        set_volume:
+          service: media_player.volume_set
+          data_template:            
+            volume_level: "{{ volume }}"
+            entity_id:            
+              -  media_player.office_speaker
+              -  media_player.office_wiim_speaker
+        current_is_muted_template: >
+                {% if state_attr('media_player.office_speaker', 'is_volume_muted') == true and state_attr('media_player.office_wiim_speaker', 'is_volume_muted') == true %}
+                  true
+                {% else%}
+                  false
+                {% endif %}
+        current_volume_template: >
+                {{ ( state_attr('media_player.office_speaker', 'volume_level') + state_attr('media_player.office_wiim_speaker', 'volume_level') ) / 2}}
+        media_image_url_template: >
+                {% set ns = namespace( cast_entity = "media_player.office_wiim_speaker" ) %}
+                {% if state_attr( ns.cast_entity, "entity_picture") and states( ns.cast_entity) != "off"  %}
+                      {{ state_attr( ns.cast_entity, "entity_picture") }}
+                {% else %}                   
+                      {# Look for a media player playing the same media as the main speaker in order to extract the media image #}
+                      {# Pull all non-off media players#}
+                      {% set ns = namespace( entities = [], final_entities = [],cast_entity = "media_player.office_wiim_speaker"  )%}                      
+                      {% for media_player in states.media_player %} 
+                        {% if  media_player.state != "off" and media_player.state != "unavailable" and "template" not in media_player.entity_id%}
+                          {% set entity = media_player.entity_id %}
+                          {% set ns.entities = ns.entities + [entity] %}
+                        {% endif %}                  
+                      {% endfor %}  
+                      {# /Pull all non-off media players#}
+                      {# Look for a player with the same song playing and output the entity_picture #}
+                      {% for entity in ns.entities %}                                
+                          {% set media_title = state_attr( entity, "media_title") %}
+                          {% set media_album_name = state_attr( entity, "media_album_name") %}
+                          {% set media_album_artist = state_attr( entity, "media_album_artist") %}                          
+                          {% set cast_media_title = state_attr( ns.cast_entity, "media_title") %}
+                          {% set cast_media_album_name = state_attr( ns.cast_entity, "media_album_name") %}
+                          {% set cast_media_album_artist = state_attr( ns.cast_entity, "media_album_artist") %}
+                          {% if media_title is not none and media_album_name is not none and media_album_artist is not none and cast_media_title is not none and cast_media_album_name is not none and cast_media_album_artist is not none and (( media_title | string | length ) > 0 and ( media_title | string ) in cast_media_title) and (( media_album_name | string ) in cast_media_album_name) and (( media_album_artist | string ) in cast_media_album_artist) and (( state_attr(entity, 'entity_picture') )) %}
+                              {{state_attr(entity, 'entity_picture')}}
+                              {% break %}
+                        {% endif %}
+                      {% endfor %}  
+                      {#/Look for a player with the same song playing and output the entity_picture #}                  
+                      {# /Look for a media player playing the same media as the main speaker in order to extract the media image #}
+                {% endif %}
+        title_template: >
+                {% if state_attr( 'media_player.office_wiim_speaker', "media_title") %}
+                  {{ state_attr( 'media_player.office_wiim_speaker', "media_title") }}
+                {% elif state_attr( 'media_player.office_speaker', "media_title" ) %}
+                  {{ state_attr( 'media_player.office_speaker', "media_title") }}
+                {% endif %}
+        album_template: >
+                {% if state_attr( 'media_player.office_wiim_speaker', "media_album_name") %}
+                  {{ state_attr( 'media_player.office_wiim_speaker', "media_album_name") }}
+                {% elif state_attr( 'media_player.office_speaker', "media_album_name" ) %}
+                  {{ state_attr( 'media_player.office_speaker', "media_album_name") }}
+                {% endif %}
+        artist_template: >
+                {% if state_attr( 'media_player.office_wiim_speaker', "media_artist") %}
+                  {{ state_attr( 'media_player.office_wiim_speaker', "media_artist") }}
+                {% elif state_attr( 'media_player.office_speaker', "media_artist" ) %}
+                  {{ state_attr( 'media_player.office_speaker', "media_artist") }}
+                {% endif %}
+        unique_id: template_office_speakers
+        media_content_type_template: music
+
+
   template_office_wiim_speaker_v2:
         friendly_name: Template Office Wiim Speaker
         device_class: speaker
