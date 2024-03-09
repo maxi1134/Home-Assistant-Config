@@ -84,76 +84,76 @@
             {{ state_attr('media_player.group_home_speakers', 'app_name') }}
           {% endif %}
 
-      - name: "Maxi Current Activity GPT4"
-        unique_id: maxi_current_activity_chatgpt4
-        state: >-
-          {# Initialize a namespace to store variables #}
-          {% set ns = namespace(activityname="Unsure", media_active_rooms=[], last_tv_active_room=states('sensor.last_active_room'), active_sleepers_amount=0, allowed_ids=[], active_sleeper_rooms=[], motion_sensors=[], room=states('sensor.maxi_location_v3'), active_motion_sensors=[]) %}
-
-          {# Retrieve Maxi's current location from the sensor #}
-          {% set room = ns.room %}
-
-          {# Convert state values to integers for comparisons #}
-          {% set partners_home = states('sensor.amount_partners_home') | int %}
-          {% set friends_home = states('sensor.amount_friends_home') | int %}
-          {% set people_home = states('sensor.amount_people_home') | int %}
-          {% set ns.active_sleepers_amount = states('sensor.active_sleeper_amount') | int %}
-
-          {# Retrieve active Chromecast sessions if any #}
-          {% set ns.active_chromecasts_room = state_attr('sensor.active_media_playback', 'chromecasts') | default([]) %}
-
-          {# Check if Maxi is alone #}
-          {% if states('binary_sensor.maxi_alone') == 'on' %}
-            {# Determine Maxi's activity when alone #}
-            {% if states('sensor.is_maxi_asleep') == 'asleep' %}
-              {% set ns.activityname = "Sleeping" %}
-            {% elif states('sensor.currentgamemaxi') != 'idle' %}
-              {% set ns.activityname = "Playing a Video Game" %}
-            {% elif room == 'office' and states('sensor.maxi1134_8202') != 'idle' %}
-              {% set ns.activityname = "Using the Computer" %}
-            {% elif ns.active_chromecasts_room | length > 0 %}
-              {# Check if media playback is active in the same room as Maxi #}
-              {% if room in ns.active_chromecasts_room %}
-                {% set ns.activityname = "Watching TV in the " + room %}
-              {% elif ns.activityname == "Unsure" %}
-                {% set ns.activityname = "Watching TV in the " + ns.last_tv_active_room %}
-              {% endif %}
-            {% endif %}
-          {% elif states('binary_sensor.maxi_alone') == 'off' %}
-            {# Determine activity when Maxi is not alone #}
-            {% if (friends_home == 0 and partners_home > 0) or (ns.active_sleepers_amount >= people_home) %}
-              {# Different scenarios when Maxi is with partners or friends #}
-              {% if states('sensor.is_maxi_asleep') == 'asleep' %}
-                {% set ns.activityname = "Sleeping" %}
-              {% elif ns.active_sleepers_amount < partners_home and states('sensor.is_maxi_asleep') == 'awake' %}
-                {% if room in ns.active_chromecasts_room %}
-                  {% set ns.activityname = "Watching TV with Girls in the " + room %}
-                {% else %}
-                  {% set ns.activityname = "With Girls in the " + room %}
-                {% endif %}
-              {% elif ns.active_sleepers_amount >= partners_home and states('sensor.is_maxi_asleep') == 'awake' %}
-                {% if states('sensor.currentgamemaxi') != 'idle' %}
-                  {% set ns.activityname = "Playing " + states('sensor.currentgamemaxi') %}
-                {% elif room == 'office' and states('sensor.maxi1134_8202') != 'idle' %}
-                  {% set ns.activityname = "Using the Computer" %}
-                {% elif room in ns.active_chromecasts_room %}
-                  {% set ns.activityname = "Watching TV in the " + room %}
-                {% else %}
-                  {% set ns.activityname = "Undetermined Activity" %}
-                {% endif %}
-              {% endif %}
-            {% elif friends_home > 0 %}
-              {# If friends are over, assume a social setting #}
-              {% set ns.activityname = "Chilling" %}
-            {% endif %}
-          {% else %}
-            {# Fallback for any edge cases not covered by the conditions #}
-            {% set ns.activityname = "Edge Case: Check Sensor States" %}
-          {% endif %}
-
-          {# Output the determined activity name #}
-          {{ ns.activityname }}
-
+#     - name: "Maxi Current Activity GPT4"
+#       unique_id: maxi_current_activity_chatgpt4
+#       state: >-
+#         {# Initialize a namespace to store variables #}
+#         {% set ns = namespace(activityname="Unsure", media_active_rooms=[], last_tv_active_room=states('sensor.last_active_room'), active_sleepers_amount=0, allowed_ids=[], active_sleeper_rooms=[], motion_sensors=[], room=states('sensor.maxi_location_v3'), active_motion_sensors=[]) %}
+#
+#         {# Retrieve Maxi's current location from the sensor #}
+#         {% set room = ns.room %}
+#
+#         {# Convert state values to integers for comparisons #}
+#         {% set partners_home = states('sensor.amount_partners_home') | int %}
+#         {% set friends_home = states('sensor.amount_friends_home') | int %}
+#         {% set people_home = states('sensor.amount_people_home') | int %}
+#         {% set ns.active_sleepers_amount = states('sensor.active_sleeper_amount') | int %}
+#
+#         {# Retrieve active Chromecast sessions if any #}
+#         {% set ns.active_chromecasts_room = state_attr('sensor.active_media_playback', 'chromecasts') | default([]) %}
+#
+#         {# Check if Maxi is alone #}
+#         {% if states('binary_sensor.maxi_alone') == 'on' %}
+#           {# Determine Maxi's activity when alone #}
+#           {% if states('sensor.is_maxi_asleep') == 'asleep' %}
+#             {% set ns.activityname = "Sleeping" %}
+#           {% elif states('sensor.currentgamemaxi') != 'idle' %}
+#             {% set ns.activityname = "Playing a Video Game" %}
+#           {% elif room == 'office' and states('sensor.maxi1134_8202') != 'idle' %}
+#             {% set ns.activityname = "Using the Computer" %}
+#           {% elif ns.active_chromecasts_room | length > 0 %}
+#             {# Check if media playback is active in the same room as Maxi #}
+#             {% if room in ns.active_chromecasts_room %}
+#               {% set ns.activityname = "Watching TV in the " + room %}
+#             {% elif ns.activityname == "Unsure" %}
+#               {% set ns.activityname = "Watching TV in the " + ns.last_tv_active_room %}
+#             {% endif %}
+#           {% endif %}
+#         {% elif states('binary_sensor.maxi_alone') == 'off' %}
+#           {# Determine activity when Maxi is not alone #}
+#           {% if (friends_home == 0 and partners_home > 0) or (ns.active_sleepers_amount >= people_home) %}
+#             {# Different scenarios when Maxi is with partners or friends #}
+#             {% if states('sensor.is_maxi_asleep') == 'asleep' %}
+#               {% set ns.activityname = "Sleeping" %}
+#             {% elif ns.active_sleepers_amount < partners_home and states('sensor.is_maxi_asleep') == 'awake' %}
+#               {% if room in ns.active_chromecasts_room %}
+#                 {% set ns.activityname = "Watching TV with Girls in the " + room %}
+#               {% else %}
+#                 {% set ns.activityname = "With Girls in the " + room %}
+#               {% endif %}
+#             {% elif ns.active_sleepers_amount >= partners_home and states('sensor.is_maxi_asleep') == 'awake' %}
+#               {% if states('sensor.currentgamemaxi') != 'idle' %}
+#                 {% set ns.activityname = "Playing " + states('sensor.currentgamemaxi') %}
+#               {% elif room == 'office' and states('sensor.maxi1134_8202') != 'idle' %}
+#                 {% set ns.activityname = "Using the Computer" %}
+#               {% elif room in ns.active_chromecasts_room %}
+#                 {% set ns.activityname = "Watching TV in the " + room %}
+#               {% else %}
+#                 {% set ns.activityname = "Undetermined Activity" %}
+#               {% endif %}
+#             {% endif %}
+#           {% elif friends_home > 0 %}
+#             {# If friends are over, assume a social setting #}
+#             {% set ns.activityname = "Chilling" %}
+#           {% endif %}
+#         {% else %}
+#           {# Fallback for any edge cases not covered by the conditions #}
+#           {% set ns.activityname = "Edge Case: Check Sensor States" %}
+#         {% endif %}
+#
+#         {# Output the determined activity name #}
+#         {{ ns.activityname }}
+#
       - name: "Maxi Location"
         unique_id: "maxi_location" 
         state: >-            
