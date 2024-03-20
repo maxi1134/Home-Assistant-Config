@@ -1,0 +1,316 @@
+blueprint:
+  name: Zigbee2MQTT - Philips Hue Tap Dial Switch by SmartHomeGeeks.io
+  author: SmartHomeGeeks.io
+  description: Integrate Philips Hue Tap Dial Switch into Home Assistant to create
+    a powerful remote control, supporting single tap, double tap, hold, and conditional
+    rotate functionality. <br><br> **For more information, visit:** [SmartHomeGeeks.io](https://smarthomegeeks.io/hue-tap-dial-switch/)
+  domain: automation
+  input:
+    mqtt_topic:
+      name: MQTT Topic
+      description: Topic of the Philips Hue Tap Dial Switch
+      default: zigbee2mqtt/<device name>
+    tap_counter:
+      name: Counter Helper
+      description: Create a counter helper within Home Assistant to monitor the number
+        of button presses on the switch, distinguishing between single and multiple
+        clicks. This helper can be used for various switches, provided that they are
+        not pressed at the same time
+      selector:
+        entity:
+          domain:
+          - counter
+          multiple: false
+    last_pressed:
+      name: Last Pressed Input Text Helper
+      description: Create an input text helper within Home Assistant to keep track
+        of the last button pressed. This will facilitate implementing different rotation
+        actions based on the last button pressed. **Each switch requires a unique
+        helper!**
+      selector:
+        entity:
+          domain:
+          - input_text
+          multiple: false
+    button_1_single_press:
+      name: Button 1 Single Press
+      default: []
+      selector:
+        action: {}
+    button_1_double_press:
+      name: Button 1 Double Press
+      default: []
+      selector:
+        action: {}
+    button_1_hold:
+      name: Button 1 Hold
+      default: []
+      selector:
+        action: {}
+    button_1_rotate_clockwise:
+      name: Button 1 Rotate Clockwise
+      default: []
+      selector:
+        action: {}
+    button_1_rotate_counter_clockwise:
+      name: Button 1 Rotate Counter-Clockwise
+      default: []
+      selector:
+        action: {}
+    button_2_single_press:
+      name: Button 2 Single Press
+      default: []
+      selector:
+        action: {}
+    button_2_double_press:
+      name: Button 2 Double Press
+      default: []
+      selector:
+        action: {}
+    button_2_hold:
+      name: Button 2 Hold
+      default: []
+      selector:
+        action: {}
+    button_2_rotate_clockwise:
+      name: Button 2 Rotate Clockwise
+      default: []
+      selector:
+        action: {}
+    button_2_rotate_counter_clockwise:
+      name: Button 2 Rotate Counter-Clockwise
+      default: []
+      selector:
+        action: {}
+    button_3_single_press:
+      name: Button 3 Single Press
+      default: []
+      selector:
+        action: {}
+    button_3_double_press:
+      name: Button 3 Double Press
+      default: []
+      selector:
+        action: {}
+    button_3_hold:
+      name: Button 3 Hold
+      default: []
+      selector:
+        action: {}
+    button_3_rotate_clockwise:
+      name: Button 3 Rotate Clockwise
+      default: []
+      selector:
+        action: {}
+    button_3_rotate_counter_clockwise:
+      name: Button 3 Rotate Counter-Clockwise
+      default: []
+      selector:
+        action: {}
+    button_4_single_press:
+      name: Button 4 Single Press
+      default: []
+      selector:
+        action: {}
+    button_4_double_press:
+      name: Button 4 Double Press
+      default: []
+      selector:
+        action: {}
+    button_4_hold:
+      name: Button 4 Hold
+      default: []
+      selector:
+        action: {}
+    button_4_rotate_clockwise:
+      name: Button 4 Rotate Clockwise
+      default: []
+      selector:
+        action: {}
+    button_4_rotate_counter_clockwise:
+      name: Button 4 Rotate Counter-Clockwise
+      default: []
+      selector:
+        action: {}
+  source_url: https://community.home-assistant.io/t/zigbee2mqtt-philips-hue-tap-dial-switch-by-smarthomegeeks-io/696229
+mode: parallel
+max: 10
+max_exceeded: silent
+trigger:
+- platform: mqtt
+  topic: !input mqtt_topic
+condition:
+- condition: template
+  value_template: '{{ trigger.payload_json.action != '''' }}'
+action:
+- variables:
+    input_text_var: !input last_pressed
+    counter_var: !input tap_counter
+- choose:
+  - conditions:
+    - condition: template
+      value_template: '{{ trigger.payload_json.action is match(''^button_[1-4]_press$'')
+        }}'
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ trigger.payload_json.action | regex_replace(find=''[^1-4]'',
+          replace='''') != states(input_text_var) }}'
+      then:
+      - service: counter.reset
+        target:
+          entity_id: '{{ counter_var }}'
+    - service: input_text.set_value
+      data:
+        value: '{{ trigger.payload_json.action | regex_replace(find=''[^1-4]'', replace='''')
+          }}'
+      target:
+        entity_id: '{{ input_text_var }}'
+    - service: counter.increment
+      target:
+        entity_id: '{{ counter_var }}'
+    - delay:
+        seconds: 1
+    - service: counter.reset
+      target:
+        entity_id: '{{ counter_var }}'
+  - conditions:
+    - condition: template
+      value_template: '{{ trigger.payload_json.action is match(''button_[1-4]_press_release'')
+        and states(counter_var) > ''1'' }}'
+    sequence:
+    - choose:
+      - conditions:
+        - condition: template
+          value_template: '{{ trigger.payload_json.action == ''button_1_press_release''
+            }}'
+        sequence: !input button_1_double_press
+      - conditions:
+        - condition: template
+          value_template: '{{ trigger.payload_json.action == ''button_2_press_release''
+            }}'
+        sequence: !input button_2_double_press
+      - conditions:
+        - condition: template
+          value_template: '{{ trigger.payload_json.action == ''button_3_press_release''
+            }}'
+        sequence: !input button_3_double_press
+      - conditions:
+        - condition: template
+          value_template: '{{ trigger.payload_json.action == ''button_4_press_release''
+            }}'
+        sequence: !input button_4_double_press
+  default:
+  - if:
+    - condition: template
+      value_template: '{{ trigger.payload_json.action is match(''button_[1-4]_press_release'')
+        }}'
+    then:
+    - delay:
+        milliseconds: 250
+    - if:
+      - condition: template
+        value_template: '{{ states(counter_var) > ''1'' }}'
+      then:
+      - stop: Double tap detected
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ states(input_text_var) == ''1'' and trigger.payload_json.action
+          is match(''^dial_rotate_'') }}'
+      sequence:
+      - choose:
+        - conditions:
+          - condition: template
+            value_template: '{{ trigger.payload_json.action is match(''^dial_rotate_left_'')
+              }}'
+          sequence: !input button_1_rotate_counter_clockwise
+        - conditions:
+          - condition: template
+            value_template: '{{ trigger.payload_json.action is match(''^dial_rotate_right_'')
+              }}'
+          sequence: !input button_1_rotate_clockwise
+    - conditions:
+      - condition: template
+        value_template: '{{ states(input_text_var) == ''2'' and trigger.payload_json.action
+          is match(''^dial_rotate_'') }}'
+      sequence:
+      - choose:
+        - conditions:
+          - condition: template
+            value_template: '{{ trigger.payload_json.action is match(''^dial_rotate_left_'')
+              }}'
+          sequence: !input button_2_rotate_counter_clockwise
+        - conditions:
+          - condition: template
+            value_template: '{{ trigger.payload_json.action is match(''^dial_rotate_right_'')
+              }}'
+          sequence: !input button_2_rotate_clockwise
+    - conditions:
+      - condition: template
+        value_template: '{{ states(input_text_var) == ''3'' and trigger.payload_json.action
+          is match(''^dial_rotate_'') }}'
+      sequence:
+      - choose:
+        - conditions:
+          - condition: template
+            value_template: '{{ trigger.payload_json.action is match(''^dial_rotate_left_'')
+              }}'
+          sequence: !input button_3_rotate_counter_clockwise
+        - conditions:
+          - condition: template
+            value_template: '{{ trigger.payload_json.action is match(''^dial_rotate_right_'')
+              }}'
+          sequence: !input button_3_rotate_clockwise
+    - conditions:
+      - condition: template
+        value_template: '{{ states(input_text_var) == ''4'' and trigger.payload_json.action
+          is match(''^dial_rotate_'') }}'
+      sequence:
+      - choose:
+        - conditions:
+          - condition: template
+            value_template: '{{ trigger.payload_json.action is match(''^dial_rotate_left_'')
+              }}'
+          sequence: !input button_4_rotate_counter_clockwise
+        - conditions:
+          - condition: template
+            value_template: '{{ trigger.payload_json.action is match(''^dial_rotate_right_'')
+              }}'
+          sequence: !input button_4_rotate_clockwise
+    - conditions:
+      - condition: template
+        value_template: '{{ trigger.payload_json.action == ''button_1_press_release''
+          }}'
+      sequence: !input button_1_single_press
+    - conditions:
+      - condition: template
+        value_template: '{{ trigger.payload_json.action == ''button_1_hold'' }}'
+      sequence: !input button_1_hold
+    - conditions:
+      - condition: template
+        value_template: '{{ trigger.payload_json.action == ''button_2_press_release''
+          }}'
+      sequence: !input button_2_single_press
+    - conditions:
+      - condition: template
+        value_template: '{{ trigger.payload_json.action == ''button_2_hold'' }}'
+      sequence: !input button_2_hold
+    - conditions:
+      - condition: template
+        value_template: '{{ trigger.payload_json.action == ''button_3_press_release''
+          }}'
+      sequence: !input button_3_single_press
+    - conditions:
+      - condition: template
+        value_template: '{{ trigger.payload_json.action == ''button_3_hold'' }}'
+      sequence: !input button_3_hold
+    - conditions:
+      - condition: template
+        value_template: '{{ trigger.payload_json.action == ''button_4_press_release''
+          }}'
+      sequence: !input button_4_single_press
+    - conditions:
+      - condition: template
+        value_template: '{{ trigger.payload_json.action == ''button_4_hold'' }}'
+      sequence: !input button_4_hold
