@@ -4,16 +4,24 @@
   trigger:
   - platform: conversation
     command:
-    - play {artist}
+    - play the artist {artist}
+    - play some {artist}
   condition: []
   action:
-  - service: media_player.play_media
+  - service: mass.search
     data:
-      media_content_type: artist
-      media_content_id: 'plex://{ "artist_name": "{{ trigger.slots.artist | replace(".","")
-        }}", "shuffle": 1 ,"library_name": "Music", "allow_multiple": 1 }'
+      limit: 1
+      media_type:
+      - artist
+      name: '{{ trigger.slots.artist  }}'
+    response_variable: found_artist
+  - service: mass.play_media
     target:
-      entity_id: media_player.group_home_speakers
+      entity_id: media_player.mass_home_group
+    data:
+      media_type: artist
+      enqueue: replace
+      media_id: '{{ found_artist.artists.0.name }}'
   mode: single
 - id: '1691088980213'
   alias: Assist Play Playlist
@@ -21,16 +29,16 @@
   trigger:
   - platform: conversation
     command:
-    - (start|play) [the] {playlist} playlist
+    - start [the] {playlist} playlist
   condition: []
   action:
-  - service: media_player.play_media
-    data:
-      media_content_type: playlist
-      media_content_id: 'plex://{ "playlist_name": "{{ trigger.slots.playlist | replace(".","")
-        }}", "shuffle": 1 ,"library_name": "Music" }'
+  - service: mass.play_media
     target:
-      entity_id: media_player.group_home_speakers
+      entity_id: media_player.mass_home_group
+    data:
+      media_type: playlist
+      enqueue: replace
+      media_id: '{{ trigger.slots.playlist }}'
   mode: single
 - id: '1691094215164'
   alias: 'Assist: Set Thermostats'
@@ -123,29 +131,88 @@
     target:
       entity_id: media_player.bedroom_speaker
   mode: single
-- id: '1711328280524'
-  alias: 'Mass Search Artist '
+- id: '1711377328306'
+  alias: Assist Play specific song
   description: ''
   trigger:
   - platform: conversation
     command:
-    - start some { artist }
+    - queue {song} by {artist}
   condition: []
   action:
   - service: mass.search
     data:
       limit: 1
       media_type:
-      - artist
-      name: '{{ trigger.slots.artist }}'
-      artist: '{{ trigger.slots.artist }}'
-    response_variable: found_artist
+      - track
+      name: '{{ trigger.slots.song  }}'
+      artist: '{{ trigger.slots.song  }}'
+    response_variable: found_song
   - service: mass.play_media
     target:
       entity_id: media_player.mass_home_group
     data:
       media_type: artist
-      enqueue: replace
+      enqueue: add
+      media_id: '{{ found_song.artists.0.name }}'
+  mode: single
+- id: '1711377375732'
+  alias: Assist play song next MASS
+  description: ''
+  trigger:
+  - platform: conversation
+    command:
+    - queue {song} by {artist}
+    - cue {song} by {artist}
+  condition: []
+  action:
+  - service: mass.search
+    data:
+      limit: 1
+      media_type:
+      - track
+      name: '{{ trigger.slots.song  }}'
+      artist: '{{ trigger.slots.artist  }}'
+    response_variable: found_song
+  - service: mass.play_media
+    target:
+      entity_id: media_player.mass_home_group
+    data:
+      media_type: track
+      enqueue: next
+      media_id: '{{ found_song.tracks.0.name }}'
+      artist: '{{ trigger.slots.artist  }}'
+  mode: single
+- id: '1711377604136'
+  alias: Assist Play song by artist now
+  description: ''
+  trigger:
+  - platform: conversation
+    command:
+    - play {song} by {artist}
+  condition: []
+  action:
+  - service: mass.search
+    data:
+      limit: 1
+      media_type:
+      - track
+      name: '{{ trigger.slots.song  }}'
+      artist: '{{ trigger.slots.artist  }}'
+    response_variable: found_song
+  - service: mass.play_media
+    target:
+      entity_id: media_player.mass_home_group
+    data:
+      media_type: track
+      enqueue: play
+      media_id: '{{ found_song.tracks.0.name }}'
+  - service: mass.play_media
+    target:
+      entity_id: media_player.mass_home_group
+    data:
+      media_type: track
+      enqueue: add
+      media_id: '{{ found_song.tracks.0.name }}'
       radio_mode: true
-      media_id: '{{ found_artist.artists.0.name }}'
   mode: single
