@@ -30,6 +30,7 @@ These items are all linked to Z2M using the Z2M EDGE addon on Home-Assistant!
 |[Philips Hue Bulb](https://www.zigbee2mqtt.io/devices/9290022166.html#philips-9290022166)| Bulb | :heavy_check_mark: | Great color render! | 12 |
 |[Philips Hue Bulb](https://www.zigbee2mqtt.io/devices/9290023351.html#philips-9290023351)| Bulb | :heavy_check_mark: | Warm White only | 2 |
 |[Philips Hue Bulb](https://www.zigbee2mqtt.io/devices/9290024717.html#philips-9290024717)| Bulb | :heavy_check_mark: | Great color render! | 1 |
+|[Ikea Tradri Bulb](https://www.zigbee2mqtt.io/devices/LED1924G9.html#ikea-led1924g9)| Bulb | :heavy_check_mark: | Used Outside | 13 |
 |[Xiaomi Motion Sensor](https://www.zigbee2mqtt.io/devices/RTCGQ11LM.html#xiaomi-rtcgq11lm)| Motion Sensor | :small_red_triangle: | Overall Solid Motion sensor | 5 |
 |[Xiaomi Motion Sensor](https://www.zigbee2mqtt.io/devices/RTCGQ01LM.html#xiaomi-rtcgq01lm)| Motion Sensor | :small_red_triangle: | Overall Solid Motion sensor | 10 |
 |[Ikea Motion Sensor](https://www.zigbee2mqtt.io/devices/E1525_E1745.html#ikea-e1525%252Fe1745)| Motion Sensor | :heavy_check_mark: | Cheaper than the competition and reliable | 10 |
