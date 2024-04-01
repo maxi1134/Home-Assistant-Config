@@ -167,6 +167,27 @@
       volume_level: media_player.kitchen_wiim_speaker|volume_level
 
 
+  ##########################  bathroom  ########################## 
+
+  - platform: universal
+    name: Universal bathroom Speakers
+    active_child_template: >-
+        {% if states('media_player.bathroom_music_speaker') != "off" %}
+          media_player.bathroom_music_speaker
+        {% elif states('media_player.bathroom_speaker') != "off" %}
+          media_player.bathroom_speaker
+        {% else %}
+          none
+        {% endif %}        
+
+
+  ##########################  closet  ########################## 
+
+  - platform: universal
+    name: Universal closet Speakers
+    children:
+      - media_player.closet_wiim_speaker
+
   ##########################  hotbox top  ########################## 
 
   - platform: universal
@@ -239,3 +260,107 @@
     attributes:
       is_volume_muted: media_player.hotbox_down_wiim_speaker|is_volume_muted
       volume_level: media_player.hotbox_down_wiim_speaker|volume_level
+
+      
+  ########################## Chillingroom  ########################## 
+
+  - platform: universal
+    name: Universal Chillingroom Speakers
+    children:
+      - media_player.mass_home_group
+      - media_player.chillingroom_speaker      
+    commands:
+      volume_mute:
+        service: media_player.volume_mute
+        target:
+          entity_id: 
+            - media_player.chillingroom_speaker            
+        data:
+          is_volume_muted: true
+      volume_set:
+        service: media_player.volume_set
+        target:
+          entity_id: 
+            - media_player.chillingroom_speaker            
+        data:
+          volume_level: "{{ volume_level }}"
+      volume_up:
+        service: media_player.volume_up
+        target:
+          entity_id: 
+            - media_player.chillingroom_speaker            
+      volume_down:
+        service: media_player.volume_down
+        target:
+          entity_id: 
+            - media_player.chillingroom_speaker            
+    attributes:
+      is_volume_muted: media_player.chillingroom_speaker|is_volume_muted
+      volume_level: media_player.chillingroom_speaker|volume_level
+
+      
+  ########################## Hallway  ########################## 
+
+  - platform: universal
+    name: Universal Hallway Speakers
+    children:
+      - media_player.mass_home_group
+      - media_player.hallway_speaker      
+    commands:
+      volume_mute:
+        service: media_player.volume_mute
+        target:
+          entity_id: 
+            - media_player.hallway_speaker            
+        data:
+          is_volume_muted: true
+      volume_set:
+        service: media_player.volume_set
+        target:
+          entity_id: 
+            - media_player.hallway_speaker            
+        data:
+          volume_level: "{{ volume_level }}"
+      volume_up:
+        service: media_player.volume_up
+        target:
+          entity_id: 
+            - media_player.hallway_speaker            
+      volume_down:
+        service: media_player.volume_down
+        target:
+          entity_id: 
+            - media_player.hallway_speaker            
+    attributes:
+      is_volume_muted: media_player.hallway_speaker|is_volume_muted
+      volume_level: media_player.hallway_speaker|volume_level
+
+
+
+
+
+  ##########################  following speaker ########################## 
+
+  - platform: universal
+    name: Universal following speaker
+    active_child_template: >-      
+                  {% set location = states('sensor.maxi_location_v3') %}  
+                  {% set ns = namespace( entities = [], final_entities = []  )%}
+                  {% for media_player in states.media_player %} 
+                    {% if location in media_player.entity_id  and "universal" in media_player.entity_id and media_player.state != "unavailable" and media_player.state != "off" %}
+                      {% set entity = media_player.entity_id %}
+                      {% set state = media_player.state %}
+                      {% set ns.entities = ns.entities + [entity] %}
+                    {% endif %}                  
+                  {% endfor %}                  
+                  {% for entity in ns.entities %}  
+                      {% set state = states( entity ) %}
+                      {% if "speaker" in entity and state != none %}
+                        {% set ns.final_entities = ns.final_entities + [entity] %}
+                      {% endif %}
+                  {% endfor %}
+                  {% if ns.final_entities | length > 0 %}
+                  {{ ns.final_entities.0 }}
+                  {% else %}
+                    none
+                  {% endif %}
