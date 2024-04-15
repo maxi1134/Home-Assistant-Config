@@ -37,13 +37,12 @@ These items are all linked to Z2M using the Z2M EDGE addon on Home-Assistant!
 |[Xiaomi Motion Sensor](https://www.zigbee2mqtt.io/devices/RTCGQ01LM.html#xiaomi-rtcgq01lm)| Motion Sensor | :small_red_triangle: | Overall Solid Motion sensor | 10 |
 |[Ikea Motion Sensor](https://www.zigbee2mqtt.io/devices/E1525_E1745.html#ikea-e1525%252Fe1745)| Motion Sensor | :heavy_check_mark: | Cheaper than the competition and reliable | 1|
 |[Xiaomi FP1 MMwave Sensor](https://www.zigbee2mqtt.io/devices/RTCZCGQ11LM.html#xiaomi-rtczcgq11lm)| Microwave Sensor | :heavy_check_mark: | Regions are now supported! | 1 |
-|[Xiaomi Thermometer Sensor](https://www.zigbee2mqtt.io/devices/WSDCGQ11LM.html#xiaomi-wsdcgq11lm)| Temperature/Humidity Sensor | :heavy_check_mark: | Work well under their rated temprature ( tested down to -35 ) | 6 |
+|[Xiaomi Climate Sensor](https://www.zigbee2mqtt.io/devices/WSDCGQ11LM.html#xiaomi-wsdcgq11lm)| Temperature/Humidity Sensor | :heavy_check_mark: | Work well under their rated temprature ( tested down to -35 ) | 5 |
 |[Xiaomi Button](https://www.zigbee2mqtt.io/devices/WXKG01LM.html#xiaomi-wxkg01lm)| Button | :heavy_check_mark: | Is used as a doorbell | 1 |
 |[Ikea Single Button](https://www.zigbee2mqtt.io/devices/E1812.html#ikea-e1812)| Button | :heavy_check_mark: | This is used to enable "sleep mode" in certain rooms with a double tap | 2 |
 |[Ikea Blind Button](https://www.zigbee2mqtt.io/devices/E1766.html#ikea-e1766)| Button | :heavy_check_mark: | Used to control the blinds | 2 |
 |[Ikea Blinds](https://www.zigbee2mqtt.io/devices/E1757.html#ikea-e1757)| Blinds | :grey_question: | They are a pain to connect to Z2M but work perfectly once connected | 2 |
-|[Xiaomi Door Sensor](https://www.zigbee2mqtt.io/devices/MCCGQ01LM.html#xiaomi-mccgq01lm)| Door Sensor | :heavy_check_mark: | reliable door sensor | 1 |
-|[Xiaomi Door Sensor](https://www.zigbee2mqtt.io/devices/MCCGQ11LM.html#xiaomi-mccgq11lm)| Door Sensor | :heavy_check_mark: | reliable door sensor | 7 |
+|[Xiaomi Door Sensor](https://www.zigbee2mqtt.io/devices/MCCGQ11LM.html#xiaomi-mccgq11lm)| Door Sensor | :heavy_check_mark: | reliable door sensor | 6 |
 |[Xiaomi Magic Cube](https://www.zigbee2mqtt.io/devices/MFKZQ01LM.html#xiaomi-mfkzq01lm)| Remote | :warning: | Very cool, but very gimmicky | 1 |
 |[Sonoff Smart Plug](https://www.zigbee2mqtt.io/devices/S31ZB.html#sonoff-s31zb)| Smart Plug | :heavy_check_mark: | Reliable, but no consumption sensor | 9 |
 |[Schlague Century Lock](https://www.zigbee2mqtt.io/devices/BE468.html#schlage-be468)| Lock | :no_entry: | Reliable at -35c since 4 winters | 1 |
