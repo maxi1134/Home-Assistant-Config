@@ -24,7 +24,7 @@
 | ----------- | ----------- | -----------  |
 | CPU      | AMD FX-6100    |   
 | RAM      | 8Gb   |   
-| HDDs   | 2*16TB       |  Plex Storage|
+| HDDs   | 3*16TB       |  Plex Storage|
 | HDD1   | 300gb     |  TrueNAS OS |
 
 
@@ -41,7 +41,7 @@
 
 | Part      | Description | 
 | ----------- | ----------- |
-| Router      | 	USG-3P |
+| Router      | 	UCG-Ultra |
 | Access Points (3)      | U6-Lite   |   
 | Access Points (1)      | U6-PRO  |   
 | Switches (3)   | USW-Flex-Mini | 

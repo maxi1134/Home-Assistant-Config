@@ -80,7 +80,7 @@ Since adding the SSD cache drive, the IoWait issues on my plex VMs have greatly 
 |Ram |  20Gb |
 |Boot Disk| 150Gb | 
 |Storage Disks| 8*8Tb |
-|NAS Disks|2*16Tb|
+|NAS Disks|3*16Tb|
 |Swap |  Disabled |
 |PCI-E Passthrough|GeForce GTX 1660 Ti| 
 </td><td>
@@ -127,7 +127,7 @@ This project is mainly in standby for now, but I should return to it sooner or l
 |Ram |  16Gb |
 |NAS Disks| 6tb |
 |Swap |  Disabled |
-|PCI-E Passthrough| GeForce GTX 1070 Ti | 
+|PCI-E Passthrough| GeForce GTX 2080 Super | 
 |PCI-E Passthrough |[Coral TPU](https://coral.ai/products/accelerator/) |
 </td><td>
 
@@ -174,7 +174,6 @@ The NAS also runs a few softwares that I consider secondary and unworthy of runn
 | Software | Usage |
 | :----- | -----------: |
 |[Adguard Home](https://adguard.com/en/adguard-home/overview.html)| Local DNS with Adblock | 
-|[PhotoPrism](https://www.photoprism.app/)| Photo Manager | 
 |[Nextcloud](https://machinebox.io/)| Private Cloud | 
 
 </td></tr> </table>
