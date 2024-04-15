@@ -13,17 +13,16 @@
 ### Here you will find things that I wish I had known sooner!
 ##### (These are all opinions, and none of this is officially recommended nor disrecommended by HA)
 #### On user accounts
-Ideally, you should strive to create one account per device, endpoint, and user.
+Ideally, you should try and create one account per service, POS, and user.
 This will allow you for better debugging in the logboog, where each user's actions are logged.
 
 Using one account for everything becomes problematic once your installation gets large enough.
 
-#### On publicly accessible endpoints
+#### On publicly accessible Point of services
 Although everything should be automated as much as possible, there are still unknowns that need to be dealt with.
-Who knows what color of lights your friend who just smoked a bunch will want. This is when publicly accessible endpoints become useful.
+Who knows what color of lights your friend who just smoked opr drank a bunch will want. 
+This is when publicly accessible POS become useful.
 Be it a tablet, along a very simple interface to allow your intoxicated friends to understand it, or a smart speaker.
-
-Having many dispered endpoint also enables you to quickly override automations
 
 #### On VLANing
 Having a large network can soon become overwhelming, this is why I recommend making it even more complex by creating VLANs to segregate your network. 
