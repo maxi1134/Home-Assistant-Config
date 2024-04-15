@@ -40,7 +40,7 @@ Running a homelab is not always easy, especially when comes time to route, segre
 # WiFi Infrastructure
 |  Model      | Device Type |Buy Again? |Some Notes |  Quantity In Use     |
 | ----------- | ----------- | :----------: |  ----------- | ----------- |
-| 	[Cloud Gateway Ultra](https://ca.store.ui.com/ca/en/collections/cloud-gateway-ultra/products/ucg-ultra) | Router  |:small_red_triangle:   | Decent router, good network options. | 1 |
+| 	[Cloud Gateway Ultra](https://ca.store.ui.com/ca/en/collections/cloud-gateway-ultra/products/ucg-ultra) | Router  |:heavy_check_mark:  | Decent router, good network options. | 1 |
 | [U6-Lite](https://store.ui.com/collections/unifi-network-wireless/products/u6-lite-us) | Access Points | :grey_question:  | I can only reach 400Mbps with these Antennas in Wifi6 |   3 |
 | [U6-PRO](https://store.ui.com/collections/unifi-network-wireless/products/unifi-ap6-professional) | Access Points | :heavy_check_mark: |More decent speeds at 700Mbps|   1 |
 | [USW-Flex-Mini](https://store.ui.com/collections/unifi-network-switching/products/usw-flex-mini) | Switches |:heavy_check_mark:|Good little switch, not too pricey| 3 |
