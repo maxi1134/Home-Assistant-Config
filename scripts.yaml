@@ -1,1 +1,54 @@
-{}
+broadcast_alert_in_the_house:
+  alias: broadcast alert in the house
+  sequence:
+  - variables:
+      light_entity_ids: "{% set light_group = state_attr('light.group_notifications_light','entity_id')%}
+        \ {% set ns = namespace( rgb_dict= [] ) %} {% for entity_id in light_group
+        %}\n    {% set light_state = states(entity_id)  %}\n    {% set light_rgb_color
+        = state_attr(entity_id, \"rgb_color\") %}\n    {% if light_state == 'on' and
+        light_rgb_color %}\n        {%- set rgb_values = light_rgb_color | replace('(','')
+        | replace(')','')| replace(' ','')| string  -%}\n\n        {% set rgb_dict
+        = [(entity_id , rgb_values)] %}\n        {% set ns.rgb_dict = ns.rgb_dict
+        + rgb_dict %}\n    {% endif %}    \n{% endfor %}  {{ ns.rgb_dict }}\n"
+  - parallel:
+    - service: tts.speak
+      metadata: {}
+      data:
+        cache: true
+        media_player_entity_id: media_player.mass_closet_wiim_speaker
+        message: '{{ message }}'
+      target:
+        entity_id: tts.piper
+    - service: tts.speak
+      metadata: {}
+      data:
+        cache: true
+        media_player_entity_id: media_player.mass_home_group
+        message: '{{ message }}'
+      target:
+        entity_id: tts.piper
+    - service: tts.speak
+      metadata: {}
+      data:
+        cache: true
+        media_player_entity_id: media_player.bedroom_speaker
+        message: '{{ message }}'
+      target:
+        entity_id: tts.piper
+    - service: light.turn_on
+      metadata: {}
+      data:
+        color_name: '{{ color }}'
+      target:
+        entity_id: light.group_notifications_light
+  - repeat:
+      sequence:
+      - service: light.turn_on
+        target:
+          entity_id: '{{light_entity_ids[repeat.index].0}}'
+        data:
+          rgb_color: '{{light_entity_ids[repeat.index].1}}'
+        enabled: true
+      count: '{{ light_entity_ids | length - 1 }}'
+  mode: restart
+  icon: mdi:speaker-message
