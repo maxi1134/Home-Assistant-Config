@@ -3,13 +3,17 @@ broadcast_alert_in_the_house:
   sequence:
   - variables:
       light_entity_ids: "{% set light_group = state_attr('light.group_notifications_light','entity_id')%}
-        \ {% set ns = namespace( rgb_dict= [] ) %} {% for entity_id in light_group
+        \  {% set ns = namespace( rgb_dict= [] ) %} {% for entity_id in light_group
         %}\n    {% set light_state = states(entity_id)  %}\n    {% set light_rgb_color
-        = state_attr(entity_id, \"rgb_color\") %}\n    {% if light_state == 'on' and
-        light_rgb_color %}\n        {%- set rgb_values = light_rgb_color | replace('(','')
-        | replace(')','')| replace(' ','')| string  -%}\n\n        {% set rgb_dict
-        = [(entity_id , rgb_values)] %}\n        {% set ns.rgb_dict = ns.rgb_dict
+        = state_attr(entity_id, \"rgb_color\") %}\n    {% if light_state != 'unavailable'
+        and light_rgb_color %}\n        {%- set rgb_values = light_rgb_color | replace('(','')
+        | replace(')','')| replace(' ','')| string  -%}\n        {% set rgb_dict =
+        [(entity_id , rgb_values, states(entity_id))] %}\n        {% set ns.rgb_dict
+        = ns.rgb_dict + rgb_dict %}\n    {% elif light_state != 'unavailable' %}\n
+        \       {%- set rgb_values = \"0,0,0\" %}\n        {% set rgb_dict = [(entity_id
+        , rgb_values, states(entity_id))] %}\n        {% set ns.rgb_dict = ns.rgb_dict
         + rgb_dict %}\n    {% endif %}    \n{% endfor %}  {{ ns.rgb_dict }}\n"
+    alias: 'Store Lights entity_id and current rgb values '
   - parallel:
     - service: tts.speak
       metadata: {}
@@ -19,6 +23,7 @@ broadcast_alert_in_the_house:
         message: '{{ message }}'
       target:
         entity_id: tts.piper
+      alias: TTS in the closet
     - service: tts.speak
       metadata: {}
       data:
@@ -27,6 +32,7 @@ broadcast_alert_in_the_house:
         message: '{{ message }}'
       target:
         entity_id: tts.piper
+      alias: TTS in the home group
     - service: tts.speak
       metadata: {}
       data:
@@ -35,20 +41,52 @@ broadcast_alert_in_the_house:
         message: '{{ message }}'
       target:
         entity_id: tts.piper
-    - service: light.turn_on
-      metadata: {}
-      data:
-        color_name: '{{ color }}'
-      target:
-        entity_id: light.group_notifications_light
-  - repeat:
+      alias: TTS in the bedroom
+    - alias: Turn all lights to selected color
+      repeat:
+        sequence:
+        - service: light.turn_on
+          target:
+            entity_id: '{{light_entity_ids[repeat.index].0}}'
+          data:
+            color_name: '{{color}}'
+          enabled: true
+        count: '{{ light_entity_ids | length - 1 }}'
+    alias: Run Alerts
+  - alias: Restore lights to their initial state
+    repeat:
       sequence:
-      - service: light.turn_on
+      - service: light.turn_{{ light_entity_ids[repeat.index].2 }}
         target:
           entity_id: '{{light_entity_ids[repeat.index].0}}'
         data:
           rgb_color: '{{light_entity_ids[repeat.index].1}}'
         enabled: true
+      count: '{{ light_entity_ids | length - 1 }}'
+    enabled: false
+  - alias: Restore lights to their initial state
+    repeat:
+      sequence:
+      - if:
+        - condition: template
+          value_template: '{{ not light_entity_ids[repeat.index].2 | bool }}'
+        then:
+        - service: light.turn_{{ light_entity_ids[repeat.index].2 }}
+          target:
+            entity_id: '{{light_entity_ids[repeat.index].0}}'
+          enabled: true
+          alias: Turn back off lights to previous state
+      - if:
+        - condition: template
+          value_template: '{{ light_entity_ids[repeat.index].2 | bool }}'
+        then:
+        - service: light.turn_{{ light_entity_ids[repeat.index].2 }}
+          target:
+            entity_id: '{{light_entity_ids[repeat.index].0}}'
+          data:
+            rgb_color: '{{light_entity_ids[repeat.index].1}}'
+          enabled: true
+          alias: Turn back on lights to previous state
       count: '{{ light_entity_ids | length - 1 }}'
   mode: restart
   icon: mdi:speaker-message
