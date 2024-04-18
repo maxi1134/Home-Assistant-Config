@@ -33,6 +33,11 @@
             }}
   - sensor:
 
+
+
+
+
+
       - name: "Existing Rooms"
         unique_id: "existing_rooms"
         state: >-
@@ -390,6 +395,35 @@
             {% else %}
             off
             {%endif%}
+        attributes:
+          speakers: >-
+            {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
+            {% for media_player in states.media_player -%} 
+              {%- if  "plex" not in media_player.entity_id and "speaker" in media_player.entity_id and "universal" not in media_player.entity_id and "template" not in media_player.entity_id and "roku" not in media_player.entity_id and "chromecast" not in media_player.entity_id and "group" not in media_player.entity_id and "display" not in media_player.entity_id -%}  
+                {%- if media_player.state == 'playing' -%}
+                {% set currentroomname = media_player.entity_id | replace('media_player.','') | replace('speaker.','') %}
+                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname.split('_') | first] -%}   
+                {%- endif -%}
+              {%- endif -%}
+            {% endfor %} 
+            {{ ns.mediaactiverooms | unique | list}}
+          chromecasts: >-
+            {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
+            {% for media_player in states.media_player -%} 
+              {%- if  "plex" not in media_player.entity_id and "chromecast" in media_player.entity_id and "universal" not in media_player.entity_id and "template" not in media_player.entity_id and "roku" not in media_player.entity_id and "speaker" not in media_player.entity_id and "display" not in media_player.entity_id -%}  
+                {%- if media_player.state == 'playing' -%}
+                {% set currentroomname = media_player.entity_id | replace('media_player.','') | replace('chromecast.','') %}
+                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname.split('_') | first] -%}   
+                {%- endif -%}
+              {%- endif -%}
+            {% endfor %} 
+            {{ ns.mediaactiverooms | unique | list}}
+
+
+      - name: "active_media_playback_last_timestamp"
+        unique_id: "active_media_playback_last_timestamp"
+        state: >
+            {{ states.media_player | selectattr('state','eq','playing') | map(attribute='last_changed') | sort(reverse=True) | first | default(now()) }}
         attributes:
           speakers: >-
             {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
