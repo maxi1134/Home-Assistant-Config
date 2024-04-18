@@ -669,3 +669,38 @@
           saturation: 100
       for_each: '{{ lights }}'
   mode: single
+- id: '1713468195069'
+  alias: Start visuals when acid time turns on
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - input_boolean.acid_time
+    to: 'on'
+  condition: []
+  action:
+  - variables:
+      chromecasts: '{{integration_entities(''cast'')  |  select(''search'', ''chromecast'')
+        | list}}
+
+        '
+  - repeat:
+      sequence:
+      - if:
+        - condition: template
+          value_template: '{{states(chromecasts[repeat.index ]) == "off"}}'
+        then:
+        - service: media_player.play_media
+          data:
+            media_content_id: 'plex://{ "playlist_name": "All visuals", "shuffle":
+              1 }'
+            media_content_type: playlist
+          target:
+            entity_id: '{{chromecasts[repeat.index]}}'
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 15
+            milliseconds: 0
+      for_each: '{{ chromecasts }}'
+  mode: single
