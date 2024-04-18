@@ -14,7 +14,8 @@ broadcast_alert_in_the_house:
         , rgb_values, states(entity_id))] %}\n        {% set ns.rgb_dict = ns.rgb_dict
         + rgb_dict %}\n    {% endif %}    \n{% endfor %}  {{ ns.rgb_dict }}\n"
     alias: 'Store Lights entity_id and current rgb values '
-  - parallel:
+  - alias: Run Alerts
+    parallel:
     - service: tts.speak
       metadata: {}
       data:
@@ -52,7 +53,29 @@ broadcast_alert_in_the_house:
             color_name: '{{color}}'
           enabled: true
         count: '{{ light_entity_ids | length - 1 }}'
-    alias: Run Alerts
+      enabled: false
+    - if:
+      - condition: template
+        value_template: '{% if color %}
+
+          true
+
+          {% else %}
+
+          false
+
+          {% endif %}'
+      then:
+      - alias: Turn all lights to selected color
+        repeat:
+          sequence:
+          - service: light.turn_on
+            target:
+              entity_id: '{{light_entity_ids[repeat.index].0}}'
+            data:
+              color_name: '{{color}}'
+            enabled: true
+          count: '{{ light_entity_ids | length - 1 }}'
   - alias: Restore lights to their initial state
     repeat:
       sequence:
