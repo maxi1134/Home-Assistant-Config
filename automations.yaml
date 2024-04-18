@@ -638,3 +638,29 @@
           saturation: 60
       for_each: '{{ light_groups }}'
   mode: single
+- id: '1713465737957'
+  alias: 'Change all single lights to random saturated colors '
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - input_boolean.acid_time
+    to: 'on'
+  condition: []
+  action:
+  - variables:
+      lights: "{% set ns = namespace(lights=[]) %} {% set groups = integration_entities('group')|
+        \ select('search', '^light.')   | list %} {% for group in groups %}\n    {%
+        set individual_lights = state_attr(group,'entity_id')%}\n    {% for individual_light
+        in individual_lights %}\n    {% if \"group\" not in individual_light and state_attr(individual_light,
+        'rgb_color') %}\n      {% set ns.lights = ns.lights  + [individual_light]
+        %}\n    {% endif %}\n    {% endfor %}    \n{% endfor %} {{  ns.lights  }}\n"
+  - repeat:
+      sequence:
+      - service: script.change_received_lights_to_random_colors
+        data:
+          lights:
+          - '{{lights[repeat.index - 1]}}'
+          saturation: 100
+      for_each: '{{ lights }}'
+  mode: single
