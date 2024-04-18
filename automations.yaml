@@ -705,3 +705,60 @@
             milliseconds: 0
       for_each: '{{ chromecasts }}'
   mode: single
+- id: '1713469587813'
+  alias: Turn lights to purple when a movie is played
+  description: Uses a regex template to do all lights
+  trigger:
+  - platform: state
+    entity_id:
+    - sensor.active_media_playback_last_timestamp
+  condition: []
+  action:
+  - variables:
+      active_rooms: '{{ state_attr(''sensor.active_media_playback_last_timestamp'',
+        ''chromecasts'') }}
+
+        '
+  - repeat:
+      sequence:
+      - variables:
+          off_lights_in_room: '{{ [active_rooms[repeat.index]] | map(''area_id'')
+            | map(''area_entities'') | sum(start=[]) | select(''match'', ''^light.'')
+            | select(''is_state'',''on'') | unique | list }}
+
+            '
+      - repeat:
+          sequence:
+          - service: light.turn_on
+            metadata: {}
+            data:
+              rgb_color:
+              - 255
+              - 0
+              - 255
+              brightness_pct: '30'
+            target:
+              entity_id: '{{ off_lights_in_room[repeat.index - 1 ] }}'
+          for_each: '{{off_lights_in_room}}'
+      - if:
+        - condition: template
+          value_template: '{{integration_entities("universal") | select("search",  active_rooms[repeat.index]
+            )| select("search",  "chromecast" ) | select("is_state", "playing") |
+            select("is_state_attr", "media_content_type", "movie") | list  }}'
+        then:
+        - repeat:
+            sequence:
+            - service: light.turn_on
+              metadata: {}
+              data:
+                rgb_color:
+                - 255
+                - 0
+                - 255
+                brightness_pct: '30'
+              target:
+                entity_id: '{{ off_lights_in_room[repeat.index - 1 ] }}'
+            for_each: '{{off_lights_in_room}}'
+      for_each: '{{ active_rooms }}'
+  mode: parallel
+  max: 10
