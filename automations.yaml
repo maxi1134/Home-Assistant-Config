@@ -459,20 +459,14 @@
   trigger:
   - platform: state
     entity_id:
-    - sensor.rooms_active_motion
-    attribute: rooms
+    - sensor.rooms_active_motion_timestamp
   condition: []
   action:
   - variables:
-      active_rooms: "{% set ns = namespace(mediaactiverooms = []) %}  {# create a
-        namespace object to store variables #} {% for motion_sensor in states.binary_sensor
-        -%} \n  {%- if  \"occupancy\" in motion_sensor.entity_id -%}  \n    {%- if
-        motion_sensor.state == 'on' -%}\n    {% set currentroomname = motion_sensor.entity_id
-        | replace('binary_sensor.','') | replace('sensor_','') | replace('fp2_','')
-        | replace('_motion_occupancy.','') %}\n      {%- set ns.mediaactiverooms =
-        ns.mediaactiverooms + [currentroomname.split('_') | first] -%}   \n    {%-
-        endif -%}\n  {%- endif -%}\n{% endfor %}  {{ ns.mediaactiverooms | unique
-        | list}}\n"
+      active_rooms: '{{ state_attr(''sensor.rooms_active_motion_timestamp'', ''rooms'')
+        }}
+
+        '
       off_lights_in_room: '{{ active_rooms | map(''area_id'') | map(''area_entities'')
         | sum(start=[]) | select(''match'', ''^light.'') | select(''is_state'',''off'')
         | unique | list }}
@@ -484,8 +478,8 @@
         metadata: {}
         data: {}
         target:
-          entity_id: '{{off_lights_in_room[repeat.index]}}'
-      count: '{{off_lights_in_room | length  }}'
+          entity_id: '{{off_lights_in_room[repeat.index - 1]    }}'
+      for_each: '{{off_lights_in_room}}'
   mode: restart
 - id: '1713451307697'
   alias: Sleep actions when "all_sleeping" is turned on
@@ -584,4 +578,39 @@
       entity_id:
       - cover.cover_office_blinds
       - cover.cover_livingroom_blinds
+  mode: single
+- id: '1713460807856'
+  alias: Start visuals when Party mode is turned on
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - input_boolean.party_mode
+    to: 'on'
+  condition: []
+  action:
+  - variables:
+      chromecasts: '{{integration_entities(''cast'')  |  select(''search'', ''chromecast'')
+        | list}}
+
+        '
+  - repeat:
+      sequence:
+      - if:
+        - condition: template
+          value_template: '{{states(chromecasts[repeat.index ]) == "off"}}'
+        then:
+        - service: media_player.play_media
+          data:
+            media_content_id: 'plex://{ "playlist_name": "All visuals", "shuffle":
+              1 }'
+            media_content_type: playlist
+          target:
+            entity_id: '{{chromecasts[repeat.index]}}'
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 15
+            milliseconds: 0
+      for_each: '{{ chromecasts }}'
   mode: single
