@@ -293,7 +293,7 @@
       entity_id: lock.lock_front_door
   mode: single
 - id: '1713378679048'
-  alias: Lock front door 5 mintuesa after unlocking
+  alias: Lock front door 5 minutes after unlocking
   description: ''
   trigger:
   - platform: state
@@ -365,4 +365,91 @@
         - condition: state
           entity_id: vacuum.xiaomi_vacuum_cleaner
           state: error
+  mode: single
+- id: '1713407734344'
+  alias: Lock back door when it is closed for 5 seconds
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.sensor_back_outside_door_contact
+    from:
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 5
+  condition:
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: lock.back_door
+      state: locked
+  action:
+  - service: lock.lock
+    metadata: {}
+    data: {}
+    target:
+      entity_id: lock.back_door
+  mode: single
+- id: '1713407853586'
+  alias: Lock back door 5 minutes after unlocking
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - lock.back_door
+    to: unlocked
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+  condition:
+  - condition: state
+    entity_id: binary_sensor.sensor_back_outside_door_contact
+    state: 'off'
+  action:
+  - service: lock.lock
+    metadata: {}
+    data: {}
+    target:
+      entity_id: lock.back_door
+  mode: single
+- id: '1713408006382'
+  alias: Turn back door lights on when someone is detected
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.back_door_camera_person_occupancy
+    to: 'on'
+  condition: []
+  action:
+  - service: light.turn_on
+    metadata: {}
+    data:
+      color_temp: 254
+      brightness: 255
+    target:
+      entity_id: light.back_door_light
+  - wait_for_trigger:
+    - platform: state
+      entity_id:
+      - binary_sensor.back_door_camera_person_occupancy
+      to: 'off'
+      for:
+        hours: 0
+        minutes: 0
+        seconds: 30
+    timeout:
+      hours: 0
+      minutes: 0
+      seconds: 0
+      milliseconds: 0
+  - service: light.turn_off
+    metadata: {}
+    data:
+      transition: 30
+    target:
+      entity_id: light.back_door_light
   mode: single
