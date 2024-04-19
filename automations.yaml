@@ -754,6 +754,7 @@
             target:
               entity_id: '{{ off_lights_in_room[repeat.index - 1 ] }}'
           for_each: '{{off_lights_in_room}}'
+        enabled: false
       - if:
         - condition: template
           value_template: '{% if integration_entities("universal") | select(''search'',  [active_rooms[repeat.index
@@ -797,3 +798,83 @@
       for_each: '{{ active_rooms }}'
   mode: parallel
   max: 10
+- id: '1713533595890'
+  alias: Disarm alarm-away when "User Home" turns on
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.user_home
+    to: 'on'
+    from: 'off'
+  condition:
+  - condition: state
+    entity_id: alarm_control_panel.home_alarm
+    state: armed_away
+  action:
+  - service: alarm_control_panel.alarm_disarm
+    metadata: {}
+    data: {}
+    target:
+      entity_id: alarm_control_panel.home_alarm
+  mode: single
+- id: '1713533768680'
+  alias: Arm Alarm-Away when "User home" is off for 10 minutes
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.user_home
+    from: 'on'
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+  condition: []
+  action:
+  - service: alarm_control_panel.alarm_arm_away
+    metadata: {}
+    data: {}
+    target:
+      entity_id: alarm_control_panel.home_alarm
+  mode: single
+- id: '1713534223873'
+  alias: Turn ACs on and Off  depending on house occupancy
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.user_home
+  condition: []
+  action:
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: binary_sensor.user_home
+        state: 'on'
+      sequence:
+      - service: climate.set_preset_mode
+        metadata: {}
+        data:
+          preset_mode: none
+        target:
+          entity_id:
+          - climate.hotbox_ac
+          - climate.livingroom_ac
+          - climate.office_ac
+    - conditions:
+      - condition: state
+        entity_id: binary_sensor.user_home
+        state: 'off'
+      sequence:
+      - service: climate.set_preset_mode
+        metadata: {}
+        data:
+          preset_mode: away
+        target:
+          entity_id:
+          - climate.hotbox_ac
+          - climate.livingroom_ac
+          - climate.office_ac
+  mode: single
