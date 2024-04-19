@@ -336,7 +336,6 @@
     metadata: {}
     data:
       message: Entrance door is open
-      color: blue
   mode: restart
 - id: '1713399927983'
   alias: Alert that the vacuum is stuck
@@ -759,7 +758,7 @@
         - condition: template
           value_template: '{% if integration_entities("universal") | select(''search'',  [active_rooms[repeat.index
             - 1]] )| select(''search'',  "chromecast" ) | select(''is_state'', ''playing'')
-            | select(''is_state_attr'', ''media_content_type'', "movie") | list %}
+            | select(''is_state_attr'', ''media_content_type'', "movie")  %}
 
             true
 
@@ -777,7 +776,7 @@
 
               '
         - variables:
-            off_lights_in_room: '{{ [active_rooms[repeat.index]] | map(''area_id'')
+            on_lights_in_room: '{{ [active_rooms[repeat.index - 1]] | map(''area_id'')
               | map(''area_entities'') | sum(start=[]) | select(''match'', ''^light.'')
               | select(''is_state'',''on'') | unique | list }}
 
@@ -793,11 +792,10 @@
                 - 255
                 brightness_pct: '30'
               target:
-                entity_id: '{{ off_lights_in_room[repeat.index - 1 ] }}'
-            for_each: '{{off_lights_in_room}}'
+                entity_id: '{{ on_lights_in_room[repeat.index - 1 ] }}'
+            for_each: '{{on_lights_in_room}}'
       for_each: '{{ active_rooms }}'
-  mode: parallel
-  max: 10
+  mode: restart
 - id: '1713533595890'
   alias: Disarm alarm-away when "User Home" turns on
   description: ''
@@ -877,4 +875,163 @@
           - climate.hotbox_ac
           - climate.livingroom_ac
           - climate.office_ac
+  mode: single
+- id: '1713535684569'
+  alias: Play Muzak in the bathroom when someone enters
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.sensor_bathroom_motion_occupancy
+    to: 'on'
+    from: 'off'
+  condition:
+  - condition: state
+    entity_id: media_player.bathroom_speaker
+    state: 'off'
+  action:
+  - service: media_player.play_media
+    metadata: {}
+    data:
+      media_content_id: 'plex://{ "library_name": "Muzak", "shuffle": 1, "allow_multiple":
+        1}'
+      media_content_type: music
+    target:
+      entity_id: media_player.bathroom_speaker
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: binary_sensor.sensor_bathroom_door_contact
+        state: 'on'
+      sequence:
+      - service: media_player.volume_set
+        metadata: {}
+        data:
+          volume_level: 0.1
+        target:
+          entity_id: media_player.bathroom_speaker
+    - conditions:
+      - condition: state
+        entity_id: binary_sensor.sensor_bathroom_door_contact
+        state: 'off'
+      sequence:
+      - service: media_player.volume_set
+        metadata: {}
+        data:
+          volume_level: 0.4
+        target:
+          entity_id: media_player.bathroom_speaker
+  mode: single
+- id: '1713536409397'
+  alias: Raise music on the playing speaker when the Bathroom fans goes on
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - switch.bathroom_fan
+    from: 'off'
+    to: 'on'
+  condition:
+  - condition: state
+    entity_id: binary_sensor.sensor_bathroom_door_contact
+    state: 'off'
+  action:
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: media_player.bathroom_music_speaker
+        state: 'off'
+      sequence:
+      - service: media_player.volume_up
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.bathroom_speaker
+      - service: media_player.volume_up
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.bathroom_speaker
+    - conditions:
+      - condition: state
+        entity_id: media_player.bathroom_music_speaker
+        state: playing
+      sequence:
+      - service: media_player.volume_up
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.bathroom_music_speaker
+        enabled: true
+      - service: media_player.volume_up
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.bathroom_music_speaker
+        enabled: true
+  mode: single
+- id: '1713536741103'
+  alias: Start/stop bathroom fan when Bathroom humidity is 10 points over house humidity
+  description: ''
+  trigger:
+  - platform: numeric_state
+    entity_id:
+    - sensor.sensor_bathroom_temperature_humidity
+    value_template: '"{{state.state - 10 }}"'
+    above: sensor.house_median_humidity
+  condition: []
+  action:
+  - service: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.bathroom_fan
+  - wait_for_trigger:
+    - platform: numeric_state
+      entity_id:
+      - sensor.sensor_bathroom_temperature_humidity
+      value_template: '"{{state.state + 5 }}"'
+      below: sensor.house_median_humidity
+    continue_on_timeout: true
+    timeout:
+      hours: 0
+      minutes: 30
+      seconds: 0
+      milliseconds: 0
+  - service: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.bathroom_fan
+  mode: single
+- id: '1713538197256'
+  alias: Control Hallway Tablet charging
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - sensor.hallway_tablet_battery
+  condition: []
+  action:
+  - choose:
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.hallway_tablet_battery
+        above: 90
+      sequence:
+      - service: switch.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: switch.plug_hallway_tablet
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.hallway_tablet_battery
+        below: 15
+      sequence:
+      - service: switch.turn_on
+        metadata: {}
+        data: {}
+        target:
+          entity_id: switch.plug_hallway_tablet
   mode: single
