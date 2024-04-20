@@ -723,21 +723,23 @@
   trigger:
   - platform: state
     entity_id:
-    - sensor.active_media_playback_last_timestamp
+    - media_player.universal_office_chromecast
+    - media_player.universal_livingroom_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_hotbox_down_chromecast
+    - media_player.universal_patio_chromecast
+    to: playing
   condition: []
   action:
-  - variables:
-      active_rooms: '{{ state_attr(''sensor.active_media_playback_last_timestamp'',
-        ''chromecasts'') }}
-
-        '
-    enabled: true
   - repeat:
       sequence:
       - variables:
-          off_lights_in_room: '{{ [active_rooms[repeat.index - 1]] | map(''area_id'')
+          off_lights_in_room: '{{ [area_id(trigger.entity_id)] | map(''area_id'')
             | map(''area_entities'') | sum(start=[]) | select(''match'', ''^light.'')
             | select(''is_state'',''on'') | unique | list }}
+
+            '
+          trigger: '{{ trigger.entity_id }}
 
             '
       - repeat:
@@ -753,48 +755,9 @@
             target:
               entity_id: '{{ off_lights_in_room[repeat.index - 1 ] }}'
           for_each: '{{off_lights_in_room}}'
-        enabled: false
-      - if:
-        - condition: template
-          value_template: '{% if integration_entities("universal") | select(''search'',  [active_rooms[repeat.index
-            - 1]] )| select(''search'',  "chromecast" ) | select(''is_state'', ''playing'')
-            | select(''is_state_attr'', ''media_content_type'', "movie")  %}
-
-            true
-
-            {% else %}
-
-            false
-
-            {% endif %}
-
-            '
-        then:
-        - variables:
-            active_rooms: '{{ state_attr(''sensor.active_media_playback_last_timestamp'',
-              ''chromecasts'') }}
-
-              '
-        - variables:
-            on_lights_in_room: '{{ [active_rooms[repeat.index - 1]] | map(''area_id'')
-              | map(''area_entities'') | sum(start=[]) | select(''match'', ''^light.'')
-              | select(''is_state'',''on'') | unique | list }}
-
-              '
-        - repeat:
-            sequence:
-            - service: light.turn_on
-              metadata: {}
-              data:
-                rgb_color:
-                - 255
-                - 0
-                - 255
-                brightness_pct: '30'
-              target:
-                entity_id: '{{ on_lights_in_room[repeat.index - 1 ] }}'
-            for_each: '{{on_lights_in_room}}'
-      for_each: '{{ active_rooms }}'
+        enabled: true
+      count: 1
+    enabled: true
   mode: restart
 - id: '1713533595890'
   alias: Disarm alarm-away when "User Home" turns on
