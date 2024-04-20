@@ -1055,3 +1055,52 @@
       count: 1
     enabled: true
   mode: restart
+- id: '1713574201448'
+  alias: Turn lights to white when we stop a movie
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - media_player.universal_office_chromecast
+    - media_player.universal_livingroom_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_hotbox_down_chromecast
+    - media_player.universal_patio_chromecast
+    to: 'off'
+    from: playing
+  condition:
+  - condition: template
+    value_template: '{{ trigger.from_state.attributes.media_content_type == "movie"
+      }}'
+  action:
+  - repeat:
+      sequence:
+      - variables:
+          off_lights_in_room: '{{ [area_id(trigger.entity_id)] | map(''area_id'')
+            | map(''area_entities'') | sum(start=[]) | select(''match'', ''^light.'')
+            | select(''is_state'',''on'') | unique | list }}
+
+            '
+          entity_id: '{{ trigger.entity_id }}
+
+            '
+          trigger_full: '{{ trigger.to_state.attributes }}
+
+            '
+      - repeat:
+          sequence:
+          - service: light.turn_on
+            metadata: {}
+            data:
+              rgb_color:
+              - 255
+              - 255
+              - 255
+              brightness_pct: '100'
+            target:
+              entity_id: '{{ off_lights_in_room[repeat.index - 1 ] }}'
+          for_each: '{{off_lights_in_room}}'
+        enabled: true
+      count: 1
+    enabled: true
+  mode: restart
