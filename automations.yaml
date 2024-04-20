@@ -739,23 +739,31 @@
             | select(''is_state'',''on'') | unique | list }}
 
             '
-          trigger: '{{ trigger.entity_id }}
+          entity_id: '{{ trigger.entity_id }}
 
             '
-      - repeat:
-          sequence:
-          - service: light.turn_on
-            metadata: {}
-            data:
-              rgb_color:
-              - 255
-              - 0
-              - 255
-              brightness_pct: '30'
-            target:
-              entity_id: '{{ off_lights_in_room[repeat.index - 1 ] }}'
-          for_each: '{{off_lights_in_room}}'
-        enabled: true
+          trigger_full: '{{ trigger.to_state.attributes }}
+
+            '
+      - if:
+        - condition: template
+          value_template: '{{ trigger.to_state.attributes.media_content_type == "movie"
+            }}'
+        then:
+        - repeat:
+            sequence:
+            - service: light.turn_on
+              metadata: {}
+              data:
+                rgb_color:
+                - 255
+                - 0
+                - 255
+                brightness_pct: '30'
+              target:
+                entity_id: '{{ off_lights_in_room[repeat.index - 1 ] }}'
+            for_each: '{{off_lights_in_room}}'
+          enabled: true
       count: 1
     enabled: true
   mode: restart
@@ -998,3 +1006,52 @@
         target:
           entity_id: switch.plug_hallway_tablet
   mode: single
+- id: '1713572893343'
+  alias: Turn lights back to white after a movie
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - media_player.universal_office_chromecast
+    - media_player.universal_livingroom_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_hotbox_down_chromecast
+    - media_player.universal_patio_chromecast
+    to: playing
+  condition: []
+  action:
+  - repeat:
+      sequence:
+      - variables:
+          off_lights_in_room: '{{ [area_id(trigger.entity_id)] | map(''area_id'')
+            | map(''area_entities'') | sum(start=[]) | select(''match'', ''^light.'')
+            | select(''is_state'',''on'') | unique | list }}
+
+            '
+          entity_id: '{{ trigger.entity_id }}
+
+            '
+          trigger_full: '{{ trigger }}
+
+            '
+      - if:
+        - condition: template
+          value_template: '{{ trigger.media_content_type == "movie" }}'
+        then:
+        - repeat:
+            sequence:
+            - service: light.turn_on
+              metadata: {}
+              data:
+                rgb_color:
+                - 255
+                - 0
+                - 255
+                brightness_pct: '30'
+              target:
+                entity_id: '{{ off_lights_in_room[repeat.index - 1 ] }}'
+            for_each: '{{off_lights_in_room}}'
+          enabled: true
+      count: 1
+    enabled: true
+  mode: restart
