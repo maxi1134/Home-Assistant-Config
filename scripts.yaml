@@ -111,3 +111,35 @@ change_received_lights_to_random_colors:
   icon: mdi:sale
   fields: {}
   max: 10
+start_visual_playlist_on_plex:
+  alias: Start requsted Playlist on plex for all unplaying chromecasts
+  sequence:
+  - variables:
+      chromecasts: '{{integration_entities(''cast'')  |  select(''search'', ''chromecast'')
+        | list}}
+
+        '
+  - repeat:
+      sequence:
+      - if:
+        - condition: template
+          value_template: '{{states(chromecasts[repeat.index ]) == "off"}}'
+        then:
+        - variables:
+            playlist: 'plex://{"playlist_name":"{{requested_playlist}}","shuffle":"1"}
+
+              '
+        - service: media_player.play_media
+          data:
+            media_content_id: '{{playlist}}'
+            media_content_type: playlist
+          target:
+            entity_id: '{{chromecasts[repeat.index]}}'
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 15
+            milliseconds: 0
+      for_each: '{{ chromecasts }}'
+  mode: single
+  icon: mdi:led-strip-variant
