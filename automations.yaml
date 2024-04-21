@@ -452,48 +452,6 @@
     target:
       entity_id: light.back_door_light
   mode: single
-- id: '1713410218038'
-  alias: Turn on lights automatically
-  description: Uses a regex template to do all lights
-  trigger:
-  - platform: state
-    entity_id:
-    - sensor.rooms_active_motion_timestamp
-  condition: []
-  action:
-  - variables:
-      active_rooms: '{{ state_attr(''sensor.rooms_active_motion_timestamp'', ''rooms'')
-        }}
-
-        '
-      off_lights_in_room: '{{ active_rooms | map(''area_id'') | map(''area_entities'')
-        | sum(start=[]) | select(''match'', ''^light.'') | select(''is_state'',''off'')
-        | unique | list }}
-
-        '
-  - repeat:
-      sequence:
-      - if:
-        - condition: template
-          value_template: '{% if area_id(off_lights_in_room[repeat.index - 1]) in
-            states(''sensor.active_sleeper_rooms'') | string  %}
-
-            false
-
-            {% else%}
-
-            true
-
-            {% endif %}'
-        then:
-        - service: light.turn_on
-          metadata: {}
-          data: {}
-          target:
-            entity_id: '{{off_lights_in_room[repeat.index - 1]    }}'
-      for_each: '{{off_lights_in_room}}'
-  mode: parallel
-  max: 25
 - id: '1713451307697'
   alias: Sleep actions when "all_sleeping" is turned on
   description: Close the blinds, turn off the lights and turn on the sleep mode of
@@ -1135,3 +1093,60 @@
     target:
       entity_id: switch.plug_closet_fan
   mode: single
+- id: '1713719722990'
+  alias: Turn on lights automatically
+  description: 'This one uses motion groups '
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.group_patio_motion_occupancy
+    - binary_sensor.group_closet_motion_occupancy
+    - binary_sensor.group_office_motion_occupancy
+    - binary_sensor.group_server_motion_occupancy
+    - binary_sensor.group_bedroom_motion_occupancy
+    - binary_sensor.group_hallway_motion_occupancy
+    - binary_sensor.group_kitchen_motion_occupancy
+    - binary_sensor.group_bathroom_motion_occupancy
+    - binary_sensor.group_entrance_motion_occupancy
+    - binary_sensor.group_hotbox_top_motion_occupancy
+    - binary_sensor.group_livingroom_motion_occupancy
+    - binary_sensor.group_hotbox_down_motion_occupancy
+    - binary_sensor.group_workstation_motion_occupancy
+    - binary_sensor.group_chillingroom_motion_occupancy
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  condition: []
+  action:
+  - variables:
+      off_lights_in_room: '{{ [area_id(trigger.entity_id)]  | map(''area_entities'')
+        | sum(start=[]) | select(''match'', ''^light.'') | select(''is_state'',''off'')
+        | unique | list }}
+
+        '
+  - repeat:
+      sequence:
+      - if:
+        - condition: template
+          value_template: '{% if area_id(off_lights_in_room[repeat.index - 1]) in
+            states(''sensor.active_sleeper_rooms'') | string  %}
+
+            false
+
+            {% else%}
+
+            true
+
+            {% endif %}'
+        then:
+        - service: light.turn_on
+          metadata: {}
+          data: {}
+          target:
+            entity_id: '{{off_lights_in_room[repeat.index - 1]    }}'
+      for_each: '{{off_lights_in_room}}'
+  mode: parallel
+  max: 25
