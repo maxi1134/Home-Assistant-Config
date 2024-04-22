@@ -1146,22 +1146,50 @@
     - conditions:
       - alias: Is there no sleeper in the room?
         condition: template
-        value_template: '{% if area_id(trigger.entity_id) in states(''sensor.active_sleeper_rooms'')
-          | string  %}
+        value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_sleeper_rooms'')
+          | string | lower }}
 
-          false
-
-          {% else%}
-
-          true
-
-          {% endif %}'
+          '
       sequence:
       - service: media_player.volume_set
         metadata: {}
         data:
-          volume_level: 0.35
+          volume_level: 0.5
+        target:
+          entity_id: '{{trigger.entity_id}}'
+    - conditions:
+      - condition: template
+        value_template: '{{ area_id(trigger.entity_id) | lower in states(''sensor.active_sleeper_rooms'')
+          | string | lower }}
+
+          '
+      sequence:
+      - service: media_player.volume_mute
+        data:
+          is_volume_muted: true
         target:
           entity_id: '{{trigger.entity_id}}'
   mode: parallel
   max: 25
+- id: '1713813890992'
+  alias: Reload tablets 4 minutes after HA restarts
+  description: ''
+  trigger:
+  - platform: numeric_state
+    entity_id:
+    - sensor.bootminutes
+    below: 5
+    above: 3
+  condition: []
+  action:
+  - service: button.press
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - button.samsung_galaxy_tab_e_8_0_load_start_url
+      - button.office_tablet_load_start_url
+      - button.hallway_tablet_load_start_url
+      - button.kitchen_tablet_load_start_url
+      - button.livingroom_tablet_load_start_url
+  mode: single
