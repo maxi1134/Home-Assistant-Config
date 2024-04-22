@@ -1125,3 +1125,43 @@
     data:
       requested_playlist: All Visuals
   mode: single
+- id: '1713802663884'
+  alias: Set speaker volume on initial playback
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - media_player.universal_office_speakers
+    - media_player.universal_chillingroom_speakers
+    - media_player.universal_hallway_speakers
+    - media_player.universal_hotbox_top_speakers
+    - media_player.universal_kitchen_speakers
+    - media_player.universal_livingroom_speakers
+    - media_player.universal_hotbox_down_speakers
+    to: playing
+    from: idle
+  condition: []
+  action:
+  - choose:
+    - conditions:
+      - alias: Is there no sleeper in the room?
+        condition: template
+        value_template: '{% if area_id(trigger.entity_id) in states(''sensor.active_sleeper_rooms'')
+          | string  %}
+
+          false
+
+          {% else%}
+
+          true
+
+          {% endif %}'
+      sequence:
+      - service: media_player.volume_set
+        metadata: {}
+        data:
+          volume_level: 0.35
+        target:
+          entity_id: '{{trigger.entity_id}}'
+  mode: parallel
+  max: 25
