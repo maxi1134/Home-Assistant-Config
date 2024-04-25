@@ -1373,3 +1373,40 @@
       alias: Motion is OFF
   mode: parallel
   max: 10
+- id: '1714054125770'
+  alias: Alert when dryer finishes!
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.dryer_dry_completed
+    from: 'off'
+    to: 'on'
+  condition:
+  - condition: state
+    entity_id: binary_sensor.maxi_sleeping
+    state: 'off'
+  - condition: state
+    entity_id: binary_sensor.all_present_sleeping
+    state: 'off'
+  action:
+  - service: script.broadcast_alert_in_the_house
+    metadata: {}
+    data:
+      message: Dryer finished
+  - repeat:
+      sequence:
+      - service: script.broadcast_alert_in_the_house
+        metadata: {}
+        data:
+          message: Dryer finished
+      - delay:
+          hours: 0
+          minutes: 15
+          seconds: 0
+          milliseconds: 0
+      until:
+      - condition: state
+        entity_id: binary_sensor.group_kitchen_motion_occupancy
+        state: 'on'
+  mode: single
