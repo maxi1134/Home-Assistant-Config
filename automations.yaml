@@ -865,13 +865,12 @@
         enabled: true
   mode: single
 - id: '1713536741103'
-  alias: Start/stop bathroom fan when Bathroom humidity is 10 points over house humidity
+  alias: Start/stop bathroom fan when Bathroom humidity
   description: ''
   trigger:
   - platform: numeric_state
     entity_id:
     - sensor.sensor_bathroom_temperature_humidity
-    value_template: '"{{state.state - 10 }}"'
     above: sensor.house_median_humidity
   condition: []
   action:
@@ -884,8 +883,7 @@
     - platform: numeric_state
       entity_id:
       - sensor.sensor_bathroom_temperature_humidity
-      value_template: '"{{state.state + 5 }}"'
-      below: sensor.house_median_humidity
+      below: sensor.sensor_outside_temperature_humidity
     continue_on_timeout: true
     timeout:
       hours: 0
@@ -1504,4 +1502,56 @@
       - condition: state
         entity_id: binary_sensor.group_kitchen_motion_occupancy
         state: 'on'
+  mode: single
+- id: '1714077180427'
+  alias: Change light to random colors on press
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - input_boolean.random_colors
+    to: 'on'
+  condition: []
+  action:
+  - variables:
+      lights: "{% set ns = namespace(lights=[]) %} {% set groups = integration_entities('group')|
+        \ select('search', '^light.')   | list %} {% for group in groups %}\n    {%
+        set individual_lights = state_attr(group,'entity_id')%}\n    {% for individual_light
+        in individual_lights %}\n    {% if \"group\" not in individual_light and state_attr(individual_light,
+        'rgb_color') %}\n      {% set ns.lights = ns.lights  + [individual_light]
+        %}\n    {% endif %}\n    {% endfor %}    \n{% endfor %} {{  ns.lights  }}\n"
+  - repeat:
+      sequence:
+      - service: script.change_received_lights_to_random_colors
+        data:
+          lights:
+          - '{{lights[repeat.index - 1]}}'
+          saturation: 100
+      for_each: '{{ lights }}'
+  mode: single
+- id: '1714077215807'
+  alias: Change light to random pastel colors on press
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - input_boolean.random_pastel_colors
+    to: 'on'
+  condition: []
+  action:
+  - variables:
+      lights: "{% set ns = namespace(lights=[]) %} {% set groups = integration_entities('group')|
+        \ select('search', '^light.')   | list %} {% for group in groups %}\n    {%
+        set individual_lights = state_attr(group,'entity_id')%}\n    {% for individual_light
+        in individual_lights %}\n    {% if \"group\" not in individual_light and state_attr(individual_light,
+        'rgb_color') %}\n      {% set ns.lights = ns.lights  + [individual_light]
+        %}\n    {% endif %}\n    {% endfor %}    \n{% endfor %} {{  ns.lights  }}\n"
+  - repeat:
+      sequence:
+      - service: script.change_received_lights_to_random_colors
+        data:
+          lights:
+          - '{{lights[repeat.index - 1]}}'
+          saturation: 60
+      for_each: '{{ lights }}'
   mode: single
