@@ -41,8 +41,8 @@ Running a homelab is not always easy, especially when comes time to route, segre
 |  Model      | Device Type |Buy Again? |Some Notes |  Quantity In Use     |
 | ----------- | ----------- | :----------: |  ----------- | ----------- |
 | 	[Cloud Gateway Ultra](https://ca.store.ui.com/ca/en/collections/cloud-gateway-ultra/products/ucg-ultra) | Router  |:heavy_check_mark:  | Decent router, good network options. | 1 |
-| [U6-Lite](https://store.ui.com/collections/unifi-network-wireless/products/u6-lite-us) | Access Points | :grey_question:  | I can only reach 400Mbps with these Antennas in Wifi6 |   3 |
-| [U6-PRO](https://store.ui.com/collections/unifi-network-wireless/products/unifi-ap6-professional) | Access Points | :heavy_check_mark: |More decent speeds at 700Mbps|   1 |
+| [U6-Lite](https://store.ui.com/collections/unifi-network-wireless/products/u6-lite-us) | Access Points | :grey_question:  | I can only reach 200Mbps with these Antennas in Wifi6 |   3 |
+| [U6-PRO](https://store.ui.com/collections/unifi-network-wireless/products/unifi-ap6-professional) | Access Points | :heavy_check_mark: |More decent speeds at 300Mbps|   1 |
 | [USW-Flex-Mini](https://store.ui.com/collections/unifi-network-switching/products/usw-flex-mini) | Switches |:heavy_check_mark:|Good little switch, not too pricey| 3 |
 |   [USW-Lite-8-PoE](https://store.ui.com/collections/unifi-network-switching/products/unifi-switch-lite-8-poe)| Switches|:heavy_check_mark: |Also decent POE switch for edge of the network.| 2 |
 | Ethernet Cat6 | Cable    |:heavy_check_mark:| |   Lots |
