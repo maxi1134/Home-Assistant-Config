@@ -317,7 +317,20 @@
         state: >-
             {{ states('sensor.active_sleeper_rooms') | wordcount }}
 
-            
+      - name: "active_microphones_rooms"
+        unique_id: "active_microphones_rooms"
+        state: >-
+            {% set ns = namespace(active_micro_room = []) %}  {# create a namespace object to store variables #}
+            {% if states('binary_sensor.computer_maxi_pc_computer_maxi_pc_microphoneactive') == "on" %}
+              {% set ns.active_micro_room = ns.active_micro_room + ["office"] %}
+            {% endif %}
+            {% if states('sensor.phone_maxi_phone_state') != 'idle' and states('person.maximiliano') == 'home' %}            
+              {% set ns.active_micro_room = ns.active_micro_room + [ states('sensor.maxi_location_v3')] %}
+            {% endif %}
+            {% if states('sensor.phone_maxi_audio_mode') != 'normal'and states('person.maximiliano') == 'home' %}            
+              {% set ns.active_micro_room = ns.active_micro_room + [ states('sensor.maxi_location_v3')] %}
+            {% endif %}
+            {{ ns.active_micro_room | unique | list }}
       - name: "active_chromecast_rooms"
         unique_id: "active_chromecast_rooms"
         state: >-
