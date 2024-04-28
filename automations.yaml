@@ -1083,6 +1083,13 @@
   - condition: state
     entity_id: input_boolean.following_music
     state: 'on'
+  - condition: template
+    value_template: '{{ trigger.to_state.state == "on" }}'
+    alias: Confirm Motion
+  - alias: Make sure no sleeper is present
+    condition: template
+    value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_sleeper_rooms'')
+      | string | lower }}'
   action:
   - variables:
       playing_speakers: '{{ [area_id(trigger.entity_id)]   | map(''area_entities'')
@@ -1090,43 +1097,27 @@
         | unique | list }}
 
         '
-  - choose:
-    - conditions:
-      - condition: template
-        value_template: '{{ trigger.to_state.state == "on" }}'
-        alias: Confirm Motion
-      sequence:
-      - choose:
-        - conditions:
-          - alias: Make sure no sleeper is present
-            condition: template
-            value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_sleeper_rooms'')
-              | string | lower }}'
-          sequence:
-          - service: media_player.volume_mute
-            metadata: {}
-            data:
-              is_volume_muted: false
-            target:
-              entity_id: '{{playing_speakers}}'
-            alias: Unmute the speaker
-          - alias: Set Speaker volume to median volume  if the room is  empty for
-              a long time
-            if:
-            - condition: template
-              value_template: '{{ now() - trigger.from_state.last_changed > timedelta(seconds=1000)
-                }}'
-              alias: Is it beene empty  over 1000 seconds?
-            then:
-            - service: media_player.volume_set
-              metadata: {}
-              data:
-                volume_level: '{{ state_attr(''media_player.group_home_speakers'',
-                  ''volume_level'')  }}'
-              target:
-                entity_id: '{{playing_speakers}}'
-              alias: Set volume to the average of the house
-      alias: Motion is ON
+  - service: media_player.volume_mute
+    metadata: {}
+    data:
+      is_volume_muted: false
+    target:
+      entity_id: '{{playing_speakers}}'
+    alias: Unmute the speaker
+  - alias: Set Speaker volume to median volume  if the room is  empty for a long time
+    if:
+    - condition: template
+      value_template: '{{ now() - trigger.from_state.last_changed > timedelta(seconds=1000)
+        }}'
+      alias: Is it beene empty  over 1000 seconds?
+    then:
+    - service: media_player.volume_set
+      metadata: {}
+      data:
+        volume_level: '{{ state_attr(''media_player.group_home_speakers'', ''volume_level'')  }}'
+      target:
+        entity_id: '{{playing_speakers}}'
+      alias: Set volume to the average of the house
   mode: parallel
   max: 10
 - id: '1713723493265'
@@ -1432,6 +1423,12 @@
         minutes: 0
         seconds: 5
       below: 28
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 20
+      seconds: 0
+      milliseconds: 0
   - repeat:
       sequence:
       - service: script.broadcast_alert_in_the_house
