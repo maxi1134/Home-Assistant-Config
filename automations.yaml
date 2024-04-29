@@ -1728,8 +1728,9 @@
     data:
       is_volume_muted: true
     target:
-      entity_id: '{{playing_speakers}}'
-    alias: Mute the speakers
+      entity_id: '{{ playing_speakers }}
+
+        '
   mode: restart
 - id: '1714404201504'
   alias: Unmute speakers when TV stops
@@ -1796,4 +1797,73 @@
     target:
       entity_id: '{{playing_speakers}}'
     alias: Unmute the speakers
+  mode: restart
+- id: '1714404505080'
+  alias: Close covers when chromecasts starts movie
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - media_player.universal_office_chromecast
+    - media_player.universal_livingroom_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_hotbox_down_chromecast
+    - media_player.universal_patio_chromecast
+    to: playing
+  condition:
+  - alias: Check that the chromecast is not muted
+    condition: template
+    value_template: '{{trigger.to_state.attributes.is_volume_muted == false}}'
+  - condition: template
+    value_template: "                  {% set ns = namespace( cast_entity = trigger.entity_id,
+      template_entity = \"\" ) %}\n                  {% set ns.final_entity = ns.cast_entity
+      %}   {# Declare Variables#}                    \n                  {% for media_player
+      in states.media_player %}                   \n                    {% if \"plex\"
+      in media_player.entity_id and media_player.state != \"unavailable\" %}\n                      {%
+      set entity = media_player.entity_id %}\n                      {% set media_title
+      = state_attr( entity, 'media_title') %}\n                      {% set media_series_title
+      = state_attr( entity, 'media_series_title') %}\n                      {% set
+      media_series_episode = state_attr( entity, 'media_espisode') %}\n                      {%
+      set media_series_season = state_attr( entity, 'media_season') %}                      \n
+      \                       {% if state_attr( ns.final_entity, 'media_title') %}\n
+      \                         {% if  state_attr( ns.cast_entity, 'media_title')
+      in ( media_title | string )%}\n                          {% set ns.template_entity
+      = entity %}\n                          {% endif %}                    \n                        {%
+      elif state_attr( ns.final_entity, 'media_series_title') %}\n                          {%
+      if  state_attr( ns.cast_entity, 'media_series_title') in ( media_series_title
+      | string )%}\n                          {% set ns.template_entity = entity %}\n
+      \                         {% endif %}\n                        {% endif %}                      \n
+      \                   {% endif %}                         \n                  {%
+      endfor %}                   \n                  {% if ns.template_entity ==
+      \"\" %}\n                      {% set ns.template_entity = ns.cast_entity %}\n
+      \                 {% endif %}\n                  {% if ns.template_entity !=
+      ns.cast_entity %}                  \n                    {{ state_attr(ns.template_entity,
+      'media_library_title') == 'Movies'}}\n                  {% endif %} "
+  action:
+  - variables:
+      covers: '{{ [area_id(trigger.entity_id)]    | map(''area_entities'') | sum(start=[])
+        |    select(''search'', ''^cover\.'')  | unique | list }}
+
+        '
+  - service: cover.close_cover
+    metadata: {}
+    data: {}
+    target:
+      entity_id: '{{ covers }}
+
+        '
+  - wait_for_trigger: []
+    timeout:
+      hours: 4
+      minutes: 0
+      seconds: 0
+      milliseconds: 0
+    continue_on_timeout: false
+  - service: cover.open_cover
+    metadata: {}
+    data: {}
+    target:
+      entity_id: '{{ covers }}
+
+        '
   mode: restart
