@@ -655,8 +655,8 @@
   - repeat:
       sequence:
       - variables:
-          off_lights_in_room: '{{ [area_id(trigger.entity_id)] | map(''area_id'')
-            | map(''area_entities'') | sum(start=[]) | select(''match'', ''^light.'')
+          on_lights_in_room: '{{ [area_id(trigger.entity_id)] | map(''area_id'') |
+            map(''area_entities'') | sum(start=[]) | select(''match'', ''^light.'')
             | select(''is_state'',''on'') | unique | list }}
 
             '
@@ -673,22 +673,49 @@
         - condition: template
           value_template: '{{ not trigger.to_state.attributes.media_series_title }}'
         then:
-        - repeat:
-            sequence:
-            - service: light.turn_on
-              metadata: {}
-              data:
-                rgb_color:
-                - 255
-                - 0
-                - 255
-                brightness_pct: '30'
-              target:
-                entity_id: '{{ off_lights_in_room[repeat.index - 1 ] }}'
-            for_each: '{{off_lights_in_room}}'
-          enabled: true
+        - service: light.turn_on
+          metadata: {}
+          data:
+            rgb_color:
+            - 255
+            - 0
+            - 255
+            brightness_pct: '30'
+          target:
+            entity_id: '{{ on_lights_in_room | list }}'
       count: 1
     enabled: true
+  - wait_for_trigger:
+    - platform: template
+      value_template: '{{ states(trigger.entity_id) == "off" }}'
+    timeout:
+      hours: 4
+      minutes: 0
+      seconds: 0
+      milliseconds: 0
+    continue_on_timeout: false
+  - variables:
+      on_lights_in_room: '{{ [area_id(trigger.entity_id)] | map(''area_id'') | map(''area_entities'')
+        | sum(start=[]) | select(''match'', ''^light.'') | select(''is_state'',''on'')
+        | unique | list }}
+
+        '
+      entity_id: '{{ trigger.entity_id }}
+
+        '
+      trigger_full: '{{ trigger.to_state.attributes }}
+
+        '
+  - service: light.turn_on
+    metadata: {}
+    data:
+      rgb_color:
+      - 255
+      - 255
+      - 255
+      brightness_pct: '100'
+    target:
+      entity_id: '{{ on_lights_in_room | list}}'
   mode: restart
 - id: '1713533595890'
   alias: Disarm alarm-away when "User Home" turns on
