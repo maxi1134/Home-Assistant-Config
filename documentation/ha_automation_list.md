@@ -14,7 +14,7 @@
 
 <p  align="center">  <a  href="/automations.yaml><img  src="https://img.shields.io/badge/Automations-purple"  alt="The automations!"></p> 
 
-- [House-Wide]():
+- [House-Wide](/automations.yaml):
   - Play music when Maxi awakes at home
   - Close blinds when the house is empty
   - Turn off lights when the house is empty
@@ -24,11 +24,11 @@
   - Turn on "party mode" when over 5 friends are over
      - Play soft visuals on all screens when "party mode" is turned on
      - Change light groups to semi-saturated random colors when "party mode" is turned on
-- [Trigger-Based]():
+- [Trigger-Based](/automations.yaml):
   - Start visuals on all inactive TVs
   - Change light to random colors on press
   - Change light to random pastel colors on press
-- [Security/Conditions]():
+- [Security/Conditions](/automations.yaml):
    - Arm Alarm-Away when "User home" is off for 10 minutes
    - Lock back door 5 minutes after unlocking
    - Lock back door when it is closed for 5 seconds
@@ -36,13 +36,13 @@
    - Lock front door 5 minutes after unlocking
    - Disarm alarm-away when "User Home" turns on
    - Turn back door lights on when someone is detected
-- [Bathroom]():
+- [Bathroom](/automations.yaml):
    - Play Muzak in the bathroom when someone enters
    - Raise music on the playing speaker when the Bathroom fans goes on
    - Start/stop bathroom fan when Bathroom humidity changes
-- [Bedroom]():
+- [Bedroom](/automations.yaml):
    - Stop bedroom speaker when bedroom sleeper awake
-- [Media]():
+- [Media](/automations.yaml):
    - Close covers in the room when chromecasts start movie
    - Mute chromecasts when they start visuals
    - Mute speakers in the room if maxi uses a microphone
@@ -56,25 +56,25 @@
    - Conditionally Unmute Speakers when a room is occupied
      - Conditions: No Sleeper, No unmuted TV and no microphone in use
    - Unmute speakers when TV stops
-- [Climate]():
+- [Climate](/automations.yaml):
    - Turn ACs on and Off depending on house occupancy
    - Turn off Closet fan after 5 minutes of non occupancy
    - Alert that the front door remained open
-- [Kitchen]():
+- [Kitchen](/automations.yaml):
   - Alert when dryer finishes (WIP)
   - Alert when microwave finishes (WIP)
   - Alert when washer finishes (WIP)
-- [Misc]():
+- [Misc](/automations.yaml):
   - Alert that the vacuum is stuck
-- [Office]():
+- [Office](/automations.yaml):
   - Mute Speakers in the office when computer mic is in use
   - Unmute Speakers in the office when computer mic goes off
-- [Party]():
+- [Party](/automations.yaml):
   - Change all single lights to random saturated colors when acid mode turns on
   - Change room lights to semi-saturated colors when party turns on
   - Start 4K visuals when acid time turns on
   - Start visuals when Party mode is turned on
-- [Voice Assist]():
+- [Voice Assist](/automations.yaml):
   - Assist play music (default) 
   - Assist play specific artist
   - Assist play playlist
