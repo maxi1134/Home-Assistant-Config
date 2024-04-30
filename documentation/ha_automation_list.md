@@ -14,7 +14,7 @@
 
 <p  align="center">  <a  href="/automations.yaml><img  src="https://img.shields.io/badge/Automations-purple"  alt="The automations!"></p> 
 
-- [House-Wide](/node-red/flows/House-Wide.json):
+- [House-Wide]():
   - Play music when Maxi awakes at home
   - Close blinds when the house is empty
   - Turn off lights when the house is empty
