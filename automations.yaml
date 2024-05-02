@@ -1374,6 +1374,8 @@
   - condition: state
     entity_id: input_boolean.following_music
     state: 'on'
+  - condition: template
+    value_template: '{{ states(''sensor.maxi_location_v3'') not in [area_id(trigger.entity_id)]  }}'
   action:
   - variables:
       playing_speakers: '{{ [area_id(trigger.entity_id)]   | map(''area_entities'')
@@ -1947,3 +1949,57 @@
     target:
       entity_id: light.group_all_inside_lights
   mode: single
+- id: '1714666640750'
+  alias: Turn off lights when a room is empty
+  description: 'This one uses motion groups '
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.group_patio_motion_occupancy
+    - binary_sensor.group_closet_motion_occupancy
+    - binary_sensor.group_office_motion_occupancy
+    - binary_sensor.group_server_motion_occupancy
+    - binary_sensor.group_bedroom_motion_occupancy
+    - binary_sensor.group_hallway_motion_occupancy
+    - binary_sensor.group_kitchen_motion_occupancy
+    - binary_sensor.group_bathroom_motion_occupancy
+    - binary_sensor.group_entrance_motion_occupancy
+    - binary_sensor.group_hotbox_top_motion_occupancy
+    - binary_sensor.group_livingroom_motion_occupancy
+    - binary_sensor.group_hotbox_down_motion_occupancy
+    - binary_sensor.group_workstation_motion_occupancy
+    - binary_sensor.group_chillingroom_motion_occupancy
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+    to: 'off'
+  condition:
+  - condition: template
+    value_template: '{{ states(''sensor.maxi_location_v3'') not in [area_id(trigger.entity_id)]  }}'
+  - condition: state
+    entity_id: input_boolean.kink_party
+    state: 'off'
+  - condition: state
+    entity_id: input_boolean.party_mode
+    state: 'off'
+  - condition: state
+    entity_id: input_boolean.acid_time
+    state: 'off'
+  action:
+  - variables:
+      on_lights: '{{ [area_id(trigger.entity_id)]  | map(''area_entities'') | sum(start=[])
+        | select(''match'', ''^light.'') | select(''is_state'',''on'') | unique |
+        list }}
+
+        '
+  - service: light.turn_off
+    metadata: {}
+    data:
+      transition: 60
+    target:
+      entity_id: '"{{ on_lights }}"
+
+        '
+  mode: parallel
+  max: 10
