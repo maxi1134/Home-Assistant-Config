@@ -192,3 +192,97 @@ start_visual_playlist_on_plex:
       for_each: '{{ chromecasts }}'
   mode: single
   icon: mdi:led-strip-variant
+'1714666287611':
+  alias: non-important broadcast alert in the house
+  sequence:
+  - variables:
+      on_light_entity_ids: "{% set light_group = state_attr('light.group_notifications_light','entity_id')%}
+        \  {% set ns = namespace( rgb_dict= [] ) %} {% for entity_id in light_group
+        %}\n    {% set light_state = states(entity_id)  %}\n    {% set light_rgb_color
+        = state_attr(entity_id, \"rgb_color\") %}\n    {% if light_state == 'on' and
+        light_rgb_color %}\n        {%- set rgb_values = light_rgb_color | replace('(','')
+        | replace(')','')| replace(' ','')| string  -%}\n        {% set rgb_dict =
+        [(entity_id , rgb_values, states(entity_id))] %}\n        {% set ns.rgb_dict
+        = ns.rgb_dict + rgb_dict %}\n    {% endif %}    \n{% endfor %}  {{ ns.rgb_dict
+        }}\n"
+    alias: 'Store Lights entity_id and current rgb values '
+  - alias: Run Alerts
+    parallel:
+    - service: tts.speak
+      metadata: {}
+      data:
+        cache: true
+        media_player_entity_id: media_player.mass_closet_wiim_speaker
+        message: '{{ message }}'
+      target:
+        entity_id: tts.piper
+      alias: TTS in the closet
+    - service: tts.speak
+      metadata: {}
+      data:
+        cache: true
+        media_player_entity_id: media_player.mass_home_group
+        message: '{{ message }}'
+      target:
+        entity_id: tts.piper
+      alias: TTS in the home group
+    - service: tts.speak
+      metadata: {}
+      data:
+        cache: true
+        media_player_entity_id: media_player.bedroom_speaker
+        message: '{{ message }}'
+      target:
+        entity_id: tts.piper
+      alias: TTS in the bedroom
+    - if:
+      - condition: template
+        value_template: '{% if color %}
+
+          true
+
+          {% else %}
+
+          false
+
+          {% endif %}'
+      then:
+      - alias: Turn all lights to selected color
+        repeat:
+          sequence:
+          - service: light.turn_on
+            target:
+              entity_id: '{{on_light_entity_ids[repeat.index].0}}'
+            data:
+              color_name: '{{color}}'
+            enabled: true
+          count: '{{ on_light_entity_ids | length - 1 }}'
+  - alias: Restore lights to their initial state
+    repeat:
+      sequence:
+      - if:
+        - condition: template
+          value_template: '{{ not on_light_entity_ids[repeat.index].2 | bool }}'
+        then:
+        - service: light.turn_{{ light_entity_ids[repeat.index].2 }}
+          target:
+            entity_id: '{{on_light_entity_ids[repeat.index].0}}'
+          enabled: true
+          alias: Turn back off lights to previous state
+        alias: Turn off lights back to off
+      - if:
+        - condition: template
+          value_template: '{{ on_light_entity_ids[repeat.index].2 | bool }}'
+        then:
+        - service: light.turn_{{ light_entity_ids[repeat.index].2 }}
+          target:
+            entity_id: '{{on_light_entity_ids[repeat.index].0}}'
+          data:
+            rgb_color: '{{on_light_entity_ids[repeat.index].1}}'
+          enabled: true
+          alias: Turn back on lights to previous state
+        alias: Turn on lights back to their original colors
+      count: '{{ on_light_entity_ids | length - 1 }}'
+  mode: queued
+  icon: mdi:speaker-message
+  max: 3
