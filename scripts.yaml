@@ -310,3 +310,27 @@ changes_all_on:
   icon: mdi:sale
   fields: {}
   max: 10
+'1714667687332':
+  alias: Changes all on lights to random pastel colors
+  sequence:
+  - variables:
+      on_lights: "{% set ns = namespace(lights=[]) %} {% set groups = integration_entities('group')|
+        \ select('search', '^light.')   | list %} {% for group in groups %}\n    {%
+        set individual_lights = state_attr(group,'entity_id')%}\n    {% for individual_light
+        in individual_lights %}\n    {% if \"group\" not in individual_light  and
+        state_attr(individual_light, 'rgb_color') and states(individual_light) ==
+        'on' %}\n      {% set ns.lights = ns.lights  + [individual_light] %}\n    {%
+        endif %}\n    {% endfor %}    \n{% endfor %} {{  ns.lights  }}\n"
+  - repeat:
+      sequence:
+      - service: light.turn_on
+        metadata: {}
+        data:
+          hs_color: '{{ range(1, 360) | random | string + '','' + 60 | string }}'
+        target:
+          entity_id: '{{on_lights[repeat.index - 1]}}'
+      for_each: '{{ on_lights }}'
+  mode: parallel
+  icon: mdi:sale
+  fields: {}
+  max: 10
