@@ -2051,3 +2051,99 @@
     target:
       entity_id: switch.adaptive_lighting_adapt_color_adaptive_lighting
   mode: single
+- id: '1714688757969'
+  alias: Turn light on when someone is detected in the front
+  description: ''
+  trigger:
+  - platform: numeric_state
+    entity_id:
+    - sensor.front_door_camera_person_count
+    above: 0
+  condition: []
+  action:
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: light.front_door_light
+        state: 'on'
+        alias: If Front door light is already on
+      sequence:
+      - variables:
+          light_rgb_color: '{{ state_attr(''light.front_door_light'',''rgb_color'')}}
+
+            '
+          light_brightness: '{{ state_attr(''light.front_door_light'',''brightness'')}}
+
+            '
+      - service: light.turn_on
+        metadata: {}
+        data:
+          transition: 0
+          color_temp: 263
+          brightness: 255
+        target:
+          entity_id: light.front_door_light
+        alias: 'Set the front door light to bright white '
+      - alias: Wait until entrance empty (20 minutes timeout)
+        wait_for_trigger:
+        - platform: numeric_state
+          entity_id:
+          - sensor.front_door_camera_person_count
+          for:
+            hours: 0
+            minutes: 3
+            seconds: 0
+          below: 1
+        timeout:
+          hours: 0
+          minutes: 20
+          seconds: 0
+          milliseconds: 0
+      - service: light.turn_on
+        metadata: {}
+        data:
+          brightness: '{{ light_brightness }}
+
+            '
+          rgb_color: '{{ light_rgb_color }}
+
+            '
+        target:
+          entity_id: light.front_door_light
+    - conditions:
+      - alias: If Front door light is off
+        condition: state
+        entity_id: light.front_door_light
+        state: 'off'
+      sequence:
+      - service: light.turn_on
+        metadata: {}
+        data:
+          transition: 0
+          color_temp: 263
+          brightness: 255
+        target:
+          entity_id: light.front_door_light
+        alias: 'Set the front door light to bright white '
+      - alias: Wait until entrance empty (20 minutes timeout)
+        wait_for_trigger:
+        - platform: numeric_state
+          entity_id:
+          - sensor.front_door_camera_person_count
+          for:
+            hours: 0
+            minutes: 3
+            seconds: 0
+          below: 1
+        timeout:
+          hours: 0
+          minutes: 20
+          seconds: 0
+          milliseconds: 0
+      - service: light.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: light.front_door_light
+      alias: If the front door light is off
+  mode: single
