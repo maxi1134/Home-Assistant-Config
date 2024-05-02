@@ -14,8 +14,57 @@ broadcast_alert_in_the_house:
         , rgb_values, states(entity_id))] %}\n        {% set ns.rgb_dict = ns.rgb_dict
         + rgb_dict %}\n    {% endif %}    \n{% endfor %}  {{ ns.rgb_dict }}\n"
     alias: 'Store Lights entity_id and current rgb values '
+  - variables:
+      playing_chromecasts: "{% set ns = namespace(active_chromecasts = []) %}  {#
+        create a namespace object to store variables #} {% for media_player in states.media_player
+        -%} \n  {%- if  \"universal\" in media_player.entity_id and \"chromecast\"
+        in media_player.entity_id and \"speaker\" not in media_player.entity_id and
+        \"display\" not in media_player.entity_id -%}  \n    {%- if media_player.state
+        == 'playing' -%}\n    {% set current_chromecast = media_player.entity_id  %}\n
+        \     {%- set ns.active_chromecasts = ns.active_chromecasts + [current_chromecast]
+        -%}   \n    {%- endif -%}\n  {%- endif -%}\n{% endfor %}  {{ ns.active_chromecasts
+        | unique | list}}\n"
+      non_playing_chromecasts: "{% set ns = namespace(active_chromecasts = []) %}
+        \ {# create a namespace object to store variables #} {% for media_player in
+        states.media_player -%} \n  {%- if  \"universal\" in media_player.entity_id
+        and \"chromecast\" in media_player.entity_id and \"speaker\" not in media_player.entity_id
+        and \"display\" not in media_player.entity_id -%}  \n    {%- if media_player.state
+        != 'playing' -%}\n    {% set current_chromecast = media_player.entity_id  %}\n
+        \     {%- set ns.active_chromecasts = ns.active_chromecasts + [current_chromecast]
+        -%}   \n    {%- endif -%}\n  {%- endif -%}\n{% endfor %}  {{ ns.active_chromecasts
+        | unique | list}}\n"
+    alias: Store Chromecasts in variables
   - alias: Run Alerts
     parallel:
+    - alias: Pause Playing Chromecasts
+      repeat:
+        sequence:
+        - service: media_player.media_pause
+          metadata: {}
+          data: {}
+          target:
+            entity_id: '{{playing_chromecasts[repeat.index - 1]}}'
+        for_each: '{{ playing_chromecasts }}'
+    - alias: Broadcast image to paused TVs if image is present
+      if:
+      - condition: template
+        value_template: '{% if image %}
+
+          true
+
+          {% else %}
+
+          false
+
+          {% endif %}'
+      then:
+      - alias: Broadcast Image to paused chromecasts
+        repeat:
+          sequence:
+          - service: media_player.play_media
+            metadata: {}
+            data: {}
+          for_each: '{{ non_playing_chromecasts }}'
     - service: tts.speak
       metadata: {}
       data:
