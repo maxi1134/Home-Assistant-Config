@@ -2144,3 +2144,37 @@
           entity_id: light.front_door_light
       alias: If the front door light is off
   mode: single
+- id: '1714937520741'
+  alias: Restart spotify playback on Music Assistant
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - media_player.mass_home_group
+    to: playing
+  condition:
+  - condition: state
+    entity_id: media_player.mass_home_group
+    attribute: active_queue
+    state: Spotify
+  action:
+  - service: mass.search
+    metadata: {}
+    data:
+      limit: 1
+      name: '{{trigger.to_state.attributes.media_content_id}}'
+    response_variable: found_track
+  - service: mass.play_media
+    target:
+      entity_id: media_player.mass_home_group
+    data:
+      enqueue: replace
+      media_id: '{{ found_track.tracks[0].uri }}'
+  - service: mass.play_media
+    target:
+      entity_id: media_player.mass_home_group
+    data:
+      enqueue: next
+      media_id: '{{ found_track.tracks[0].uri }}'
+      radio_mode: true
+  mode: single
