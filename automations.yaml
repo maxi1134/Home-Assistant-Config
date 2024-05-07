@@ -1149,7 +1149,7 @@
     - service: media_player.volume_set
       metadata: {}
       data:
-        volume_level: '{{ state_attr(''media_player.group_home_speakers'', ''volume_level'')  }}'
+        volume_level: '  {{ states(''sensor.average_unmuted_speakers_volume'') }}'
       target:
         entity_id: '{{playing_speakers}}'
       alias: Set volume to the average of the house
@@ -1375,7 +1375,8 @@
     entity_id: input_boolean.following_music
     state: 'on'
   - condition: template
-    value_template: '{{ states(''sensor.maxi_location_v3'') not in [area_id(trigger.entity_id)]  }}'
+    value_template: '{{ states(''sensor.maxi_location_v3'') not in [area_id(trigger.entity_id)]
+      | string  }}'
   action:
   - variables:
       playing_speakers: '{{ [area_id(trigger.entity_id)]   | map(''area_entities'')
@@ -2177,4 +2178,47 @@
       enqueue: next
       media_id: '{{ found_track.tracks[0].uri }}'
       radio_mode: true
+  mode: single
+- id: '1715034222361'
+  alias: Alert maxi that is phone is ringing
+  description: This should act in the room he is if he is alone
+  trigger:
+  - platform: state
+    entity_id:
+    - sensor.phone_maxi_phone_state
+    to: ringing
+  condition: []
+  action:
+  - variables:
+      in_room_speakers: "{% if [area_id(states('sensor.maxi_location_v3'))]   | map('area_entities')
+        | sum(start=[]) |    select('search', 'speakers') | select('search','universal')
+        | unique | list %} {{ [area_id(states('sensor.maxi_location_v3'))]   | map('area_entities')
+        | sum(start=[]) |    select('search', 'speakers') | select('search','universal')
+        | unique | list }} {% else %} {{ [area_id(states('sensor.maxi_location_v3'))]
+        \  | map('area_entities') | sum(start=[]) |  select('search', 'speaker')  |
+        unique | list }} {% endif %} \n"
+      attributes: '{{ trigger }}
+
+        '
+  - service: tts.speak
+    metadata: {}
+    data:
+      cache: false
+      message: Maxi's phone is ringing
+      media_player_entity_id: '{{in_room_speakers}}
+
+        '
+    target:
+      entity_id: tts.piper
+    enabled: true
+  - wait_template: '{{ trigger.from_state.attributes != "mass" }}'
+    continue_on_timeout: true
+    timeout: '5'
+  - service: media_player.media_pause
+    metadata: {}
+    data: {}
+    target:
+      entity_id: '{{in_room_speakers}}
+
+        '
   mode: single
