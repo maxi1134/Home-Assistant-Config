@@ -42,14 +42,7 @@
       - name: "average_unmuted_speakers_volume"
         unique_id: "average_unmuted_speakers_volume"
         state: >-
-          {% set ns = namespace( average_playing_volume = 0, counter = 0 )%}
-          {%- for player in states.media_player -%}
-            {% if state_attr(player.entity_id, 'is_volume_muted') == false and is_state(player.entity_id, "playing") and "speakers" in player.entity_id and "following" not in player.entity_id and "home" not in player.entity_id  %}
-            {% set ns.average_playing_volume = ns.average_playing_volume + state_attr(player.entity_id,'volume_level') %}
-            {% set ns.counter = ns.counter + 1 %}
-          {%- endif -%}
-          {% endfor %}
-          {{ ns.average_playing_volume / ns.counter }}
+          {{ states.media_player | selectattr('entity_id', 'search', 'speakers') | rejectattr('entity_id', 'search', 'following|home') | rejectattr('attributes.is_volume_muted', 'eq', True) | selectattr('state', 'eq', 'playing') | map(attribute='attributes.volume_level') | list | average }}
 
 
       - name: "Existing Rooms"
