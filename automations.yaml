@@ -2323,3 +2323,37 @@
     target:
       entity_id: switch.samsung_galaxy_tab_e_8_0_screen
   mode: single
+- id: '1715696933725'
+  alias: Tell maxi about the weather when he awakes
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - sensor.is_maxi_asleep
+    from:
+    to: awake
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+  condition:
+  - condition: state
+    entity_id: person.maximiliano
+    state: home
+  action:
+  - service: rest_command.local_ai_generate_image
+    metadata: {}
+    data:
+      prompt: view of the Plateau Mont royal street, {{ states('weather.purgatory')
+        }} day, humidity perception is {{ states('sensor.sensor_outside_temperature_humidity')
+        }}, thermal perception is {{ states('sensor.sensor_outside_temperature_temperature')
+        }},{{states('sensor.current_time')}},   realistic photography, ultra detailed
+    response_variable: return
+  - service: notify.mobile_app_phone_maxi
+    metadata: {}
+    data:
+      title: Current Weather
+      message: It is '{{ states('weather.purgatory') }}'
+      data:
+        image: '{{return.content.data[0].url}}'
+  mode: single
