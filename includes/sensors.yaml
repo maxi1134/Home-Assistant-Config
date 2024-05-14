@@ -219,7 +219,7 @@
   - platform: gtfs_rt
     trip_update_url: 'https://api.stm.info/pub/od/gtfs-rt/ic/v2/tripUpdates'
     vehicle_position_url: 'https://api.stm.info/pub/od/gtfs-rt/ic/v2/vehiclePositions'
-    api_key: !secret api_key_stm
+    x_api_key: !secret api_key_stm
     departures:
     - name: 'Autobus 10 Vers Metro Papineau'
       route: '10'
@@ -251,4 +251,20 @@
       stopid: '52388'
       icon: 'mdi:bus'
       service_type: 'bus'
-      
+
+  - platform: rest
+    name: "Image URL Sensor"
+    unique_id: image_url_sensor
+    resource: http://192.168.0.14:8080/v1/images/generations
+    method: POST
+    scan_interval: 300
+    timeout: 120 
+    headers:
+      Content-Type: application/json
+    payload: > 
+      {
+      "prompt": "window view of a city, {{ states('weather.purgatory') }} day, humidity perception is {{ states('sensor.sensor_outside_temperature_humidity') }}, thermal perception is {{ states('sensor.sensor_outside_temperature_temperature') }},  realistic photography, ultra detailedmagnificent scenery, wide landscape, sharp and crisp background, very beautiful landscape, fantasy, birdview, best quality, masterpiece, ultra high res, dark blue light, cloudy, photo, photorealistic, wide view, kkw-ph1|nude, human, nudes, naked, sex, horny, sexual",
+      "size": "1920x1080",
+      "model": "stablediffusion"
+      }
+    value_template: "{{ value_json.data[0].url }}"
