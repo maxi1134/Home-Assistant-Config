@@ -2357,3 +2357,80 @@
       data:
         image: '{{return.content.data[0].url}}'
   mode: single
+- id: '1715717946486'
+  alias: Doorbell Main automation
+  description: Rings and alerts my phone
+  trigger:
+  - platform: state
+    entity_id:
+    - sensor.remote_doorbell_button_action
+    to: single
+  condition: []
+  action:
+  - service: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.door_rang
+    data: {}
+  - service: script.broadcast_alert_in_the_house
+    metadata: {}
+    data:
+      message: Someone is at the door!
+      color: blue
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 2
+      milliseconds: 0
+  - service: homeassistant.update_entity
+    metadata: {}
+    data: {}
+    target:
+      entity_id: sensor.latest_frigate_event_id
+  - service: downloader.download_file
+    metadata: {}
+    data:
+      overwrite: true
+      url: http://192.168.0.14:5000/api/events/{{ states('sensor.latest_frigate_event_id')}}/clip.mp4?download=true
+      filename: doorclip.mp4
+  - wait_for_trigger:
+    - platform: event
+      event_type: downloader_download_completed
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 1
+      seconds: 0
+      milliseconds: 0
+  - service: notify.mobile_app_phone_maxi
+    metadata: {}
+    data:
+      message: Someone is at the door!
+      title: Doorbell Alert
+      data:
+        video: /media/local/doorclip.mp4?{{ range(1, 53199) | random }}
+  mode: single
+- id: '1715719948033'
+  alias: Reset doorbell stuff on unlock
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - lock.lock_front_door
+    to: unlocked
+  condition: []
+  action:
+  - service: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - input_boolean.door_rang
+      - input_boolean.door_double_rang
+      - input_boolean.waiting_someone
+  - service: input_text.set_value
+    metadata: {}
+    data:
+      value: Empty
+    target:
+      entity_id: input_text.front_door_phone_text
+  mode: single
