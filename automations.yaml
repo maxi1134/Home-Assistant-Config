@@ -2344,19 +2344,26 @@
   - service: rest_command.local_ai_generate_image
     metadata: {}
     data:
-      prompt: it is {{states('sensor.current_time')}}, View of a residential street
+      prompt: it is {{states('sensor.current_time')}}{% if states('sun.sun') == "below_horizon"
+        %} at night{% else %} during the day{%endif%}, View of a residential street
         the Plateau Mont-Royal, {{ states('weather.purgatory') }} weather of {{ now().timestamp()
         | timestamp_custom('%B') }}, humidity perception is {{ states('sensor.sensor_outside_temperature_humidity')
         }}, thermal perception is {{ states('sensor.sensor_outside_temperature_temperature')
         }},   realistic photography, ultra detailed
     response_variable: return
+  - service: downloader.download_file
+    metadata: {}
+    data:
+      overwrite: true
+      filename: weather_image.jpg
+      url: '{{return.content.data[0].url}}'
   - service: notify.mobile_app_phone_maxi
     metadata: {}
     data:
       title: Current Weather
       message: It is '{{ states('weather.purgatory') }}'
       data:
-        image: '{{return.content.data[0].url}}'
+        image: /media/local/weather_image.jpg
   mode: single
 - id: '1715717946486'
   alias: Doorbell Main automation
