@@ -2552,3 +2552,30 @@
     target:
       entity_id: input_text.front_door_phone_text
   mode: single
+- id: '1716328766276'
+  alias: Automatically turn off TVs
+  description: After 20 minutes
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.group_office_motion_occupancy
+    - binary_sensor.group_livingroom_motion_occupancy
+    - binary_sensor.group_hotbox_top_motion_occupancy
+    - binary_sensor.group_patio_motion_occupancy
+    - binary_sensor.group_hotbox_down_motion_occupancy
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 20
+      seconds: 0
+  condition: []
+  action:
+  - service: google_assistant_sdk.send_text_command
+    metadata: {}
+    data:
+      command: 'Turn off     {{ [area_id(trigger.entity_id)]    | map(''area_entities'')
+        | sum(start=[])  |    select(''search'', ''^media_player\.(?!.*?universal.*?).*chromecast'')
+        |  map(''state_attr'', ''friendly_name'') | unique | list  }}
+
+        '
+  mode: single
