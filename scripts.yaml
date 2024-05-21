@@ -420,3 +420,30 @@ changes_all_on_lights_to_warm_colors:
   mode: restart
   icon: mdi:sale
   fields: {}
+generate_fake_white_colors:
+  alias: Generate fake white colors
+  sequence:
+  - variables:
+      on_lights: "{% set ns = namespace(lights=[]) %} {% set groups = integration_entities('group')|
+        \ select('search', '^light.')   | list %} {% for group in groups %}\n    {%
+        set individual_lights = state_attr(group,'entity_id')%}\n    {% for individual_light
+        in individual_lights %}\n    {% if \"group\" not in individual_light  and
+        state_attr(individual_light, 'rgb_color') and states(individual_light) ==
+        'on' %}\n      {% set ns.lights = ns.lights  + [individual_light] %}\n    {%
+        endif %}\n    {% endfor %}    \n{% endfor %} {{  ns.lights  }}\n"
+  - repeat:
+      sequence:
+      - service: light.turn_on
+        metadata: {}
+        data:
+          hs_color: "{% set hue_under_20 = range(1, 20) | random | string + ',' +
+            30 | string %} {% set hue_over_260 = range(260, 360) | random | string
+            + ',' + 30 | string %} {% set random = range(1, 3) | random %}           {%
+            if random == 1 %}\n {{hue_under_20 }}\n{% elif random > 1 %}           {{hue_over_260}}
+            {%endif%}\n"
+        target:
+          entity_id: '{{on_lights[repeat.index - 1]}}'
+      for_each: '{{ on_lights }}'
+  mode: restart
+  icon: mdi:sale
+  fields: {}
