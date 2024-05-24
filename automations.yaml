@@ -1206,13 +1206,32 @@
             entity_id: input_boolean.following_music
             state: 'off'
           sequence:
-          - service: media_player.volume_set
-            metadata: {}
-            data:
-              volume_level: 0.35
-            target:
-              entity_id: '{{trigger.entity_id}}'
-            enabled: true
+          - alias: Choose volume  depending on fosi state
+            choose:
+            - conditions:
+              - condition: state
+                entity_id: switch.group_fosi_receivers
+                state: 'off'
+              sequence:
+              - service: media_player.volume_set
+                metadata: {}
+                data:
+                  volume_level: 0.5
+                target:
+                  entity_id: '{{trigger.entity_id}}'
+                enabled: true
+            - conditions:
+              - condition: state
+                entity_id: switch.group_fosi_receivers
+                state: 'on'
+              sequence:
+              - service: media_player.volume_set
+                metadata: {}
+                data:
+                  volume_level: 0.35
+                target:
+                  entity_id: '{{trigger.entity_id}}'
+                enabled: true
           alias: If following music is off
         - conditions:
           - condition: state
@@ -1227,20 +1246,48 @@
                   | string | lower }}
 
                   '
-                alias: Is the speaker room occupied?
+                alias: Room occupied
               sequence:
+              - alias: Choose volume  depending on fosi state
+                choose:
+                - conditions:
+                  - condition: state
+                    entity_id: switch.group_fosi_receivers
+                    state: 'off'
+                  sequence:
+                  - service: media_player.volume_set
+                    metadata: {}
+                    data:
+                      volume_level: 0.5
+                    target:
+                      entity_id: '{{trigger.entity_id}}'
+                    enabled: true
+                - conditions:
+                  - condition: state
+                    entity_id: switch.group_fosi_receivers
+                    state: 'on'
+                  sequence:
+                  - service: media_player.volume_set
+                    metadata: {}
+                    data:
+                      volume_level: 0.35
+                    target:
+                      entity_id: '{{trigger.entity_id}}'
+                    enabled: true
               - service: media_player.volume_set
                 metadata: {}
                 data:
                   volume_level: 0.35
                 target:
                   entity_id: '{{trigger.entity_id}}'
+                enabled: false
               - service: media_player.volume_mute
                 metadata: {}
                 data:
                   is_volume_muted: false
                 target:
                   entity_id: '{{trigger.entity_id}}'
+                alias: Unmute speaker
               alias: Set volume if the room is occupied
             - conditions:
               - alias: Is the speaker room occupied?
