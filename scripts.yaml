@@ -46,6 +46,15 @@ broadcast_alert_in_the_house:
             entity_id: '{{playing_chromecasts[repeat.index - 1]}}'
         for_each: '{{ playing_chromecasts }}'
       enabled: false
+    - service: tts.speak
+      metadata: {}
+      data:
+        cache: true
+        media_player_entity_id: media_player.mass_home_group
+        message: '{{ message }}'
+      target:
+        entity_id: tts.piper
+      alias: TTS in the home group
     - alias: Broadcast image to paused TVs if image is present
       if:
       - condition: template
@@ -64,7 +73,10 @@ broadcast_alert_in_the_house:
           sequence:
           - service: media_player.play_media
             metadata: {}
-            data: {}
+            data:
+              media_content_id: '{{image}}'
+              media_content_type: video
+              entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
           for_each: '{{ non_playing_chromecasts }}'
     - service: tts.speak
       metadata: {}
@@ -79,20 +91,19 @@ broadcast_alert_in_the_house:
       metadata: {}
       data:
         cache: true
-        media_player_entity_id: media_player.mass_home_group
-        message: '{{ message }}'
-      target:
-        entity_id: tts.piper
-      alias: TTS in the home group
-    - service: tts.speak
-      metadata: {}
-      data:
-        cache: true
         media_player_entity_id: media_player.bedroom_speaker
         message: '{{ message }}'
       target:
         entity_id: tts.piper
       alias: TTS in the bedroom
+    - service: rest_command.willow_notify
+      metadata: {}
+      data:
+        text: Someone is at the door!
+        backlight: true
+        backlightMax: false
+        repeat: 1
+        volume: 100
     - if:
       - condition: template
         value_template: '{% if color %}

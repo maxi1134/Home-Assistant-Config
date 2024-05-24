@@ -2384,27 +2384,23 @@
     target:
       entity_id: input_boolean.door_rang
     data: {}
-  - service: script.broadcast_alert_in_the_house
+  - service: downloader.download_file
     metadata: {}
     data:
-      message: Someone is at the door!
-      color: blue
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 2
-      milliseconds: 0
+      overwrite: true
+      url: http://192.168.0.9:5000/api/events/{{ states('sensor.latest_frigate_event_id')}}/clip.mp4?download=true
+      filename: doorclip.mp4
   - service: homeassistant.update_entity
     metadata: {}
     data: {}
     target:
       entity_id: sensor.latest_frigate_event_id
-  - service: downloader.download_file
+  - service: script.broadcast_alert_in_the_house
     metadata: {}
     data:
-      overwrite: true
-      url: http://192.168.0.14:5000/api/events/{{ states('sensor.latest_frigate_event_id')}}/clip.mp4?download=true
-      filename: doorclip.mp4
+      message: Someone is at the door!
+      color: blue
+      image: /media/local/doorclip.mp4?{{ range(1, 53199) | random }}
   - wait_for_trigger:
     - platform: event
       event_type: downloader_download_completed
@@ -2678,4 +2674,22 @@
   - service: script.changes_all_on_lights_to_warm_colors
     metadata: {}
     data: {}
+  mode: single
+- id: '1716416273330'
+  alias: Display room color  on TVs when mimiclights mode is triggered
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - input_boolean.mimic_lights_on_screens
+    from: 'off'
+    to: 'on'
+  condition: []
+  action:
+  - service: cast.show_lovelace_view
+    metadata: {}
+    data:
+      entity_id: media_player.office_chromecast
+      dashboard_path: color-hubs
+      view_path: office
   mode: single
