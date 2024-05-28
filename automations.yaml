@@ -2941,7 +2941,7 @@
       entity_id: media_player.mass_home_group
   mode: single
 - id: '1716851675155'
-  alias: Back door presence notification
+  alias: Alert when someone is in the back
   description: ''
   trigger:
   - platform: state
@@ -2964,7 +2964,7 @@
       title: Someone is in the back!
       data:
         image: /media/local/backdoor_movement.png
-  mode: single
+  mode: restart
 - id: '1716912930623'
   alias: Turn camera to doorway on doorbell action
   description: ''
@@ -2980,3 +2980,109 @@
     metadata: {}
     data: {}
   mode: single
+- id: '1716933958613'
+  alias: Automatically turn off the security horn after 2 minutes and ask if it should
+    restart
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - switch.plug_front_door_horn
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 0
+  condition: []
+  action:
+  - service: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_front_door_horn
+  - service: camera.snapshot
+    metadata: {}
+    data:
+      filename: /media/horn_check.png
+    target:
+      entity_id: camera.front_door_camera
+  - service: notify.mobile_app_phone_maxi
+    metadata: {}
+    data:
+      message: Horn stopped
+      data:
+        image: /media/local/horn_check.png
+        actions:
+        - action: restart_horn
+          title: Restart the horn?
+      title: Security breach
+  - wait_for_trigger:
+    - platform: event
+      event_type: mobile_app_notification_action
+      context: {}
+      event_data:
+        action: restart_horn
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 5
+      seconds: 0
+      milliseconds: 0
+  - service: switch.turn_on
+    target:
+      entity_id:
+      - switch.plug_front_door_horn
+    data: {}
+  mode: single
+- id: '1716934404427'
+  alias: Alert when someone is in the front
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - sensor.front_door_camera_person_count
+    to:
+    from:
+  condition:
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: alarm_control_panel.home_alarm
+      state: disarmed
+    enabled: false
+  action:
+  - service: camera.snapshot
+    metadata: {}
+    data:
+      filename: /media/frontdoor_movement.png
+    target:
+      entity_id:
+      - camera.front_door_camera
+  - service: notify.mobile_app_phone_maxi
+    metadata: {}
+    data:
+      message: Someone is in the front!
+      title: Someone is in the front!
+      data:
+        image: /media/local/frontdoor_movement.png
+        actions:
+        - action: blow_horn
+          title: Blow the horn for 2 minutes?
+  - wait_for_trigger:
+    - platform: event
+      event_type: mobile_app_notification_action
+      context: {}
+      event_data:
+        action: blow_horn
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 5
+      seconds: 0
+      milliseconds: 0
+  - service: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_front_door_horn
+  mode: restart
