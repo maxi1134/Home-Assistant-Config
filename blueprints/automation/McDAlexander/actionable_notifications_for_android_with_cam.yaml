@@ -1,0 +1,168 @@
+blueprint:
+  name: Send actionable notifications for Android with Camera Snapshot
+  description: 'Send actionable notifications to an Android device. Customized from
+    vorion''s blueprint. Changes - Remove notify_device integration requirement to
+    allow notify groups to be used. - Removed trigger_entity domain input_boolean
+    requirement. Removed reset of input_boolean from actions. (For use in detecting
+    doorbell rings from sensor) - Added camera snapshot for doorbell capture (required).
+
+    For each action, you can open an URL, an application on the device or load a lovelace
+    view/dashboard.
+
+    If you plan to use a lovelace view the format would be /lovelace/test where test
+    is replaced by your defined path in the defined view.
+
+    If you plan to use a lovelace dashboard the format would be /lovelace-dashboard/view
+    where /lovelace-dashboard/ is replaced by your defined dashboard URL and view
+    is replaced by the defined path within that dashboard.
+
+    To pick the application to open, prefix app:// to the the package name.
+
+    If the device does not have the application installed then the Home Assistant
+    application will open to the default page.
+
+    If you define an action and an URI for a button, URI will take precedence over
+    action.
+
+    '
+  domain: automation
+  input:
+    notify_device:
+      name: Device to notify
+      description: Device or group of devices for notification through mobile_app
+        notification service. For example <notify.mobile_app_iphone>, <notify.all_devices>,
+        <notify.notify>
+      selector:
+        text:
+          type: search
+          multiple: false
+          multiline: false
+    trigger_entity:
+      name: Trigger entity
+      description: Send the notification when this boolean turns on
+      selector:
+        entity: {}
+    doorbell_cam:
+      name: Doorbell Cam
+      description: The Camera from wich take photo for notification.
+      selector:
+        entity:
+          domain:
+          - camera
+          multiple: false
+    notification_title:
+      name: Notification title (Optional)
+      description: The title of the notification
+      default: ''
+    notification_message:
+      name: Notification message (Optional)
+      description: The message of the notification
+      default: ''
+    persistent_notification:
+      name: Create persistent notification?
+      description: Persistent notifications cannot be dimissed by swiping away
+      default: false
+      selector:
+        boolean: {}
+    action_1_title:
+      name: First action name
+      description: Name of the first button
+      default: ''
+    action_1_uri:
+      name: URI for action 1 (Optional)
+      description: Optional URI for the first action
+      default: ''
+    first_action:
+      name: Action 1
+      description: Action to run when the first action is clicked
+      default: []
+      selector:
+        action: {}
+    action_2_title:
+      name: Second action name
+      description: Name of the second button
+      default: ''
+    action_2_uri:
+      name: URI for action 1 (Optional)
+      description: Optional URI for the second action
+      default: ''
+    second_action:
+      name: Action 2
+      description: Action to run when the second action is clicked"
+      default: []
+      selector:
+        action: {}
+    action_3_title:
+      name: Third action name
+      description: Name of the third button
+      default: ''
+    action_3_uri:
+      name: URI for action 3 (Optional)
+      description: Optional URI for the third action
+      default: ''
+    third_action:
+      name: Action 3
+      description: Action to run when the third action is clicked
+      default: []
+      selector:
+        action: {}
+  source_url: https://gist.github.com/McDAlexander/56eb3f2e421e283460b3d641fd002ea8
+mode: restart
+max_exceeded: silent
+variables:
+  notify_device: !input notify_device
+  trigger_entity: !input trigger_entity
+  doorbell_cam: !input doorbell_cam
+  notification_title: !input notification_title
+  notification_message: !input notification_message
+  persistent_notification: !input persistent_notification
+  action_1_title: !input action_1_title
+  action_1_uri: !input action_1_uri
+  first_action: !input first_action
+  action_2_title: !input action_2_title
+  action_2_uri: !input action_2_uri
+  second_action: !input second_action
+  action_3_title: !input action_3_title
+  action_3_uri: !input action_3_uri
+  third_action: !input third_action
+  image_file: /local/doorbell/{{ expand(trigger_entity)[0].last_changed | as_timestamp  |
+    timestamp_custom("%Y-%m-%d_%H-%M-%S") }}.jpg
+trigger:
+  platform: state
+  entity_id: !input trigger_entity
+  from: 'off'
+  to: 'on'
+action:
+- data_template:
+    entity_id: !input doorbell_cam
+    filename: /config/www/doorbell/{{ expand(trigger_entity)[0].last_changed | as_timestamp  |
+      timestamp_custom("%Y-%m-%d_%H-%M-%S") }}.jpg
+  service: camera.snapshot
+- service: !input notify_device
+  data:
+    title: '{{ notification_title }}'
+    message: '{{ notification_message }}'
+    data:
+      tag: '{{ notification_title }}'
+      persistent: '{{ persistent_notification }}'
+      image: '{{ image_file }}'
+      ttl: 0
+      priority: high
+      actions: "{% set titles = [action_1_title, action_2_title, action_3_title] %}
+        {% set uris = [action_1_uri, action_2_uri, action_3_uri] %} {% set actions
+        = namespace(data = []) %}\n{% for title in titles %}\n  {% if title|length
+        %}\n    {% set uri = uris[loop.index - 1] %}\n    {% set action_name = \"action\"
+        + loop.index|string %}\n    {% set action = {\n      \"action\": \"URI\" if
+        uri|length else action_name,\n      \"title\": title,\n      \"uri\": uri
+        \n      }\n    %}\n    {% set actions.data = actions.data + [action] %}\n
+        \ {% endif %}\n{% endfor %} {{ actions.data }}\n"
+- wait_for_trigger:
+    platform: event
+    event_type: mobile_app_notification_action
+- choose:
+  - conditions: '{{ wait.trigger.event.data.action == ''action1'' }}'
+    sequence: !input first_action
+  - conditions: '{{ wait.trigger.event.data.action == ''action2'' }}'
+    sequence: !input second_action
+  - conditions: '{{ wait.trigger.event.data.action == ''action3'' }}'
+    sequence: !input third_action
