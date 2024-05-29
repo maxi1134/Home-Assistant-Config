@@ -3033,7 +3033,7 @@
       entity_id:
       - switch.plug_front_door_horn
     data: {}
-  mode: single
+  mode: restart
 - id: '1716934404427'
   alias: Alert when someone is in the front
   description: ''
@@ -3085,4 +3085,51 @@
     data: {}
     target:
       entity_id: switch.plug_front_door_horn
+  mode: restart
+- id: '1716935540936'
+  alias: Alert when the horn goes off and offer to turn it off
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - switch.plug_front_door_horn
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  condition: []
+  action:
+  - service: camera.snapshot
+    metadata: {}
+    data:
+      filename: /media/horn_check.png
+    target:
+      entity_id: camera.front_door_camera
+  - service: notify.mobile_app_phone_maxi
+    metadata: {}
+    data:
+      message: Horn started
+      data:
+        image: /media/local/horn_check.png
+        actions:
+        - action: stop_horn
+          title: Stop the horn?
+      title: Security breach
+  - wait_for_trigger:
+    - platform: event
+      event_type: mobile_app_notification_action
+      context: {}
+      event_data:
+        action: stop_horn
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 3
+      seconds: 0
+      milliseconds: 0
+  - service: switch.turn_off
+    target:
+      entity_id: switch.plug_front_door_horn
+    data: {}
   mode: restart
