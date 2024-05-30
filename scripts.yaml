@@ -460,3 +460,44 @@ generate_fake_white_colors:
   mode: restart
   icon: mdi:sale
   fields: {}
+in_home_defense_script:
+  alias: In Home defense script
+  sequence:
+  - service: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.group_fosi_receivers
+  - service: media_player.play_media
+    target:
+      entity_id: media_player.mass_home_group
+    data:
+      media_content_id: https://hass.purgatoire.ca/local/civil-defense-siren.wav
+      media_content_type: music
+  - service: media_player.volume_set
+    metadata: {}
+    data:
+      volume_level: 1
+    target:
+      entity_id: media_player.group_home_speakers
+  - wait_for_trigger:
+    - platform: state
+      entity_id:
+      - binary_sensor.motion_home
+      to: 'off'
+      from: 'on'
+      for:
+        hours: 0
+        minutes: 5
+        seconds: 0
+    timeout:
+      hours: 0
+      minutes: 15
+      seconds: 0
+      milliseconds: 0
+  - service: media_player.media_stop
+    metadata: {}
+    data: {}
+    target:
+      entity_id: media_player.group_home_speakers
+  mode: restart
