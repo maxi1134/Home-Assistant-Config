@@ -501,3 +501,38 @@ in_home_defense_script:
     target:
       entity_id: media_player.group_home_speakers
   mode: restart
+changes_all_on_lights_to_fake_white:
+  alias: Changes all on lights to fake white
+  sequence:
+  - variables:
+      light_groups: '{% set groups =  integration_entities(''group'')|  select(''search'',
+        ''^light.(?!.*?all.*?)(?!.*?notifications.*?)(?!.*?bedroom.*?)(?!.*?bathroom.*?)'')   |
+        list %} {{groups}}
+
+        '
+  - repeat:
+      sequence:
+      - variables:
+          on_lights: "{% set ns = namespace(h=(range(0, 360) | random),\n   s=100,
+            group_colors=[]) %} \n\n   {% for group in light_groups %}\n     {% set
+            entity_ids = state_attr(group,'entity_id') %}\n     {% set num_colors
+            = entity_ids | length %}\n     {% set ns.complementary_colors = [] %}\n\n
+            \    {% for i in range(num_colors) %}\n       {% set ns.h = (ns.h + (360
+            / num_colors)) | int %}\n       {% if ns.h >= 360 %}\n         {% set
+            ns.h = ns.h - 360 %}\n       {% endif %}\n       {% set ns.complementary_colors
+            = ns.complementary_colors + [{'entity_id': entity_ids[i], 'hs_color':
+            [ns.h, ns.s]}] %}\n     {% endfor %}\n     \n     {% set ns.group_colors
+            = ns.group_colors + [ns.complementary_colors] %}\n   {% endfor %}\n\n
+            \  {{ ns.group_colors }}\n"
+      - repeat:
+          sequence:
+          - service: light.turn_on
+            data:
+              hs_color: '{{ repeat.item[0].hs_color }}'
+            target:
+              entity_id: '{{ repeat.item[0].entity_id }}'
+          for_each: '{{ on_lights }}'
+      for_each: '{{ light_groups }}'
+  mode: restart
+  icon: mdi:sale
+  fields: {}
