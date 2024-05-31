@@ -1366,7 +1366,10 @@
       hours: 0
       minutes: 0
       seconds: 0
-  condition: []
+  condition:
+  - condition: template
+    value_template: '{{ area_id(trigger.entity_id) not in states(''sensor.active_sleeper_rooms'')
+      | string  }}'
   action:
   - variables:
       off_lights_in_room: '{{ [area_id(trigger.entity_id)]  | map(''area_entities'')
@@ -1376,24 +1379,11 @@
         '
   - repeat:
       sequence:
-      - if:
-        - condition: template
-          value_template: '{% if area_id(off_lights_in_room[repeat.index - 1]) in
-            states(''sensor.active_sleeper_rooms'') | string  %}
-
-            false
-
-            {% else%}
-
-            true
-
-            {% endif %}'
-        then:
-        - service: light.turn_on
-          metadata: {}
-          data: {}
-          target:
-            entity_id: '{{off_lights_in_room[repeat.index - 1]    }}'
+      - service: light.turn_on
+        metadata: {}
+        data: {}
+        target:
+          entity_id: '{{off_lights_in_room[repeat.index - 1]    }}'
       for_each: '{{off_lights_in_room}}'
   mode: parallel
   max: 25
