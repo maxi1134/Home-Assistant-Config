@@ -3247,6 +3247,7 @@
       minutes: 10
       seconds: 0
       milliseconds: 0
+    enabled: false
   - parallel:
     - service: media_player.volume_set
       metadata: {}
@@ -3259,6 +3260,7 @@
       data: {}
       target:
         entity_id: switch.group_fosi_receivers
+    enabled: false
   mode: single
 - id: '1717038729859'
   alias: Set front door screen text
@@ -3463,4 +3465,138 @@
     data: {}
     target:
       entity_id: button.kitchen_tablet_load_start_url
+  mode: single
+- id: '1717354512446'
+  alias: Alert when there is motion inside during arm away
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.group_office_motion_occupancy
+    - binary_sensor.group_hallway_motion_occupancy
+    - binary_sensor.group_kitchen_motion_occupancy
+    - binary_sensor.group_livingroom_motion_occupancy
+    - binary_sensor.group_hotbox_down_motion_occupancy
+    - binary_sensor.group_chillingroom_motion_occupancy
+    - binary_sensor.group_server_motion_occupancy
+    - binary_sensor.group_bathroom_motion_occupancy
+    - binary_sensor.group_bedroom_motion_occupancy
+    - binary_sensor.group_entrance_motion_occupancy
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+    from: 'off'
+    to: 'on'
+  condition:
+  - condition: or
+    conditions:
+    - condition: state
+      entity_id: alarm_control_panel.home_alarm
+      state: armed_away
+    - condition: state
+      entity_id: alarm_control_panel.home_alarm
+      state: triggered
+  action:
+  - service: automation.turn_off
+    metadata: {}
+    data:
+      stop_actions: true
+    target:
+      entity_id: automation.mute_and_unmute_speakers_in_unused_rooms
+  - service: light.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: light.group_all_lights
+  - service: notify.mobile_app_phone_maxi
+    metadata: {}
+    data:
+      title: Intruder Alert
+      message: motion detected in the '{{ area_id(trigger.entity_id) }}'
+      data:
+        image: https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
+        actions:
+        - action: trigger_inside_alert
+          title: Blare inside alert?
+  - if:
+    - condition: not
+      conditions:
+      - condition: state
+        entity_id: alarm_control_panel.home_alarm
+        state: triggered
+    then:
+    - service: alarm_control_panel.alarm_trigger
+      metadata: {}
+      data: {}
+      target:
+        entity_id: alarm_control_panel.home_alarm
+  mode: single
+- id: '1717355119853'
+  alias: Turn on light automation once alarm is disarmed
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - alarm_control_panel.home_alarm
+    from: triggered
+    to: disarmed
+  condition: []
+  action:
+  - service: automation.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: automation.mute_and_unmute_speakers_in_unused_rooms
+  mode: single
+- id: '1717355583664'
+  alias: Trigger In home defense script through phone notification
+  description: ''
+  trigger:
+  - platform: event
+    event_type: mobile_app_notification_action
+    context: {}
+    event_data:
+      action: trigger_inside_alert
+  condition: []
+  action:
+  - service: script.in_home_defense_script
+    metadata: {}
+    data: {}
+  mode: single
+- id: '1717356233481'
+  alias: Stop speakers on disarm
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - alarm_control_panel.home_alarm
+    from: triggered
+    to: disarmed
+  condition: []
+  action:
+  - service: media_player.media_stop
+    metadata: {}
+    data: {}
+    target:
+      entity_id: media_player.mass_home_group
+  mode: single
+- id: '1717358289455'
+  alias: Trigger in-home defense script after the alarm is triggered for 6 continious
+    minutes
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - alarm_control_panel.home_alarm
+    to: triggered
+    for:
+      hours: 0
+      minutes: 6
+      seconds: 0
+  condition: []
+  action:
+  - service: script.in_home_defense_script
+    metadata: {}
+    data: {}
   mode: single
