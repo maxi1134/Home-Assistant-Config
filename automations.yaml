@@ -3327,3 +3327,122 @@
       entity_id: alarm_control_panel.home_alarm
     data: {}
   mode: single
+- id: '1717284957489'
+  alias: Turn on sleeper in bedroom boolean when sensor turns to on
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.sleeper_in_bedroom
+  condition: []
+  action:
+  - service: input_boolean.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.sleeper_in_bedroom
+  mode: single
+- id: '1717285030468'
+  alias: Turn off sleeper in bedroom when lights turns on
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - light.bedroom_chandelier_light
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  condition: []
+  action:
+  - service: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.sleeper_in_bedroom
+  mode: single
+- id: '1717285150530'
+  alias: Start rain sounds where maxi is sleeping
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.maxi_sleeping
+    to: 'on'
+  condition:
+  - condition: state
+    entity_id: person.maximiliano
+    state: home
+  action:
+  - service: media_player.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: '{{ [states(''sensor.where_is_maxi_sleeping'') ]  | map(''area_entities'')
+        | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]?$'')
+        | select(''is_state'',''off'') | unique | list }}'
+    enabled: true
+  - service: media_player.play_media
+    metadata: {}
+    data:
+      media_content_id: http://192.168.0.15:8123/local/thunderstorm.mp4
+      media_content_type: music
+      announce: true
+    target:
+      entity_id: "{{ [states('sensor.where_is_maxi_sleeping') ]  | map('area_entities')
+        |\n sum(start=[]) | select('match', '^media_player.universal.*speaker[s]?$')
+        |\n select('is_state','idle') | unique | list }}"
+  - service: media_player.volume_mute
+    metadata: {}
+    data:
+      is_volume_muted: false
+    target:
+      entity_id: '{{ [states(''sensor.where_is_maxi_sleeping'') ]  | map(''area_entities'')
+        | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]?$'')
+        | select(''is_state'',''playing'') | unique | list }}'
+  mode: single
+- id: '1717287475672'
+  alias: Raise volume when the AC starts in a room
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - switch.zooz_office_ac
+    - switch.zooz_hotbox_ac
+    - switch.zooz_livingroom_ac
+    - switch.zooz_bedroom_plug
+    to: 'on'
+    from: 'off'
+  condition: []
+  action:
+  - service: media_player.volume_up
+    metadata: {}
+    data: {}
+    target:
+      entity_id: '{{ area_entities(area_id(trigger.entity_id))|select(''search'',
+        ''media_player.universal'')|select(''is_state_attr'', ''is_volume_muted'',
+        false)|select(''is_state'', ''playing'')| list }}'
+  mode: single
+- id: '1717290684944'
+  alias: Turn down volume when AC goes off
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - switch.zooz_office_ac
+    - switch.zooz_hotbox_ac
+    - switch.zooz_livingroom_ac
+    - switch.zooz_bedroom_plug
+    to: 'off'
+    from: 'on'
+  condition: []
+  action:
+  - service: media_player.volume_down
+    metadata: {}
+    data: {}
+    target:
+      entity_id: '{{ area_entities(area_id(trigger.entity_id))|select(''search'',
+        ''media_player.universal'')|select(''is_state_attr'', ''is_volume_muted'',
+        false)|select(''is_state'', ''playing'')| list }}'
+  mode: single
