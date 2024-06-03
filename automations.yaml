@@ -1174,152 +1174,6 @@
     data:
       requested_playlist: All Visuals
   mode: single
-- id: '1713802663884'
-  alias: Set speakers volume on initial playback
-  description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - media_player.universal_office_speakers
-    - media_player.universal_chillingroom_speakers
-    - media_player.universal_hallway_speakers
-    - media_player.universal_hotbox_top_speakers
-    - media_player.universal_kitchen_speakers
-    - media_player.universal_livingroom_speakers
-    - media_player.universal_hotbox_down_speakers
-    to: idle
-    from: 'off'
-  condition: []
-  action:
-  - choose:
-    - conditions:
-      - alias: Is there no sleeper in the room?
-        condition: template
-        value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_sleeper_rooms'')
-          | string | lower }}
-
-          '
-      sequence:
-      - choose:
-        - conditions:
-          - condition: state
-            entity_id: input_boolean.following_music
-            state: 'off'
-          sequence:
-          - alias: Choose volume  depending on fosi state
-            choose:
-            - conditions:
-              - condition: state
-                entity_id: switch.group_fosi_receivers
-                state: 'off'
-              sequence:
-              - service: media_player.volume_set
-                metadata: {}
-                data:
-                  volume_level: 0.5
-                target:
-                  entity_id: '{{trigger.entity_id}}'
-                enabled: true
-            - conditions:
-              - condition: state
-                entity_id: switch.group_fosi_receivers
-                state: 'on'
-              sequence:
-              - service: media_player.volume_set
-                metadata: {}
-                data:
-                  volume_level: 0.35
-                target:
-                  entity_id: '{{trigger.entity_id}}'
-                enabled: true
-          alias: If following music is off
-        - conditions:
-          - condition: state
-            entity_id: input_boolean.following_music
-            state: 'on'
-          sequence:
-          - alias: Mute or unmute depending on occupancy
-            choose:
-            - conditions:
-              - condition: template
-                value_template: '{{ area_id(trigger.entity_id) | lower in states(''sensor.active_motion_rooms'')
-                  | string | lower }}
-
-                  '
-                alias: Room occupied
-              sequence:
-              - alias: Choose volume  depending on fosi state
-                choose:
-                - conditions:
-                  - condition: state
-                    entity_id: switch.group_fosi_receivers
-                    state: 'off'
-                  sequence:
-                  - service: media_player.volume_set
-                    metadata: {}
-                    data:
-                      volume_level: 0.5
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    enabled: true
-                - conditions:
-                  - condition: state
-                    entity_id: switch.group_fosi_receivers
-                    state: 'on'
-                  sequence:
-                  - service: media_player.volume_set
-                    metadata: {}
-                    data:
-                      volume_level: 0.35
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    enabled: true
-              - service: media_player.volume_set
-                metadata: {}
-                data:
-                  volume_level: 0.35
-                target:
-                  entity_id: '{{trigger.entity_id}}'
-                enabled: false
-              - service: media_player.volume_mute
-                metadata: {}
-                data:
-                  is_volume_muted: false
-                target:
-                  entity_id: '{{trigger.entity_id}}'
-                alias: Unmute speaker
-              alias: Set volume if the room is occupied
-            - conditions:
-              - alias: Is the speaker room occupied?
-                condition: template
-                value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_motion_rooms'')
-                  | string | lower }}
-
-                  '
-              sequence:
-              - service: media_player.volume_mute
-                data:
-                  is_volume_muted: true
-                target:
-                  entity_id: '{{trigger.entity_id}}'
-              alias: Set mute if the room is unoccupied
-          alias: If following music is on
-      alias: No sleeper in the room
-    - conditions:
-      - condition: template
-        value_template: '{{ area_id(trigger.entity_id) | lower in states(''sensor.active_sleeper_rooms'')
-          | string | lower }}
-
-          '
-      sequence:
-      - service: media_player.volume_mute
-        data:
-          is_volume_muted: true
-        target:
-          entity_id: '{{trigger.entity_id}}'
-      alias: Sleeper present in the room
-  mode: parallel
-  max: 25
 - id: '1713813890992'
   alias: Reload tablets 4 minutes after HA restarts
   description: ''
@@ -3220,11 +3074,30 @@
     entity_id:
     - binary_sensor.sensor_front_door_contact
     to: 'on'
+  - platform: state
+    entity_id:
+    - binary_sensor.sensor_front_outside_door_contact
+    to: 'on'
+  - platform: state
+    entity_id:
+    - binary_sensor.sensor_server_door_contact
+    to: 'on'
   condition:
   - condition: state
     entity_id: alarm_control_panel.home_alarm
     state: armed_night
   action:
+  - service: automation.turn_off
+    metadata: {}
+    data:
+      stop_actions: true
+    target:
+      entity_id: automation.mute_and_unmute_speakers_in_unused_rooms
+  - service: light.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: light.group_all_lights
   - service: notify.mobile_app_phone_maxi
     metadata: {}
     data:
@@ -3235,32 +3108,50 @@
         actions:
         - action: trigger_inside_alert
           title: Blare inside alert?
-  - wait_for_trigger:
-    - platform: event
-      event_type: mobile_app_notification_action
-      context: {}
-      event_data:
-        action: trigger_inside_alert
-    continue_on_timeout: true
-    timeout:
-      hours: 0
-      minutes: 10
-      seconds: 0
-      milliseconds: 0
-    enabled: false
-  - parallel:
-    - service: media_player.volume_set
-      metadata: {}
-      data:
-        volume_level: 1
-      target:
-        entity_id: media_player.group_home_speakers
-    - service: switch.turn_on
-      metadata: {}
-      data: {}
-      target:
-        entity_id: switch.group_fosi_receivers
-    enabled: false
+  - service: light.turn_on
+    metadata: {}
+    data:
+      rgb_color:
+      - 187
+      - 186
+      - 255
+      brightness_pct: 100
+    target:
+      entity_id: light.bedroom_chandelier_light
+  - service: tts.google_translate_say
+    data:
+      entity_id: ' {{ [states(''sensor.where_is_maxi_sleeping'') | capitalize ]  |
+        map(''area_entities'') | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]'')
+        | unique | list }}'
+      message: Someone has entered, a door has been opened
+  - service: media_player.volume_mute
+    metadata: {}
+    data:
+      is_volume_muted: false
+    target:
+      entity_id: ' {{ [states(''sensor.where_is_maxi_sleeping'') | capitalize ]  |
+        map(''area_entities'') | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]'')
+        | unique | list }}'
+  - service: tts.google_translate_say
+    data:
+      entity_id: ' {{ [states(''sensor.where_is_maxi_sleeping'') | capitalize ]  |
+        map(''area_entities'') | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]'')
+        | unique | list }}'
+      message: Someone has entered, a door has been opened
+  - service: tts.google_translate_say
+    data:
+      entity_id: media_player.bedroom_speaker
+      message: Someone has entered, a door has been opened
+  - service: media_player.volume_mute
+    metadata: {}
+    data:
+      is_volume_muted: false
+    target:
+      entity_id: media_player.bedroom_speaker
+  - service: tts.google_translate_say
+    data:
+      entity_id: media_player.bedroom_speaker
+      message: Someone has entered, a door has been opened
   mode: single
 - id: '1717038729859'
   alias: Set front door screen text
@@ -3476,7 +3367,6 @@
     - binary_sensor.group_hallway_motion_occupancy
     - binary_sensor.group_kitchen_motion_occupancy
     - binary_sensor.group_livingroom_motion_occupancy
-    - binary_sensor.group_hotbox_down_motion_occupancy
     - binary_sensor.group_chillingroom_motion_occupancy
     - binary_sensor.group_server_motion_occupancy
     - binary_sensor.group_bathroom_motion_occupancy
@@ -3560,8 +3450,7 @@
       action: trigger_inside_alert
   condition: []
   action:
-  - service: script.in_home_defense_script
-    metadata: {}
+  - service: script.inside_only_home_defense_script
     data: {}
   mode: single
 - id: '1717356233481'
@@ -3598,5 +3487,165 @@
   action:
   - service: script.in_home_defense_script
     metadata: {}
+    data: {}
+  mode: single
+- id: '1717358415139'
+  alias: Trigger police announcement on triggered alarm
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - alarm_control_panel.home_alarm
+    to: triggered
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+    from: armed_away
+  condition: []
+  action:
+  - service: notify.mobile_app_phone_maxi
+    metadata: {}
+    data:
+      title: Intruder Alert
+      message: The alarm has been triggered, engaging de-escalation
+      data:
+        image: https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
+        actions:
+        - action: trigger_inside_alert
+          title: Blare inside alert?
+  - service: automation.turn_off
+    data:
+      stop_actions: true
+    target:
+      entity_id: automation.mute_and_unmute_speakers_in_unused_rooms
+  - service: light.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: light.group_all_inside_lights
+  - service: switch.turn_on
+    target:
+      entity_id:
+      - switch.group_fosi_receivers
+    data: {}
+  - service: automation.turn_off
+    data:
+      stop_actions: true
+    target:
+      entity_id: automation.set_speakers_volume_on_initial_playback_v2
+  - service: media_player.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - media_player.universal_chillingroom_speakers
+      - media_player.universal_hallway_speakers
+      - media_player.universal_kitchen_speakers
+      - media_player.universal_hotbox_down_speakers
+      - media_player.universal_hotbox_top_speakers
+      - media_player.universal_office_speakers
+      - media_player.universal_livingroom_speakers
+  - service: media_player.volume_mute
+    metadata: {}
+    data:
+      is_volume_muted: false
+    target:
+      entity_id:
+      - media_player.universal_chillingroom_speakers
+      - media_player.universal_hallway_speakers
+      - media_player.universal_kitchen_speakers
+      - media_player.universal_hotbox_down_speakers
+      - media_player.universal_hotbox_top_speakers
+      - media_player.universal_office_speakers
+      - media_player.universal_livingroom_speakers
+  - service: media_player.volume_set
+    metadata: {}
+    data:
+      volume_level: 1
+    target:
+      entity_id:
+      - media_player.universal_chillingroom_speakers
+      - media_player.universal_hallway_speakers
+      - media_player.universal_kitchen_speakers
+      - media_player.universal_hotbox_down_speakers
+      - media_player.universal_hotbox_top_speakers
+      - media_player.universal_office_speakers
+      - media_player.universal_livingroom_speakers
+      - media_player.universal
+  - service: mass.play_announcement
+    metadata: {}
+    data:
+      announce_volume: 100
+      url: https://hass.purgatoire.ca/local/deescalation.mp3
+    target:
+      entity_id: media_player.mass_home_group
+  - service: media_player.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: media_player.group_home_speakers
+  - service: automation.turn_on
+    data: {}
+    target:
+      entity_id: automation.set_speakers_volume_on_initial_playback_v2
+  mode: single
+- id: '1717359724027'
+  alias: Trigger all home defense script through notification
+  description: ''
+  trigger:
+  - platform: event
+    event_type: mobile_app_notification_action
+    context: {}
+    event_data:
+      action: trigger_all_alerts
+  condition: []
+  action:
+  - service: script.in_home_defense_script
+    data: {}
+  mode: single
+- id: '1717360188815'
+  alias: Lock tablets on triggered alarm
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - alarm_control_panel.home_alarm
+    to: triggered
+  condition: []
+  action:
+  - service: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - switch.office_tablet_maintenance_mode
+      - switch.samsung_galaxy_tab_e_8_0_maintenance_mode
+      - switch.hallway_tablet_maintenance_mode
+      - switch.kitchen_tablet_maintenance_mode
+      - switch.livingroom_tablet_maintenance_mode
+  mode: single
+- id: '1717360231281'
+  alias: Unlock tablets on disarmed alarm
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - alarm_control_panel.home_alarm
+    to: disarmed
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  condition: []
+  action:
+  - service: switch.turn_off
+    target:
+      entity_id:
+      - switch.office_tablet_maintenance_mode
+      - switch.samsung_galaxy_tab_e_8_0_maintenance_mode
+      - switch.hallway_tablet_maintenance_mode
+      - switch.kitchen_tablet_maintenance_mode
+      - switch.livingroom_tablet_maintenance_mode
     data: {}
   mode: single
