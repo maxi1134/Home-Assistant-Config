@@ -461,8 +461,20 @@ generate_fake_white_colors:
   icon: mdi:sale
   fields: {}
 in_home_defense_script:
-  alias: In Home defense script
+  alias: All on defense script
   sequence:
+  - service: automation.turn_off
+    metadata: {}
+    data:
+      stop_actions: true
+    target:
+      entity_id: automation.mute_and_unmute_speakers_in_unused_rooms
+  - service: automation.turn_off
+    metadata: {}
+    data:
+      stop_actions: true
+    target:
+      entity_id: automation.set_speakers_volume_on_initial_playback_v2
   - service: switch.turn_on
     metadata: {}
     data: {}
@@ -493,7 +505,6 @@ in_home_defense_script:
       entity_id:
       - binary_sensor.motion_home
       to: 'off'
-      from: 'on'
       for:
         hours: 0
         minutes: 5
@@ -503,11 +514,17 @@ in_home_defense_script:
       minutes: 15
       seconds: 0
       milliseconds: 0
+    continue_on_timeout: false
   - service: media_player.media_stop
     metadata: {}
     data: {}
     target:
       entity_id: media_player.group_home_speakers
+  - service: automation.turn_on
+    target:
+      entity_id:
+      - automation.set_speakers_volume_on_initial_playback_v2
+    data: {}
   mode: restart
 changes_all_on_lights_to_fake_white:
   alias: Changes all on lights to fake white
@@ -544,3 +561,56 @@ changes_all_on_lights_to_fake_white:
   mode: restart
   icon: mdi:sale
   fields: {}
+inside_only_home_defense_script:
+  alias: Inside only home defense script
+  sequence:
+  - service: automation.turn_off
+    metadata: {}
+    data:
+      stop_actions: true
+    target:
+      entity_id: automation.set_speakers_volume_on_initial_playback_v2
+  - service: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.group_fosi_receivers
+  - service: media_player.play_media
+    target:
+      entity_id: media_player.mass_home_group
+    data:
+      media_content_id: https://hass.purgatoire.ca/local/civil-defense-siren.wav
+      media_content_type: music
+  - service: media_player.volume_set
+    metadata: {}
+    data:
+      volume_level: 1
+    target:
+      entity_id: media_player.group_home_speakers
+  - wait_for_trigger:
+    - platform: state
+      entity_id:
+      - binary_sensor.motion_home
+      to: 'off'
+      from: 'on'
+      for:
+        hours: 0
+        minutes: 5
+        seconds: 0
+    timeout:
+      hours: 0
+      minutes: 30
+      seconds: 0
+      milliseconds: 0
+    continue_on_timeout: false
+  - service: media_player.media_stop
+    metadata: {}
+    data: {}
+    target:
+      entity_id: media_player.group_home_speakers
+  - service: automation.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: automation.set_speakers_volume_on_initial_playback_v2
+  mode: restart
