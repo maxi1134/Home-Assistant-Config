@@ -2885,42 +2885,30 @@
     target:
       entity_id:
       - camera.front_door_camera
-  - service: rest_command.local_ai_describe_image
-    metadata: {}
-    data:
-      url: http://192.168.0.15:8123/local/frontdoor_movement.png
-      prompt: Describe briefly the person on this picture and ignore the rest.
-    response_variable: return
   - service: notify.mobile_app_phone_maxi
     metadata: {}
     data:
-      message: '{% if return %}{{return.content.choices.0.message.content}}{% else
-        %}Movement in the front!{%endif%}'
+      message: Movement in the front!
       title: Someone is in the front!
       data:
         image: /media/local/frontdoor_movement.png
         actions:
-        - action: blow_horn
-          title: Blow the horn for 2 minutes?
+        - action: blow_front_horn
+          title: Blow the horn for 2 minutes?r
         - action: REPLY
           title: Enter Text
-  - wait_for_trigger:
-    - platform: event
-      event_type: mobile_app_notification_action
-      context: {}
-      event_data:
-        action: blow_horn
-    continue_on_timeout: false
-    timeout:
-      hours: 0
-      minutes: 5
-      seconds: 0
-      milliseconds: 0
-  - service: switch.turn_on
+  - service: rest_command.local_ai_describe_image
     metadata: {}
-    data: {}
-    target:
-      entity_id: switch.plug_front_door_horn
+    data:
+      url: http://192.168.0.15:8123/local/frontdoor_movement.png
+      prompt: Describe this person only using adjectives, with no preamble
+    response_variable: return
+    enabled: true
+  - service: notify.mobile_app_phone_maxi
+    metadata: {}
+    data:
+      message: '{{return.content.choices.0.message.content}}'
+      title: This is who is in the front
   mode: restart
 - id: '1716935540936'
   alias: Alert when the horn goes off and offer to turn it off
@@ -3456,18 +3444,21 @@
       entity_id: automation.mute_and_unmute_speakers_in_unused_rooms
   mode: single
 - id: '1717355583664'
-  alias: Trigger In home defense script through phone notification
+  alias: Trigger front horn through phone notification
   description: ''
   trigger:
   - platform: event
     event_type: mobile_app_notification_action
     context: {}
     event_data:
-      action: trigger_inside_alert
+      action: blow_front_horn
   condition: []
   action:
-  - service: script.inside_only_home_defense_script
+  - service: switch.turn_on
+    metadata: {}
     data: {}
+    target:
+      entity_id: switch.plug_front_door_horn
   mode: single
 - id: '1717356233481'
   alias: Stop speakers on disarm
@@ -3662,5 +3653,20 @@
       - switch.hallway_tablet_maintenance_mode
       - switch.kitchen_tablet_maintenance_mode
       - switch.livingroom_tablet_maintenance_mode
+    data: {}
+  mode: single
+- id: '1717797397935'
+  alias: Trigger In home defense script through phone notification
+  description: ''
+  trigger:
+  - platform: event
+    event_type: mobile_app_notification_action
+    context: {}
+    event_data:
+      action: trigger_all_alerts
+  condition: []
+  action:
+  - service: script.in_home_defense_script
+    metadata: {}
     data: {}
   mode: single
