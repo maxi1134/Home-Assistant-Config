@@ -2869,6 +2869,15 @@
       state: disarmed
     enabled: false
   action:
+  - alias: Take snapshot for LocalAI
+    service: camera.snapshot
+    metadata: {}
+    data:
+      filename: www/frontdoor_movement.png
+    target:
+      entity_id:
+      - camera.front_door_camera
+    enabled: true
   - service: camera.snapshot
     metadata: {}
     data:
@@ -2876,10 +2885,17 @@
     target:
       entity_id:
       - camera.front_door_camera
+  - service: rest_command.local_ai_describe_image
+    metadata: {}
+    data:
+      url: http://192.168.0.15:8123/local/frontdoor_movement.png
+      prompt: Describe briefly the person on this picture and ignore the rest.
+    response_variable: return
   - service: notify.mobile_app_phone_maxi
     metadata: {}
     data:
-      message: Someone is in the front!
+      message: '{% if return %}{{return.content.choices.0.message.content}}{% else
+        %}Movement in the front!{%endif%}'
       title: Someone is in the front!
       data:
         image: /media/local/frontdoor_movement.png
