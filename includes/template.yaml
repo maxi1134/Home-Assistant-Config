@@ -186,8 +186,12 @@
       - name: "average_unmuted_speakers_volume"
         unique_id: "average_unmuted_speakers_volume"
         state: >-
-          {{ states.media_player | selectattr('entity_id', 'search', 'speakers') | rejectattr('entity_id', 'search', 'following|home') | rejectattr('attributes.is_volume_muted', 'eq', True) | selectattr('state', 'eq', 'playing') | map(attribute='attributes.volume_level') | list | average }}
-
+          {% set array = states.media_player | selectattr('entity_id', 'search', 'speakers') | rejectattr('entity_id', 'search', 'following|home') | rejectattr('attributes.is_volume_muted', 'eq', True) | selectattr('state', 'eq', 'playing') | map(attribute='attributes.volume_level') | list%}
+          {% if array != [] %}
+          {{ array | average }}
+          {% elif array == [] %}
+          0
+          {% endif %}
 
       - name: "Existing Rooms"
         unique_id: "existing_rooms"
