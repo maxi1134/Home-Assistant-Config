@@ -4,7 +4,16 @@
 <a href="/documentation/indoor_localization.md"><img src="https://img.shields.io/badge/Indoor%20Localization-blue" alt="They know where you are..."></a> 
 <a href="/documentation/software.md"><img src="https://img.shields.io/badge/Software%20Usage-cyan" alt="Some deets on the softs"></a> <a href="/documentation/wifi.md"><img src="https://img.shields.io/badge/Networking-violet" alt="Some deets on the softs"></a> <br></p></p>
 
+_____
+
 In this guide I will detail the steps I've taken to get [Home-LLM](https://github.com/acon96/home-llm) and [Local-AI](https://github.com/mudler/LocalAI/) working together in conjunction with [Home-Assistant](https://www.home-assistant.io/)!
+
+
+
+This guide assumes that you already have [Local-AI](https://github.com/mudler/LocalAI/) running. 
+If that is not done, you can [Follow this guide](https://localai.io/basics/getting_started/)!
+
+_____
 
 - 1: You will first need to [follow this guide to install Home-LLM](https://github.com/acon96/home-llm/blob/develop/docs/Setup.md)into your [Home-Assistant](https://www.home-assistant.io/) installation.
 
