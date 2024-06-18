@@ -39,7 +39,7 @@ In this guide I will detail the steps I've taken to get [Home-LLM](https://githu
     - 13: Press `Sumbit`
     - 14: Press `Finish`
 
- <center> A video of the process! </center>
+<p align="center">A video of the process! </p>
 <p align="middle">
   <img src="/assets/home_llm_guide/home_llm_installation_video.gif" width="50%" />
 <p>
