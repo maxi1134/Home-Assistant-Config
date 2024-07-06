@@ -179,7 +179,7 @@ _____
 
 _____
 
-# Step 5) Setting up Willow Voice assistant sattelites.
+# Step 5) Setting up Willow Voice assistant satellites.
 Since willow is a more complex Software, I will simply leave [Their guide here](https://heywillow.io/quick-start-guide/).
 I do recommend deploying your own Willow Inference Server in order to remain completely local!
 
