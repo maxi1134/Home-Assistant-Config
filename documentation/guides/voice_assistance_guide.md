@@ -181,7 +181,7 @@ _____
 
 # Step 5) Setting up Willow Voice assistant sattelites.
 Since willow is a more complex Software, I will simply leave [Their guide here](https://heywillow.io/quick-start-guide/).
-I do recommend deplying your own Willow Inference Server in order to remain completely local!
+I do recommend deploying your own Willow Inference Server in order to remain completely local!
 
 Once the Willow sattelites are connencted to `Home Assistant`, they should automatically use your default Voice Assistant.
 Be sure to set the one using the fallback system as your favorite/default one!
