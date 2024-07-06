@@ -7,7 +7,7 @@
 _____
 
 # In this guide I will explain how I've setup my Local voice assistant and satellites!  
-A few softwares will be used in this guide, so please make sure they are all installed and up to date before continuing!
+A few softwares will be used in this guide.
 
 [HACS](https://hacs.xyz/) for easy installation of the other tools on Home Assistant.  
 [LocalAI](https://localai.io/) for the backend of the LLM.  
