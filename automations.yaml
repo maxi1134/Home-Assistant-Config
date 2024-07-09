@@ -3770,3 +3770,38 @@
       dashboard_path: lovelace-hub
       view_path: chillingroom-hub
   mode: single
+- id: '1720489259503'
+  alias: Assist Start Media on TV
+  description: ''
+  trigger:
+  - platform: conversation
+    command:
+    - '[let''s] watch {query} (on) [the] {room} [TV]'
+  condition: []
+  action:
+  - service: rest_command.local_ai_describe_media
+    metadata: {}
+    data:
+      prompt: '{{trigger.slots.query}}'
+    response_variable: return
+  - variables:
+      media_type: "{% if \"show\" in return.content.choices.0.message.content or \"Show\"
+        in return.content.choices.0.message.content %}\n tvshow\n{% else %}\n  movie\n{%
+        endif %}\n"
+      library_name: "{% if \"show\" in return.content.choices.0.message.content or
+        \"Show\" in return.content.choices.0.message.content %}\n TV Shows\n{% else
+        %}\n  Movies\n{% endif %}\n"
+      media_content: '{{trigger.slots.query}}'
+  - service: media_player.play_media
+    data:
+      media_content_type: '{{media_type}}
+
+        '
+      media_content_id: 'plex://{ "library_name": "{{library_name}}", "title": "{{media_content}}","shuffle":
+        1 }
+
+        '
+    target:
+      entity_id: media_player.office_chromecast
+  mode: parallel
+  max: 10
