@@ -614,3 +614,46 @@ inside_only_home_defense_script:
     target:
       entity_id: automation.set_speakers_volume_on_initial_playback_v2
   mode: restart
+start_plex_media_on_requested_player:
+  alias: Start plex media on requested player
+  sequence:
+  - variables:
+      chromecasts: '{{integration_entities(''cast'')  |  select(''search'', ''chromecast'')
+        | list}}
+
+        '
+  - repeat:
+      sequence:
+      - if:
+        - condition: template
+          value_template: '{{states(chromecasts[repeat.index ]) == "off"}}'
+        then:
+        - variables:
+            playlist: 'plex://{"playlist_name":"{{requested_playlist}}","shuffle":"1"}
+
+              '
+        - service: media_player.play_media
+          data:
+            media_content_id: '{{playlist}}'
+            media_content_type: playlist
+          target:
+            entity_id: '{{chromecasts[repeat.index]}}'
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 15
+            milliseconds: 0
+      for_each: '{{ chromecasts }}'
+  mode: single
+  icon: mdi:audio-video
+  description: ''
+verify_type_of_video:
+  alias: Verify type of video
+  sequence:
+  - service: conversation.process
+    metadata: {}
+    data:
+      agent_id: 01J2AET82WSR9MJP2TSNQXYMEY
+      text: is {{prompt}} a movie or a TV show? Answer with one word, Movie or Show.
+    response_variable: variable
+  description: ''
