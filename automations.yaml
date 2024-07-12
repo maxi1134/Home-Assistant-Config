@@ -3814,3 +3814,32 @@
         '
   mode: parallel
   max: 10
+- id: '1720798787289'
+  alias: Set Wiim volume when Fosi amps turn on
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - switch.plug_office_fosi
+    - switch.plug_livingroom_fosi
+    - switch.plug_chillingroom_fosi
+    from: 'off'
+    to: 'on'
+  condition: []
+  action:
+  - variables:
+      wiim_speaker: '{{ [area_id(trigger.entity_id)]    | map(''area_entities'')  |
+        sum(start=[]) | select(''search'', (''(?!.*?universal.*?)(?!.*?mass.*?)media_player.*wiim.*speaker''))
+        | unique  | list }}
+
+        '
+  - service: media_player.volume_set
+    metadata: {}
+    data:
+      volume_level: "{% if states('sensor.average_unmuted_speakers_volume') | float
+        > \".40\" | float %}\n .40\n{% else %} {{ states('sensor.average_unmuted_speakers_volume')
+        }} {% endif %}\n"
+    target:
+      entity_id: '{{wiim_speaker}}'
+    alias: Set volume to the average of the house (maximum 40%)
+  mode: single
