@@ -673,10 +673,110 @@
           {{ state_attr('sensor.is_maxi_asleep', "location") }}
 
       - name: "Is the computer active?"
-        unique_id: is_maxi_computer_active
+        unique_id: is_the_computer_active
         state: >-
           {{ not (  now()|as_timestamp   - states('sensor.computer_maxi_pc_computer_maxi_pc_lastactive') | as_timestamp ) > 400}}
-            
+      - name: "Maxi current Activity V2"
+        unique_id: maxi_current_activity_v2
+        state: >-  
+            {% set ns = namespace( activityname="unsure", mediaactiverooms=[],lasttvactiveroom = states("sensor.last_active_room"), active_sleepers_amount=0, allowed_ids=[],active_sleeper_rooms=[], motion_sensors=[], room = states.sensor.maxi_location.state, active_motion_sensors = [] ) %}  {# create a namespace object to store variables #}
+            {% set room = states("sensor.maxi_location_v3") | lower  %}
+            {% set shower_in_use = states("binary_sensor.shower_in_use") %}
+            {% set is_computer_active = states("sensor.is_computer_active") %}
+            {% set is_maxi_home = states("person.maximiliano") == "home" %}
+            {% set is_maxi_alone = states("binary_sensor.maxi_alone") %}
+            {% set party_mode = states("input_boolean.party_mode") %}
+            {% set vacuum_cleaning = states("vacuum.xiaomi_vacuum_cleaner") != 'docked' %}
+            {% set kink_mode = states("input_boolean.kink_party") %}
+            {% set office_desk_in_use = states("binary_sensor.sensor_office_desk_fp2_occupancy") == "on" %}
+            {% set phone_in_use = states('binary_sensor.phone_maxi_device_locked') == 'false' %}
+            {% set cooking_mode = states("input_boolean.cooking_mode") %}
+            {% set partnershome = states("sensor.amount_partners_home") | int  %}
+            {% set friendshome = states("sensor.amount_friends_home") | int  %} {# Set friendshome to the amount of people #} 
+            {% set totalpeoplehome = states("sensor.total_amount_people_home") | int   %}
+            {% set crashershome = states("sensor.amount_crashing_home") | int   %}{# Set peoplehome to the amount of people #}
+            {% set ns.active_sleepers_amount = states("sensor.active_sleeper_amount") | int %}
+            {% set is_maxi_sleeping = states("sensor.is_maxi_asleep") %}
+            {% set maxis_current_game = states("sensor.maxis_current_game") %}
+            {% set ns.active_chromecasts_room = state_attr("sensor.active_media_playback", "chromecasts")  %} 
+            {% set ns.active_speakers_room = state_attr('sensor.active_media_playback', 'speakers')  %}   
+            {# code down here, variables up there #}
+            {% if is_maxi_sleeping  == "asleep" %}  {# if the maxi_alone sensor is on, indicating there is only maxi present #}
+              {%set ns.activityname = "Sleeping"%}
+            {% elif is_maxi_home == false %}
+              {%set ns.activityname = "Adventuring"%}
+            {% elif is_maxi_alone == "on" %}
+              {% if is_computer_active  == "True" and office_desk_in_use == true and room == "office" %}
+                  {% if maxis_current_game != "idle" %}
+                    {%set ns.activityname = "Gaming"%}
+                  {% else %}                    
+                    {%set ns.activityname = "Using the Computer"%}
+                  {% endif %}              
+              {% elif ns.active_chromecasts_room | length > 0 and room in ns.active_chromecasts_room%}    
+                {% set ns.activityname = "Watching TV"  %}                    
+              {% elif shower_in_use == "on" %}                                               
+                {% set ns.activityname = "Showering" %}
+              {% elif ns.active_speakers_room | length > 0 and room in ns.active_speakers_room%}    
+                {% set ns.activityname = "Listening to Music"  %}             
+              {% elif cooking_mode == "on" and room == "kitchen" %}                                     
+                {% set ns.activityname = "Cooking" %}    
+              {% elif phone_in_use == true %}                               
+                {% set ns.activityname = "Using Phone" %}        
+              {% elif vacuum_cleaning == true %}                               
+                {% set ns.activityname = "Cleaning" %}             
+              {% endif %}
+            {% elif friendshome > 0 %}
+              {% if party_mode == "on" %}                                    
+                {% set ns.activityname = "Partying" %}   
+              {% elif kink_mode == "on" %}                                    
+                {% set ns.activityname = "Kinking" %}   
+              {% else %}                      
+                {% set ns.activityname = "Chilling" %}   
+              {% endif %}
+            {% elif partnershome > 0 %}
+              {% if kink_mode == "on" %}                                    
+                {% set ns.activityname = "Playing" %}
+              {% elif room in ns.active_chromecasts_room %}   
+                {% set ns.activityname = "Watching TV"  %}
+              {% elif is_computer_active  == "True" and office_desk_in_use == true and room == "office" %}
+                  {% if maxis_current_game != "idle" %}
+                    {%set ns.activityname = "Gaming"%}
+                  {% else %}                    
+                    {%set ns.activityname = "Using the Computer"%}
+                  {% endif %}
+              {% elif shower_in_use == "on" and room == "bathroom" %}                                               
+                {% set ns.activityname = "Showering" %}
+              {% elif ns.active_speakers_room | length > 0 and room in ns.active_speakers_room%}    
+                {% set ns.activityname = "Listening to Music"  %}     
+              {% elif cooking_mode == "on" and room == "kitchen" %}                                     
+                {% set ns.activityname = "Cooking" %}
+              {% elif phone_in_use == true %}                               
+                {% set ns.activityname = "Using Phone" %}  
+              {% elif vacuum_cleaning == true %}                               
+                {% set ns.activityname = "Cleaning" %}   
+              {% endif %}
+            {% else %}            
+              {% if is_computer_active  == "True" and office_desk_in_use == true and room == "office" %}
+                  {% if maxis_current_game != "idle" %}
+                    {%set ns.activityname = "Gaming"%}
+                  {% else %}                    
+                    {%set ns.activityname = "Using the Computer"%}
+                  {% endif %}  
+              {% elif ns.active_chromecasts_room | length > 0 and room in ns.active_chromecasts_room%}    
+                {% set ns.activityname = "Watching TV"  %}     
+              {% elif shower_in_use == "on" and room == "bathroom" %}                                               
+                {% set ns.activityname = "Showering" %} 
+              {% elif ns.active_speakers_room | length > 0 and room in ns.active_speakers_room%}    
+                {% set ns.activityname = "Listening to Music"  %}
+              {% elif cooking_mode == "on" and room == "kitchen" %}                                     
+                {% set ns.activityname = "Cooking" %}    
+              {% elif phone_in_use == true %}                               
+                {% set ns.activityname = "Using Phone" %}  
+              {% elif vacuum_cleaning == true %}                               
+                {% set ns.activityname = "Cleaning" %}       
+             {% endif %} 
+            {% endif %}
+            {{ns.activityname }}                   
       - name: "Maxi current Activity"
         unique_id: maxi_current_activity
         state: >-
