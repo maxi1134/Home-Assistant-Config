@@ -33,12 +33,12 @@
   condition: []
   action:
   - service: mass.play_media
-    target:
-      entity_id: media_player.mass_home_group
     data:
       media_type: playlist
       enqueue: replace
       media_id: '{{ trigger.slots.playlist }}'
+    target:
+      entity_id: media_player.group_mass_home_airplay_speakers
   mode: single
 - id: '1691094215164'
   alias: Assist Set Thermostats
@@ -1857,7 +1857,6 @@
     - binary_sensor.group_closet_motion_occupancy
     - binary_sensor.group_office_motion_occupancy
     - binary_sensor.group_server_motion_occupancy
-    - binary_sensor.group_bedroom_motion_occupancy
     - binary_sensor.group_hallway_motion_occupancy
     - binary_sensor.group_kitchen_motion_occupancy
     - binary_sensor.group_bathroom_motion_occupancy
@@ -3825,14 +3824,23 @@
     - switch.plug_chillingroom_fosi
     from: 'off'
     to: 'on'
-  condition: []
+  condition:
+  - alias: Make sure no sleeper is present
+    condition: template
+    value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_sleeper_rooms'')
+      | string | lower }}'
+  - alias: Make sure there is motion in the room
+    condition: template
+    value_template: '{{ area_id(trigger.entity_id) | lower in states(''sensor.active_motion_rooms'')
+      | string | lower }}'
   action:
   - variables:
-      wiim_speaker: '{{ [area_id(trigger.entity_id)]     | map(''area_entities'')  |
-        sum(start=[]) | select(''search'', (''(?!.*?universal.*?)(?!.*?mass.*?)media_player.*wiim.*speaker''))
-        | unique  | list }}
+      wiim_speaker: '{{ [area_id(trigger.entity_id)]     | map(''area_entities'')   |
+        select(''search'',(''(?!.*?universal.*?)(?!.*?mass.*?)media_player.*wiim.*speaker''))  |
+        unique  | list }}
 
         '
+    alias: Find wiim players
   - service: media_player.volume_set
     metadata: {}
     data:
@@ -3842,4 +3850,21 @@
     target:
       entity_id: '{{wiim_speaker}}'
     alias: Set volume to the average of the house (maximum 40%)
+  mode: single
+- id: '1721278758149'
+  alias: 'Bedroom hue tap remote automation '
+  description: ''
+  trigger:
+  - platform: device
+    domain: mqtt
+    device_id: 401156183b8cc392cc4838000cc56c3c
+    type: action
+    subtype: press_1
+  condition: []
+  action:
+  - service: light.toggle
+    metadata: {}
+    data: {}
+    target:
+      area_id: bedroom
   mode: single
