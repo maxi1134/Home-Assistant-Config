@@ -325,15 +325,21 @@
       - name: "amount friends home"
         unique_id: "amount_friends_home"
         state: >-
-             {# Set friendshome to the amount of friends #}
-             {% set friendshome = states('sensor.guest_wifi_count') | int - states('sensor.amount_partners_home') | int  %}
+            {# Set friendshome to the amount of friends #}
+            {% set ns = namespace(friends=0) %}
+             {% for device_tracker in states.device_tracker | selectattr('state','eq','home')  | selectattr('entity_id','search',"phone_") %}
+              {% if  state_attr(device_tracker.entity_id, "essid") == "Chilling Hotspot" and 'phone' in device_tracker.entity_id  %}
+               {% set ns.friends = ns.friends  + 1 %}
+              {% endif %}
+             {% endfor %}
+             {% set friendshome = ns.friends  | int - states('sensor.amount_partners_home') | int - states('sensor.amount_crashing_home') | int  %}
              {{friendshome}}
         unit_of_measurement: "friends"
         attributes:
           friends: >
             {% set ns = namespace(friends=[]) %}
             {% for device_tracker in states.device_tracker | selectattr('state','eq','home')  | selectattr('entity_id','search',"phone_") %}
-             {% if  state_attr(device_tracker.entity_id, "essid") == "Chilling Hotspot" %}
+              {% if  state_attr(device_tracker.entity_id, "essid") == "Chilling Hotspot" and 'phone' in device_tracker.entity_id  %}
                {% set name  = device_tracker.entity_id | replace('device_tracker.phone_','') | replace('_',' ') | capitalize  %}
               {% set ns.friends = ns.friends  + [name] %}
              {% endif %}
@@ -363,7 +369,7 @@
         unique_id: amount_people_home
         state: >-
              {# Set peoplehome to the amount of people #}
-             {% set peoplehome = states('sensor.amount_friends_home') | int + states('sensor.amount_partners_home') | int  %} 
+             {% set peoplehome = states('sensor.amount_friends_home') | int + states('sensor.amount_partners_home') | int + states('sensor.amount_crashing_home') | int  %} 
              {{peoplehome}}
         unit_of_measurement: "person(s)"
         
