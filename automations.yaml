@@ -3889,3 +3889,33 @@
   condition: []
   action: []
   mode: single
+- id: '1722878184182'
+  alias: Assist Control covers
+  description: Open or close covers
+  trigger:
+  - platform: conversation
+    command:
+    - (close|open) [the] {room} (cover|window|blind|covers|blinds|windows)
+  condition: []
+  action:
+  - variables:
+      covers: "{{ [area_id(trigger.slots.room | lower)]  | map('area_entities') |
+        sum(start=[]) |\n  select('match', '^cover.') | unique | list }}\n"
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ ''close'' in trigger.sentence | lower }}'
+      sequence:
+      - service: cover.close_cover
+        data: {}
+        target:
+          entity_id: '{{covers}}'
+    - conditions:
+      - condition: template
+        value_template: '{{ ''open'' in trigger.sentence | lower }}'
+      sequence:
+      - service: cover.open_cover
+        data: {}
+        target:
+          entity_id: '{{covers}}'
+  mode: single
