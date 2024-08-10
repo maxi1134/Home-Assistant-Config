@@ -3932,13 +3932,16 @@
         - conditions:
           - alias: Test if chromecast or speaker present
             condition: template
-            value_template: '{{ ''speakers'' in media_players  or ''chromecast'' in
-              media_players | string }}'
+            value_template: "{% for media_player in media_players %}\n  {% if 'speaker'
+              in media_player | string %}\n    true\n  {% elif 'chromecast' in media_players
+              %}\n    true\n  {% else %}\n    false\n  {% endif %}\n{% endfor %}"
           sequence:
-          - service: media_player.volume_down
-            target:
+          - target:
               entity_id: '{{media_players}}'
-            data: {}
+            data_template:
+              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+                - 0.03}}'
+            action: media_player.volume_set
           alias: Speaker playing and unmuted
       helper_last_controller_event: input_text.dial_livingroom_library_helper
       rotate_left_loop: true
@@ -3955,13 +3958,16 @@
         - conditions:
           - alias: Test if chromecast or speaker present
             condition: template
-            value_template: '{{ ''speakers'' in media_players  or ''chromecast'' in
-              media_players | string }}'
+            value_template: "{% for media_player in media_players %}\n  {% if 'speaker'
+              in media_player | string %}\n    true\n  {% elif 'chromecast' in media_players
+              %}\n    true\n  {% else %}\n    false\n  {% endif %}\n{% endfor %}"
           sequence:
-          - service: media_player.volume_up
-            target:
+          - target:
               entity_id: '{{media_players}}'
-            data: {}
+            data_template:
+              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+                + 0.02}}'
+            action: media_player.volume_set
           alias: Speaker playing and unmuted
       action_click_short:
       - variables:
@@ -3971,11 +3977,11 @@
 
             '
         alias: Find unmuted media players
-      - service: media_player.media_play_pause
-        metadata: {}
+      - metadata: {}
         data: {}
         target:
           entity_id: '{{media_players}}'
+        action: media_player.media_play_pause
       action_click_triple:
       - variables:
           media_players: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
@@ -3984,11 +3990,11 @@
 
             '
         alias: Find unmuted media players
-      - service: media_player.turn_off
-        metadata: {}
+      - metadata: {}
         data: {}
         target:
           entity_id: '{{media_players}}'
+        action: media_player.turn_off
       rotate_left_max_loop_repeats: 10
       rotate_right_max_loop_repeats: 10
       helper_debounce_delay: 0
