@@ -4569,3 +4569,190 @@
       area_id: livingroom
       entity_id: light.group_livingroom_lights
   mode: single
+- id: '1723823368949'
+  alias: Automatic Volume on playback v3
+  description: Control each home_group speaker  individually instead of a per room
+    basis
+  trigger:
+  - platform: state
+    entity_id:
+    - media_player.universal_bathroom_speakers
+    - media_player.universal_bedroom_speakers
+    - media_player.universal_salon_speakers
+    - media_player.universal_closet_speaker
+    - media_player.universal_hallway_speakers
+    - media_player.universal_kitchen_speakers
+    - media_player.universal_office_speakers
+    - media_player.universal_livingroom_speakers
+    to: playing
+    from: idle
+  condition:
+  - condition: template
+    value_template: '{{ now() - trigger.from_state.last_changed > timedelta(seconds=10)
+      }}'
+    enabled: false
+  action:
+  - choose:
+    - conditions:
+      - alias: Is there no sleeper in the room?
+        condition: template
+        value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_sleeper_rooms'')
+          | string | lower }}
+
+          '
+      sequence:
+      - choose:
+        - conditions:
+          - condition: state
+            entity_id: input_boolean.following_music
+            state: 'off'
+          sequence:
+          - alias: Choose volume  depending on fosi state
+            choose:
+            - conditions:
+              - condition: state
+                entity_id: switch.group_fosi_receivers
+                state: 'off'
+              sequence:
+              - choose:
+                - conditions:
+                  - alias: Not a wiim
+                    condition: template
+                    value_template: '{{ "wiim" not in trigger.entity_id}}'
+                  sequence:
+                  - metadata: {}
+                    data:
+                      volume_level: 0.65
+                    target:
+                      entity_id: '{{trigger.entity_id}}'
+                    enabled: true
+                    action: media_player.volume_set
+                  alias: Not a wiim speaker
+                - conditions:
+                  - condition: template
+                    value_template: '{{ "wiim" in trigger.entity_id}}'
+                  sequence:
+                  - metadata: {}
+                    data:
+                      volume_level: 0.4
+                    target:
+                      entity_id: '{{trigger.entity_id}}'
+                    enabled: true
+                    action: media_player.volume_set
+                  alias: wiim speaker
+                alias: Set volume depending on speaker type
+            - conditions:
+              - condition: state
+                entity_id: switch.group_fosi_receivers
+                state: 'on'
+              sequence:
+              - metadata: {}
+                data:
+                  volume_level: 0.35
+                target:
+                  entity_id: '{{trigger.entity_id}}'
+                enabled: true
+                action: media_player.volume_set
+          alias: If following music is off
+        - conditions:
+          - condition: state
+            entity_id: input_boolean.following_music
+            state: 'on'
+          sequence:
+          - alias: Mute or unmute depending on occupancy
+            choose:
+            - conditions:
+              - condition: template
+                value_template: '{{ area_id(trigger.entity_id) | lower in states(''sensor.active_motion_rooms'')
+                  | string | lower }}
+
+                  '
+                alias: Room occupied
+              sequence:
+              - alias: Choose volume  depending on fosi state
+                choose:
+                - conditions:
+                  - condition: state
+                    entity_id: switch.group_fosi_receivers
+                    state: 'off'
+                  sequence:
+                  - choose:
+                    - conditions:
+                      - alias: Not a wiim
+                        condition: template
+                        value_template: '{{ "wiim" not in trigger.entity_id}}'
+                      sequence:
+                      - metadata: {}
+                        data:
+                          volume_level: 0.65
+                        target:
+                          entity_id: '{{trigger.entity_id}}'
+                        enabled: true
+                        action: media_player.volume_set
+                      alias: Not a wiim speaker
+                    - conditions:
+                      - condition: template
+                        value_template: '{{ "wiim" in trigger.entity_id}}'
+                      sequence:
+                      - metadata: {}
+                        data:
+                          volume_level: 0.4
+                        target:
+                          entity_id: '{{trigger.entity_id}}'
+                        enabled: true
+                        action: media_player.volume_set
+                      alias: wiim speaker
+                    alias: Set volume depending on speaker type
+                - conditions:
+                  - condition: state
+                    entity_id: switch.group_fosi_receivers
+                    state: 'on'
+                  sequence:
+                  - metadata: {}
+                    data:
+                      volume_level: 0.35
+                    target:
+                      entity_id: '{{trigger.entity_id}}'
+                    enabled: true
+                    action: media_player.volume_set
+              - metadata: {}
+                data:
+                  is_volume_muted: false
+                target:
+                  entity_id: '{{trigger.entity_id}}'
+                alias: Unmute speaker
+                action: media_player.volume_mute
+              alias: Set volume if the room is occupied
+            - conditions:
+              - alias: Is the speaker room occupied?
+                condition: template
+                value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_motion_rooms'')
+                  | string | lower }}
+
+                  '
+              sequence:
+              - data:
+                  is_volume_muted: true
+                target:
+                  entity_id: '{{trigger.entity_id}}'
+                action: media_player.volume_mute
+              alias: Set mute if the room is unoccupied
+          alias: If following music is on
+      alias: No sleeper in the room
+    - conditions:
+      - condition: template
+        value_template: '{{ area_id(trigger.entity_id) | lower in states(''sensor.active_sleeper_rooms'')
+          | string | lower }}
+
+          '
+      sequence:
+      - data:
+          is_volume_muted: true
+        target:
+          entity_id: '{{trigger.entity_id}}'
+        action: media_player.volume_mute
+      alias: Sleeper present in the room
+  mode: parallel
+  trace:
+    stored_traces: 30
+  max: 25
