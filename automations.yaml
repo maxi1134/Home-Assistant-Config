@@ -3080,20 +3080,22 @@
   - condition: state
     entity_id: alarm_control_panel.home_alarm
     state: armed_night
+  - condition: state
+    entity_id: binary_sensor.maxi_alone
+    state: 'on'
   action:
-  - service: automation.turn_off
-    metadata: {}
+  - metadata: {}
     data:
       stop_actions: true
     target:
       entity_id: automation.mute_and_unmute_speakers_in_unused_rooms
-  - service: light.turn_off
-    metadata: {}
+    action: automation.turn_off
+  - metadata: {}
     data: {}
     target:
       entity_id: light.group_all_lights
-  - service: notify.mobile_app_phone_maxi
-    metadata: {}
+    action: light.turn_off
+  - metadata: {}
     data:
       message: Someone is inside!
       title: A door has been opened {{trigger.entity_id}}
@@ -3102,8 +3104,8 @@
         actions:
         - action: trigger_inside_alert
           title: Blare inside alert?
-  - service: light.turn_on
-    metadata: {}
+    action: notify.mobile_app_phone_maxi
+  - metadata: {}
     data:
       rgb_color:
       - 157
@@ -3112,40 +3114,41 @@
       brightness_pct: 100
     target:
       entity_id: light.bedroom_chandelier_light
-  - service: tts.google_translate_say
-    data:
+    action: light.turn_on
+  - data:
       entity_id: ' {{ [states(''sensor.where_is_maxi_sleeping'') | capitalize ]  |
         map(''area_entities'') | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]'')
         | unique | list }}'
       message: Someone has entered, a door has been opened
-  - service: media_player.volume_mute
-    metadata: {}
+    action: tts.google_translate_say
+  - metadata: {}
     data:
       is_volume_muted: false
     target:
       entity_id: ' {{ [states(''sensor.where_is_maxi_sleeping'') | capitalize ]  |
         map(''area_entities'') | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]'')
         | unique | list }}'
-  - service: tts.google_translate_say
-    data:
+    action: media_player.volume_mute
+  - data:
       entity_id: ' {{ [states(''sensor.where_is_maxi_sleeping'') | capitalize ]  |
         map(''area_entities'') | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]'')
         | unique | list }}'
       message: Someone has entered, a door has been opened
-  - service: tts.google_translate_say
-    data:
+    action: tts.google_translate_say
+  - data:
       entity_id: media_player.bedroom_speaker
       message: Someone has entered, a door has been opened
-  - service: media_player.volume_mute
-    metadata: {}
+    action: tts.google_translate_say
+  - metadata: {}
     data:
       is_volume_muted: false
     target:
       entity_id: media_player.bedroom_speaker
-  - service: tts.google_translate_say
-    data:
+    action: media_player.volume_mute
+  - data:
       entity_id: media_player.bedroom_speaker
       message: Someone has entered, a door has been opened
+    action: tts.google_translate_say
   mode: single
 - id: '1717038729859'
   alias: Set front door screen text
