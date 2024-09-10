@@ -2254,28 +2254,28 @@
     to: single
   condition: []
   action:
-  - service: input_boolean.turn_on
-    target:
+  - target:
       entity_id: input_boolean.door_rang
     data: {}
-  - service: downloader.download_file
-    metadata: {}
+    action: input_boolean.turn_on
+  - metadata: {}
     data:
       overwrite: true
       url: http://192.168.0.9:5000/api/events/{{ states('sensor.latest_frigate_event_id')}}/clip.mp4?download=true
       filename: doorclip.mp4
-    enabled: false
-  - service: homeassistant.update_entity
-    metadata: {}
+    enabled: true
+    action: downloader.download_file
+  - metadata: {}
     data: {}
     target:
       entity_id: sensor.latest_frigate_event_id
-  - service: script.broadcast_alert_in_the_house
-    metadata: {}
+    action: homeassistant.update_entity
+  - metadata: {}
     data:
       message: Someone is at the door!
       color: blue
       image: /media/local/doorclip.mp4?{{ range(1, 53199) | random }}
+    action: script.broadcast_alert_in_the_house
   - wait_for_trigger:
     - platform: event
       event_type: downloader_download_completed
@@ -2285,9 +2285,8 @@
       minutes: 0
       seconds: 5
       milliseconds: 0
-    enabled: false
-  - service: notify.mobile_app_phone_maxi
-    metadata: {}
+    enabled: true
+  - metadata: {}
     data:
       message: Someone is at the door!
       title: Doorbell Alert
@@ -2298,6 +2297,7 @@
           title: Unlock the Door?
         - action: REPLY
           title: Enter Text
+    action: notify.mobile_app_phone_maxi
   - wait_for_trigger:
     - platform: event
       event_type: mobile_app_notification_action
@@ -2310,8 +2310,7 @@
       minutes: 10
       seconds: 0
       milliseconds: 0
-  - service: notify.mobile_app_phone_maxi
-    metadata: {}
+  - metadata: {}
     data:
       message: Unlock the door?
       data:
@@ -2321,6 +2320,7 @@
         - action: REPLY
           title: Enter Text
       title: Doorbell Alert
+    action: notify.mobile_app_phone_maxi
   - wait_for_trigger:
     - platform: event
       event_type: mobile_app_notification_action
@@ -2333,13 +2333,12 @@
       minutes: 10
       seconds: 0
       milliseconds: 0
-  - service: lock.unlock
-    metadata: {}
+  - metadata: {}
     data: {}
     target:
       entity_id: lock.lock_front_door
-  - service: notify.mobile_app_phone_maxi
-    metadata: {}
+    action: lock.unlock
+  - metadata: {}
     data:
       message: Door unlocked!
       data:
@@ -2347,6 +2346,7 @@
         - action: REPLY
           title: Enter Text
       title: Door Alert
+    action: notify.mobile_app_phone_maxi
   mode: restart
 - id: '1715719948033'
   alias: Reset doorbell stuff on unlock
@@ -4543,15 +4543,15 @@
       user_opening: "{% if trigger.to_state.attributes.action_user | string == '1'
         %}\n  Maxi\n{% elif trigger.to_state.attributes.action_user | string == '2'
         %}\n  Myriam\n{% elif trigger.to_state.attributes.action_user | string ==
-        '3' %}\n  Fay\n{% elif trigger.to_state.attributes.action_user | string ==
-        '4' %}\n  Fay\n{% elif trigger.to_state.attributes.action_user | string ==
-        '6' %}\n  Koopa\n{% else %}\n Unknown\n{% endif %}\n"
+        '3' %}\n  Carla\n{% elif trigger.to_state.attributes.action_user | string
+        == '4' %}\n  Fay\n{% elif trigger.to_state.attributes.action_user | string
+        == '6' %}\n  Koopa\n{% else %}\n Unknown\n{% endif %}\n"
   - metadata: {}
     data:
       message: '{{ user_opening }} has arrived
 
         '
-      color: blue
+      color: cyan
     action: script.broadcast_alert_in_the_house
   - action: alarm_control_panel.alarm_disarm
     metadata: {}
