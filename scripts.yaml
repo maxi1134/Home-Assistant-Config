@@ -127,18 +127,8 @@ broadcast_alert_in_the_house:
       data:
         message: '{{message}}'
         title: '{{message}}'
-    - parallel:
-      - alias: Pause Playing Chromecasts
-        repeat:
-          sequence:
-          - metadata: {}
-            data: {}
-            target:
-              entity_id: '{{playing_chromecasts[repeat.index - 1]}}'
-            action: media_player.media_pause
-          for_each: '{{ playing_chromecasts }}'
-        enabled: true
-        continue_on_error: true
+    - alias: TVs
+      parallel:
       - alias: Broadcast image to paused TVs if image is present
         if:
         - condition: template
@@ -164,7 +154,25 @@ broadcast_alert_in_the_house:
             for_each: '{{ non_playing_chromecasts }}'
         enabled: true
         continue_on_error: true
-      alias: TVs
+      - if:
+        - condition: state
+          entity_id: input_boolean.party_mode
+          state: 'off'
+        - condition: state
+          entity_id: input_boolean.acid_time
+          state: 'off'
+        then:
+        - alias: Pause Playing Chromecasts
+          repeat:
+            sequence:
+            - metadata: {}
+              data: {}
+              target:
+                entity_id: '{{playing_chromecasts[repeat.index - 1]}}'
+              action: media_player.media_pause
+            for_each: '{{ playing_chromecasts }}'
+          enabled: true
+          continue_on_error: true
   mode: queued
   icon: mdi:speaker-message
   max: 10
