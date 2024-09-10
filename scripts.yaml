@@ -26,134 +26,145 @@ broadcast_alert_in_the_house:
 
         '
     alias: Store Chromecasts in variables
-  - alias: Run Alerts
-    parallel:
-    - alias: Pause Playing Chromecasts
-      repeat:
-        sequence:
-        - metadata: {}
-          data: {}
-          target:
-            entity_id: '{{playing_chromecasts[repeat.index - 1]}}'
-          action: media_player.media_pause
-        for_each: '{{ playing_chromecasts }}'
-      enabled: true
-      continue_on_error: true
-    - metadata: {}
-      data:
-        cache: true
-        media_player_entity_id: media_player.hotbox_down_display
-        message: '{{ message }}'
-      target:
-        entity_id: tts.piper
-      alias: TTS in the hotbox
-      action: tts.speak
-      continue_on_error: true
-    - metadata: {}
-      data:
-        cache: true
-        media_player_entity_id: media_player.group_mass_home_airplay_speakers
-        message: '{{ message }}'
-      target:
-        entity_id: tts.piper
-      alias: TTS in the home group
-      action: tts.speak
-    - alias: Broadcast image to paused TVs if image is present
-      if:
-      - condition: template
-        value_template: '{% if image %}
+  - parallel:
+    - alias: Lights
+      parallel:
+      - if:
+        - condition: template
+          value_template: '{% if color %}
 
-          true
+            true
 
-          {% else %}
+            {% else %}
 
-          false
+            false
 
-          {% endif %}'
-      then:
-      - alias: Broadcast Image to paused chromecasts
+            {% endif %}'
+        then:
+        - alias: Turn all lights to selected color
+          repeat:
+            sequence:
+            - target:
+                entity_id: '{{light_entity_ids[repeat.index].0}}'
+              data:
+                color_name: '{{color}}'
+              enabled: true
+              action: light.turn_on
+            count: '{{ light_entity_ids | length - 1 }}'
+        alias: Change lights conditionally
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 4
+          milliseconds: 0
+      - alias: Restore lights to their initial state
         repeat:
           sequence:
-          - metadata: {}
-            data:
-              media_content_id: '{{image}}'
-              media_content_type: video
-              entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
-            action: media_player.play_media
-          for_each: '{{ non_playing_chromecasts }}'
-      enabled: true
-      continue_on_error: true
-    - metadata: {}
-      data:
-        cache: true
-        media_player_entity_id: media_player.mass_closet_wiim_speaker
-        message: '{{ message }}'
-      target:
-        entity_id: tts.piper
-      alias: TTS in the closet
-      action: tts.speak
-    - metadata: {}
-      data:
-        cache: true
-        media_player_entity_id: media_player.bedroom_speaker
-        message: '{{ message }}'
-      target:
-        entity_id: tts.piper
-      alias: TTS in the bedroom
-      action: tts.speak
-    - if:
-      - condition: template
-        value_template: '{% if color %}
-
-          true
-
-          {% else %}
-
-          false
-
-          {% endif %}'
-      then:
-      - alias: Turn all lights to selected color
-        repeat:
-          sequence:
-          - target:
-              entity_id: '{{light_entity_ids[repeat.index].0}}'
-            data:
-              color_name: '{{color}}'
-            enabled: true
-            action: light.turn_on
+          - if:
+            - condition: template
+              value_template: '{{ not light_entity_ids[repeat.index].2 | bool }}'
+            then:
+            - target:
+                entity_id: '{{light_entity_ids[repeat.index].0}}'
+              enabled: true
+              alias: Turn back off lights to previous state
+              action: light.turn_{{ light_entity_ids[repeat.index].2 }}
+            alias: Turn off lights back to off
+          - if:
+            - condition: template
+              value_template: '{{ light_entity_ids[repeat.index].2 | bool }}'
+            then:
+            - target:
+                entity_id: '{{light_entity_ids[repeat.index].0}}'
+              data:
+                rgb_color: '{{light_entity_ids[repeat.index].1}}'
+              enabled: true
+              alias: Turn back on lights to previous state
+              action: light.turn_{{ light_entity_ids[repeat.index].2 }}
+            alias: Turn on lights back to their original colors
           count: '{{ light_entity_ids | length - 1 }}'
+    - parallel:
+      - metadata: {}
+        data:
+          cache: true
+          media_player_entity_id: media_player.hotbox_down_display
+          message: '{{ message }}'
+        target:
+          entity_id: tts.piper
+        alias: TTS in the hotbox
+        action: tts.speak
+        continue_on_error: true
+      - metadata: {}
+        data:
+          cache: true
+          media_player_entity_id: media_player.bedroom_speaker
+          message: '{{ message }}'
+        target:
+          entity_id: tts.piper
+        alias: TTS in the bedroom
+        action: tts.speak
+      - metadata: {}
+        data:
+          cache: true
+          media_player_entity_id: media_player.group_mass_home_airplay_speakers
+          message: '{{ message }}'
+        target:
+          entity_id: tts.piper
+        alias: TTS in the home group
+        action: tts.speak
+      - metadata: {}
+        data:
+          cache: true
+          media_player_entity_id: media_player.mass_closet_wiim_speaker
+          message: '{{ message }}'
+        target:
+          entity_id: tts.piper
+        alias: TTS in the closet
+        action: tts.speak
+      alias: Announcements
     - action: notify.mobile_app_phone_maxi
       metadata: {}
       data:
         message: '{{message}}'
         title: '{{message}}'
-  - alias: Restore lights to their initial state
-    repeat:
-      sequence:
-      - if:
+    - parallel:
+      - alias: Pause Playing Chromecasts
+        repeat:
+          sequence:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{playing_chromecasts[repeat.index - 1]}}'
+            action: media_player.media_pause
+          for_each: '{{ playing_chromecasts }}'
+        enabled: true
+        continue_on_error: true
+      - alias: Broadcast image to paused TVs if image is present
+        if:
         - condition: template
-          value_template: '{{ not light_entity_ids[repeat.index].2 | bool }}'
+          value_template: '{% if image %}
+
+            true
+
+            {% else %}
+
+            false
+
+            {% endif %}'
         then:
-        - target:
-            entity_id: '{{light_entity_ids[repeat.index].0}}'
-          enabled: true
-          alias: Turn back off lights to previous state
-          action: light.turn_{{ light_entity_ids[repeat.index].2 }}
-        alias: Turn off lights back to off
-      - if:
-        - condition: template
-          value_template: '{{ light_entity_ids[repeat.index].2 | bool }}'
-        then:
-        - target:
-            entity_id: '{{light_entity_ids[repeat.index].0}}'
-          data:
-            rgb_color: '{{light_entity_ids[repeat.index].1}}'
-          enabled: true
-          alias: Turn back on lights to previous state
-          action: light.turn_{{ light_entity_ids[repeat.index].2 }}
-        alias: Turn on lights back to their original colors
-      count: '{{ light_entity_ids | length - 1 }}'
+        - alias: Broadcast Image to paused chromecasts
+          repeat:
+            sequence:
+            - metadata: {}
+              data:
+                media_content_id: '{{image}}'
+                media_content_type: video
+                entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
+              action: media_player.play_media
+            for_each: '{{ non_playing_chromecasts }}'
+        enabled: true
+        continue_on_error: true
+      alias: TVs
   mode: queued
   icon: mdi:speaker-message
   max: 10
