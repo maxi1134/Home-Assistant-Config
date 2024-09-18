@@ -2459,24 +2459,46 @@
     entity_id:
     - binary_sensor.front_door_camera_person_occupancy
     to: 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 3
   condition:
   - condition: state
     entity_id: input_boolean.waiting_pakidge
     state: 'on'
   action:
-  - service: camera.snapshot
+  - action: script.ptz_to_package
     metadata: {}
+    data: {}
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 3
+      milliseconds: 0
+  - metadata: {}
     data:
-      filename: /media/images/pakidge_snapshot.png
+      filename: www/pakidge_snapshot.png
     target:
       entity_id: camera.front_door_camera
-  - service: notify.mobile_app_phone_maxi
-    metadata: {}
+    action: camera.snapshot
+  - action: rest_command.local_ai_describe_image
     data:
+      prompt: Answer with 'yes' or 'no', is there a package or a delivery man on this
+        picture?
+      url: http://192.168.0.15:8123/local/pakidge_snapshot.png
+    response_variable: answer
+  - if:
+    - condition: template
+      value_template: '{{ "yes" in answer.content.choices.0.message.content }}'
+    then:
+    - metadata: {}
       data:
-        image: /media/local/images/pakidge_snapshot.png
-      title: Pakidge Attempt?
-      message: Someone is nearing the door
+        data:
+          image: /local/pakidge_snapshot.png
+        message: Package is being delivered
+        title: Package Detected
+      action: notify.mobile_app_phone_maxi
   mode: single
 - id: '1716329707766'
   alias: Start music on ACid mode on
