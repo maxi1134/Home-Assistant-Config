@@ -4885,3 +4885,111 @@
     target:
       entity_id: input_boolean.sleeper_in_hotbox
   mode: single
+- id: '1727032753670'
+  alias: Alert people in the back to go away
+  description: Flash the red lights in the back while people are loitering
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.back_door_loitering_person_occupancy
+    to: 'on'
+    from: 'off'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 3
+  condition: []
+  action:
+  - repeat:
+      sequence:
+      - sequence:
+        - metadata: {}
+          data:
+            color_name: red
+            brightness: 255
+          target:
+            entity_id: light.back_door_light
+          action: light.turn_on
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 701
+        - metadata: {}
+          data: {}
+          target:
+            entity_id: light.back_door_light
+          action: light.turn_off
+      until:
+      - condition: state
+        entity_id: binary_sensor.back_door_camera_person_occupancy
+        state: 'off'
+        for:
+          hours: 0
+          minutes: 0
+          seconds: 10
+  - wait_for_trigger:
+    - platform: state
+      entity_id:
+      - binary_sensor.back_door_camera_person_occupancy
+      to: 'off'
+      for:
+        hours: 0
+        minutes: 0
+        seconds: 30
+    timeout:
+      hours: 0
+      minutes: 0
+      seconds: 0
+      milliseconds: 0
+  - metadata: {}
+    data:
+      transition: 30
+    target:
+      entity_id: light.back_door_light
+    action: light.turn_off
+  mode: single
+- id: '1727112478403'
+  alias: Lower sound when assist in progress
+  description: ''
+  trigger:
+  - platform: state
+    entity_id:
+    - binary_sensor.esp32_s3_box_3_hallway_assistant_assist_in_progress
+    from: 'off'
+    to: 'on'
+  condition: []
+  action:
+  - variables:
+      playing_speakers: '{% set entity_id = [area_id(trigger.entity_id)]   | map(''area_entities'')
+        | sum(start=[]) |    select(''search'', ''speakers'') | select(''is_state'',''playing'')
+        | unique | list %} {{ [entity_id | first | string] + [state_attr(entity_id
+        | first | string, ''volume_level'') | string] }}
+
+        '
+      playing_chromecast: '{% set entity_id = [area_id(trigger.entity_id)]   | map(''area_entities'')
+        | sum(start=[]) |    select(''search'', ''chromecast'') | select(''is_state'',''playing'')
+        | unique | list %} {{[entity_id | first | string] + [state_attr(entity_id
+        | first | string, ''volume_level'') | string] }}
+
+        '
+  - alias: Speakers
+    sequence:
+    - action: media_player.volume_set
+      metadata: {}
+      data:
+        volume_level: '{{ (playing_speakers.1 | float - (playing_speakers.1 | float
+          / 2))| string }}'
+      target:
+        entity_id: '{{playing_speakers.0}}'
+      alias: Lower Music
+    - wait_template: '{{ states(trigger.entity_id) == "off" }}'
+      continue_on_timeout: true
+      timeout: '25'
+    - action: media_player.volume_set
+      metadata: {}
+      data:
+        volume_level: '{{playing_speakers.1}}'
+      target:
+        entity_id: '{{playing_speakers.0}}'
+  mode: single
