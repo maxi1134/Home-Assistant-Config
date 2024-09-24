@@ -4,6 +4,29 @@
 <a href="/documentation/indoor_localization.md"><img src="https://img.shields.io/badge/Indoor%20Localization-blue" alt="They know where you are..."></a> 
 <a href="/documentation/software.md"><img src="https://img.shields.io/badge/Software%20Usage-cyan" alt="Some deets on the softs"></a> <a href="/documentation/wifi.md"><img src="https://img.shields.io/badge/Networking-violet" alt="Some deets on the softs"></a> <br></p></p>
 
+## Home Assistant Host Specifications
+
+| Part      | Description |  Usage |
+| ----------- | ----------- | -----------  |
+| CPU      | Ryzen 5560U    |   
+| RAM      | 16GB   |   
+| USB1   | Sonoff Zigbee 3.0 Stick     |  Zigbee devices |
+| USB2   | Nortek HUSBZB-1      |  Zwave devices |
+| SSD1   | 500GB NVMe    |  Operating Systems |
+| UPS|      950VA |
+
+
+
+
+## Frigate Host Specifications
+
+| Part      | Description |  Usage |
+| ----------- | ----------- | -----------  |
+| CPU      | Intel N100   |   
+| RAM      | 16GB   |   
+| USB1   | Coral TPU   |  Frigate NVR |
+| SSD1   | 500GB NVMe    |  Operating Systems / Storage|
+| UPS|      950VA |
 
 ## Proxmox Host Specifications
 
@@ -12,7 +35,7 @@
 | CPU      | Ryzen 3900X    |   
 | RAM      | 128Gb   |   
 | GPU1   | 1660TI     |  Plex Transcoding |
-| GPU2   | 2080Super        |  Machine Learning |
+| GPU2   | GTX 3090        |  Machine Learning |
 | HDDs   | 8*8TB       |  Plex Storage|
 | SSD1   | 2TB PCIe3 M.2      |  Operating Systems |
 | SSD2   | 500GB PCIe3 M.2        |  Incoming Download Cache |
