@@ -64,13 +64,13 @@
     - (start|play) [the] song {song}
   condition: []
   action:
-  - service: media_player.play_media
-    data:
+  - data:
       media_content_type: music
       media_content_id: 'plex://{ "track_name": "{{ trigger.slots.song | replace(".","")
         }}", "allow_multiple": 1 ,"library_name": "Music" }'
     target:
-      entity_id: media_player.group_home_speakers
+      entity_id: media_player.group_mass_home_airplay_speakers
+    action: media_player.play_media
   mode: single
 - id: '1698434157594'
   alias: Update Map Extractor camera
@@ -99,18 +99,18 @@
     entity_id: person.maximiliano
     state: home
   - condition: state
-    entity_id: media_player.group_home_speakers
+    entity_id: media_player.group_mass_home_airplay_speakers
     state: 'off'
   - condition: state
     entity_id: binary_sensor.all_present_sleeping
     state: 'off'
   action:
-  - service: media_player.play_media
-    target:
-      entity_id: media_player.mass_home_group
-    data:
+  - data:
       media_content_type: playlist
       media_content_id: 100 Random tracks (from library)
+    action: media_player.play_media
+    target:
+      entity_id: media_player.group_mass_home_airplay_speakers
   mode: single
 - id: '1708472370553'
   alias: Stop bedroom speaker when bedroom sleeper awake
@@ -217,13 +217,13 @@
     - play music
   condition: []
   action:
-  - service: mass.play_media
-    target:
-      entity_id: media_player.mass_home_group
-    data:
+  - data:
       media_type: playlist
       enqueue: replace
-      media_id: maxi music
+      media_id: local maxi
+    action: mass.play_media
+    target:
+      entity_id: media_player.group_mass_home_airplay_speakers
   mode: single
 - id: '1713377627308'
   alias: Mute Speakers in the office when computer mic is in use
@@ -2025,40 +2025,6 @@
           entity_id: light.front_door_light
       alias: If the front door light is off
   mode: restart
-- id: '1714937520741'
-  alias: Restart spotify playback on Music Assistant
-  description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - media_player.mass_home_group
-    to: playing
-  condition:
-  - condition: state
-    entity_id: media_player.mass_home_group
-    attribute: active_queue
-    state: Spotify
-  action:
-  - service: mass.search
-    metadata: {}
-    data:
-      limit: 1
-      name: '{{trigger.to_state.attributes.media_content_id}}'
-    response_variable: found_track
-  - service: mass.play_media
-    target:
-      entity_id: media_player.mass_home_group
-    data:
-      enqueue: replace
-      media_id: '{{ found_track.tracks[0].uri }}'
-  - service: mass.play_media
-    target:
-      entity_id: media_player.mass_home_group
-    data:
-      enqueue: next
-      media_id: '{{ found_track.tracks[0].uri }}'
-      radio_mode: true
-  mode: single
 - id: '1715034222361'
   alias: Alert maxi that is phone is ringing
   description: This should act in the room he is if he is alone
@@ -2515,14 +2481,14 @@
       entity_id: media_player.mass_home_group
       state: playing
   action:
-  - service: mass.play_media
-    metadata: {}
+  - metadata: {}
     data:
       media_id: Psychedelic Music
       media_type: playlist
       enqueue: replace_next
+    action: mass.play_media
     target:
-      entity_id: media_player.mass_home_group
+      entity_id: media_player.group_mass_home_airplay_speakers
   mode: single
 - id: '1716329767682'
   alias: Close all blinds on acid mode
@@ -2788,11 +2754,12 @@
     - Skip [this/the] song
   condition: []
   action:
-  - service: media_player.media_next_track
-    metadata: {}
+  - metadata: {}
     data: {}
     target:
-      entity_id: media_player.mass_home_group
+      entity_id:
+      - media_player.group_mass_home_airplay_speakers
+    action: media_player.media_next_track
   mode: single
 - id: '1716912930623'
   alias: Turn camera to doorway on doorbell action
@@ -5019,3 +4986,20 @@
           entity_id: '{{playing_speakers.0}}'
   mode: parallel
   max: 10
+- id: '1727273501229'
+  alias: Play random music
+  description: ''
+  trigger:
+  - platform: conversation
+    command:
+    - play random music
+  condition: []
+  action:
+  - data:
+      media_type: playlist
+      enqueue: replace
+      media_id: 500 Random tracks
+    action: mass.play_media
+    target:
+      entity_id: media_player.group_mass_home_airplay_speakers
+  mode: single
