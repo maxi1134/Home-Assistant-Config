@@ -16,7 +16,7 @@
 
 ### Preamble;
 This whole ~mess~ adventure started in 2018. When I lost my keys twice... in a week.  
-This, forcing my former roommatte to come to my rescue, lead him to buy a [Schlage Zwave Lock](https://www.schlage.com/en/home/smart-locks/connect-zwave.html) coupled with a [Samsung SmartThings hub(2018 version)](https://www.amazon.ca/Samsung-SmartThings-Smart-Home-Hub/dp/B010NZV0GE).  
+This, forcing my former roommate to come to my rescue, lead him to buy a [Schlage Zwave Lock](https://www.schlage.com/en/home/smart-locks/connect-zwave.html) coupled with a [Samsung SmartThings hub(2018 version)](https://www.amazon.ca/Samsung-SmartThings-Smart-Home-Hub/dp/B010NZV0GE).  
   
 Once that was acquired, there was no going back; The hub was quickly linked to Home-Assistant along some Xiaomi sensor using custom zigbee integrations for the hub.  Unfortunately, this quickly proved to be limiting. I was at this stage using 2 hubs ( Samsung and Phillips) and needed some streamlining.  
   
