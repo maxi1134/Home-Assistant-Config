@@ -1229,18 +1229,18 @@
       not in states(''sensor.active_sleeper_rooms'') | string  }}'
   action:
   - variables:
-      off_lights_in_room: '{{ [area_id(trigger.entity_id)]  | map(''area_entities'')
-        | sum(start=[]) | select(''match'', ''^light.'') | select(''is_state'',''off'')
-        | unique | list }}
-
-        '
+      off_lights_in_room: "{% set ns = namespace(f = [] ) %} {% for i in ( [area_id(trigger.entity_id)]
+        \ | map('area_entities') | sum(start=[]) | select('match', '^light.') | select('is_state','off')
+        \ |  unique | list )  %} {% if i not in  label_entities(\"High Intensity Light\")
+        | string %}\n  {% set ns.f = ns.f + [i] %}\n{% endif %} {% endfor %} {{ ns.f
+        }}\n"
   - repeat:
       sequence:
-      - service: light.turn_on
-        metadata: {}
+      - metadata: {}
         data: {}
         target:
           entity_id: '{{off_lights_in_room[repeat.index - 1]    }}'
+        action: light.turn_on
       for_each: '{{off_lights_in_room}}'
   mode: parallel
   max: 25
