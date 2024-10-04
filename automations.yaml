@@ -3790,44 +3790,6 @@
         '
   mode: parallel
   max: 10
-- id: '1720798787289'
-  alias: Set Wiim volume when Fosi amps turn on
-  description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - switch.plug_office_fosi
-    - switch.plug_livingroom_fosi
-    - switch.plug_chillingroom_fosi
-    from: 'off'
-    to: 'on'
-  condition:
-  - alias: Make sure no sleeper is present
-    condition: template
-    value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_sleeper_rooms'')
-      | string | lower }}'
-  - alias: Make sure there is motion in the room
-    condition: template
-    value_template: '{{ area_id(trigger.entity_id) | lower in states(''sensor.active_motion_rooms'')
-      | string | lower }}'
-  action:
-  - variables:
-      wiim_speaker: '{{ [area_id(trigger.entity_id)]     | map(''area_entities'')   |
-        select(''search'',(''(?!.*?universal.*?)(?!.*?mass.*?)media_player.*wiim.*speaker''))  |
-        unique  | list }}
-
-        '
-    alias: Find wiim players
-  - service: media_player.volume_set
-    metadata: {}
-    data:
-      volume_level: "{% if states('sensor.average_unmuted_speakers_volume') | float
-        > \".40\" | float %}\n .40\n{% else %} {{ states('sensor.average_unmuted_speakers_volume')
-        }} {% endif %}\n"
-    target:
-      entity_id: '{{wiim_speaker}}'
-    alias: Set volume to the average of the house (maximum 40%)
-  mode: single
 - id: '1721278758149'
   alias: 'Bedroom hue tap remote automation '
   description: ''
@@ -3994,6 +3956,19 @@
       rotate_left_max_loop_repeats: 10
       rotate_right_max_loop_repeats: 10
       helper_debounce_delay: 0
+      action_click_double:
+      - variables:
+          media_players: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+            sum(start=[]) |    select(''search'', ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+            ''false'') |map(attribute=''entity_id'') | list}}
+
+            '
+        alias: Find unmuted media players
+      - metadata: {}
+        data: {}
+        target:
+          entity_id: '{{media_players}}'
+        action: media_player.media_next_track
 - id: '1722919148822'
   alias: Dial salon automation
   description: ''
@@ -4080,6 +4055,19 @@
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       helper_debounce_delay: 0
+      action_click_double:
+      - variables:
+          media_players: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+            sum(start=[]) |    select(''search'', ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+            ''false'') |map(attribute=''entity_id'') | list}}
+
+            '
+        alias: Find unmuted media players
+      - metadata: {}
+        data: {}
+        target:
+          entity_id: '{{media_players}}'
+        action: media_player.media_next_track
 - id: '1722920464413'
   alias: dial hallway automation
   description: ''
@@ -4103,12 +4091,12 @@
             value_template: "     {{ 'speakers' in media_players | string | lower
               \ or 'chromecast' in media_players |\n          string | lower }}"
           sequence:
-          - service: media_player.volume_set
-            target:
+          - target:
               entity_id: '{{media_players}}'
             data_template:
               volume_level: '{{ state_attr((media_players | first),''volume_level'')
                 - 0.03}}'
+            action: media_player.volume_set
           alias: Speaker playing and unmuted
       helper_last_controller_event: input_text.dial_hallway_helper
       rotate_left_loop: true
@@ -4128,12 +4116,12 @@
             value_template: "     {{ 'speakers' in media_players | string | lower
               \ or 'chromecast' in media_players |\n          string | lower }}"
           sequence:
-          - service: media_player.volume_set
-            target:
+          - target:
               entity_id: '{{media_players}}'
             data_template:
               volume_level: '{{ state_attr((media_players | first),''volume_level'')
                 + 0.02}}'
+            action: media_player.volume_set
           alias: Speaker playing and unmuted
       action_click_short:
       - variables:
@@ -4143,11 +4131,11 @@
 
             '
         alias: Find unmuted media players
-      - service: media_player.media_play_pause
-        metadata: {}
+      - metadata: {}
         data: {}
         target:
           entity_id: '{{media_players}}'
+        action: media_player.media_play_pause
       action_click_triple:
       - variables:
           media_players: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
@@ -4156,14 +4144,27 @@
 
             '
         alias: Find unmuted media players
-      - service: media_player.turn_off
-        metadata: {}
+      - metadata: {}
         data: {}
         target:
           entity_id: '{{media_players}}'
+        action: media_player.turn_off
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       helper_debounce_delay: 0
+      action_click_double:
+      - variables:
+          media_players: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+            sum(start=[]) |    select(''search'', ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+            ''false'') |map(attribute=''entity_id'') | list}}
+
+            '
+        alias: Find unmuted media players
+      - metadata: {}
+        data: {}
+        target:
+          entity_id: '{{media_players}}'
+        action: media_player.media_next_track
 - id: '1723154539730'
   alias: Dial office control automation
   description: ''
@@ -4250,6 +4251,19 @@
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       helper_debounce_delay: 0
+      action_click_double:
+      - variables:
+          media_players: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+            sum(start=[]) |    select(''search'', ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+            ''false'') |map(attribute=''entity_id'') | list}}
+
+            '
+        alias: Find unmuted media players
+      - metadata: {}
+        data: {}
+        target:
+          entity_id: '{{media_players}}'
+        action: media_player.media_next_track
 - id: '1723157141694'
   alias: Dial library wall control automation
   description: ''
@@ -4336,6 +4350,19 @@
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       helper_debounce_delay: 0
+      action_click_double:
+      - variables:
+          media_players: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+            sum(start=[]) |    select(''search'', ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+            ''false'') |map(attribute=''entity_id'') | list}}
+
+            '
+        alias: Find unmuted media players
+      - metadata: {}
+        data: {}
+        target:
+          entity_id: '{{media_players}}'
+        action: media_player.media_next_track
 - id: '1723161942387'
   alias: dial kitchen control automation
   description: ''
@@ -4422,6 +4449,19 @@
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       helper_debounce_delay: 0
+      action_click_double:
+      - variables:
+          media_players: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+            sum(start=[]) |    select(''search'', ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+            ''false'') |map(attribute=''entity_id'') | list}}
+
+            '
+        alias: Find unmuted media players
+      - metadata: {}
+        data: {}
+        target:
+          entity_id: '{{media_players}}'
+        action: media_player.media_next_track
 - id: '1723169196057'
   alias: dial office desk control automation
   description: ''
@@ -4508,6 +4548,19 @@
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       helper_debounce_delay: 0
+      action_click_double:
+      - variables:
+          media_players: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+            sum(start=[]) |    select(''search'', ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+            ''false'') |map(attribute=''entity_id'') | list}}
+
+            '
+        alias: Find unmuted media players
+      - metadata: {}
+        data: {}
+        target:
+          entity_id: '{{media_players}}'
+        action: media_player.media_next_track
 - id: '1723214966525'
   alias: Front door automation on unlock for main codes
   description: ''
@@ -4981,14 +5034,14 @@
   mode: parallel
   max: 10
 - id: '1727273501229'
-  alias: Play random music
+  alias: Assist Play random music
   description: ''
-  trigger:
-  - platform: conversation
-    command:
+  triggers:
+  - command:
     - play random music
-  condition: []
-  action:
+    trigger: conversation
+  conditions: []
+  actions:
   - data:
       media_type: playlist
       enqueue: replace
