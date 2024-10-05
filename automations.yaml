@@ -796,49 +796,51 @@
 - id: '1713535684569'
   alias: Play Muzak in the bathroom when someone enters
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - binary_sensor.sensor_bathroom_motion_occupancy
     to: 'on'
     from: 'off'
-  condition:
-  - condition: state
-    entity_id: media_player.bathroom_speaker
-    state: 'off'
-  action:
-  - service: media_player.play_media
-    metadata: {}
+    trigger: state
+  conditions:
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: media_player.bathroom_speaker
+      state: playing
+  actions:
+  - metadata: {}
     data:
       media_content_id: 'plex://{ "library_name": "Muzak", "shuffle": 1, "allow_multiple":
         1}'
       media_content_type: music
     target:
       entity_id: media_player.bathroom_speaker
+    action: media_player.play_media
   - choose:
     - conditions:
       - condition: state
         entity_id: binary_sensor.sensor_bathroom_door_contact
         state: 'on'
       sequence:
-      - service: media_player.volume_set
-        metadata: {}
+      - metadata: {}
         data:
           volume_level: 0.1
         target:
           entity_id: media_player.bathroom_speaker
+        action: media_player.volume_set
     - conditions:
       - condition: state
         entity_id: binary_sensor.sensor_bathroom_door_contact
         state: 'off'
       sequence:
-      - service: media_player.volume_set
-        metadata: {}
+      - metadata: {}
         data:
           volume_level: 0.4
         target:
           entity_id: media_player.bathroom_speaker
-  mode: single
+        action: media_player.volume_set
+  mode: restart
 - id: '1713536409397'
   alias: Raise music on the playing speaker when the Bathroom fans goes on
   description: ''
