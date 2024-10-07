@@ -467,8 +467,8 @@
     to: 'on'
     for:
       hours: 0
-      minutes: 0
-      seconds: 30
+      minutes: 5
+      seconds: 0
     trigger: state
   conditions:
   - condition: state
@@ -491,7 +491,8 @@
     target:
       entity_id:
       - cover.cover_livingroom_blinds
-      - cover.cover_office_blinds
+      - cover.cover_salon_blinds
+      - cover.cover_kitchen_blinds
     action: cover.close_cover
   mode: single
 - id: '1713451780517'
@@ -5051,4 +5052,112 @@
     action: mass.play_media
     target:
       entity_id: media_player.group_mass_home_airplay_speakers
+  mode: single
+- id: '1728086665319'
+  alias: Manage bedroom AC through maxi occupancy
+  description: ''
+  triggers:
+  - entity_id:
+    - binary_sensor.user_home
+    trigger: state
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: binary_sensor.user_home
+        state: 'on'
+      sequence:
+      - metadata: {}
+        data:
+          preset_mode: none
+        target:
+          entity_id:
+          - climate.hotbox_ac
+          - climate.livingroom_ac
+          - climate.office_ac
+        action: climate.set_preset_mode
+    - conditions:
+      - condition: state
+        entity_id: binary_sensor.user_home
+        state: 'off'
+      sequence:
+      - metadata: {}
+        data:
+          preset_mode: away
+        target:
+          entity_id:
+          - climate.hotbox_ac
+          - climate.livingroom_ac
+          - climate.office_ac
+        action: climate.set_preset_mode
+  mode: single
+- id: '1728309825943'
+  alias: Sleep actions when "sleeper in livingroom" is turned on
+  description: ''
+  triggers:
+  - entity_id:
+    - input_boolean.sleeper_in_livingroom
+    to: 'on'
+    from: 'off'
+    trigger: state
+  conditions: []
+  actions:
+  - action: media_player.volume_mute
+    metadata: {}
+    data:
+      is_volume_muted: true
+    target:
+      entity_id:
+      - media_player.universal_livingroom_speakers
+      - media_player.universal_hallway_speakers
+  - action: cover.close_cover
+    metadata: {}
+    data: {}
+    target:
+      entity_id: cover.cover_livingroom_blinds
+  - action: media_player.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: media_player.lg_livingroom_tv
+  - action: light.turn_off
+    metadata: {}
+    data:
+      transition: 2
+    target:
+      area_id: livingroom
+      entity_id: light.group_livingroom_lights
+  mode: single
+- id: '1728310438747'
+  alias: Undo Sleep actions when "sleeper in livingroom" is turned off
+  description: ''
+  triggers:
+  - entity_id:
+    - input_boolean.sleeper_in_livingroom
+    to: 'off'
+    from: 'on'
+    trigger: state
+  conditions: []
+  actions:
+  - variables:
+      off_lights_in_room: "{% set ns = namespace(f = [] ) %} {% for i in ( [area_id(trigger.entity_id)]
+        \ | map('area_entities') | sum(start=[]) | select('match', '^light.') | select('is_state','off')
+        \ |  unique | list )  %} {% if i not in  label_entities(\"High Intensity Light\")
+        | string %}\n  {% set ns.f = ns.f + [i] %}\n{% endif %} {% endfor %} {{ ns.f
+        }}\n"
+  - action: light.turn_on
+    data:
+      transition: 120
+      color_name: warm_white
+    target:
+      entity_id: '{{off_lights_in_room}}'
+  - action: media_player.volume_mute
+    metadata: {}
+    data:
+      is_volume_muted: false
+    target:
+      entity_id:
+      - media_player.universal_livingroom_speakers
+      - media_player.universal_hallway_speakers
   mode: single
