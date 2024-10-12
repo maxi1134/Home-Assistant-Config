@@ -845,83 +845,89 @@
 - id: '1713536409397'
   alias: Raise music on the playing speaker when the Bathroom fans goes on
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - switch.bathroom_fan
     from: 'off'
     to: 'on'
-  condition:
+    trigger: state
+  conditions:
   - condition: state
     entity_id: binary_sensor.sensor_bathroom_door_contact
     state: 'off'
-  action:
+  actions:
   - choose:
     - conditions:
       - condition: state
-        entity_id: media_player.bathroom_music_speaker
+        entity_id: media_player.bathroom_speaker
         state: 'off'
       sequence:
-      - service: media_player.volume_up
-        metadata: {}
+      - metadata: {}
         data: {}
         target:
           entity_id: media_player.bathroom_speaker
-      - service: media_player.volume_up
-        metadata: {}
+        action: media_player.volume_up
+      - metadata: {}
         data: {}
         target:
           entity_id: media_player.bathroom_speaker
+        action: media_player.volume_up
     - conditions:
       - condition: state
-        entity_id: media_player.bathroom_music_speaker
+        entity_id: media_player.bathroom_speaker
         state: playing
       sequence:
-      - service: media_player.volume_up
-        metadata: {}
+      - metadata: {}
         data: {}
         target:
-          entity_id: media_player.bathroom_music_speaker
+          entity_id:
+          - media_player.bathroom_speaker
         enabled: true
-      - service: media_player.volume_up
-        metadata: {}
+        action: media_player.volume_up
+      - metadata: {}
         data: {}
         target:
-          entity_id: media_player.bathroom_music_speaker
+          entity_id:
+          - media_player.bathroom_speaker
         enabled: true
+        action: media_player.volume_up
   mode: single
 - id: '1713536741103'
   alias: Start/stop bathroom fan when Bathroom humidity changes
   description: ''
-  trigger:
-  - platform: numeric_state
-    entity_id:
-    - sensor.sensor_bathroom_temperature_humidity
-    above: sensor.house_median_humidity
-  condition: []
-  action:
-  - service: switch.turn_on
-    metadata: {}
+  triggers:
+  - entity_id:
+    - binary_sensor.shower_in_use
+    trigger: state
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
     target:
       entity_id: switch.bathroom_fan
+    action: switch.turn_on
   - wait_for_trigger:
-    - platform: numeric_state
-      entity_id:
+    - entity_id:
       - sensor.sensor_bathroom_temperature_humidity
       below: sensor.sensor_outside_temperature_humidity
+      trigger: numeric_state
     continue_on_timeout: true
     timeout:
       hours: 0
-      minutes: 30
+      minutes: 45
       seconds: 0
       milliseconds: 0
-  - service: switch.turn_off
-    metadata: {}
+  - metadata: {}
     data: {}
     target:
       entity_id: switch.bathroom_fan
-  mode: single
+    action: switch.turn_off
+  mode: restart
 - id: '1713538197256'
   alias: Control Hallway Tablet charging
   description: ''
@@ -5007,7 +5013,7 @@
         target:
           entity_id: '{{playing_chromecasts.0}}'
         alias: Lower Music
-      - wait_template: '{{ states(trigger.entity_id) == "off" }}'
+      - wait_template: '{{ states(trigger.entity_id) == "idle" }}'
         continue_on_timeout: true
         timeout: '60'
       - action: media_player.volume_set
@@ -5026,7 +5032,7 @@
         target:
           entity_id: '{{playing_speakers.0}}'
         alias: Lower Music
-      - wait_template: '{{ states(trigger.entity_id) == "off" }}'
+      - wait_template: '{{ states(trigger.entity_id) == "idle" }}'
         continue_on_timeout: true
         timeout: '60'
       - action: media_player.volume_set
