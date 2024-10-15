@@ -3760,32 +3760,33 @@
 - id: '1720489259503'
   alias: Assist Start Media on TV
   description: ''
-  trigger:
-  - platform: conversation
-    command:
+  triggers:
+  - command:
     - '[let''s] watch {query} [on the] [in the] {room} [TV]'
     - '[let''s] play {query} [on the] [in the] {room} TV'
-  condition: []
-  action:
-  - service: rest_command.local_ai_describe_media
-    metadata: {}
+    trigger: conversation
+  conditions: []
+  actions:
+  - metadata: {}
     data:
       prompt: '{{trigger.slots.query}}'
     response_variable: return
+    action: rest_command.open_webui_describe_media
   - variables:
       media_type: "{% if \"show\" in return.content.choices.0.message.content or \"Show\"
-        in return.content.choices.0.message.content %}\n tvshow\n{% else %}\n  movie\n{%
-        endif %}\n"
+        in return.content.choices.0.message.content or \"serie\" in return.content.choices.0.message.content
+        or \"Serie\" in return.content.choices.0.message.content %}\n tvshow\n{% else
+        %}\n  movie\n{% endif %}\n"
       library_name: "{% if \"show\" in return.content.choices.0.message.content or
-        \"Show\" in return.content.choices.0.message.content %}\n TV Shows\n{% else
-        %}\n  Movies\n{% endif %}\n"
+        \"Show\" in return.content.choices.0.message.content or \"serie\" in return.content.choices.0.message.content
+        or \"Serie\" in return.content.choices.0.message.content %}\n TV Shows\n{%
+        else %}\n  Movies\n{% endif %}\n"
       media_content: '{{trigger.slots.query}}'
       target: '{{ [area_id(trigger.slots.room)]    | map(''area_entities'')  | sum(start=[])
         | select(''search'', (''media_player.*chromecast'')) | unique  | list }}
 
         '
-  - service: media_player.play_media
-    data:
+  - data:
       media_content_type: '{{media_type}}
 
         '
@@ -3797,6 +3798,7 @@
       entity_id: '{{target}}
 
         '
+    action: media_player.play_media
   mode: parallel
   max: 10
 - id: '1721278758149'
