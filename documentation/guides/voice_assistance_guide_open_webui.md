@@ -10,7 +10,7 @@ _____
 A few softwares will be used in this guide.
 
 [HACS](https://hacs.xyz/) for easy installation of the other tools on Home Assistant.  
-[Ollama](https://hacs.xyz/) for the backend of the LLM.  
+[Ollama](https://ollama.com/) for the backend of the LLM.  
 [Open-Webui](https://github.com/open-webui/open-webui) midleware to add functions to our Ollama llm.  
 [Home-LLM](https://github.com/acon96/home-llm) to connect our Open-Webui instance to Home-assistant.  
 [HA-Fallback-Conversation](https://github.com/m50/ha-fallback-conversation) to allow HA to use both the baked-in intent as well as the LLM as a fallback if no intent is found.  
