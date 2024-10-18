@@ -19,7 +19,7 @@ A few softwares will be used in this guide.
 
 # Step 1) Installing Ollama
 
-Ollama can be installed using a one-line: `curl -fsSL https://ollama.com/install.sh | sh`
+Ollama can be installed using a one-line: `curl -fsSL https://ollama.com/install.sh | sh`  
 You can also follow the manual installation steps on [Github](https://github.com/ollama/ollama/blob/main/docs/linux.md)
 
 _____
