@@ -2546,20 +2546,62 @@
 - id: '1716416273330'
   alias: Display room color  on TVs when mimiclights mode is triggered
   description: ''
-  trigger:
-  - platform: state
+  triggers:
+  - trigger: state
     entity_id:
     - input_boolean.mimic_lights_on_screens
-    from: 'off'
-    to: 'on'
-  condition: []
-  action:
-  - service: cast.show_lovelace_view
-    metadata: {}
-    data:
-      entity_id: media_player.office_chromecast
-      dashboard_path: color-hubs
-      view_path: office
+    from:
+    to:
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: input_boolean.mimic_lights_on_screens
+        state: 'on'
+      sequence:
+      - variables:
+          off_chromecasts: '{{integration_entities(''cast'')  |  select(''search'',
+            ''chromecast'') |
+
+            select(''is_state'',''off'')| list}}
+
+            '
+      - repeat:
+          sequence:
+          - variables:
+              room: '{{ repeat.item | replace("media_player.","") | replace("_chromecast","")
+                }}
+
+                '
+          - action: cast.show_lovelace_view
+            metadata: {}
+            data:
+              entity_id: '{{repeat.item}}'
+              dashboard_path: color-hubs
+              view_path: '{{room}}'
+          for_each: '{{ off_chromecasts }}'
+    - conditions:
+      - condition: state
+        entity_id: input_boolean.mimic_lights_on_screens
+        state: 'off'
+      sequence:
+      - variables:
+          off_chromecasts: '{{integration_entities(''cast'')  |  select(''search'',
+            ''chromecast'') |
+
+            select(''is_state'',''playing'')| list |  expand |  select(''search'',
+            ''Color Hubs'')  | map(attribute=''entity_id'') |list }}
+
+            '
+      - repeat:
+          sequence:
+          - action: media_player.turn_off
+            metadata: {}
+            data: {}
+            target:
+              entity_id: '{{repeat.item}}'
+          for_each: '{{ off_chromecasts }}'
   mode: single
 - id: '1716559893302'
   alias: Set speakers volume on initial playback v2
