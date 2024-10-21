@@ -5407,3 +5407,87 @@
               entity_id: '{{repeat.item}}'
           for_each: '{{ off_chromecasts }}'
   mode: single
+- id: '1729518874101'
+  alias: Turn on and off the front door light in relation to the sun position
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sun.sun
+    from:
+    to: above_horizon
+  - trigger: state
+    entity_id:
+    - sun.sun
+    from:
+    to: below_horizon
+    for:
+      hours: 0
+      minutes: 30
+      seconds: 0
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: sun.sun
+        state: below_horizon
+      - condition: or
+        conditions:
+        - condition: numeric_state
+          entity_id: light.front_door_light
+          attribute: brightness
+          below: 50
+        - condition: state
+          entity_id: light.front_door_light
+          state: 'off'
+      sequence:
+      - repeat:
+          sequence:
+          - action: light.turn_on
+            metadata: {}
+            data:
+              transition: 20
+              kelvin: 3597
+              brightness_pct: 100
+            target:
+              entity_id: light.front_door_light
+          - delay:
+              hours: 0
+              minutes: 30
+              seconds: 0
+              milliseconds: 0
+          while:
+          - condition: state
+            entity_id: sun.sun
+            state: below_horizon
+          - condition: or
+            conditions:
+            - condition: numeric_state
+              entity_id: light.front_door_light
+              attribute: brightness
+              below: 50
+            - condition: state
+              entity_id: light.front_door_light
+              state: 'off'
+      alias: Sun Down
+    - conditions:
+      - condition: state
+        entity_id: sun.sun
+        state: above_horizon
+        for:
+          hours: 0
+          minutes: 0
+          seconds: 0
+      - condition: state
+        entity_id: light.front_door_light
+        state: 'on'
+      sequence:
+      - action: light.turn_off
+        metadata: {}
+        data:
+          transition: 300
+        target:
+          entity_id: light.front_door_light
+      alias: Sun up
+  mode: single
