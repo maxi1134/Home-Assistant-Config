@@ -5491,3 +5491,55 @@
           entity_id: light.front_door_light
       alias: Sun up
   mode: single
+- id: '1729519649402'
+  alias: Front door automation on unlock for conditional codes
+  description: ''
+  triggers:
+  - entity_id:
+    - lock.lock_front_door
+    trigger: state
+    attribute: action
+    to: unlock_failure_invalid_schedule
+  conditions:
+  - alias: Was the door unlocked?
+    condition: template
+    value_template: '{{ trigger.to_state.attributes.action == ''unlock_failure_invalid_schedule''
+      and trigger.to_state.attributes.action_source_name == ''keypad'' }}'
+  - condition: state
+    entity_id: person.maximiliano
+    state: home
+  actions:
+  - variables:
+      user_opening: "{% if trigger.to_state.attributes.action_user | string == '0'
+        %}\n  Maxi Testing\n{% elif trigger.to_state.attributes.action_user | string
+        == '9' %}\n  Ré\n{% else %}\n Unknown\n{% endif %}\n"
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ "Unknown" in user_opening  }}'
+      sequence:
+      - metadata: {}
+        data:
+          message: 'A stranger is at the door
+
+            '
+          color: blue
+        action: script.broadcast_alert_in_the_house
+      alias: Unknown code
+    - conditions:
+      - condition: template
+        value_template: '{{ "Unknown" not in user_opening  }}'
+      sequence:
+      - action: lock.unlock
+        target:
+          entity_id: lock.lock_front_door
+        data: {}
+      - metadata: {}
+        data:
+          message: '{{ user_opening }} has arrived
+
+            '
+          color: cyan
+        action: script.broadcast_alert_in_the_house
+      alias: Known code
+  mode: single
