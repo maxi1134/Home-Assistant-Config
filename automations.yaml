@@ -5545,3 +5545,64 @@
         action: script.broadcast_alert_in_the_house
       alias: Known code
   mode: single
+- id: '1729698675763'
+  alias: Notify when someone leaves through front door
+  description: ''
+  triggers:
+  - entity_id:
+    - lock.lock_front_door
+    trigger: state
+    attribute: action
+    to: manual_unlock
+  conditions:
+  - alias: Was the door unlocked?
+    condition: template
+    value_template: '{{ trigger.to_state.attributes.action == ''manual_unlock''  }}'
+  actions:
+  - action: script.broadcast_alert_in_the_house
+    metadata: {}
+    data:
+      color: green
+  mode: single
+- id: '1729698938654'
+  alias: Alert maxi if someone enters his room while alarm is set to armed home
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.sensor_bedroom_door_contact
+    from: 'off'
+    to: 'on'
+  - trigger: state
+    entity_id:
+    - binary_sensor.sensor_bedroom_motion_occupancy
+    from: 'off'
+    to: 'on'
+  conditions:
+  - condition: state
+    entity_id: alarm_control_panel.home_alarm
+    state: armed_home
+  actions:
+  - action: notify.mobile_app_phone_maxi
+    data:
+      message: Someone has entered the bedroom
+      title: Security Alert
+  - action: tts.speak
+    metadata: {}
+    data:
+      cache: true
+      media_player_entity_id: media_player.universal_bedroom_speakers
+      message: Please leave this room immediately.
+      language: English
+    target:
+      entity_id: tts.piper
+  - action: tts.speak
+    metadata: {}
+    data:
+      cache: true
+      media_player_entity_id: media_player.universal_bedroom_speakers
+      message: Veuillez sortir de la chambre immdediatment
+      language: french
+    target:
+      entity_id: tts.piper
+  mode: single
