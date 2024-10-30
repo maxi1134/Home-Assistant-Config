@@ -2216,24 +2216,17 @@
 - id: '1715717946486'
   alias: Doorbell Main automation
   description: Rings and alerts my phone
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - sensor.remote_doorbell_button_action
     to: single
-  condition: []
-  action:
+    trigger: state
+  conditions: []
+  actions:
   - target:
       entity_id: input_boolean.door_rang
     data: {}
     action: input_boolean.turn_on
-  - metadata: {}
-    data:
-      overwrite: true
-      url: http://192.168.0.9:5000/api/events/{{ states('sensor.latest_frigate_event_id')}}/clip.mp4?download=true
-      filename: doorclip.mp4
-    enabled: true
-    action: downloader.download_file
   - metadata: {}
     data: {}
     target:
@@ -2243,11 +2236,11 @@
     data:
       message: Someone is at the door!
       color: blue
-      image: /media/local/doorclip.mp4?{{ range(1, 53199) | random }}
+      image: https://hass.purgatoire.ca/api/frigate/notifications/{{states('sensor.latest_frigate_event_id')}}/clip.mp4
     action: script.broadcast_alert_in_the_house
   - wait_for_trigger:
-    - platform: event
-      event_type: downloader_download_completed
+    - event_type: downloader_download_completed
+      trigger: event
     continue_on_timeout: true
     timeout:
       hours: 0
@@ -2262,59 +2255,14 @@
       data:
         image: https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
         actions:
-        - action: unlock_door
-          title: Unlock the Door?
+        - action: URI
+          title: Security Tab
+          uri: /maxi-mobile/main-view#security_popup
         - action: REPLY
           title: Enter Text
-    action: notify.mobile_app_phone_maxi
-  - wait_for_trigger:
-    - platform: event
-      event_type: mobile_app_notification_action
-      context: {}
-      event_data:
-        action: unlock_door
-    continue_on_timeout: false
-    timeout:
-      hours: 0
-      minutes: 10
-      seconds: 0
-      milliseconds: 0
-  - metadata: {}
-    data:
-      message: Unlock the door?
-      data:
-        actions:
-        - action: confirm_unlocking
-          title: Really Unlock the Door?
-        - action: REPLY
-          title: Enter Text
-      title: Doorbell Alert
-    action: notify.mobile_app_phone_maxi
-  - wait_for_trigger:
-    - platform: event
-      event_type: mobile_app_notification_action
-      context: {}
-      event_data:
-        action: confirm_unlocking
-    continue_on_timeout: false
-    timeout:
-      hours: 0
-      minutes: 10
-      seconds: 0
-      milliseconds: 0
-  - metadata: {}
-    data: {}
-    target:
-      entity_id: lock.lock_front_door
-    action: lock.unlock
-  - metadata: {}
-    data:
-      message: Door unlocked!
-      data:
-        actions:
-        - action: REPLY
-          title: Enter Text
-      title: Door Alert
+        - action: URI
+          title: Open Cameras
+          uri: /maxi-mobile/main-view#cameras
     action: notify.mobile_app_phone_maxi
   mode: restart
 - id: '1715719948033'
@@ -3850,19 +3798,19 @@
 - id: '1721278758149'
   alias: 'Bedroom hue tap remote automation '
   description: ''
-  trigger:
-  - platform: device
-    domain: mqtt
+  triggers:
+  - domain: mqtt
     device_id: 401156183b8cc392cc4838000cc56c3c
     type: action
     subtype: press_1
-  condition: []
-  action:
-  - service: light.toggle
-    metadata: {}
+    trigger: device
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
+    action: light.toggle
     target:
-      area_id: bedroom
+      entity_id: light.group_bedroom_lights
   mode: single
 - id: '1722263369374'
   alias: assist Stop home group music
