@@ -15,12 +15,12 @@ broadcast_alert_in_the_house:
         + rgb_dict %}\n    {% endif %}    \n{% endfor %}  {{ ns.rgb_dict }}\n"
     alias: 'Store Lights entity_id and current rgb values '
   - variables:
-      playing_chromecasts: '{{ integration_entities(''universal'') |  select(''search'',
+      playing_chromecasts: '{{ integration_entities(''cast'') |  select(''search'',
         ''chromecast'') | expand | selectattr(''state'', ''eq'', ''playing'')| map(attribute=''entity_id'')|
         list }}
 
         '
-      non_playing_chromecasts: '{{ integration_entities(''universal'') |  select(''search'',
+      non_playing_chromecasts: '{{ integration_entities(''cast'') |  select(''search'',
         ''chromecast'') | expand | rejectattr(''state'', ''eq'', ''playing'')| map(attribute=''entity_id'')|
         list }}
 
@@ -55,8 +55,8 @@ broadcast_alert_in_the_house:
       - delay:
           hours: 0
           minutes: 0
-          seconds: 3
-          milliseconds: 0
+          seconds: 1
+          milliseconds: 250
       - alias: Restore lights to their initial state
         repeat:
           sequence:
@@ -183,6 +183,55 @@ broadcast_alert_in_the_house:
             hours: 0
             minutes: 0
             seconds: 40
+            milliseconds: 0
+        - alias: Turn off precedent chromecats
+          repeat:
+            sequence:
+            - action: media_player.turn_off
+              metadata: {}
+              data: {}
+              target:
+                entity_id: '{{ non_playing_chromecasts }}'
+            for_each: '{{ non_playing_chromecasts }}'
+        enabled: true
+        continue_on_error: true
+      - alias: Broadcast image to paused TVs if URL is present
+        if:
+        - condition: template
+          value_template: '{% if url %}
+
+            true
+
+            {% else %}
+
+            false
+
+            {% endif %}'
+        then:
+        - alias: Broadcast Image to paused chromecasts
+          repeat:
+            sequence:
+            - action: dash_cast.load_url
+              data:
+                entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
+                url: '{{url}}'
+                force: true
+            for_each: '{{ non_playing_chromecasts }}'
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 40
+            milliseconds: 0
+          enabled: false
+        - wait_for_trigger:
+          - trigger: state
+            entity_id:
+            - lock.lock_front_door
+            to: unlocked
+          timeout:
+            hours: 0
+            minutes: 1
+            seconds: 0
             milliseconds: 0
         - alias: Turn off precedent chromecats
           repeat:
