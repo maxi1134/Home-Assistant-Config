@@ -5557,3 +5557,51 @@
     target:
       entity_id: tts.piper
   mode: single
+- id: '1730428380200'
+  alias: Assist Show cameras on TVs
+  description: ''
+  triggers:
+  - trigger: conversation
+    command:
+    - '[Show] [me] [the] cameras  [on] [the] [tvs] [please]'
+    - Security Audit
+    - '[Put] [the] cameras [on] [the] [tvs]'
+  conditions: []
+  actions:
+  - variables:
+      all_chromecasts: '{{ integration_entities(''cast'') |  select(''search'', ''chromecast'')
+        | expand |  map(attribute=''entity_id'')| list }}'
+  - alias: Broadcast Image to paused chromecasts
+    repeat:
+      sequence:
+      - action: dash_cast.load_url
+        data:
+          entity_id: '{{all_chromecasts[repeat.index - 1]}}'
+          url: http://192.168.0.11:1984/stream.html?src=front_door_camera_sub
+          force: true
+      for_each: '{{ all_chromecasts }}'
+  mode: single
+- id: '1730910881566'
+  alias: Show main screen when music stops on Hallway tablet
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - media_player.group_mass_home_airplay_speakers
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
+  conditions:
+  - condition: state
+    entity_id: sensor.hallway_tablet_current_page
+    attribute: full_url
+    state: http://192.168.0.15:8123/tablets-subviews/subview-music
+  actions:
+  - action: button.press
+    metadata: {}
+    data: {}
+    target:
+      entity_id: button.hallway_tablet_load_start_url
+  mode: single
