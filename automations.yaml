@@ -323,24 +323,35 @@
 - id: '1713378916074'
   alias: Alert that the front door remained open
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - binary_sensor.sensor_front_door_contact
     to: 'on'
     for:
       hours: 0
-      minutes: 5
+      minutes: 3
       seconds: 0
-  condition:
+    trigger: state
+  conditions:
   - condition: state
     entity_id: input_boolean.aerating_appartment
     state: 'off'
-  action:
-  - service: script.broadcast_alert_in_the_house
-    metadata: {}
-    data:
-      message: Entrance door is open
+  actions:
+  - repeat:
+      sequence:
+      - action: script.1714666287611
+        data:
+          message: Front Door Open
+      - delay:
+          hours: 0
+          minutes: 5
+          seconds: 0
+          milliseconds: 0
+      while:
+      - condition: state
+        entity_id: binary_sensor.sensor_front_door_contact
+        state: 'on'
+    enabled: true
   mode: restart
 - id: '1713399927983'
   alias: Alert that the vacuum is stuck
