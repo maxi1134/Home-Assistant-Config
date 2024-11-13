@@ -5652,3 +5652,45 @@
         state: unlocked
     enabled: true
   mode: restart
+- id: '1731514999187'
+  alias: 'Alert maxi when people are too noisy on the patio during a party '
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.ffmpeg_noise
+    to: 'on'
+    from: 'off'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 30
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.group_patio_motion_occupancy
+    state: 'on'
+  actions:
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: person.maximiliano
+        state: home
+      - condition: state
+        entity_id: input_boolean.party_mode
+        state: 'on'
+      sequence:
+      - action: notify.mobile_app_phone_maxi
+        metadata: {}
+        data:
+          message: People are being too noisy on the patio
+          title: Noise alert
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: person.maximiliano
+        state: not_home
+      sequence:
+      - action: script.broadcast_lesser_alerts_in_house
+        data:
+          message: Please make less noise on the patio
+  mode: single
