@@ -800,7 +800,7 @@ in_home_defense_script:
     data: {}
   mode: restart
 changes_all_on_lights_to_fake_white:
-  alias: Changes selected light group to fake white
+  alias: Changes selected light group to ordered fake white
   sequence:
   - variables:
       lights: "{%- set light_group = states.light | selectattr('entity_id', 'in',
@@ -810,16 +810,16 @@ changes_all_on_lights_to_fake_white:
         light = light_group[i] -%}\n  {%- set h = (h_increment * i) | int -%}\n  {%-
         set s = 100 -%}\n  {%- set hs_color = [h, s] -%}\n  {% set temp_output= {\n
         \   \"entity_id\":  light.entity_id ,\n    \"hs_color\":  hs_color \n  } %}\n
-        \ {% set ns.output = [temp_output] + ns.output %}\n  \n{%- endfor %}  {{ ns.output}}\n"
+        \ {% set ns.output = [temp_output] + ns.output %}\n  \n{%- endfor %}  {% set
+        lights = ns.output %} {% set ns = namespace(x = lights) %}  {% for i in range(ns.x
+        | length - 1, 0, -1) %}\n    {% set j = range(0, i + 1) | random %}\n    {%
+        if j != i %}\n      {% set ns.x = ns.x[:j]+[ns.x[i]]+ns.x[j+1:i]+[ns.x[j]]+ns.x[i+1:]
+        %}\n    {% endif %}\n{% endfor %} {{ ns.x }}\n"
   - repeat:
       sequence:
-      - repeat:
-          sequence: []
-          for_each: '{{  repeat.item }}'
-        enabled: false
       - data:
           hs_color: '{{ repeat.item.hs_color }}'
-          transition: 10
+          transition: 0
         target:
           entity_id: '{{ repeat.item.entity_id }}'
         action: light.turn_on
@@ -827,6 +827,7 @@ changes_all_on_lights_to_fake_white:
   mode: restart
   icon: mdi:sale
   fields: {}
+  description: ''
 inside_only_home_defense_script:
   alias: Inside only home defense script
   sequence:
@@ -942,3 +943,35 @@ set_whole_house_to_cozy_ambiance_2:
     action: script.start_visual_playlist_on_plex
   description: ''
   icon: mdi:fireplace
+changes_selected_light_group_to_random_fake_white:
+  alias: Changes selected light group to random fake white
+  sequence:
+  - variables:
+      lights: "{%- set light_group = states.light | selectattr('entity_id', 'in',
+        state_attr(selected_group, 'entity_id'))  | list -%} {%- set num_lights =
+        light_group | count -%} {%- set h_increment = (360 // num_lights) | int -%}
+        {%- set hue_values = namespace(values=[]) %}\n{%- for i in range(num_lights)
+        %}\n  {%- set hue_values.values = hue_values.values + [i * h_increment] %}\n{%-
+        endfor %}\n{%- set ns = namespace(output=[], shuffled_hues=[]) %}\n{%- for
+        i in range(num_lights) %}\n  {%- set rand = (range(hue_values.values | count)
+        | random) -%}\n  {%- set h = hue_values.values[rand] -%}\n  {%- set hue_values.values
+        = hue_values.values | reject('equalto', h) | list -%}\n  {%- set ns.shuffled_hues
+        = ns.shuffled_hues + [h] -%}\n{%- endfor %}\n{%- for i in range(num_lights)
+        %}\n  {%- set light = light_group[i] -%}\n  {%- set h = ns.shuffled_hues[i]
+        -%}\n  {%- set s = 100 -%}\n  {%- set hs_color = [h, s] -%}\n  {% set temp_output
+        = {\n    \"entity_id\": light.entity_id,\n    \"hs_color\": hs_color\n  }
+        %}\n  {% set ns.output = ns.output + [temp_output] %}\n{%- endfor %}\n{{ ns.output
+        }}\n"
+  - repeat:
+      sequence:
+      - data:
+          hs_color: '{{ repeat.item.hs_color }}'
+          transition: 0
+        target:
+          entity_id: '{{ repeat.item.entity_id }}'
+        action: light.turn_on
+      for_each: '{{ lights }}'
+  mode: restart
+  icon: mdi:sale
+  fields: {}
+  description: ''
