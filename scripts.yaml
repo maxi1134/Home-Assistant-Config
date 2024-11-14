@@ -269,15 +269,19 @@ broadcast_alert_in_the_house:
 change_received_lights_to_random_colors:
   alias: Change received lights to random color
   sequence:
+  - variables:
+      lights: "{%- set lights = states.light | selectattr('entity_id', 'in', state_attr(selected_group,
+        'entity_id'))  | list -%}\n{%- set entity_ids = lights | map(attribute='entity_id')
+        | list -%}    \n{{ entity_ids }}\n"
   - repeat:
       sequence:
-      - service: light.turn_on
-        metadata: {}
+      - metadata: {}
         data:
           hs_color: '{{ range(1, 360) | random | string + '','' + saturation | string
             }}'
         target:
           entity_id: '{{lights[repeat.index - 1]}}'
+        action: light.turn_on
       for_each: '{{ lights }}'
   mode: restart
   icon: mdi:sale
