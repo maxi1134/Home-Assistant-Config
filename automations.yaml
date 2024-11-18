@@ -4562,17 +4562,22 @@
 - id: '1723214966525'
   alias: Front door automation on unlock for main codes
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - lock.lock_front_door
     attribute: action_user
-  condition:
+    trigger: state
+  conditions:
   - alias: Was the door unlocked?
     condition: template
     value_template: '{{ trigger.to_state.attributes.action == ''unlock'' and trigger.to_state.attributes.action_source_name
       == ''keypad'' }}'
-  action:
+  actions:
+  - action: alarm_control_panel.alarm_disarm
+    metadata: {}
+    data: {}
+    target:
+      entity_id: alarm_control_panel.home_alarm
   - variables:
       user_opening: "{% if trigger.to_state.attributes.action_user | string == '1'
         %}\n  Maxi\n{% elif trigger.to_state.attributes.action_user | string == '2'
@@ -4587,11 +4592,6 @@
         '
       color: cyan
     action: script.broadcast_alert_in_the_house
-  - action: alarm_control_panel.alarm_disarm
-    metadata: {}
-    data: {}
-    target:
-      entity_id: alarm_control_panel.home_alarm
   mode: single
 - id: '1723530969899'
   alias: 'Turn off Livingroom lights when bedroom Sleeper turns on '
@@ -5905,4 +5905,23 @@
     data: {}
     target:
       entity_id: switch.plug_back_door_horn
+  mode: single
+- id: '1731942818929'
+  alias: Turn off Horns on Alarm disarm
+  description: ''
+  triggers:
+  - entity_id:
+    - alarm_control_panel.home_alarm
+    from: triggered
+    to: disarmed
+    trigger: state
+  conditions: []
+  actions:
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - switch.plug_back_door_horn
+      - switch.plug_front_door_horn
   mode: single
