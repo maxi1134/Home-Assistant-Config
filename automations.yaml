@@ -340,9 +340,9 @@
   actions:
   - repeat:
       sequence:
-      - action: script.broadcast_lesser_alerts_in_house
+      - action: script.non_important_broadcast_alert_in_the_house
         data:
-          message: Front Door Open
+          message: Front door remained opened
       - delay:
           hours: 0
           minutes: 5
@@ -357,19 +357,19 @@
 - id: '1713399927983'
   alias: Alert that the vacuum is stuck
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - vacuum.xiaomi_vacuum_cleaner
     to: error
-  condition: []
-  action:
+    trigger: state
+  conditions: []
+  actions:
   - repeat:
       sequence:
-      - service: script.broadcast_alert_in_the_house
-        metadata: {}
+      - metadata: {}
         data:
           message: Vacuum Stuck
+        action: script.non_important_broadcast_alert_in_the_house
       - delay:
           hours: 0
           minutes: 10
@@ -1331,7 +1331,7 @@
   actions:
   - repeat:
       sequence:
-      - action: script.broadcast_lesser_alerts_in_house
+      - action: script.non_important_broadcast_alert_in_the_house
         data:
           message: Microwave finished
       - delay:
@@ -1399,32 +1399,32 @@
 - id: '1714058675432'
   alias: Alert when Washer finishes
   description: ''
-  trigger:
-  - platform: numeric_state
-    entity_id:
+  triggers:
+  - entity_id:
     - sensor.zooz_kitchen_washer_electric_consumption_w
     above: 100
-  condition:
+    trigger: numeric_state
+  conditions:
   - condition: state
     entity_id: binary_sensor.maxi_sleeping
     state: 'off'
   - condition: state
     entity_id: binary_sensor.all_present_sleeping
     state: 'off'
-  action:
+  actions:
   - wait_for_trigger:
-    - platform: numeric_state
-      entity_id:
+    - entity_id:
       - sensor.zooz_washer_plug_electric_consumption_a
       for:
         hours: 0
         minutes: 1
         seconds: 0
       below: 1
-  - service: script.broadcast_alert_in_the_house
-    metadata: {}
+      trigger: numeric_state
+  - metadata: {}
     data:
       message: Washer finished
+    action: script.non_important_broadcast_alert_in_the_house
   mode: single
 - id: '1714077180427'
   alias: Change light to random colors on press
@@ -2359,29 +2359,30 @@
 - id: '1716328766276'
   alias: Automatically turn off TVs
   description: After 20 minutes
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - binary_sensor.group_office_motion_occupancy
     - binary_sensor.group_livingroom_motion_occupancy
     - binary_sensor.group_hotbox_top_motion_occupancy
     - binary_sensor.group_patio_motion_occupancy
     - binary_sensor.group_hotbox_down_motion_occupancy
+    - binary_sensor.group_salon_motion_occupancy
     to: 'off'
     for:
       hours: 0
       minutes: 20
       seconds: 0
-  condition: []
-  action:
-  - service: google_assistant_sdk.send_text_command
-    metadata: {}
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
     data:
       command: 'Turn off     {{ [area_id(trigger.entity_id)]    | map(''area_entities'')
         | sum(start=[])  |    select(''search'', ''^media_player\.(?!.*?universal.*?).*chromecast'')
         |  map(''state_attr'', ''friendly_name'') | unique | list | first }}
 
         '
+    action: google_assistant_sdk.send_text_command
   mode: parallel
   max: 7
 - id: '1716329212232'
@@ -3719,30 +3720,6 @@
       - cover.cover_bedroom_blinds
     data: {}
   mode: single
-- id: '1719366363339'
-  alias: Closer bedroom sleeper faster when maxi is in
-  description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - sensor.where_is_maxi_sleeping
-    from:
-    to: bedroom
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 3
-  condition:
-  - condition: state
-    entity_id: input_boolean.sleeper_in_bedroom
-    state: 'on'
-  action:
-  - service: cover.close_cover
-    target:
-      entity_id:
-      - cover.cover_bedroom_blinds
-    data: {}
-  mode: single
 - id: '1719617622275'
   alias: Display Chillingroom Display interface
   description: ''
@@ -4653,11 +4630,11 @@
     - media_player.universal_office_speakers
     - media_player.universal_livingroom_speakers
     to: playing
-    from: idle
+    from:
     trigger: state
   conditions:
   - condition: template
-    value_template: '{{ now() - trigger.from_state.last_changed > timedelta(seconds=10)}}}'
+    value_template: '{{ now() - trigger.from_state.last_changed > timedelta(seconds=10)}}'
   actions:
   - choose:
     - conditions:
@@ -4925,9 +4902,8 @@
 - id: '1727032753670'
   alias: Alert people in the back to go away
   description: Flash the red lights in the back while people are loitering
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - binary_sensor.back_door_loitering_person_occupancy
     to: 'on'
     from: 'off'
@@ -4935,8 +4911,9 @@
       hours: 0
       minutes: 0
       seconds: 3
-  condition: []
-  action:
+    trigger: state
+  conditions: []
+  actions:
   - repeat:
       sequence:
       - sequence:
@@ -4966,19 +4943,20 @@
           minutes: 0
           seconds: 10
   - wait_for_trigger:
-    - platform: state
-      entity_id:
+    - entity_id:
       - binary_sensor.back_door_camera_person_occupancy
       to: 'off'
       for:
         hours: 0
         minutes: 0
         seconds: 30
+      trigger: state
     timeout:
       hours: 0
       minutes: 0
       seconds: 0
       milliseconds: 0
+    continue_on_timeout: true
   - metadata: {}
     data:
       transition: 30
@@ -5734,4 +5712,197 @@
       transition: 45
     target:
       entity_id: light.group_patio_lights
+  mode: single
+- id: '1731610772963'
+  alias: Alert when the stove water is boiling.
+  description: ''
+  triggers:
+  - entity_id:
+    - sensor.sensor_stove_temperature_humidity
+    above: 75
+    trigger: numeric_state
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.maxi_sleeping
+    state: 'off'
+  - condition: state
+    entity_id: binary_sensor.all_present_sleeping
+    state: 'off'
+  - condition: state
+    entity_id: input_boolean.cooking_mode
+    state: 'off'
+  actions:
+  - repeat:
+      sequence:
+      - action: script.non_important_broadcast_alert_in_the_house
+        data:
+          message: The water is boiling in the Kitchen
+      - delay:
+          hours: 0
+          minutes: 4
+          seconds: 0
+          milliseconds: 0
+      while:
+      - condition: state
+        entity_id: binary_sensor.group_kitchen_motion_occupancy
+        state: 'off'
+    enabled: true
+  mode: restart
+- id: '1731610964007'
+  alias: Alert when the fridge remains open
+  description: ''
+  triggers:
+  - entity_id:
+    - binary_sensor.sensor_fridge_door_contact
+    trigger: state
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 4
+      seconds: 0
+  conditions: []
+  actions:
+  - repeat:
+      sequence:
+      - action: script.broadcast_alert_in_the_house
+        data:
+          message: The Fridge door is open, please close it.
+      - delay:
+          hours: 0
+          minutes: 4
+          seconds: 0
+          milliseconds: 0
+      while:
+      - condition: state
+        entity_id: binary_sensor.sensor_fridge_door_contact
+        state: 'on'
+    enabled: true
+  mode: restart
+- id: '1731611005918'
+  alias: Alert house-wide when there is smoke in the kitchen
+  description: ''
+  triggers:
+  - entity_id:
+    - binary_sensor.sensor_kitchen_smoke_detector_smoke
+    trigger: state
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+    from:
+  conditions: []
+  actions:
+  - repeat:
+      sequence:
+      - action: script.broadcast_alert_in_the_house
+        data:
+          color: white
+          message: Attention, Smoke detected in the kitchen, Please investigate.
+      - delay:
+          hours: 0
+          minutes: 4
+          seconds: 0
+          milliseconds: 0
+      while:
+      - condition: state
+        entity_id: binary_sensor.sensor_kitchen_smoke_detector_smoke
+        state: 'on'
+    enabled: true
+  mode: restart
+- id: '1731611467781'
+  alias: Alert when Cooking timer is finished
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - timer.cooking
+    from: active
+    to: idle
+  conditions: []
+  actions:
+  - repeat:
+      sequence:
+      - action: script.1714666287611
+        data:
+          message: Kitchen Timer Finished!
+      - delay:
+          hours: 0
+          minutes: 4
+          seconds: 0
+          milliseconds: 0
+      while:
+      - condition: state
+        entity_id: binary_sensor.group_kitchen_motion_occupancy
+        state: 'off'
+    enabled: true
+  mode: single
+- id: '1731636350020'
+  alias: Auto vacuum the entrance
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - lock.lock_front_door
+    to: unlocked
+  conditions:
+  - condition: numeric_state
+    entity_id: counter.entries_since_last_vacuuming
+    above: 4
+  - condition: state
+    entity_id: input_boolean.party_mode
+    state: 'off'
+  - condition: state
+    entity_id: input_boolean.acid_time
+    state: 'off'
+  - condition: state
+    entity_id: input_boolean.kink_party
+    state: 'off'
+  actions: []
+  mode: single
+- id: '1731941986104'
+  alias: Trigger back horn when someone loiters for too long at the door
+  description: Flash the red lights in the back while people are loitering
+  triggers:
+  - entity_id:
+    - binary_sensor.back_door_loitering_person_occupancy
+    to: 'on'
+    from: 'off'
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 30
+    trigger: state
+  conditions:
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: alarm_control_panel.home_alarm
+      state: disarmed
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_back_door_horn
+  - wait_for_trigger:
+    - entity_id:
+      - binary_sensor.back_door_camera_person_occupancy
+      to: 'off'
+      for:
+        hours: 0
+        minutes: 0
+        seconds: 30
+      trigger: state
+    timeout:
+      hours: 0
+      minutes: 5
+      seconds: 0
+      milliseconds: 0
+    continue_on_timeout: true
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_back_door_horn
   mode: single
