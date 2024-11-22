@@ -1,34 +1,35 @@
 broadcast_alert_in_the_house:
   alias: important broadcast alert in the house
   sequence:
-  - variables:
-      light_entity_ids: "{% set light_group = state_attr('light.group_notifications_light','entity_id')%}
-        \  {% set ns = namespace( rgb_dict= [] ) %} {% for entity_id in light_group
-        %}\n    {% set light_state = states(entity_id)  %}\n    {% set light_rgb_color
-        = state_attr(entity_id, \"rgb_color\") %}\n    {% if light_state != 'unavailable'
-        and light_rgb_color %}\n        {%- set rgb_values = light_rgb_color | replace('(','')
-        | replace(')','')| replace(' ','')| string  -%}\n        {% set rgb_dict =
-        [(entity_id , rgb_values, states(entity_id))] %}\n        {% set ns.rgb_dict
-        = ns.rgb_dict + rgb_dict %}\n    {% elif light_state != 'unavailable' %}\n
-        \       {%- set rgb_values = \"0,0,0\" %}\n        {% set rgb_dict = [(entity_id
-        , rgb_values, states(entity_id))] %}\n        {% set ns.rgb_dict = ns.rgb_dict
-        + rgb_dict %}\n    {% endif %}    \n{% endfor %}  {{ ns.rgb_dict }}\n"
-    alias: 'Store Lights entity_id and current rgb values '
-  - variables:
-      playing_chromecasts: '{{ integration_entities(''cast'') |  select(''search'',
-        ''chromecast'') | expand | selectattr(''state'', ''eq'', ''playing'')| map(attribute=''entity_id'')|
-        list }}
-
-        '
-      non_playing_chromecasts: '{{ integration_entities(''cast'') |  select(''search'',
-        ''chromecast'') | expand | rejectattr(''state'', ''eq'', ''playing'')| map(attribute=''entity_id'')|
-        list }}
-
-        '
-    alias: Store Chromecasts in variables
   - parallel:
+    - variables:
+        playing_chromecasts: '{{ integration_entities(''cast'') |  select(''search'',
+          ''chromecast'') | expand | selectattr(''state'', ''eq'', ''playing'')| map(attribute=''entity_id'')|
+          list }}
+
+          '
+        non_playing_chromecasts: '{{ integration_entities(''cast'') |  select(''search'',
+          ''chromecast'') | expand | rejectattr(''state'', ''eq'', ''playing'')| map(attribute=''entity_id'')|
+          list }}
+
+          '
+      alias: Store Chromecasts in variables
     - alias: Lights
       sequence:
+      - variables:
+          light_entity_ids: "{% set light_group = state_attr('light.group_notifications_light','entity_id')%}
+            \  {% set ns = namespace( rgb_dict= [] ) %} {% for entity_id in light_group
+            %}\n    {% set light_state = states(entity_id)  %}\n    {% set light_rgb_color
+            = state_attr(entity_id, \"rgb_color\") %}\n    {% if light_state != 'unavailable'
+            and light_rgb_color %}\n        {%- set rgb_values = light_rgb_color |
+            replace('(','') | replace(')','')| replace(' ','')| string  -%}\n        {%
+            set rgb_dict = [(entity_id , rgb_values, states(entity_id))] %}\n        {%
+            set ns.rgb_dict = ns.rgb_dict + rgb_dict %}\n    {% elif light_state !=
+            'unavailable' %}\n        {%- set rgb_values = \"0,0,0\" %}\n        {%
+            set rgb_dict = [(entity_id , rgb_values, states(entity_id))] %}\n        {%
+            set ns.rgb_dict = ns.rgb_dict + rgb_dict %}\n    {% endif %}    \n{% endfor
+            %}  {{ ns.rgb_dict }}\n"
+        alias: 'Store Lights entity_id and current rgb values '
       - if:
         - condition: template
           value_template: '{% if color %}
@@ -138,7 +139,7 @@ broadcast_alert_in_the_house:
     - alias: 'Notifications '
       if:
       - condition: template
-        value_template: '{% if message %}
+        value_template: '{% if phone_data %}
 
           true
 
@@ -150,9 +151,9 @@ broadcast_alert_in_the_house:
       then:
       - action: notify.mobile_app_phone_maxi
         metadata: {}
-        data:
-          message: '{{message}}'
-          title: '{{message}}'
+        data: '{{ phone_data }}
+
+          '
       enabled: true
     - alias: TVs
       parallel:
@@ -263,9 +264,8 @@ broadcast_alert_in_the_house:
             for_each: '{{ playing_chromecasts }}'
           enabled: true
           continue_on_error: true
-  mode: queued
+  mode: restart
   icon: mdi:speaker-message
-  max: 10
 change_received_lights_to_random_colors:
   alias: Change received lights to random color
   sequence:

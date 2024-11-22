@@ -2251,38 +2251,35 @@
     target:
       entity_id: sensor.latest_frigate_event_id
     action: homeassistant.update_entity
-  - metadata: {}
-    data:
-      message: Someone is at the door!
-      color: blue
-      url: http://192.168.0.11:1984/stream.html?src=front_door_camera_sub
-    action: script.broadcast_alert_in_the_house
-  - wait_for_trigger:
-    - event_type: downloader_download_completed
-      trigger: event
-    continue_on_timeout: true
-    timeout:
-      hours: 0
-      minutes: 0
-      seconds: 5
-      milliseconds: 0
-    enabled: true
-  - metadata: {}
-    data:
-      message: Someone is at the door!
-      title: Doorbell Alert
+  - parallel:
+    - metadata: {}
       data:
-        image: https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
-        actions:
-        - action: URI
-          title: Security Tab
-          uri: /maxi-mobile/main-view#security_popup
-        - action: REPLY
-          title: Enter Text
-        - action: URI
-          title: Open Cameras
-          uri: /maxi-mobile/main-view#cameras
-    action: notify.mobile_app_phone_maxi
+        message: Someone is at the door!
+        color: Blue
+        url: http://192.168.0.11:1984/stream.html?src=front_door_camera_sub
+        phone_data:
+          message: Someone is at the door!
+          data:
+            image: 'https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
+
+              '
+            actions:
+            - action: URI
+              title: Security Tab
+              uri: /maxi-mobile/main-view#security_popup
+            - action: REPLY
+              title: Enter Text
+            - action: URI
+              title: Open Cameras
+              uri: /maxi-mobile/main-view#cameras
+      action: script.broadcast_alert_in_the_house
+    - action: notify.mobile_app_phone_maxi
+      metadata: {}
+      data:
+        message: command_webview
+        data:
+          command: /maxi-mobile/main-view#security_popup
+      alias: Open camera view on maxi phone
   mode: restart
 - id: '1715719948033'
   alias: Reset doorbell stuff on unlock
