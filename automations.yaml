@@ -2425,7 +2425,7 @@
     response_variable: answer
   - if:
     - condition: template
-      value_template: '{{ "YES" in answer.reponse_text | upper }}'
+      value_template: '{{ "YES" in answer.response_text | upper }}'
     then:
     - metadata: {}
       data:
@@ -6034,4 +6034,68 @@
       message: command_ble_transmitter
       data:
         command: turn_on
+  mode: single
+- id: '1732406375683'
+  alias: Lower volume if police is detected in the front during a party
+  description: ''
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - sensor.front_door_camera_person_count
+    above: 0
+  conditions:
+  - condition: numeric_state
+    entity_id: sensor.average_unmuted_speakers_volume
+    above: 0.4
+  - condition: state
+    entity_id: input_boolean.party_mode
+    state: 'on'
+  actions:
+  - action: llmvision.image_analyzer
+    data:
+      include_filename: false
+      target_width: 1280
+      detail: low
+      max_tokens: 100
+      temperature: 0.2
+      expose_images: true
+      provider: 01JDD7V3QXP1KN82V27H591YAX
+      model: maxi_llama32-vision
+      message: '  Answer with ''yes'' or ''no'', is there a police officer or a security
+        guard on this image? Only use one word to answer'
+      image_entity:
+      - camera.front_door_camera
+    response_variable: answer
+    alias: Analyse if a cop is present
+  - if:
+    - condition: template
+      value_template: '{{ "YES" in answer.reponse_text | upper }}'
+    then:
+    - metadata: {}
+      data:
+        data:
+          image: 'https://hass.purgatoire.ca/local/llmvision/front_door_camera.jpg
+
+            '
+        message: Police detected at the front door
+        title: Police Alert
+      action: notify.mobile_app_phone_maxi
+    - action: media_player.volume_set
+      metadata: {}
+      data:
+        volume_level: 0.3
+      target:
+        entity_id:
+        - media_player.universal_hallway_speakers
+        - media_player.universal_livingroom_speakers
+        - media_player.universal_kitchen_speakers
+        - media_player.universal_salon_speakers
+        - media_player.universal_office_speakers
+    - action: media_player.volume_set
+      metadata: {}
+      data:
+        volume_level: 0.28
+      target:
+        entity_id: media_player.group_mass_home_airplay_speakers
+    alias: Lower volume if a cop is present and notify maxi
   mode: single
