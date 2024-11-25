@@ -129,9 +129,9 @@
   actions:
   - metadata: {}
     data: {}
+    action: media_player.turn_off
     target:
-      entity_id: media_player.bedroom_speaker
-    action: media_player.media_stop
+      entity_id: media_player.universal_bedroom_speakers
   mode: single
 - id: '1711377375732'
   alias: Assist play song by artist next
@@ -1404,8 +1404,8 @@
   description: ''
   triggers:
   - entity_id:
-    - sensor.zooz_kitchen_washer_electric_consumption_w
-    above: 100
+    - sensor.zooz_kitchen_washer_electric_consumption_a
+    above: 1
     trigger: numeric_state
   conditions:
   - condition: state
@@ -1417,7 +1417,7 @@
   actions:
   - wait_for_trigger:
     - entity_id:
-      - sensor.zooz_washer_plug_electric_consumption_a
+      - sensor.zooz_kitchen_washer_electric_consumption_a
       for:
         hours: 0
         minutes: 1
@@ -2412,16 +2412,16 @@
     data:
       include_filename: false
       target_width: 1280
-      detail: low
       max_tokens: 100
       temperature: 0.2
-      expose_images: false
+      expose_images: true
       provider: 01JDD7V3QXP1KN82V27H591YAX
       model: maxi_llama32-vision
       message: "  Answer with 'yes' or 'no', is there a package or a delivery man
         on this\n  picture? Do not use an other word than  'yes' or 'no'"
       image_entity:
       - camera.front_door_camera
+      detail: low
     response_variable: answer
   - if:
     - condition: template
@@ -2430,7 +2430,7 @@
     - metadata: {}
       data:
         data:
-          image: /local/pakidge_snapshot.png
+          image: /local/llmvision/front_door_camera.jpg
         message: Package is being delivered
         title: Package Detected
       action: notify.mobile_app_phone_maxi
@@ -2950,27 +2950,29 @@
 - id: '1717016815299'
   alias: Alert when someone is in the back
   description: ''
-  trigger:
-  - platform: numeric_state
+  triggers:
+  - trigger: state
     entity_id:
-    - sensor.back_door_camera_person_count
-    above: 0
-  condition:
+    - binary_sensor.back_entrance_presence_person_occupancy
+    - binary_sensor.hotbox_window_presence_person_occupancy
+    - binary_sensor.back_door_loitering_all_occupancy
+    from:
+    to: 'on'
+  conditions:
   - condition: not
     conditions:
     - condition: state
       entity_id: alarm_control_panel.home_alarm
       state: disarmed
     enabled: false
-  action:
-  - service: camera.snapshot
-    metadata: {}
+  actions:
+  - metadata: {}
     data:
       filename: /media/backdoor_movement.png
     target:
       entity_id: camera.back_door_camera
-  - service: notify.mobile_app_phone_maxi
-    metadata: {}
+    action: camera.snapshot
+  - metadata: {}
     data:
       message: Someone is in the back!
       title: Someone is in the back!
@@ -2979,23 +2981,24 @@
         actions:
         - action: blow_horn_back
           title: Blow the horn for 2 minutes?
+    action: notify.mobile_app_phone_maxi
   - wait_for_trigger:
-    - platform: event
-      event_type: mobile_app_notification_action
+    - event_type: mobile_app_notification_action
       context: {}
       event_data:
         action: blow_horn_back
+      trigger: event
     continue_on_timeout: false
     timeout:
       hours: 0
       minutes: 5
       seconds: 0
       milliseconds: 0
-  - service: switch.turn_on
-    metadata: {}
+  - metadata: {}
     data: {}
     target:
       entity_id: switch.plug_back_door_horn
+    action: switch.turn_on
   mode: restart
 - id: '1717016954049'
   alias: Automatically turn off the back security horn after 2 minutes and ask if
@@ -4478,7 +4481,7 @@
   alias: dial office desk control automation
   description: ''
   use_blueprint:
-    path: EPMatt/ikea_e1744.yaml
+    path: maxi/ikea_e1744_fixed.yaml
     input:
       integration: Zigbee2MQTT
       controller_entity: sensor.remote_office_desk_dial_action
@@ -4502,7 +4505,7 @@
               entity_id: '{{media_players}}'
             data_template:
               volume_level: '{{ state_attr((media_players | first),''volume_level'')
-                - 0.03}}'
+                | float - 0.03}}'
             action: media_player.volume_set
           alias: Speaker playing and unmuted
       helper_last_controller_event: input_text.dial_office_desk_helper
@@ -4528,7 +4531,7 @@
               entity_id: '{{media_players}}'
             data_template:
               volume_level: '{{ state_attr((media_players | first),''volume_level'')
-                + 0.02}}'
+                | float + 0.02}}'
             action: media_player.volume_set
           alias: Speaker playing and unmuted
       action_click_short:
@@ -5961,6 +5964,7 @@
       data:
         command: priority_only
     alias: Set maxi phone to DND Priority Only
+    enabled: false
   - action: notify.mobile_app_phone_maxi
     metadata: {}
     data:
