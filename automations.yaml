@@ -5000,44 +5000,55 @@
 
         '
   - parallel:
-    - alias: chromecasts
-      sequence:
-      - action: media_player.volume_set
-        metadata: {}
-        data:
-          volume_level: '{{ (playing_chromecasts.1 | float - (playing_chromecasts.1
-            | float / 2))| string }}'
-        target:
-          entity_id: '{{playing_chromecasts.0}}'
-        alias: Lower Music
-      - wait_template: '{{ states(trigger.entity_id) == "idle" }}'
-        continue_on_timeout: true
-        timeout: '60'
-      - action: media_player.volume_set
-        metadata: {}
-        data:
-          volume_level: '{{playing_chromecasts.1}}'
-        target:
-          entity_id: '{{playing_chromecasts.0}}'
-    - alias: Speakers
-      sequence:
-      - action: media_player.volume_set
-        metadata: {}
-        data:
-          volume_level: '{{ (playing_speakers.1 | float - (playing_speakers.1 | float
-            / 2))| string }}'
-        target:
-          entity_id: '{{playing_speakers.0}}'
-        alias: Lower Music
-      - wait_template: '{{ states(trigger.entity_id) == "idle" }}'
-        continue_on_timeout: true
-        timeout: '60'
-      - action: media_player.volume_set
-        metadata: {}
-        data:
-          volume_level: '{{playing_speakers.1}}'
-        target:
-          entity_id: '{{playing_speakers.0}}'
+    - alias: Dismiss empty variables
+      if:
+      - alias: Speaker present
+        condition: template
+        value_template: '{{ ''media'' in playing_speakers }}'
+      then:
+      - alias: Speakers
+        sequence:
+        - action: media_player.volume_set
+          metadata: {}
+          data:
+            volume_level: '{{ (playing_speakers.1 | float - (playing_speakers.1 |
+              float / 2))| string }}'
+          target:
+            entity_id: '{{playing_speakers.0}}'
+          alias: Lower Music
+        - wait_template: '{{ states(trigger.entity_id) == "idle" }}'
+          continue_on_timeout: true
+          timeout: '60'
+        - action: media_player.volume_set
+          metadata: {}
+          data:
+            volume_level: '{{playing_speakers.1}}'
+          target:
+            entity_id: '{{playing_speakers.0}}'
+    - alias: Dismiss empty variables
+      if:
+      - condition: template
+        value_template: '{{''media'' in playing_chromecast}} '
+      then:
+      - alias: chromecasts
+        sequence:
+        - action: media_player.volume_set
+          metadata: {}
+          data:
+            volume_level: '{{ (playing_chromecasts.1 | float - (playing_chromecasts.1
+              | float / 2))| string }}'
+          target:
+            entity_id: '{{playing_chromecasts.0}}'
+          alias: Lower Music
+        - wait_template: '{{ states(trigger.entity_id) == "idle" }}'
+          continue_on_timeout: true
+          timeout: '60'
+        - action: media_player.volume_set
+          metadata: {}
+          data:
+            volume_level: '{{playing_chromecasts.1}}'
+          target:
+            entity_id: '{{playing_chromecasts.0}}'
   mode: parallel
   max: 10
 - id: '1727273501229'
@@ -6129,4 +6140,24 @@
       - media_player.universal_salon_speakers
       - media_player.universal_office_speakers
       - media_player.universal_livingroom_speakers
+  mode: single
+- id: '1733533239694'
+  alias: Assist quick color change phrase
+  description: ''
+  triggers:
+  - command:
+    - lights {color}
+    trigger: conversation
+  conditions: []
+  actions:
+  - variables:
+      room: '{{area_name(trigger.device_id) | lower}}
+
+        '
+  - action: light.turn_on
+    metadata: {}
+    data:
+      color_name: '{{trigger.slots.color}}'
+    target:
+      area_id: '{{room }}'
   mode: single
