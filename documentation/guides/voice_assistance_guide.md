@@ -11,7 +11,7 @@ A few softwares will be used in this guide.
 
 [Ollama](https://ollama.com/) for the backend of the LLM.   
 [ESPHOME](https://esphome.io/) for the ESP32-s3 sattelites.  
-[Piper](https://www.home-assistant.io/integrations/piper/) For the text to speech.
+[Piper](https://www.home-assistant.io/integrations/piper/) For the text to speech.  
 [Whisper](https://www.home-assistant.io/integrations/Whisper) For the speech to text
 
 
