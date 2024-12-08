@@ -111,7 +111,7 @@ _____
 # Step 4) Setting up ESPHOME Voice assistant satellites.
 
 
-- 1: Will now need to install ESPHome on our ESP32-S3-Boxes (This assumes that your ESPHome addon is already set).
+- 1: We will now need to install ESPHome on our ESP32-S3-Boxes (This assumes that your ESPHome addon is already set).
     - 1: Access the `ESPHome Compiler` page.
     - 2: Click on `+ NEW DEVICE`.
     - 3: Enter a name, such as `ESPHome Assistant`
@@ -144,13 +144,14 @@ _____
     ssid: !secret wifi_ssid
     password: !secret wifi_password
     ```
+    
     - 3: Click on `Install`
     - 4: Select `Wirelessly` or `Plug into this computer`.
     - 5: Wait for the install to finish and then click `Close`.
 
 
 # Step 5) Integrating The Assistant sattelite into Home-Assistant
-
+  - 1: Adding the device to Home assistant
     - 1: Access the `Settings` page.
     - 2: Click on `Devices & services`.
     - 3: Click on `+ ADD INTEGRATION` on the lower-right part of the screen.
