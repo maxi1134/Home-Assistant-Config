@@ -170,33 +170,50 @@ broadcast_alert_in_the_house:
 
             {% endif %}'
         then:
-        - alias: Broadcast Image to paused chromecasts
-          repeat:
-            sequence:
-            - metadata: {}
-              data:
-                media_content_id: '{{image}}'
-                media_content_type: video
-                entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
-              action: media_player.play_media
-            for_each: '{{ non_playing_chromecasts }}'
-        - delay:
-            hours: 0
-            minutes: 0
-            seconds: 40
-            milliseconds: 0
-        - alias: Turn off precedent chromecats
-          repeat:
-            sequence:
-            - action: media_player.turn_off
-              metadata: {}
-              data: {}
-              target:
-                entity_id: '{{ non_playing_chromecasts }}'
-            for_each: '{{ non_playing_chromecasts }}'
+        - sequence:
+          - alias: Broadcast Image to paused chromecasts
+            repeat:
+              sequence:
+              - metadata: {}
+                data:
+                  media_content_id: '{{image}}'
+                  media_content_type: image
+                  entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
+                action: media_player.play_media
+              for_each: '{{ non_playing_chromecasts }}'
+          - wait_for_trigger:
+            - trigger: state
+              entity_id:
+              - lock.lock_front_door
+              to: locked
+              for:
+                hours: 0
+                minutes: 0
+                seconds: 15
+            timeout:
+              hours: 0
+              minutes: 2
+              seconds: 0
+              milliseconds: 0
+          - alias: Turn off precedent chromecats
+            repeat:
+              sequence:
+              - action: media_player.turn_off
+                metadata: {}
+                data: {}
+                target:
+                  entity_id: '{{ non_playing_chromecasts }}'
+              for_each: '{{ non_playing_chromecasts }}'
+        - action: dash_cast.load_url
+          metadata: {}
+          data:
+            force: false
+            reload_seconds: 0
+            entity_id: media_player.hotbox_down_hub
+            url: '{{image}}'
         enabled: true
         continue_on_error: true
-      - alias: Broadcast image to paused TVs if URL is present
+      - alias: Broadcast image to paused TVs if url is present
         if:
         - condition: template
           value_template: '{% if url %}
@@ -209,40 +226,47 @@ broadcast_alert_in_the_house:
 
             {% endif %}'
         then:
-        - alias: Broadcast Image to paused chromecasts
-          repeat:
-            sequence:
-            - action: dash_cast.load_url
-              data:
-                entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
-                url: '{{url}}'
-                force: true
-            for_each: '{{ non_playing_chromecasts }}'
-        - delay:
-            hours: 0
-            minutes: 0
-            seconds: 40
-            milliseconds: 0
-          enabled: false
-        - wait_for_trigger:
-          - trigger: state
-            entity_id:
-            - lock.lock_front_door
-            to: unlocked
-          timeout:
-            hours: 0
-            minutes: 1
-            seconds: 0
-            milliseconds: 0
-        - alias: Turn off precedent chromecats
-          repeat:
-            sequence:
-            - action: media_player.turn_off
-              metadata: {}
-              data: {}
-              target:
-                entity_id: '{{ non_playing_chromecasts }}'
-            for_each: '{{ non_playing_chromecasts }}'
+        - sequence:
+          - alias: Broadcast URL  to paused chromecasts
+            repeat:
+              sequence:
+              - metadata: {}
+                data:
+                  media_content_id: '{{url}}'
+                  media_content_type: video
+                  entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
+                action: media_player.play_media
+              for_each: '{{ non_playing_chromecasts }}'
+          - wait_for_trigger:
+            - trigger: state
+              entity_id:
+              - lock.lock_front_door
+              to: locked
+              for:
+                hours: 0
+                minutes: 0
+                seconds: 15
+            timeout:
+              hours: 0
+              minutes: 2
+              seconds: 0
+              milliseconds: 0
+          - alias: Turn off precedent chromecats
+            repeat:
+              sequence:
+              - action: media_player.turn_off
+                metadata: {}
+                data: {}
+                target:
+                  entity_id: '{{ non_playing_chromecasts }}'
+              for_each: '{{ non_playing_chromecasts }}'
+        - action: dash_cast.load_url
+          metadata: {}
+          data:
+            force: false
+            reload_seconds: 0
+            entity_id: media_player.hotbox_down_hub
+            url: '{{url}}'
         enabled: true
         continue_on_error: true
       - if:
