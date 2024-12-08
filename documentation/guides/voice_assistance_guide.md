@@ -9,32 +9,32 @@ _____
 # In this guide I will explain how I've setup my Local voice assistant and satellites!  
 A few softwares will be used in this guide.
 
-[HACS](https://hacs.xyz/) for easy installation of the other tools on Home Assistant.  
-[LocalAI](https://localai.io/) for the backend of the LLM.  
-[Home-LLM](https://github.com/acon96/home-llm) to connect our LocalAI instance to Home-assistant.  
-[HA-Fallback-Conversation](https://github.com/m50/ha-fallback-conversation) to allow HA to use both the baked-in intent as well as the LLM as a fallback if no intent is found.  
-[Willow](https://heywillow.io/) for the ESP32 sattelites.  
+[Ollama](https://ollama.com/) for the backend of the LLM.   
+[ESPHOME](https://esphome.io/) for the ESP32-s3 sattelites.  
+[Piper](https://www.home-assistant.io/integrations/piper/) For the text to speech.
+[Whisper](https://www.home-assistant.io/integrations/Whisper) For the speech to text
 
 
 _____
 
-# Step 1) Installing LocalAI
+# Step 1) Installing Ollama
 
-We will start by installing `LocalAI` on our machine learning host.   
-I recommend using a good machine with access to a GPU with at least 12 GB of Vram. As `Willow` itself can takes up to 6gb of Vram with another 4-5GB for our LLM model.   I recommend keeping those loaded in the machine at all time for speedy reaction times on our satellites.
+We will start by installing `Ollama` on our machine learning host.   
+I recommend using a good machine with access to a GPU with at least 12 GB of Vram. (24 if you are to use the same model as me, at it takes 19GB on its own).
+I  also thinkg it's better to keep the model loaded in the machine at all time for speedy reaction times on our satellites.
 
-**Here an example of the VRAM usage for  `Willow` and `LocalAI` with the `Llampa 8B` model:**
+**Here an example of the IDLE VRAM usage for  `Ollama` with the `qwen2.5:14b-instruct-q8_0` model:**
 ```
 
 +-----------------------------------------------------------------------------------------+
-| NVIDIA-SMI 555.42.02              Driver Version: 555.42.02      CUDA Version: 12.5     |
+| NVIDIA-SMI 565.57.01              Driver Version: 565.57.01      CUDA Version: 12.7     |
 |-----------------------------------------+------------------------+----------------------+
 | GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
 | Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
 |                                         |                        |               MIG M. |
 |=========================================+========================+======================|
 |   0  NVIDIA GeForce RTX 3090        Off |   00000000:01:00.0 Off |                  N/A |
-|  0%   39C    P8             16W /  370W |   10341MiB /  24576MiB |      0%      Default |
+|  0%   35C    P8             17W /  370W |   18025MiB /  24576MiB |      0%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
 
@@ -43,147 +43,119 @@ I recommend using a good machine with access to a GPU with at least 12 GB of Vra
 |  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
 |        ID   ID                                                               Usage      |
 |=========================================================================================|
-|    0   N/A  N/A      2862      C   /opt/conda/bin/python                        3646MiB |
-|    0   N/A  N/A      2922      C   /usr/bin/python                              2108MiB |
-|    0   N/A  N/A   2724851      C   .../backend-assets/grpc/llama-cpp-avx2       4568MiB |
+|    0   N/A  N/A   4171841      C   ...unners/cuda_v12/ollama_llama_server      18016MiB |
 +-----------------------------------------------------------------------------------------+
+
 ```
 
-I've chosen the Docker-Compose method for my LocalAI installation, this allows for easy management and easier upgrades when new relases are available.  
-This allows us to quickly create a container running LocalAI on our machine.  
+I've chosen the default install method  method for my Ollama installation.
 
-In order to do so, create a file called `docker-compose.yaml` with the following content:
+In order to do so, simply run this command:
 
-**Be aware that this Docker configuration requires a GPU**
-```
-version: "3.9"
-services:
-  api:
-    image: localai/localai:latest-aio-gpu-nvidia-cuda-12
-    restart: always
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/readyz"]
-      interval: 1m
-      timeout: 20m
-      retries: 5
-    ports:
-      - 8080:8080
-    env_file:
-      - .env
-    environment:
-      - DEBUG=true
-    volumes:
-      - /home/maxi1134/docker/local-ai/models:/build/models:cached 
-        #Be sure to replace the username in the path
-    runtime: nvidia
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: [gpu]
-```
+`curl -fsSL https://ollama.com/install.sh | sh`
 
 
-Once that is done simply use `sudo docker compose up -d` and your LocalAI instance should now be available at: 
-`http://{{host}}:8080/`
-_____
+# Step 1.a) Pulling the LLM model
 
-# Step 1.a) Downloading the LLM model
+Once Ollama if installed, we will need to pull the model we want to use.
 
-Once LocalAI if installed, you should be able to browse to the "Models" tab, that redirects to ``http://{{host}}:8080/browse``. There we will search for the `mistral-7b-instruct-v0.3` model and install it.
+I recommend using `qwen2.5:14b-instruct-q8_0` if you can spare the VRAM. 
+( ~21GB of it).
 
-Once that is done, make sure that the model is working by heading to the `Chat` tab and selecting the model `mistral-7b-instruct-v0.3` and initiating a chat. 
+If you happen to be more VRAM-limited, you can also try using a Llama3.2 model, which run on 3B parameters. (should run on a 6GB GPU, maybe even 4GB with a lower Quantization) 
 
-![alt text](/assets/ai_guide/chat_example.png)
+You can do so with:
+`ollama pull qwen2.5:14b-instruct-q8_0`
+or
+`ollama pull llama3.2:3b-instruct-q8_0`
 
 _____
 
-# Step 2) Installing Home-LLM
+# Step 2) Integrating Ollama into Home-Assistant
 
 
 
-
-- 1: You will first need to install the Home-LLM integration to Home-Assistant   
-    Thankfuly, there is a neat button to do that easely on [their repo](https://github.com/acon96/home-llm)!
-
-
-
-     [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?category=Integration&repository=home-llm&owner=acon96) 
-
-- 2: Restart `Home Assistant`
-
-- 3: You will then need to add the  `Home LLM Conversation` integration to Home-Assistant in order to connect LocalAI to it.
+- : You will need to add the  `Home LLM Conversation` integration to Home-Assistant in order to connect LocalAI to it.
     - 1: Access the `Settings` page.
     - 2: Click on `Devices & services`.
     - 3: Click on `+ ADD INTEGRATION` on the lower-right part of the screen.
-    - 4: Type and then select `Local LLM Conversation`.
-    - 5: Select the `Generic OpenAI Compatible API`.
-    - 6: Enter the hostname or IP Address of your LocalAI host.
-    - 7: Enter the used port (Default is `8080`).
-    - 8: Enter `mistral-7b-instruct-v0.3` as the `Model Name*`
-      - Leave `API Key` empty
-      - Do not check `Use HTTPS`
-      - leave `API Path*` as `/v1` 
-    - 9: Press `Next`
-    - 10: Select `Assist` under `Selected LLM API`
-    - 11: Make sure the `Prompt Format*` is set to `Mistral`
-    - 12: Make sure `Enable in context learning (ICL) examples` is checked.
-    - 13: Press `Sumbit`
-    - 14: Press `Finish`
+    - 4: Type and then select `Ollama`.
+    - 5: Enter the hostname or IP Address of your Ollama host.
+    - 6: Select the model you pulled
+    - 7: Click "Sumbit"
+    - 8: click "Finish"
 
 <p align="center">A video of the process! </p>
 <p align="middle">
-  <img src="/assets/home_llm_guide/home_llm_installation_video.gif" width="50%" />
+  <img src="/assets/voice_assistance_guide/installation.gif" width="100%" />
 <p>
 
 _____
 
-# Step 3) Installing [HA-Fallback-Conversation](https://github.com/m50/ha-fallback-conversation)
+# Step 3) Integrating Ollama into our Voice assistant
 
 
 - 1:  Integrate Fallback Conversation to Home-Assistant
-  - 1: Access the `HACS` page.
-  - 2: Search for `Fallback`
-  - 3: Click on `fallback_conversation`.
-  - 4: Click on `Download` and install the integration
-  - 5: Restart `Home Assistant` for the integration to be detected.
-  - 6: Access the `Settings` page.
-  - 7: Click on `Devices & services`.
-  - 8: Click on `+ ADD INTEGRATION` on the lower-right part of the screen.
-  - 8: Search for `Fallback`
-  - 9: Click on `Fallback Conversation Agent`.
-  - 10 Set the debug level at `Some Debug` for now.
-  - 11: Click `Sumbit`
-  - 
-  
-- 2: Configure the Voice assistant within Home-assistant to use the newly added model through the `Fallback Conversation Agent`.
   - 1: Access the `Settings` page.
-  - 2: Click on `Devices & services`.
-  - 3: Click on `Fallback Conversation Agent`.
-  - 4: Click on `CONFIGURE`.
-  - 5: Select `Home assistnat` as the `Primary Conversation Agent`.
-  - 6: Select `LLM MODEL 'mistral-7b-instruct-v0.3'(remote)` as the `Falback conversation Agent`.
-
-
+  - 2: Click on `Voice Assistants`.
+  - 3: Click on `Add Assistant`
+  - 4: Enter the name `LLM Voice Assistant`
+  - 5: Select `llama3.2` or `qwen2.5:14b-instruct-q8_0`
+  - 6: Check `Prefer handling commands locally` so it is on.
+  - 7: Select your `Speech-to-text` [service](https://www.home-assistant.io/integrations/Whisper).
+  - 8: Select your `Text-to-speech` [service](https://www.home-assistant.io/integrations/piper/).
+_____
 _____
 
-# Step 4) Selecting the right agent in the Voice assistant settings.
+# Step 4) Setting up ESPHOME Voice assistant satellites.
 
 
-- 1:  Integrate Fallback Conversation to Home-Assistant
- - 1: Access the `Settings` page.
- - 2: Click on `Voice assistants` page.
- - 3: Click on `Add Assistant`.
- - 4: Set the fields as wanted except for `Conversation Agent`.
- - 5: Select `Fallback Conversation Agent` as the `Conversation agent`.
+- 1: Will now need to install ESPHome on our ESP32-S3-Boxes (This assumes that your ESPHome addon is already set).
+    - 1: Access the `ESPHome Compiler` page.
+    - 2: Click on `+ NEW DEVICE`.
+    - 3: Enter a name, such as `ESPHome Assistant`
+    - 4: Connect your ESP32-S3-Box to the computer. (Be sure to be running your Home-assistant interface in a chromium browser with HTTPS ENABLED!)
+    - 5: Click `Connect`
+    - 6: Select the `JTAG/Serial debug unit` Com port corresponding to your ESP32-S3-Box 
+      - (This can be guessed by disconnecting the ESP32 and see which ones don't disapear from the list)
+    - 7: Click `Connect`
+    - 8: Wait until the installation is cxompleted.
+- 2: Now, we will set the correct firmware below on them:
+    - 1: Click `Edit` beside our new `ESPHome Assistant`device.
+    - 2: Paste the code under and make sure to create the corresponding secrets.
+  ```
+  substitutions:
+    name: esphome-assistant
+    friendly_name: ESPHome Assistant
+    micro_wake_word_model: alexa
+  packages:
+    esphome.voice-assistant: github://esphome/wake-word-voice-assistants/esp32-s3-box-3/esp32-s3-box-3.yaml@main
+  esphome:
+    name: ${name}
+    name_add_mac_suffix: false
+    friendly_name: ${friendly_name}
+  api:
+    encryption:
+      key: !secret api_key_voice_assistant
 
-_____
 
-# Step 5) Setting up Willow Voice assistant satellites.
-Since willow is a more complex Software, I will simply leave [Their guide here](https://heywillow.io/quick-start-guide/).
-I do recommend deploying your own Willow Inference Server in order to remain completely local!
+  wifi:
+    ssid: !secret wifi_ssid
+    password: !secret wifi_password
+    ```
+    - 3: Click on `Install`
+    - 4: Select `Wirelessly` or `Plug into this computer`.
+    - 5: Wait for the install to finish and then click `Close`.
 
-Once the Willow sattelites are connencted to `Home Assistant`, they should automatically use your default Voice Assistant.
-Be sure to set the one using the fallback system as your favorite/default one!
 
+# Step 5) Integrating The Assistant sattelite into Home-Assistant
 
+    - 1: Access the `Settings` page.
+    - 2: Click on `Devices & services`.
+    - 3: Click on `+ ADD INTEGRATION` on the lower-right part of the screen.
+    - 4: Type and then select `ESPHome`.
+    - 5: Select the newly discovered Assistant
+    - 6: Click "Sumbit"
+    - 7: click "Finish"
+    - 8: Select the corresponding Area
+    - 9: click "Finish"
