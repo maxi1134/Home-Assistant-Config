@@ -1940,13 +1940,13 @@
 - id: '1714688757969'
   alias: Turn light on when someone is detected in the front
   description: ''
-  trigger:
-  - platform: numeric_state
-    entity_id:
+  triggers:
+  - entity_id:
     - sensor.front_door_camera_person_count
     above: 0
-  condition: []
-  action:
+    trigger: numeric_state
+  conditions: []
+  actions:
   - choose:
     - conditions:
       - condition: state
@@ -1961,32 +1961,31 @@
           light_brightness: '{{ state_attr(''light.front_door_light'',''brightness'')}}
 
             '
-      - service: light.turn_on
+      - alias: 'Set the front door light to bright white '
         metadata: {}
         data:
-          transition: 0
+          transition: 2
           color_temp: 263
           brightness: 255
         target:
           entity_id: light.front_door_light
-        alias: 'Set the front door light to bright white '
+        action: light.turn_on
       - alias: Wait until entrance empty (20 minutes timeout)
         wait_for_trigger:
-        - platform: numeric_state
-          entity_id:
+        - entity_id:
           - sensor.front_door_camera_person_count
           for:
             hours: 0
             minutes: 3
             seconds: 0
           below: 1
+          trigger: numeric_state
         timeout:
-          hours: 0
-          minutes: 20
+          hours: 1
+          minutes: 0
           seconds: 0
           milliseconds: 0
-      - service: light.turn_on
-        metadata: {}
+      - metadata: {}
         data:
           brightness: '{{ light_brightness }}
 
@@ -1996,14 +1995,14 @@
             '
         target:
           entity_id: light.front_door_light
+        action: light.turn_on
     - conditions:
       - alias: If Front door light is off
         condition: state
         entity_id: light.front_door_light
         state: 'off'
       sequence:
-      - service: light.turn_on
-        metadata: {}
+      - metadata: {}
         data:
           transition: 0
           color_temp: 263
@@ -2011,26 +2010,27 @@
         target:
           entity_id: light.front_door_light
         alias: 'Set the front door light to bright white '
+        action: light.turn_on
       - alias: Wait until entrance empty (20 minutes timeout)
         wait_for_trigger:
-        - platform: numeric_state
-          entity_id:
+        - entity_id:
           - sensor.front_door_camera_person_count
           for:
             hours: 0
             minutes: 3
             seconds: 0
           below: 1
+          trigger: numeric_state
         timeout:
-          hours: 0
-          minutes: 20
+          hours: 1
+          minutes: 0
           seconds: 0
           milliseconds: 0
-      - service: light.turn_off
-        metadata: {}
+      - metadata: {}
         data: {}
         target:
           entity_id: light.front_door_light
+        action: light.turn_off
       alias: If the front door light is off
   mode: restart
 - id: '1715034222361'
@@ -5368,7 +5368,7 @@
           for_each: '{{ off_chromecasts }}'
   mode: single
 - id: '1729518874101'
-  alias: Turn on and off the front door light in relation to the sun position
+  alias: Turn off the front door light in relation to the sun position
   description: ''
   triggers:
   - trigger: state
@@ -5376,80 +5376,18 @@
     - sun.sun
     from:
     to: above_horizon
-  - trigger: state
-    entity_id:
-    - sun.sun
-    from:
-    to: below_horizon
     for:
       hours: 0
-      minutes: 30
+      minutes: 15
       seconds: 0
   conditions: []
   actions:
-  - choose:
-    - conditions:
-      - condition: state
-        entity_id: sun.sun
-        state: below_horizon
-      - condition: or
-        conditions:
-        - condition: numeric_state
-          entity_id: light.front_door_light
-          attribute: brightness
-          below: 50
-        - condition: state
-          entity_id: light.front_door_light
-          state: 'off'
-      sequence:
-      - repeat:
-          sequence:
-          - action: light.turn_on
-            metadata: {}
-            data:
-              transition: 20
-              kelvin: 3597
-              brightness_pct: 100
-            target:
-              entity_id: light.front_door_light
-          - delay:
-              hours: 0
-              minutes: 30
-              seconds: 0
-              milliseconds: 0
-          while:
-          - condition: state
-            entity_id: sun.sun
-            state: below_horizon
-          - condition: or
-            conditions:
-            - condition: numeric_state
-              entity_id: light.front_door_light
-              attribute: brightness
-              below: 50
-            - condition: state
-              entity_id: light.front_door_light
-              state: 'off'
-      alias: Sun Down
-    - conditions:
-      - condition: state
-        entity_id: sun.sun
-        state: above_horizon
-        for:
-          hours: 0
-          minutes: 0
-          seconds: 0
-      - condition: state
-        entity_id: light.front_door_light
-        state: 'on'
-      sequence:
-      - action: light.turn_off
-        metadata: {}
-        data:
-          transition: 300
-        target:
-          entity_id: light.front_door_light
-      alias: Sun up
+  - action: light.turn_off
+    metadata: {}
+    data:
+      transition: 300
+    target:
+      entity_id: light.front_door_light
   mode: single
 - id: '1729519649402'
   alias: Front door automation on unlock for conditional codes
@@ -6191,3 +6129,79 @@
       url: http://192.168.0.15:8123/lovelace-hub/hotbox-down-hub?kiosk
       force: true
   mode: single
+- id: '1733789430500'
+  alias: Turn on the front door light in relation to the sun position
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sun.sun
+    from:
+    to: below_horizon
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
+  conditions: []
+  actions:
+  - repeat:
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 20
+          kelvin: 3597
+          brightness_pct: 100
+        target:
+          entity_id: light.front_door_light
+      - delay:
+          hours: 0
+          minutes: 30
+          seconds: 0
+          milliseconds: 0
+      while:
+      - condition: state
+        entity_id: sun.sun
+        state: below_horizon
+      - condition: or
+        conditions:
+        - condition: numeric_state
+          entity_id: light.front_door_light
+          attribute: brightness
+          below: 50
+        - condition: state
+          entity_id: light.front_door_light
+          state: 'off'
+  mode: single
+- id: '1733790164217'
+  alias: Set Wallpaper engine colors to match the lights
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.office_lights_color
+  conditions: []
+  actions:
+  - variables:
+      red: '{{ (((states(''sensor.office_lights_color'') | string).split('','').0.replace("(","")
+        | int / 255 )| string)[:4] }}
+
+        '
+      green: '{{ (((states(''sensor.office_lights_color'') | string).split('','').1
+        | int / 255 )| string)[:4] }}
+
+        '
+      blue: '{{ (((states(''sensor.office_lights_color'') | string).split('','').2.replace(")","")
+        | int / 255 )| string)[:4] }}
+
+        '
+  - action: mqtt.publish
+    metadata: {}
+    data:
+      qos: 0
+      retain: false
+      topic: homeassistant/button/DESKTOP_MAXI/custom/action
+      payload: '%wpe% -control applyProperties -properties RAW~({"schemecolor":"{{red}}
+        {{green}} {{blue}}"})~END'
+    enabled: true
+  mode: restart
