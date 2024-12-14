@@ -2832,21 +2832,20 @@
 - id: '1716934404427'
   alias: Alert when someone is in the front
   description: ''
-  trigger:
-  - platform: numeric_state
-    entity_id:
+  triggers:
+  - entity_id:
     - sensor.front_door_camera_person_count
     above: 0
-  condition:
+    trigger: numeric_state
+  conditions:
   - condition: not
     conditions:
     - condition: state
       entity_id: alarm_control_panel.home_alarm
       state: disarmed
     enabled: false
-  action:
+  actions:
   - alias: Take snapshot for LocalAI
-    service: camera.snapshot
     metadata: {}
     data:
       filename: www/frontdoor_movement.png
@@ -2854,15 +2853,15 @@
       entity_id:
       - camera.front_door_camera
     enabled: true
-  - service: camera.snapshot
-    metadata: {}
+    action: camera.snapshot
+  - metadata: {}
     data:
       filename: /media/frontdoor_movement.png
     target:
       entity_id:
       - camera.front_door_camera
-  - service: notify.mobile_app_phone_maxi
-    metadata: {}
+    action: camera.snapshot
+  - metadata: {}
     data:
       message: Movement in the front!
       title: Someone is in the front!
@@ -2873,20 +2872,26 @@
           title: Blow the horn for 2 minutes?
         - action: REPLY
           title: Enter Text
-  - service: rest_command.local_ai_describe_image
-    metadata: {}
+    action: notify.mobile_app_phone_maxi
+  - action: llmvision.image_analyzer
     data:
-      url: http://192.168.0.15:8123/local/frontdoor_movement.png
-      prompt: Describe this person only using adjectives, with no preamble, format
-        it as bulletpoints
+      provider: 01JDD7V3QXP1KN82V27H591YAX
+      model: maxi_llama32-vision
+      message: Describe this person only using adjectives, with no preamble, format
+        it as bulletpoints, if there is no person say so
+      max_tokens: 42
+      temperature: 0.3
+      include_filename: true
+      image_entity:
+      - camera.front_door_camera
+      expose_images: true
     response_variable: return
-    enabled: false
-  - service: notify.mobile_app_phone_maxi
-    metadata: {}
+  - metadata: {}
     data:
-      message: '{{return.content.choices.0.message.content}}'
+      message: '{{return.response_text}}'
       title: This is who is in the front
-    enabled: false
+    enabled: true
+    action: notify.mobile_app_phone_maxi
   mode: restart
 - id: '1716935540936'
   alias: Alert when the horn goes off and offer to turn it off
