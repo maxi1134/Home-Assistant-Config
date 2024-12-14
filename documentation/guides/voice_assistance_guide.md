@@ -76,7 +76,7 @@ _____
 
 
 
-- : You will need to add the  `Home LLM Conversation` integration to Home-Assistant in order to connect LocalAI to it.
+- : You will need to add the  `Ollama` integration to Home-Assistant in order to connect LocalAI to it.
     - 1: Access the `Settings` page.
     - 2: Click on `Devices & services`.
     - 3: Click on `+ ADD INTEGRATION` on the lower-right part of the screen.
