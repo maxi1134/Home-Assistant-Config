@@ -3753,23 +3753,25 @@
   conditions: []
   actions:
   - metadata: {}
+    action: conversation.process
     data:
-      prompt: '{{trigger.slots.query}}'
+      text: Is "{{trigger.slots.query}}" a movie or a tv show? Just answer with one
+        or two words
+      agent_id: conversation.qwen2_5_14b_instruct_q8_0
     response_variable: return
-    action: rest_command.open_webui_describe_media
   - variables:
       room: '{% if trigger.slots.room %} {{trigger.slots.room}} {% else %} {{ area_name(trigger.device_id)}}
         {% endif %}
 
         '
-      media_type: "{% if \"show\" in return.content.choices.0.message.content or \"Show\"
-        in return.content.choices.0.message.content or \"serie\" in return.content.choices.0.message.content
-        or \"Serie\" in return.content.choices.0.message.content %}\n tvshow\n{% else
+      media_type: "{% if \"show\" in  return.response.speech.plain.speech or \"Show\"
+        in\n return.response.speech.plain.speech or \"serie\" in\n return.response.speech.plain.speech
+        or \"Serie\" in\n return.response.speech.plain.speech %}\n tvshow\n{% else
         %}\n  movie\n{% endif %}\n"
-      library_name: "{% if \"show\" in return.content.choices.0.message.content or
-        \"Show\" in return.content.choices.0.message.content or \"serie\" in return.content.choices.0.message.content
-        or \"Serie\" in return.content.choices.0.message.content %}\n TV Shows\n{%
-        else %}\n  Movies\n{% endif %}\n"
+      library_name: "{% if \"show\" in  return.response.speech.plain.speech or \"Show\"
+        in\n return.response.speech.plain.speech or \"serie\" in\n return.response.speech.plain.speech
+        or \"Serie\" in\n return.response.speech.plain.speech %}\n TV Shows\n{% else
+        %}\n  Movies\n{% endif %}\n"
       media_content: '{{trigger.slots.query}}'
       target: '{{ [area_id(room)]    | map(''area_entities'')  | sum(start=[]) | select(''search'',
         (''media_player.universal.*chromecast'')) | unique  | list }}
@@ -4079,7 +4081,7 @@
       action_rotate_left:
       - variables:
           media_players: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+            sum(start=[]) |    select(''search'', ''mass'') |  expand   | selectattr(''attributes.is_volume_muted'',
             ''false'') |map(attribute=''entity_id'') | list}}
 
             '
@@ -4097,6 +4099,7 @@
               volume_level: '{{ state_attr((media_players | first),''volume_level'')
                 - 0.03}}'
             action: media_player.volume_set
+            enabled: true
           alias: Speaker playing and unmuted
       helper_last_controller_event: input_text.dial_hallway_helper
       rotate_left_loop: true
@@ -4122,6 +4125,7 @@
               volume_level: '{{ state_attr((media_players | first),''volume_level'')
                 + 0.02}}'
             action: media_player.volume_set
+            enabled: true
           alias: Speaker playing and unmuted
       action_click_short:
       - variables:
