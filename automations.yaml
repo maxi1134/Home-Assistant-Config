@@ -6214,3 +6214,173 @@
         {{green}} {{blue}}"})~END'
     enabled: true
   mode: restart
+- id: '1734282252470'
+  alias: Assist Unmute ESP32 endpoints when room is occupied
+  description: 'This one uses motion groups '
+  triggers:
+  - entity_id:
+    - binary_sensor.group_office_motion_occupancy
+    - binary_sensor.group_hallway_motion_occupancy
+    - binary_sensor.group_kitchen_motion_occupancy
+    - binary_sensor.group_hotbox_top_motion_occupancy
+    - binary_sensor.group_livingroom_motion_occupancy
+    - binary_sensor.group_hotbox_down_motion_occupancy
+    - binary_sensor.group_patio_motion_occupancy
+    - binary_sensor.group_closet_motion_occupancy
+    - binary_sensor.group_server_motion_occupancy
+    - binary_sensor.group_bathroom_motion_occupancy
+    - binary_sensor.group_bedroom_motion_occupancy
+    - binary_sensor.group_entrance_motion_occupancy
+    - binary_sensor.group_workstation_motion_occupancy
+    - binary_sensor.group_salon_motion_occupancy
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+    trigger: state
+    to: 'on'
+  conditions:
+  - condition: template
+    value_template: '{{ area_id(trigger.entity_id) | replace(''_top'','''') | replace(''_down'','''')
+      not in states(''sensor.active_sleeper_rooms'') | string  }}'
+    enabled: true
+  actions:
+  - variables:
+      esp32_mute_entities: '{{([area_id(trigger.entity_id)]  | map(''area_entities'')
+        | sum(start=[]) |select(''match'', ''switch.*mute$'') |  unique | list ) }}
+
+        '
+  - repeat:
+      sequence:
+      - metadata: {}
+        data: {}
+        target:
+          entity_id: '{{esp32_mute_entities[repeat.index - 1]    }}'
+        action: switch.turn_off
+      for_each: '{{esp32_mute_entities}}'
+  mode: parallel
+  max: 25
+- id: '1734282372322'
+  alias: Assist mute ESP32 endpoints when room is unoccupied
+  description: 'This one uses motion groups '
+  triggers:
+  - entity_id:
+    - binary_sensor.group_office_motion_occupancy
+    - binary_sensor.group_hallway_motion_occupancy
+    - binary_sensor.group_kitchen_motion_occupancy
+    - binary_sensor.group_hotbox_top_motion_occupancy
+    - binary_sensor.group_livingroom_motion_occupancy
+    - binary_sensor.group_hotbox_down_motion_occupancy
+    - binary_sensor.group_patio_motion_occupancy
+    - binary_sensor.group_closet_motion_occupancy
+    - binary_sensor.group_server_motion_occupancy
+    - binary_sensor.group_bathroom_motion_occupancy
+    - binary_sensor.group_bedroom_motion_occupancy
+    - binary_sensor.group_entrance_motion_occupancy
+    - binary_sensor.group_workstation_motion_occupancy
+    - binary_sensor.group_salon_motion_occupancy
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 0
+    trigger: state
+    to: 'off'
+  conditions: []
+  actions:
+  - variables:
+      esp32_mute_entities: '{{([area_id(trigger.entity_id)]  | map(''area_entities'')
+        | sum(start=[]) |select(''match'', ''switch.*mute$'') |  unique | list ) }}
+
+        '
+  - repeat:
+      sequence:
+      - metadata: {}
+        data: {}
+        target:
+          entity_id: '{{esp32_mute_entities[repeat.index - 1]    }}'
+        action: switch.turn_on
+      for_each: '{{esp32_mute_entities}}'
+  mode: parallel
+  max: 25
+- id: '1734282532788'
+  alias: Assist turn off ESP32 endpoint screens when room is unoccupied
+  description: 'This one uses motion groups '
+  triggers:
+  - entity_id:
+    - binary_sensor.group_office_motion_occupancy
+    - binary_sensor.group_hallway_motion_occupancy
+    - binary_sensor.group_kitchen_motion_occupancy
+    - binary_sensor.group_hotbox_top_motion_occupancy
+    - binary_sensor.group_livingroom_motion_occupancy
+    - binary_sensor.group_hotbox_down_motion_occupancy
+    - binary_sensor.group_patio_motion_occupancy
+    - binary_sensor.group_closet_motion_occupancy
+    - binary_sensor.group_server_motion_occupancy
+    - binary_sensor.group_bathroom_motion_occupancy
+    - binary_sensor.group_bedroom_motion_occupancy
+    - binary_sensor.group_entrance_motion_occupancy
+    - binary_sensor.group_workstation_motion_occupancy
+    - binary_sensor.group_salon_motion_occupancy
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 45
+    trigger: state
+    to: 'off'
+  conditions: []
+  actions:
+  - variables:
+      esp32_screens_entities: '{{([area_id(trigger.entity_id)]  | map(''area_entities'')
+        | sum(start=[]) |select(''match'', ''light.*backlight$'') |  unique | list
+        ) }}
+
+        '
+  - repeat:
+      sequence:
+      - metadata: {}
+        data: {}
+        target:
+          entity_id: '{{esp32_screens_entities[repeat.index - 1]    }}'
+        action: switch.turn_off
+      for_each: '{{esp32_screens_entities}}'
+  mode: parallel
+  max: 25
+- id: '1734282569650'
+  alias: Assist turn on ESP32 endpoint screens when room is occupied
+  description: 'This one uses motion groups '
+  triggers:
+  - entity_id:
+    - binary_sensor.group_office_motion_occupancy
+    - binary_sensor.group_hallway_motion_occupancy
+    - binary_sensor.group_kitchen_motion_occupancy
+    - binary_sensor.group_hotbox_top_motion_occupancy
+    - binary_sensor.group_livingroom_motion_occupancy
+    - binary_sensor.group_hotbox_down_motion_occupancy
+    - binary_sensor.group_patio_motion_occupancy
+    - binary_sensor.group_closet_motion_occupancy
+    - binary_sensor.group_server_motion_occupancy
+    - binary_sensor.group_bathroom_motion_occupancy
+    - binary_sensor.group_bedroom_motion_occupancy
+    - binary_sensor.group_entrance_motion_occupancy
+    - binary_sensor.group_workstation_motion_occupancy
+    - binary_sensor.group_salon_motion_occupancy
+    trigger: state
+    to: 'on'
+  conditions: []
+  actions:
+  - variables:
+      esp32_screens_entities: '{{([area_id(trigger.entity_id)]  | map(''area_entities'')
+        | sum(start=[]) |select(''match'', ''light.*backlight$'') |  unique | list
+        ) }}
+
+        '
+  - repeat:
+      sequence:
+      - metadata: {}
+        data: {}
+        target:
+          entity_id: '{{esp32_screens_entities[repeat.index - 1]    }}'
+        action: switch.turn_on
+      for_each: '{{esp32_screens_entities}}'
+  mode: parallel
+  max: 25
