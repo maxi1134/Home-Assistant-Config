@@ -495,8 +495,119 @@
 
  
   ##########################  CHROMECASTS  ##########################   
+  
+
+  ########################## Universal bedroom Chromecast  ########################## 
+  
+  
+  - platform: universal
+    unique_id: universal_bedroom_chromecast
+    name: Universal bedroom chromecast
+    children:
+      - media_player.bedroom_chromecast
+    active_child_template: >-
+                  {% set ns = namespace( cast_entity = "media_player.bedroom_chromecast", template_entity = "" ) %}
+                  {% set ns.final_entity = ns.cast_entity %}   {# Declare Variables#}                    
+                  {% for media_player in states.media_player %}                   
+                    {% if "plex" in media_player.entity_id and media_player.state != "unavailable" %}
+                      {% set entity = media_player.entity_id %}
+                      {% set media_title = state_attr( entity, 'media_title') %}
+                      {% set media_series_title = state_attr( entity, 'media_series_title') %}
+                      {% set media_series_episode = state_attr( entity, 'media_espisode') %}
+                      {% set media_series_season = state_attr( entity, 'media_season') %}                      
+                        {% if state_attr( ns.final_entity, 'media_title') %}
+                          {% if  state_attr( ns.cast_entity, 'media_title') in ( media_title | string )%}
+                          {% set ns.template_entity = entity %}
+                          {% endif %}                    
+                        {% elif state_attr( ns.final_entity, 'media_series_title') %}
+                          {% if  state_attr( ns.cast_entity, 'media_series_title') in ( media_series_title | string )%}
+                          {% set ns.template_entity = entity %}
+                          {% endif %}
+                        {% endif %}                      
+                    {% endif %}                         
+                  {% endfor %}                   
+                  {% if ns.template_entity == "" %}
+                      {% set ns.template_entity = ns.cast_entity %}
+                  {% endif %}
+                  {% if ns.template_entity != ns.cast_entity %}                  
+                    {{ns.template_entity}}
+                  {% elif state_attr( ns.cast_entity, 'media_title')  %} 
+                    media_player.bedroom_chromecast
+                  {% else %}
+                    media_player.bedroom_chromecast
+                  {% endif %}          
+    commands:
+      volume_mute:
+        service: media_player.volume_mute
+        target:
+          entity_id: 
+            - media_player.bedroom_chromecast            
+        data:
+          is_volume_muted: "{{ is_volume_muted }}"
+      volume_set:
+        service: media_player.volume_set
+        target:
+          entity_id: 
+            - media_player.bedroom_chromecast            
+        data:
+          volume_level: "{{ volume_level }}"
+      volume_up:
+        service: media_player.volume_up
+        target:
+          entity_id: 
+            - media_player.bedroom_chromecast            
+      volume_down:
+        service: media_player.volume_down
+        target:
+          entity_id: 
+            - media_player.bedroom_chromecast              
+      media_pause:
+        service: media_player.media_pause
+        target:
+          entity_id: 
+            - media_player.bedroom_chromecast             
+      media_play_pause:
+        service: media_player.media_play_pause
+        target:
+          entity_id: 
+            - media_player.bedroom_chromecast            
+      turn_on:
+        service: media_player.turn_on
+        target:
+          entity_id: 
+            - media_player.bedroom_chromecast            
+      turn_off:
+        service: media_player.turn_off
+        target:
+          entity_id: 
+            - media_player.bedroom_chromecast         
+      media_stop:
+        service: media_player.media_stop
+        target:
+          entity_id: 
+            - media_player.bedroom_chromecast   
+      media_play:
+        service: media_player.media_play
+        target:
+          entity_id: 
+            - media_player.bedroom_chromecast    
+      play_media :
+        service: media_player.play_media
+        data:
+          media_content_type: '{{media_content_type}}'
+          media_content_id: '{{media_content_id}}'
+        target:
+          entity_id: 
+            - media_player.bedroom_chromecast            
+    attributes:
+      is_volume_muted: media_player.bedroom_chromecast|is_volume_muted
+      volume_level: media_player.bedroom_chromecast|volume_level
+      state: media_player.bedroom_chromecast
+
 
   ########################## Universal salon Chromecast  ########################## 
+  
+  
   - platform: universal
     unique_id: universal_salon_chromecast
     name: Universal salon chromecast
