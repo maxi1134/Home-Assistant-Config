@@ -2310,34 +2310,22 @@
 - id: '1715788063807'
   alias: Tell maxi when his watch is charged
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - sensor.galaxy_watch4_2n0f_battery_level
+  triggers:
+  - entity_id:
+    - sensor.galaxy_watch_4_battery_level
     to: '100'
-  condition:
+    trigger: state
+  conditions:
   - condition: state
-    entity_id: sensor.galaxy_watch4_2n0f_battery_state
+    entity_id: sensor.galaxy_watch_4_battery_state
     state: charging
-  action:
-  - service: rest_command.local_ai_generate_image
-    metadata: {}
-    data:
-      prompt: A close up of a fully charged and powered up smart watch
-    response_variable: return
-  - service: downloader.download_file
-    metadata: {}
-    data:
-      overwrite: true
-      filename: watch_image.jpg
-      url: '{{return.content.data[0].url}}'
-  - service: notify.mobile_app_phone_maxi
-    metadata: {}
+  actions:
+  - metadata: {}
     data:
       title: Watch Alert
       message: Your watch is charged!
-      data:
-        image: /media/local/watch_image.jpg
+      data: {}
+    action: notify.mobile_app_phone_maxi
   mode: single
 - id: '1715791112355'
   alias: Doorbell Show received notification answer on phone
@@ -2378,7 +2366,7 @@
   actions:
   - metadata: {}
     data:
-      command: 'Turn off     {{ [area_id(trigger.entity_id)]    | map(''area_entities'')
+      command: 'Power off {{ [area_id(trigger.entity_id)]    | map(''area_entities'')
         | sum(start=[])  |    select(''search'', ''^media_player\.(?!.*?universal.*?).*chromecast'')
         |  map(''state_attr'', ''friendly_name'') | unique | list | first }}
 
@@ -2441,26 +2429,24 @@
 - id: '1716329707766'
   alias: Start music on ACid mode on
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - input_boolean.acid_time
     to: 'on'
-  condition:
+    trigger: state
+  conditions:
   - condition: not
     conditions:
     - condition: state
-      entity_id: media_player.mass_home_group
+      entity_id: media_player.universal_home_speakers
       state: playing
-  action:
-  - metadata: {}
-    data:
-      media_id: Psychedelic Music
-      media_type: playlist
-      enqueue: replace_next
-    action: mass.play_media
+  actions:
+  - action: media_player.play_media
     target:
       entity_id: media_player.group_mass_home_airplay_speakers
+    data:
+      media_content_id: Psychedelic Music
+      media_content_type: playlist
   mode: single
 - id: '1716329767682'
   alias: Close all blinds on acid mode
