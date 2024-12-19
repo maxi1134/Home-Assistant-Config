@@ -3201,21 +3201,24 @@
 - id: '1717284510591'
   alias: Disarm alarm night when someone awakes
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - binary_sensor.all_present_sleeping
     to: 'off'
     for:
       hours: 0
       minutes: 0
       seconds: 0
-  condition: []
-  action:
-  - service: alarm_control_panel.alarm_disarm
-    target:
+    trigger: state
+  conditions:
+  - condition: state
+    entity_id: alarm_control_panel.home_alarm
+    state: armed_night
+  actions:
+  - target:
       entity_id: alarm_control_panel.home_alarm
     data: {}
+    action: alarm_control_panel.alarm_disarm
   mode: single
 - id: '1717284957489'
   alias: Turn on sleeper in bedroom boolean when sensor turns to on
@@ -3271,6 +3274,7 @@
     - condition: state
       entity_id: sensor.where_is_maxi_sleeping
       state: closet
+    enabled: false
   actions:
   - metadata: {}
     data: {}
@@ -5067,13 +5071,12 @@
     trigger: conversation
   conditions: []
   actions:
-  - data:
-      media_type: playlist
-      enqueue: replace
-      media_id: 500 Random tracks
-    action: mass.play_media
+  - action: media_player.play_media
     target:
       entity_id: media_player.group_mass_home_airplay_speakers
+    data:
+      media_content_id: 500 Random tracks
+      media_content_type: playlist
   mode: single
 - id: '1728086665319'
   alias: Manage bedroom AC through maxi occupancy
@@ -5297,7 +5300,6 @@
   - entity_id:
     - assist_satellite.esp32_s3_box_3_office_assistant_assist_satellite
     - assist_satellite.esp32_s3_box_3_lv_assistant_assist_satellite
-    - binary_sensor.esp32_s3_box_kitchen_assistant_assist_in_progress
     - assist_satellite.esp32_s3_box_3_lvw_assistant_assist_satellite
     - assist_satellite.esp32_s3_box_bedroom_assistant_assist_satellite
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
@@ -5465,7 +5467,7 @@
     condition: template
     value_template: '{{ trigger.to_state.attributes.action == ''manual_unlock''  }}'
   actions:
-  - action: script.broadcast_alert_in_the_house
+  - action: script.non_important_broadcast_alert_in_the_house
     metadata: {}
     data:
       color: green
@@ -5549,10 +5551,16 @@
       minutes: 1
       seconds: 0
   conditions:
-  - condition: state
-    entity_id: sensor.hallway_tablet_current_page
-    attribute: full_url
-    state: http://192.168.0.15:8123/tablets-subviews/subview-music
+  - condition: or
+    conditions:
+    - condition: state
+      entity_id: sensor.hallway_tablet_current_page
+      attribute: full_url
+      state: http://192.168.0.15:8123/tablets-subviews/subview-music#camera_motion_detected
+    - condition: state
+      entity_id: sensor.hallway_tablet_current_page
+      attribute: full_url
+      state: http://192.168.0.15:8123/tablets-subviews/subview-music
   actions:
   - action: button.press
     metadata: {}
