@@ -842,9 +842,9 @@
       - metadata: {}
         data:
           volume_level: 0.4
+        action: media_player.volume_set
         target:
           entity_id: media_player.bathroom_speaker
-        action: media_player.volume_set
   mode: restart
 - id: '1713536409397'
   alias: Raise music on the playing speaker when the Bathroom fans goes on
@@ -1423,7 +1423,7 @@
       - sensor.zooz_kitchen_washer_electric_consumption_a
       for:
         hours: 0
-        minutes: 5
+        minutes: 10
         seconds: 0
       below: 1
       trigger: numeric_state
@@ -2350,11 +2350,9 @@
   description: After 20 minutes
   triggers:
   - entity_id:
-    - binary_sensor.group_office_motion_occupancy
+    - binary_sensor.group_bedroom_motion_occupancy
     - binary_sensor.group_livingroom_motion_occupancy
     - binary_sensor.group_hotbox_top_motion_occupancy
-    - binary_sensor.group_patio_motion_occupancy
-    - binary_sensor.group_hotbox_down_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
     to: 'off'
     for:
@@ -2887,11 +2885,12 @@
       - camera.front_door_camera
       expose_images: true
     response_variable: return
+    enabled: false
   - metadata: {}
     data:
       message: '{{return.response_text}}'
       title: This is who is in the front
-    enabled: true
+    enabled: false
     action: notify.mobile_app_phone_maxi
   mode: restart
 - id: '1716935540936'
@@ -4985,13 +4984,12 @@
   description: ''
   triggers:
   - entity_id:
-    - assist_satellite.esp32_s3_box_3_office_assistant_assist_satellite
-    - assist_satellite.esp32_s3_box_3_lv_assistant_assist_satellite
-    - binary_sensor.esp32_s3_box_kitchen_assistant_assist_in_progress
-    - assist_satellite.esp32_s3_box_3_lvw_assistant_assist_satellite
-    - assist_satellite.esp32_s3_box_bedroom_assistant_assist_satellite
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
-    - assist_satellite.esp32_s3_box_3_hallway_assistant_assist_satellite
+    - assist_satellite.hallway_assistant_05a784_assist_satellite
+    - assist_satellite.lv_assistant_059a5c_assist_satellite
+    - assist_satellite.lvw_assistant_05a8d4_assist_satellite
+    - assist_satellite.office_assistant_04dc50_assist_satellite
+    - assist_satellite.salon_assistant_0505ec_assist_satellite
     from:
     trigger: state
     to: listening
@@ -5799,7 +5797,7 @@
   actions:
   - repeat:
       sequence:
-      - action: script.1714666287611
+      - action: script.broadcast_lesser_alerts_in_house
         data:
           message: Kitchen Timer Finished!
       - delay:
@@ -6400,3 +6398,95 @@
       for_each: '{{esp32_screens_entities}}'
   mode: parallel
   max: 25
+- id: '1734911416848'
+  alias: Stop bathroom speaker when door opens
+  description: ''
+  triggers:
+  - entity_id:
+    - binary_sensor.sensor_bathroom_door_contact
+    to: 'on'
+    from: 'off'
+    trigger: state
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 5
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: binary_sensor.group_bathroom_motion_occupancy
+        state: 'off'
+      sequence:
+      - action: media_player.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.universal_bathroom_speakers
+    - conditions:
+      - condition: state
+        entity_id: binary_sensor.group_bathroom_motion_occupancy
+        state: 'on'
+      sequence:
+      - choose:
+        - conditions:
+          - condition: and
+            conditions:
+            - condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.universal_kitchen_speakers
+                state: playing
+            - condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.universal_livingroom_chromecast
+                state: playing
+            - condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.universal_livingroom_speakers
+                state: playing
+          sequence:
+          - action: media_player.volume_set
+            metadata: {}
+            data:
+              volume_level: 0.2
+            target:
+              entity_id: media_player.universal_bathroom_speakers
+        - conditions:
+          - condition: or
+            conditions:
+            - condition: state
+              entity_id: media_player.universal_kitchen_speakers
+              state: playing
+            - condition: state
+              entity_id: media_player.universal_livingroom_chromecast
+              state: playing
+            - condition: state
+              entity_id: media_player.universal_livingroom_speakers
+              state: playing
+          sequence:
+          - action: media_player.turn_off
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.universal_bathroom_speakers
+  mode: restart
+- id: '1734912412449'
+  alias: Turn off BAthroom fan when humidity falls
+  description: ''
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - sensor.sensor_bathroom_temperature_humidity
+    below: 50
+  conditions: []
+  actions:
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.bathroom_fan
+  mode: single
