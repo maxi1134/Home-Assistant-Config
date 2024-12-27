@@ -1435,53 +1435,54 @@
 - id: '1714077180427'
   alias: Change light to random colors on press
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - input_boolean.random_colors
     to: 'on'
-  condition: []
-  action:
-  - variables:
-      lights: "{% set ns = namespace(lights=[]) %} {% set groups = integration_entities('group')|
-        \ select('search', '^light.')   | list %} {% for group in groups %}\n    {%
-        set individual_lights = state_attr(group,'entity_id')%}\n    {% for individual_light
-        in individual_lights %}\n    {% if \"group\" not in individual_light and state_attr(individual_light,
-        'rgb_color') %}\n      {% set ns.lights = ns.lights  + [individual_light]
-        %}\n    {% endif %}\n    {% endfor %}    \n{% endfor %} {{  ns.lights  }}\n"
-  - repeat:
-      sequence:
-      - service: script.change_received_lights_to_random_colors
-        data:
-          lights:
-          - '{{lights[repeat.index - 1]}}'
-          saturation: 100
-      for_each: '{{ lights }}'
+    trigger: state
+  - trigger: conversation
+    command:
+    - random colors lights
+    - random colors lights
+    - random colored lights
+  conditions: []
+  actions:
+  - action: script.changes_all_on
+    metadata: {}
+    data: {}
   mode: single
 - id: '1714077215807'
   alias: Change light to random pastel colors on press
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - input_boolean.random_pastel_colors
     to: 'on'
-  condition: []
-  action:
+    trigger: state
+  - trigger: conversation
+    command:
+    - pastel colors lights
+    - pastel color lights
+    - pastel colored lights
+  conditions: []
+  actions:
   - variables:
-      lights: "{% set ns = namespace(lights=[]) %} {% set groups = integration_entities('group')|
-        \ select('search', '^light.')   | list %} {% for group in groups %}\n    {%
-        set individual_lights = state_attr(group,'entity_id')%}\n    {% for individual_light
-        in individual_lights %}\n    {% if \"group\" not in individual_light and state_attr(individual_light,
-        'rgb_color') %}\n      {% set ns.lights = ns.lights  + [individual_light]
-        %}\n    {% endif %}\n    {% endfor %}    \n{% endfor %} {{  ns.lights  }}\n"
+      lights: "{% set ns = namespace(lights=[]) %} {% set groups = integration_entities('group')
+        | select('search', '^light.') | list %}     {% if groups %}\n    {% for group
+        in groups %}\n        {% set individual_lights = state_attr(group, 'entity_id')
+        %}\n        {% if individual_lights %}\n            {% for individual_light
+        in individual_lights %}\n                {% if \"group\" not in individual_light
+        and state_attr(individual_light, 'rgb_color') %}\n                    {% set
+        ns.lights = ns.lights + [individual_light] %}\n                {% endif %}\n
+        \           {% endfor %}\n        {% endif %}\n    {% endfor %}\n{% endif
+        %}     {{ ns.lights }}\n"
   - repeat:
       sequence:
-      - service: script.change_received_lights_to_random_colors
-        data:
+      - data:
           lights:
           - '{{lights[repeat.index - 1]}}'
           saturation: 60
+        action: script.change_received_lights_to_random_colors
       for_each: '{{ lights }}'
   mode: single
 - id: '1714150045572'
@@ -5002,7 +5003,7 @@
         | first | string, ''volume_level'') | string] }}
 
         '
-      playing_chromecast: '{% set entity_id = [area_id(trigger.entity_id)]   | map(''area_entities'')
+      playing_chromecasts: '{% set entity_id = [area_id(trigger.entity_id)]   | map(''area_entities'')
         | sum(start=[]) |    select(''search'', ''chromecast'') | select(''is_state'',''playing'')
         | unique | list %} {{[entity_id | first | string] + [state_attr(entity_id
         | first | string, ''volume_level'') | string] }}
@@ -5028,6 +5029,9 @@
         - wait_template: '{{ states(trigger.entity_id) == "idle" }}'
           continue_on_timeout: true
           timeout: '60'
+        - condition: template
+          value_template: '{{ state_attr(playing_speakers.0, ''volume_level'') | float
+            == playing_speakers.1 | float / 2 }}'
         - action: media_player.volume_set
           metadata: {}
           data:
@@ -5048,10 +5052,18 @@
               | float / 2))| string }}'
           target:
             entity_id: '{{playing_chromecasts.0}}'
-          alias: Lower Music
+          alias: Lower TV
         - wait_template: '{{ states(trigger.entity_id) == "idle" }}'
           continue_on_timeout: true
           timeout: '60'
+        - variables:
+            test1: '{{ state_attr(playing_chromecasts.0, ''volume_level'') | float
+              }}'
+            test2: '{{  playing_chromecasts.1 | float }}'
+          enabled: false
+        - condition: template
+          value_template: '{{ state_attr(playing_chromecasts.0, ''volume_level'')
+            | float == playing_chromecasts.1 | float / 2 }}'
         - action: media_player.volume_set
           metadata: {}
           data:
