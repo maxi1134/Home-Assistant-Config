@@ -2,12 +2,12 @@ broadcast_alert_in_the_house:
   alias: important broadcast alert in the house
   sequence:
   - variables:
-      playing_chromecasts: '{{ integration_entities(''cast'') |  select(''search'',
+      playing_chromecasts: '{{ integration_entities(''universal'') |  select(''search'',
         ''chromecast'') | expand | selectattr(''state'', ''eq'', ''playing'')| map(attribute=''entity_id'')|
         list }}
 
         '
-      non_playing_chromecasts: '{{ integration_entities(''cast'') |  select(''search'',
+      non_playing_chromecasts: '{{ integration_entities(''universal'') |  select(''search'',
         ''chromecast'') | expand | rejectattr(''state'', ''eq'', ''playing'')| map(attribute=''entity_id'')|
         list }}
 
@@ -154,140 +154,154 @@ broadcast_alert_in_the_house:
         data: '{{ phone_data }}
 
           '
+      - action: notify.maxi_notification_group
+        metadata: {}
+        data: "{{ phone_data }}\ndata:\n  ttl: 0\n  priority: high\n"
       enabled: true
-    - alias: TVs
-      parallel:
-      - alias: Broadcast image to paused TVs if image is present
-        if:
-        - condition: template
-          value_template: '{% if image %}
-
-            true
-
-            {% else %}
-
-            false
-
-            {% endif %}'
-        then:
-        - sequence:
-          - alias: Broadcast Image to paused chromecasts
-            repeat:
-              sequence:
-              - metadata: {}
-                data:
-                  media_content_id: '{{image}}'
-                  media_content_type: image
-                  entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
-                action: media_player.play_media
-              for_each: '{{ non_playing_chromecasts }}'
-          - wait_for_trigger:
-            - trigger: state
-              entity_id:
-              - lock.lock_front_door
-              to: locked
-              for:
-                hours: 0
-                minutes: 0
-                seconds: 15
-            timeout:
-              hours: 0
-              minutes: 2
-              seconds: 0
-              milliseconds: 0
-          - alias: Turn off precedent chromecats
-            repeat:
-              sequence:
-              - action: media_player.turn_off
-                metadata: {}
-                data: {}
-                target:
-                  entity_id: '{{ non_playing_chromecasts }}'
-              for_each: '{{ non_playing_chromecasts }}'
-        - action: dash_cast.load_url
-          metadata: {}
-          data:
-            force: false
-            reload_seconds: 0
-            entity_id: media_player.hotbox_down_hub
-            url: '{{image}}'
-        enabled: true
-        continue_on_error: true
-      - alias: Broadcast image to paused TVs if url is present
-        if:
-        - condition: template
-          value_template: '{% if url %}
-
-            true
-
-            {% else %}
-
-            false
-
-            {% endif %}'
-        then:
-        - sequence:
-          - alias: Broadcast URL  to paused chromecasts
-            repeat:
-              sequence:
-              - metadata: {}
-                data:
-                  media_content_id: '{{url}}'
-                  media_content_type: video
-                  entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
-                action: media_player.play_media
-              for_each: '{{ non_playing_chromecasts }}'
-          - wait_for_trigger:
-            - trigger: state
-              entity_id:
-              - lock.lock_front_door
-              to: locked
-              for:
-                hours: 0
-                minutes: 0
-                seconds: 15
-            timeout:
-              hours: 0
-              minutes: 2
-              seconds: 0
-              milliseconds: 0
-          - alias: Turn off precedent chromecats
-            repeat:
-              sequence:
-              - action: media_player.turn_off
-                metadata: {}
-                data: {}
-                target:
-                  entity_id: '{{ non_playing_chromecasts }}'
-              for_each: '{{ non_playing_chromecasts }}'
-        - action: dash_cast.load_url
-          metadata: {}
-          data:
-            force: false
-            reload_seconds: 0
-            entity_id: media_player.hotbox_down_hub
-            url: '{{url}}'
-        enabled: true
-        continue_on_error: true
-      - if:
+    - if:
+      - condition: and
+        conditions:
         - condition: state
           entity_id: input_boolean.party_mode
           state: 'off'
         - condition: state
-          entity_id: input_boolean.acid_time
+          entity_id: input_boolean.kink_party
           state: 'off'
-        then:
-        - alias: Pause Playing Chromecasts
-          repeat:
-            sequence:
-            - metadata: {}
-              data: {}
-              target:
-                entity_id: '{{playing_chromecasts[repeat.index - 1]}}'
-              action: media_player.media_pause
-            for_each: '{{ playing_chromecasts }}'
+      then:
+      - alias: TVs
+        parallel:
+        - alias: Broadcast image to paused TVs if image is present
+          if:
+          - condition: template
+            value_template: '{% if image %}
+
+              true
+
+              {% else %}
+
+              false
+
+              {% endif %}'
+          then:
+          - sequence:
+            - alias: Broadcast Image to paused chromecasts
+              repeat:
+                sequence:
+                - metadata: {}
+                  data:
+                    media_content_id: '{{image}}'
+                    media_content_type: image
+                    entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
+                  action: media_player.play_media
+                for_each: '{{ non_playing_chromecasts }}'
+            - wait_for_trigger:
+              - trigger: state
+                entity_id:
+                - lock.lock_front_door
+                to: locked
+                for:
+                  hours: 0
+                  minutes: 0
+                  seconds: 15
+              timeout:
+                hours: 0
+                minutes: 2
+                seconds: 0
+                milliseconds: 0
+            - alias: Turn off precedent chromecats
+              repeat:
+                sequence:
+                - action: media_player.turn_off
+                  metadata: {}
+                  data: {}
+                  target:
+                    entity_id: '{{ non_playing_chromecasts }}'
+                for_each: '{{ non_playing_chromecasts }}'
+          - action: dash_cast.load_url
+            metadata: {}
+            data:
+              force: false
+              reload_seconds: 0
+              entity_id: media_player.hotbox_down_hub
+              url: '{{image}}'
           enabled: true
           continue_on_error: true
+        - alias: Broadcast image to paused TVs if url is present
+          if:
+          - condition: template
+            value_template: '{% if url %}
+
+              true
+
+              {% else %}
+
+              false
+
+              {% endif %}'
+          then:
+          - sequence:
+            - alias: Broadcast URL  to paused chromecasts
+              repeat:
+                sequence:
+                - metadata: {}
+                  data:
+                    media_content_id: '{{url}}'
+                    media_content_type: video
+                    entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
+                  action: media_player.play_media
+                for_each: '{{ non_playing_chromecasts }}'
+            - wait_for_trigger:
+              - trigger: state
+                entity_id:
+                - lock.lock_front_door
+                to: locked
+                for:
+                  hours: 0
+                  minutes: 0
+                  seconds: 15
+              timeout:
+                hours: 0
+                minutes: 2
+                seconds: 0
+                milliseconds: 0
+            - alias: Turn off precedent chromecats
+              repeat:
+                sequence:
+                - action: media_player.turn_off
+                  metadata: {}
+                  data: {}
+                  target:
+                    entity_id: '{{ non_playing_chromecasts }}'
+                for_each: '{{ non_playing_chromecasts }}'
+          - action: dash_cast.load_url
+            metadata: {}
+            data:
+              force: false
+              reload_seconds: 0
+              entity_id: media_player.hotbox_down_hub
+              url: '{{url}}'
+          enabled: true
+          continue_on_error: true
+        - if:
+          - condition: state
+            entity_id: input_boolean.party_mode
+            state: 'off'
+          - condition: state
+            entity_id: input_boolean.acid_time
+            state: 'off'
+          then:
+          - alias: Pause Playing Chromecasts
+            repeat:
+              sequence:
+              - metadata: {}
+                data: {}
+                target:
+                  entity_id: '{{playing_chromecasts[repeat.index - 1]}}'
+                action: media_player.media_pause
+              for_each: '{{ playing_chromecasts }}'
+            enabled: true
+            continue_on_error: true
+      alias: 'TVs '
   mode: restart
   icon: mdi:speaker-message
 change_received_lights_to_random_colors:
@@ -322,22 +336,40 @@ start_visual_playlist_on_plex:
       sequence:
       - if:
         - condition: template
-          value_template: '{{states(chromecasts[repeat.index ]) == "off"}}'
+          value_template: '{{states(chromecasts[repeat.index - 1 ]) == "off"}}'
+        - condition: template
+          value_template: '{{ area_id(chromecasts[repeat.index - 1 ] | string) | replace(''_top'','''')
+            | replace(''_down'','''') not in states(''sensor.active_sleeper_rooms'')
+            | string  }}'
         then:
         - variables:
             playlist: 'plex://{"playlist_name":"{{requested_playlist}}","shuffle":"1"}
 
               '
-        - service: media_player.play_media
-          data:
+        - data:
             media_content_id: '{{playlist}}'
             media_content_type: playlist
           target:
-            entity_id: '{{chromecasts[repeat.index]}}'
+            entity_id: '{{chromecasts[repeat.index -1]}}'
+          action: media_player.play_media
+        - data:
+            is_volume_muted: true
+          target:
+            entity_id: '{{chromecasts[repeat.index -1]}}'
+          action: media_player.volume_mute
         - delay:
             hours: 0
             minutes: 0
             seconds: 15
+            milliseconds: 0
+          enabled: false
+        - wait_for_trigger:
+          - trigger: template
+            value_template: '{{states(chromecasts[repeat.index - 1 ]) == "playing"}}'
+          timeout:
+            hours: 0
+            minutes: 1
+            seconds: 0
             milliseconds: 0
       for_each: '{{ chromecasts }}'
   mode: single
@@ -761,71 +793,92 @@ generate_fake_white_colors:
 in_home_defense_script:
   alias: All on defense script
   sequence:
-  - service: automation.turn_off
-    metadata: {}
+  - metadata: {}
     data:
       stop_actions: true
+    action: automation.turn_off
     target:
-      entity_id: automation.mute_and_unmute_speakers_in_unused_rooms
-  - service: automation.turn_off
-    metadata: {}
+      entity_id: automation.mute_speakers_when_the_room_is_empty
+  - metadata: {}
     data:
       stop_actions: true
     target:
       entity_id: automation.set_speakers_volume_on_initial_playback_v2
-  - service: switch.turn_on
-    metadata: {}
-    data: {}
+    action: automation.turn_off
+  - data:
+      media_content_id: https://hass.purgatoire.ca/local/civil-defense-siren.wav
+      media_content_type: music
+    action: media_player.play_media
     target:
-      entity_id: switch.group_fosi_receivers
-  - service: switch.turn_on
-    metadata: {}
+      entity_id:
+      - media_player.universal_bathroom_speakers
+      - media_player.universal_bedroom_speakers
+      - media_player.universal_closet_speaker
+      - media_player.universal_hallway_speakers
+      - media_player.universal_kitchen_speakers
+      - media_player.universal_livingroom_speakers
+      - media_player.universal_hotbox_top_speakers
+      - media_player.universal_salon_speakers
+      - media_player.universal_office_speakers
+  - repeat:
+      count: 10
+      sequence:
+      - action: media_player.volume_up
+        metadata: {}
+        data: {}
+        target:
+          entity_id:
+          - media_player.universal_bathroom_speakers
+          - media_player.universal_bedroom_speakers
+          - media_player.universal_closet_speaker
+          - media_player.universal_hallway_speakers
+          - media_player.universal_kitchen_speakers
+          - media_player.universal_livingroom_speakers
+          - media_player.universal_hotbox_top_speakers
+          - media_player.universal_salon_speakers
+          - media_player.universal_office_speakers
+  - metadata: {}
     data: {}
     target:
       entity_id:
       - switch.plug_back_door_horn
       - switch.plug_front_door_horn
     enabled: true
-  - service: media_player.play_media
-    target:
-      entity_id:
-      - media_player.group_mass_home_airplay_speakers
-    data:
-      media_content_id: https://hass.purgatoire.ca/local/civil-defense-siren.wav
-      media_content_type: music
-  - service: media_player.volume_set
-    metadata: {}
-    data:
-      volume_level: 1
-    target:
-      entity_id:
-      - media_player.group_mass_home_airplay_speakers
+    action: switch.turn_on
   - wait_for_trigger:
-    - platform: state
-      entity_id:
-      - binary_sensor.motion_home
+    - entity_id:
+      - binary_sensor.home_occupancy
       to: 'off'
       for:
         hours: 0
         minutes: 5
         seconds: 0
+      trigger: state
     timeout:
       hours: 0
-      minutes: 15
+      minutes: 40
       seconds: 0
       milliseconds: 0
     continue_on_timeout: false
-  - service: media_player.media_stop
+  - action: media_player.media_stop
     metadata: {}
     data: {}
     target:
       entity_id:
-      - media_player.group_mass_home_airplay_speakers
-  - service: automation.turn_on
-    target:
+      - media_player.universal_bathroom_speakers
+      - media_player.universal_bedroom_speakers
+      - media_player.universal_closet_speaker
+      - media_player.universal_hallway_speakers
+      - media_player.universal_kitchen_speakers
+      - media_player.universal_livingroom_speakers
+      - media_player.universal_hotbox_top_speakers
+      - media_player.universal_salon_speakers
+      - media_player.universal_office_speakers
+  - target:
       entity_id:
       - automation.set_speakers_volume_on_initial_playback_v2
     data: {}
+    action: automation.turn_on
   mode: restart
 changes_all_on_lights_to_fake_white:
   alias: Changes selected light group to ordered fake white
@@ -859,57 +912,74 @@ changes_all_on_lights_to_fake_white:
 inside_only_home_defense_script:
   alias: Inside only home defense script
   sequence:
-  - service: automation.turn_off
-    metadata: {}
+  - metadata: {}
     data:
       stop_actions: true
     target:
       entity_id: automation.set_speakers_volume_on_initial_playback_v2
-  - service: switch.turn_on
-    metadata: {}
-    data: {}
-    target:
-      entity_id: switch.group_fosi_receivers
-  - service: media_player.play_media
-    target:
-      entity_id:
-      - media_player.group_mass_home_airplay_speakers
-    data:
+    action: automation.turn_off
+  - data:
       media_content_id: https://hass.purgatoire.ca/local/civil-defense-siren.wav
       media_content_type: music
-  - service: media_player.volume_set
-    metadata: {}
-    data:
-      volume_level: 1
+    action: media_player.play_media
     target:
       entity_id:
-      - media_player.group_mass_home_airplay_speakers
+      - media_player.universal_bathroom_speakers
+      - media_player.universal_bedroom_speakers
+      - media_player.universal_closet_speaker
+      - media_player.universal_hallway_speakers
+      - media_player.universal_kitchen_speakers
+      - media_player.universal_livingroom_speakers
+      - media_player.universal_hotbox_top_speakers
+      - media_player.universal_salon_speakers
+      - media_player.universal_office_speakers
+  - repeat:
+      count: 10
+      sequence:
+      - action: media_player.volume_up
+        metadata: {}
+        data: {}
+        target:
+          entity_id:
+          - media_player.universal_bathroom_speakers
+          - media_player.universal_bedroom_speakers
+          - media_player.universal_closet_speaker
+          - media_player.universal_hallway_speakers
+          - media_player.universal_kitchen_speakers
+          - media_player.universal_livingroom_speakers
+          - media_player.universal_hotbox_top_speakers
+          - media_player.universal_salon_speakers
+          - media_player.universal_office_speakers
   - wait_for_trigger:
-    - platform: state
-      entity_id:
-      - binary_sensor.motion_home
+    - entity_id:
+      - binary_sensor.home_occupancy
       to: 'off'
       from: 'on'
       for:
         hours: 0
         minutes: 5
         seconds: 0
+      trigger: state
     timeout:
       hours: 0
       minutes: 30
       seconds: 0
       milliseconds: 0
     continue_on_timeout: false
-  - service: media_player.media_stop
+  - action: media_player.media_stop
     metadata: {}
     data: {}
     target:
-      entity_id: media_player.group_mass_home_airplay_speakers
-  - service: automation.turn_on
-    metadata: {}
-    data: {}
-    target:
-      entity_id: automation.set_speakers_volume_on_initial_playback_v2
+      entity_id:
+      - media_player.universal_bathroom_speakers
+      - media_player.universal_bedroom_speakers
+      - media_player.universal_closet_speaker
+      - media_player.universal_hallway_speakers
+      - media_player.universal_kitchen_speakers
+      - media_player.universal_livingroom_speakers
+      - media_player.universal_hotbox_top_speakers
+      - media_player.universal_salon_speakers
+      - media_player.universal_office_speakers
   mode: restart
 start_plex_media_on_requested_player:
   alias: Start plex media on requested player

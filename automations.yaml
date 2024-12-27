@@ -549,24 +549,24 @@
 - id: '1713452550061'
   alias: Close blinds when the house is empty
   description: 'Close blinds '
-  trigger:
-  - platform: numeric_state
-    entity_id:
+  triggers:
+  - entity_id:
     - zone.home
     for:
       hours: 0
       minutes: 5
       seconds: 0
     below: 0.9
-  condition: []
-  action:
-  - service: cover.close_cover
-    metadata: {}
+    trigger: numeric_state
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
+    action: cover.close_cover
     target:
       entity_id:
-      - cover.cover_office_blinds
-      - cover.cover_livingroom_blinds
+      - cover.group_all_blinds
+      - cover.cover_bedroom_blinds
   mode: single
 - id: '1713460807856'
   alias: Start visuals when Party mode is turned on
@@ -1254,9 +1254,8 @@
 - id: '1713826329670'
   alias: Mute speakers when the room is empty
   description: 'This one uses motion groups '
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - binary_sensor.group_patio_motion_occupancy
     - binary_sensor.group_closet_motion_occupancy
     - binary_sensor.group_office_motion_occupancy
@@ -1269,19 +1268,20 @@
     - binary_sensor.group_livingroom_motion_occupancy
     - binary_sensor.group_hotbox_down_motion_occupancy
     - binary_sensor.group_workstation_motion_occupancy
-    - binary_sensor.group_chillingroom_motion_occupancy
+    - binary_sensor.group_salon_motion_occupancy
     for:
       hours: 0
       minutes: 5
       seconds: 0
-  condition:
+    trigger: state
+  conditions:
   - condition: state
     entity_id: input_boolean.following_music
     state: 'on'
   - condition: template
     value_template: '{{ states(''sensor.maxi_location_v3'') not in [area_id(trigger.entity_id)]
       | string  }}'
-  action:
+  actions:
   - variables:
       playing_speakers: '{{ [area_id(trigger.entity_id)]   | map(''area_entities'')
         | sum(start=[]) |    select(''search'', ''speakers'') | select(''is_state'',''playing'')
@@ -1293,14 +1293,14 @@
       - condition: template
         value_template: '{{ trigger.to_state.state == "off" }}'
       sequence:
-      - service: media_player.volume_mute
-        metadata: {}
+      - metadata: {}
         data:
           is_volume_muted: true
         target:
           entity_id: '{{playing_speakers}}
 
             '
+        action: media_player.volume_mute
       alias: Motion is OFF
   mode: parallel
   max: 10
@@ -1381,7 +1381,7 @@
     enabled: true
   - repeat:
       sequence:
-      - action: script.broadcast_lesser_alerts_in_house
+      - action: script.non_important_broadcast_alert_in_the_house
         data:
           message: Microwave finished
       - delay:
@@ -1538,28 +1538,31 @@
 - id: '1714151063007'
   alias: Turn off speakers after 15 minutes of pause
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - media_player.universal_office_speakers
-    - media_player.universal_chillingroom_speakers
     - media_player.universal_hallway_speakers
     - media_player.universal_hotbox_top_speakers
     - media_player.universal_kitchen_speakers
     - media_player.universal_livingroom_speakers
     - media_player.universal_hotbox_down_speakers
+    - media_player.universal_salon_speakers
+    - media_player.universal_closet_speaker
+    - media_player.universal_bedroom_speakers
+    - media_player.universal_bathroom_speakers
     to: idle
     for:
       hours: 0
       minutes: 15
       seconds: 0
-  condition: []
-  action:
-  - service: media_player.turn_off
-    metadata: {}
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
     target:
       entity_id: '{{ trigger.entity_id }}'
+    action: media_player.turn_off
   mode: parallel
   max: 25
 - id: '1714321256821'
@@ -3065,6 +3068,11 @@
     trigger: state
     enabled: false
   - entity_id:
+    - binary_sensor.sensor_server_door_contact
+    to: 'on'
+    trigger: state
+    enabled: false
+  - entity_id:
     - binary_sensor.sensor_back_outside_door_contact
     to: 'on'
     trigger: state
@@ -3076,26 +3084,20 @@
     - binary_sensor.sensor_front_outside_door_contact
     to: 'on'
     trigger: state
-  - entity_id:
-    - binary_sensor.sensor_server_door_contact
-    to: 'on'
-    trigger: state
-    enabled: false
   conditions:
   - condition: state
     entity_id: alarm_control_panel.home_alarm
     state: armed_night
   - condition: state
-    entity_id: binary_sensor.maxi_alone
-    state: 'on'
-    enabled: false
+    entity_id: person.maximiliano
+    state: home
   actions:
   - metadata: {}
     data:
       stop_actions: true
-    target:
-      entity_id: automation.mute_and_unmute_speakers_in_unused_rooms
     action: automation.turn_off
+    target:
+      entity_id: automation.mute_speakers_when_the_room_is_empty
   - metadata: {}
     data: {}
     target:
@@ -3106,6 +3108,8 @@
       message: Someone is inside!
       title: A door has been opened {{trigger.entity_id}}
       data:
+        ttl: 0
+        priority: high
         image: https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
         actions:
         - action: trigger_inside_alert
@@ -3114,19 +3118,22 @@
   - metadata: {}
     data:
       rgb_color:
-      - 157
-      - 230
-      - 156
+      - 255
+      - 195
+      - 92
       brightness_pct: 100
     target:
       entity_id: light.bedroom_chandelier_light
     action: light.turn_on
-  - data:
-      entity_id: ' {{ [states(''sensor.where_is_maxi_sleeping'') | capitalize ]  |
-        map(''area_entities'') | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]'')
+  - action: tts.speak
+    data:
+      media_player_entity_id: ' {{ [states(''sensor.where_is_maxi_sleeping'') | capitalize
+        ]  | map(''area_entities'') | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]'')
         | unique | list }}'
       message: Someone has entered, a door has been opened
-    action: tts.google_translate_say
+      cache: true
+    target:
+      entity_id: tts.piper
   - metadata: {}
     data:
       is_volume_muted: false
@@ -3135,26 +3142,36 @@
         map(''area_entities'') | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]'')
         | unique | list }}'
     action: media_player.volume_mute
-  - data:
-      entity_id: ' {{ [states(''sensor.where_is_maxi_sleeping'') | capitalize ]  |
-        map(''area_entities'') | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]'')
+  - action: tts.speak
+    data:
+      media_player_entity_id: ' {{ [states(''sensor.where_is_maxi_sleeping'') | capitalize
+        ]  | map(''area_entities'') | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]'')
         | unique | list }}'
       message: Someone has entered, a door has been opened
-    action: tts.google_translate_say
-  - data:
-      entity_id: media_player.bedroom_speaker
+      cache: true
+    target:
+      entity_id: tts.piper
+  - action: tts.speak
+    data:
+      media_player_entity_id: media_player.universal_bedroom_speakers
       message: Someone has entered, a door has been opened
-    action: tts.google_translate_say
+      cache: true
+    target:
+      entity_id: tts.piper
   - metadata: {}
     data:
       is_volume_muted: false
     target:
-      entity_id: media_player.bedroom_speaker
+      entity_id:
+      - media_player.universal_bedroom_speakers
     action: media_player.volume_mute
-  - data:
-      entity_id: media_player.bedroom_speaker
+  - action: tts.speak
+    data:
+      media_player_entity_id: media_player.universal_bedroom_speakers
       message: Someone has entered, a door has been opened
-    action: tts.google_translate_say
+      cache: true
+    target:
+      entity_id: tts.piper
   mode: single
 - id: '1717038729859'
   alias: Set front door screen text
@@ -3376,14 +3393,13 @@
 - id: '1717354512446'
   alias: Alert when there is motion inside during arm away
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - binary_sensor.group_office_motion_occupancy
     - binary_sensor.group_hallway_motion_occupancy
     - binary_sensor.group_kitchen_motion_occupancy
     - binary_sensor.group_livingroom_motion_occupancy
-    - binary_sensor.group_chillingroom_motion_occupancy
+    - binary_sensor.group_salon_motion_occupancy
     - binary_sensor.group_server_motion_occupancy
     - binary_sensor.group_bathroom_motion_occupancy
     - binary_sensor.group_bedroom_motion_occupancy
@@ -3394,7 +3410,8 @@
       seconds: 0
     from: 'off'
     to: 'on'
-  condition:
+    trigger: state
+  conditions:
   - condition: or
     conditions:
     - condition: state
@@ -3403,28 +3420,35 @@
     - condition: state
       entity_id: alarm_control_panel.home_alarm
       state: triggered
-  action:
-  - service: automation.turn_off
-    metadata: {}
+  actions:
+  - metadata: {}
     data:
       stop_actions: true
+    action: automation.turn_off
     target:
-      entity_id: automation.mute_and_unmute_speakers_in_unused_rooms
-  - service: light.turn_off
-    metadata: {}
+      entity_id: automation.mute_speakers_when_the_room_is_empty
+  - metadata: {}
     data: {}
     target:
-      entity_id: light.group_all_lights
-  - service: notify.mobile_app_phone_maxi
-    metadata: {}
+      entity_id:
+      - light.group_all_lights
+      - light.group_all_inside_lights
+      - light.group_patio_lights
+      - light.front_door_light
+      - light.back_door_light
+    action: light.turn_off
+  - metadata: {}
     data:
       title: Intruder Alert
       message: motion detected in the '{{ area_id(trigger.entity_id) }}'
       data:
+        ttl: 0
+        priority: high
         image: https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
         actions:
         - action: trigger_inside_alert
           title: Blare inside alert?
+    action: notify.mobile_app_phone_maxi
   - if:
     - condition: not
       conditions:
@@ -3432,28 +3456,28 @@
         entity_id: alarm_control_panel.home_alarm
         state: triggered
     then:
-    - service: alarm_control_panel.alarm_trigger
-      metadata: {}
+    - metadata: {}
       data: {}
       target:
         entity_id: alarm_control_panel.home_alarm
+      action: alarm_control_panel.alarm_trigger
   mode: single
 - id: '1717355119853'
   alias: Turn on light automation once alarm is disarmed
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - alarm_control_panel.home_alarm
     from: triggered
     to: disarmed
-  condition: []
-  action:
-  - service: automation.turn_on
-    metadata: {}
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
+    action: automation.turn_on
     target:
-      entity_id: automation.mute_and_unmute_speakers_in_unused_rooms
+      entity_id: automation.mute_speakers_when_the_room_is_empty
   mode: single
 - id: '1717355583664'
   alias: Trigger front horn through phone notification
@@ -3475,19 +3499,19 @@
 - id: '1717356233481'
   alias: Stop speakers on disarm
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - alarm_control_panel.home_alarm
     from: triggered
     to: disarmed
-  condition: []
-  action:
-  - service: media_player.media_stop
-    metadata: {}
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
+    action: media_player.media_stop
     target:
-      entity_id: media_player.mass_home_group
+      entity_id: media_player.universal_home_speakers
   mode: single
 - id: '1717358289455'
   alias: Trigger in-home defense script after the alarm is triggered for 6 continious
@@ -3511,19 +3535,18 @@
 - id: '1717358415139'
   alias: Trigger police announcement on triggered alarm
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - alarm_control_panel.home_alarm
     to: triggered
     for:
       hours: 0
       minutes: 0
       seconds: 0
-  condition: []
-  action:
-  - service: notify.mobile_app_phone_maxi
-    metadata: {}
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
     data:
       title: Intruder Alert
       message: The alarm has been triggered, engaging de-escalation
@@ -3532,81 +3555,78 @@
         actions:
         - action: trigger_inside_alert
           title: Blare inside alert?
-  - service: automation.turn_off
-    data:
+    action: notify.mobile_app_phone_maxi
+  - data:
       stop_actions: true
-    target:
-      entity_id: automation.mute_and_unmute_speakers_in_unused_rooms
-  - service: light.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: light.group_all_inside_lights
-  - service: switch.turn_on
+    action: automation.turn_off
     target:
       entity_id:
-      - switch.group_fosi_receivers
-    data: {}
-  - service: automation.turn_off
-    data:
-      stop_actions: true
-    target:
-      entity_id: automation.set_speakers_volume_on_initial_playback_v2
-  - service: media_player.turn_on
-    metadata: {}
+      - automation.mute_speakers_when_the_room_is_empty
+      - automation.set_speakers_volume_on_initial_playback_v2
+      - automation.turn_on_lighs_automatically
+  - metadata: {}
     data: {}
     target:
       entity_id:
-      - media_player.universal_chillingroom_speakers
+      - light.group_all_inside_lights
+      - light.group_all_lights
+      - light.group_patio_lights
+    action: light.turn_off
+  - metadata: {}
+    data: {}
+    target:
+      entity_id:
       - media_player.universal_hallway_speakers
       - media_player.universal_kitchen_speakers
       - media_player.universal_hotbox_down_speakers
       - media_player.universal_hotbox_top_speakers
       - media_player.universal_office_speakers
       - media_player.universal_livingroom_speakers
-  - service: media_player.volume_mute
-    metadata: {}
+      - media_player.universal_salon_speakers
+      - media_player.universal_bedroom_speakers
+      - media_player.universal_bathroom_speakers
+      - media_player.universal_closet_speaker
+    action: media_player.turn_on
+  - metadata: {}
     data:
       is_volume_muted: false
     target:
       entity_id:
-      - media_player.universal_chillingroom_speakers
       - media_player.universal_hallway_speakers
       - media_player.universal_kitchen_speakers
       - media_player.universal_hotbox_down_speakers
       - media_player.universal_hotbox_top_speakers
       - media_player.universal_office_speakers
       - media_player.universal_livingroom_speakers
-  - service: media_player.volume_set
-    metadata: {}
+      - media_player.universal_salon_speakers
+      - media_player.universal_bathroom_speakers
+      - media_player.universal_bedroom_speakers
+      - media_player.universal_closet_speaker
+    action: media_player.volume_mute
+  - metadata: {}
     data:
       volume_level: 1
     target:
       entity_id:
-      - media_player.universal_chillingroom_speakers
       - media_player.universal_hallway_speakers
       - media_player.universal_kitchen_speakers
       - media_player.universal_hotbox_down_speakers
       - media_player.universal_hotbox_top_speakers
       - media_player.universal_office_speakers
       - media_player.universal_livingroom_speakers
-      - media_player.universal
-  - service: mass.play_announcement
-    metadata: {}
+      - media_player.universal_salon_speakers
+      - media_player.universal_bedroom_speakers
+      - media_player.universal_bathroom_speakers
+      - media_player.universal_closet_speaker
+    action: media_player.volume_set
+  - metadata: {}
     data:
       announce_volume: 100
       url: https://hass.purgatoire.ca/local/deescalation.mp3
+      use_pre_announce: true
+    action: mass.play_announcement
     target:
       entity_id: media_player.group_mass_home_airplay_speakers
-  - service: media_player.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: media_player.mass_livingroom_airplay_wiim_speaker
-  - service: automation.turn_on
-    data: {}
-    target:
-      entity_id: automation.set_speakers_volume_on_initial_playback_v2
   mode: single
 - id: '1717359724027'
   alias: Trigger all home defense script through notification
@@ -3670,15 +3690,17 @@
 - id: '1717797397935'
   alias: Trigger In home defense script through phone notification
   description: ''
-  trigger:
-  - platform: event
-    event_type: mobile_app_notification_action
-    context: {}
+  triggers:
+  - event_type: mobile_app_notification_action
+    context:
+      user_id:
+      - 7f1de31122574f6fa2215e519d6083ea
     event_data:
-      action: trigger_all_alerts
-  condition: []
-  action:
-  - service: script.in_home_defense_script
+      action: trigger_inside_alert
+    trigger: event
+  conditions: []
+  actions:
+  - action: script.inside_only_home_defense_script
     metadata: {}
     data: {}
   mode: single
@@ -5291,12 +5313,12 @@
   description: ''
   triggers:
   - entity_id:
-    - assist_satellite.esp32_s3_box_3_office_assistant_assist_satellite
-    - assist_satellite.esp32_s3_box_3_lv_assistant_assist_satellite
-    - assist_satellite.esp32_s3_box_3_lvw_assistant_assist_satellite
-    - assist_satellite.esp32_s3_box_bedroom_assistant_assist_satellite
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
-    - assist_satellite.esp32_s3_box_3_hallway_assistant_assist_satellite
+    - assist_satellite.hallway_assistant_05a784_assist_satellite
+    - assist_satellite.lv_assistant_059a5c_assist_satellite
+    - assist_satellite.lvw_assistant_05a8d4_assist_satellite
+    - assist_satellite.office_assistant_04dc50_assist_satellite
+    - assist_satellite.salon_assistant_0505ec_assist_satellite
     from:
     trigger: state
     to: listening
@@ -5314,12 +5336,12 @@
   description: ''
   triggers:
   - entity_id:
-    - assist_satellite.esp32_s3_box_3_office_assistant_assist_satellite
-    - assist_satellite.esp32_s3_box_3_lv_assistant_assist_satellite
-    - assist_satellite.esp32_s3_box_3_lvw_assistant_assist_satellite
-    - assist_satellite.esp32_s3_box_bedroom_assistant_assist_satellite
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
-    - assist_satellite.esp32_s3_box_3_hallway_assistant_assist_satellite
+    - assist_satellite.hallway_assistant_05a784_assist_satellite
+    - assist_satellite.lv_assistant_059a5c_assist_satellite
+    - assist_satellite.lvw_assistant_05a8d4_assist_satellite
+    - assist_satellite.office_assistant_04dc50_assist_satellite
+    - assist_satellite.salon_assistant_0505ec_assist_satellite
     from:
     trigger: state
     to: idle
@@ -5656,7 +5678,7 @@
         entity_id: person.maximiliano
         state: not_home
       sequence:
-      - action: script.broadcast_lesser_alerts_in_house
+      - action: script.non_important_broadcast_alert_in_the_house
         data:
           message: Please make less noise on the patio
   mode: single
@@ -5830,7 +5852,7 @@
   actions:
   - repeat:
       sequence:
-      - action: script.broadcast_lesser_alerts_in_house
+      - action: script.non_important_broadcast_alert_in_the_house
         data:
           message: Kitchen Timer Finished!
       - delay:
@@ -6544,16 +6566,4 @@
         intent_package_name: com.samsung.android.dialer
         intent_action: android.intent.action.DIAL
         intent_uri: tel:911
-  mode: single
-- id: '1735277373923'
-  alias: Open phone to 911 number when smoke "call 911" notificaiton is pressed
-  description: ''
-  triggers:
-  - event_type: mobile_app_notification_action
-    context: {}
-    event_data:
-      action: open_phone_app_911
-    trigger: event
-  conditions: []
-  actions: []
   mode: single
