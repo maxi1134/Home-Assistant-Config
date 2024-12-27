@@ -2275,13 +2275,15 @@
               title: Open Cameras
               uri: /maxi-mobile/main-view#cameras
       action: script.broadcast_alert_in_the_house
-    - action: notify.mobile_app_phone_maxi
+    - alias: Open camera view on maxi phone
+      action: notify.mobile_app_phone_maxi
       metadata: {}
       data:
         message: command_webview
         data:
           command: /maxi-mobile/main-view#security_popup
-      alias: Open camera view on maxi phone
+          ttl: 0
+          priority: high
   mode: restart
 - id: '1715719948033'
   alias: Reset doorbell stuff on unlock
@@ -2872,6 +2874,8 @@
           title: Blow the horn for 2 minutes?
         - action: REPLY
           title: Enter Text
+        ttl: 0
+        priority: high
     action: notify.mobile_app_phone_maxi
   - action: llmvision.image_analyzer
     data:
@@ -2971,6 +2975,8 @@
       message: Someone is in the back!
       title: Someone is in the back!
       data:
+        ttl: 0
+        priority: high
         image: /media/local/backdoor_movement.png
         actions:
         - action: blow_horn_back
@@ -3767,7 +3773,7 @@
     data:
       text: Is "{{trigger.slots.query}}" a movie or a tv show? Just answer with one
         or two words
-      agent_id: conversation.qwen2_5_14b_instruct_q8_0
+      agent_id: conversation.llm_model_qwen2_5_7b_instruct_q5_k_m_remote
     response_variable: return
   - variables:
       room: '{% if trigger.slots.room %} {{trigger.slots.room}} {% else %} {{ area_name(trigger.device_id)}}
@@ -5505,6 +5511,9 @@
     data:
       message: Someone has entered the bedroom
       title: Security Alert
+      data:
+        ttl: 0
+        priority: high
   - action: tts.speak
     metadata: {}
     data:
@@ -5785,6 +5794,18 @@
         data:
           color: white
           message: Attention, Smoke detected in the kitchen, Please investigate.
+      - metadata: {}
+        data:
+          title: Smoke has been detected in the kitchen! Act quickly!
+          data:
+            image: /api/camera_proxy/camera.kitchen_tablet
+            actions:
+            - action: open_phone_app_911
+              title: Call 911!
+            ttl: 0
+            priority: high
+          message: Smoke detected in the kitchen
+        action: notify.mobile_app_phone_maxi
       - delay:
           hours: 0
           minutes: 4
@@ -6501,4 +6522,38 @@
     data: {}
     target:
       entity_id: switch.bathroom_fan
+  mode: single
+- id: '1735277359392'
+  alias: Open phone to 911 number when smoke "call 911" notification is pressed
+  description: ''
+  triggers:
+  - event_type: mobile_app_notification_action
+    context:
+      user_id:
+      - 7f1de31122574f6fa2215e519d6083ea
+    event_data:
+      action: open_phone_app_911
+    trigger: event
+  conditions: []
+  actions:
+  - action: notify.maxi_notification_group
+    metadata: {}
+    data:
+      message: command_activity
+      data:
+        intent_package_name: com.samsung.android.dialer
+        intent_action: android.intent.action.DIAL
+        intent_uri: tel:911
+  mode: single
+- id: '1735277373923'
+  alias: Open phone to 911 number when smoke "call 911" notificaiton is pressed
+  description: ''
+  triggers:
+  - event_type: mobile_app_notification_action
+    context: {}
+    event_data:
+      action: open_phone_app_911
+    trigger: event
+  conditions: []
+  actions: []
   mode: single
