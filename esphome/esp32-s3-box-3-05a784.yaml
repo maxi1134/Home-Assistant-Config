@@ -49,7 +49,7 @@ substitutions:
 ####      you can use any of these without re-compiling - just say them!    #####
 #################################################################################
 # TO REMOVE A WAKE WORD - COMMENT OUT THE CORESPONDING LINE FROM THE CONFIG BELOW - CTRL + F to search for "models" 
-  micro_wake_word_model_1: alexa
+#  micro_wake_word_model_1: alexa
   micro_wake_word_model_2: hey_jarvis
   micro_wake_word_model_3: okay_nabu # latest test can also be used >> replace okay_nabu with this url https://github.com/kahrendt/microWakeWord/releases/download/okay_nabu/okay_nabu.json
   micro_wake_word_model_4: hey_mycroft
@@ -115,6 +115,8 @@ esp32:
   flash_size: 16MB
   framework:
     type: esp-idf
+    version: 4.4.8
+    platform_version: 5.4.0
     sdkconfig_options:
       CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
       CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
@@ -909,7 +911,7 @@ microphone:
 micro_wake_word:  
   vad:
   models: 
-    - model: ${micro_wake_word_model_1}
+  #  - model: ${micro_wake_word_model_1}
     - model: ${micro_wake_word_model_2}
     - model: ${micro_wake_word_model_3}
     - model: ${micro_wake_word_model_4}
@@ -925,7 +927,8 @@ micro_wake_word:
               media_url: '${home_assistant_host}/local/sounds/awake.mp3'
           - delay: 500ms
           - media_player.stop
-          - voice_assistant.start
+          - voice_assistant.start:
+              wake_word: !lambda return wake_word;
         else:
           if:
             condition:
@@ -940,14 +943,16 @@ micro_wake_word:
                     media_content_id: '${home_assistant_host}/local/sounds/awake.mp3'
                     media_content_type: music
               - media_player.stop
-              - voice_assistant.start
+              - voice_assistant.start:
+                  wake_word: !lambda return wake_word;
             else:
               if:
                 condition:
                   - switch.is_off: wake_sound
                 then:
                   - media_player.stop
-                  - voice_assistant.start
+                  - voice_assistant.start:
+                      wake_word: !lambda return wake_word;
 
 voice_assistant:
   id: va
