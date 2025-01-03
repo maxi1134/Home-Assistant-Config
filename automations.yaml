@@ -1097,28 +1097,23 @@
 - id: '1713719722990'
   alias: Conditionally Unmute Speakers when a room is occupied
   description: 'This one uses motion groups '
-  trigger:
-  - platform: state
-    entity_id:
-    - binary_sensor.group_patio_motion_occupancy
+  triggers:
+  - entity_id:
     - binary_sensor.group_closet_motion_occupancy
     - binary_sensor.group_office_motion_occupancy
-    - binary_sensor.group_server_motion_occupancy
     - binary_sensor.group_bedroom_motion_occupancy
     - binary_sensor.group_hallway_motion_occupancy
     - binary_sensor.group_kitchen_motion_occupancy
     - binary_sensor.group_entrance_motion_occupancy
-    - binary_sensor.group_hotbox_top_motion_occupancy
     - binary_sensor.group_livingroom_motion_occupancy
-    - binary_sensor.group_hotbox_down_motion_occupancy
-    - binary_sensor.group_workstation_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
     for:
       hours: 0
       minutes: 0
       seconds: 0
     to: 'on'
-  condition:
+    trigger: state
+  conditions:
   - condition: state
     entity_id: input_boolean.following_music
     state: 'on'
@@ -1137,20 +1132,20 @@
     condition: template
     value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_microphones_rooms'')
       | string | lower }}'
-  action:
+  actions:
   - variables:
       playing_speakers: '{{ [area_id(trigger.entity_id)]   | map(''area_entities'')
         | sum(start=[]) |    select(''search'', ''speakers'') | select(''is_state'',''playing'')
         | unique | list }}
 
         '
-  - service: media_player.volume_mute
-    metadata: {}
+  - metadata: {}
     data:
       is_volume_muted: false
     target:
       entity_id: '{{playing_speakers}}'
     alias: Unmute the speaker
+    action: media_player.volume_mute
   - alias: Set Speaker volume to median volume  if the room is  empty for a long time
     if:
     - condition: template
@@ -1158,8 +1153,7 @@
         }}'
       alias: Is it beene empty  over 1000 seconds?
     then:
-    - service: media_player.volume_set
-      metadata: {}
+    - metadata: {}
       data:
         volume_level: "{% if states('sensor.average_unmuted_speakers_volume') | float
           > \".45\" | float %}\n .45\n{% else %} {{ states('sensor.average_unmuted_speakers_volume')
@@ -1167,6 +1161,7 @@
       target:
         entity_id: '{{playing_speakers}}'
       alias: Set volume to the average of the house (maximum 45%)
+      action: media_player.volume_set
   mode: parallel
   max: 10
 - id: '1713723493265'
@@ -1876,6 +1871,8 @@
     - binary_sensor.group_livingroom_motion_occupancy
     - binary_sensor.group_workstation_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
+    - binary_sensor.group_hotbox_top_motion_occupancy
+    - binary_sensor.group_hotbox_down_motion_occupancy
     for:
       hours: 0
       minutes: 6
@@ -2098,42 +2095,27 @@
 - id: '1715102391801'
   alias: Alert when there is noise on the terasse
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - binary_sensor.ffmpeg_noise
     to: 'on'
     for:
       hours: 0
       minutes: 0
       seconds: 0
-  condition:
+    trigger: state
+  conditions:
   - condition: state
     entity_id: input_boolean.party_mode
     state: 'on'
   - condition: state
     entity_id: binary_sensor.group_patio_motion_occupancy
     state: 'on'
-  action:
-  - choose:
-    - conditions:
-      - condition: state
-        entity_id: binary_sensor.galaxy_watch_4_on_body_sensor
-        state: 'on'
-      sequence:
-      - service: notify.mobile_app_galaxy_watch4_2n0f
-        metadata: {}
-        data:
-          message: Loud noises on the terasse
-    - conditions:
-      - condition: state
-        entity_id: binary_sensor.galaxy_watch_4_on_body_sensor
-        state: 'off'
-      sequence:
-      - service: notify.mobile_app_phone_maxi
-        metadata: {}
-        data:
-          message: Loud noises on the terasse
+  actions:
+  - metadata: {}
+    data:
+      message: Loud noises on the terasse
+    action: notify.mobile_app_phone_maxi
   mode: single
 - id: '1715103309573'
   alias: Control LivingRoomTablet charging
@@ -3066,12 +3048,12 @@
     - binary_sensor.sensor_patio_door_contact
     to: 'on'
     trigger: state
-    enabled: false
+    enabled: true
   - entity_id:
     - binary_sensor.sensor_server_door_contact
     to: 'on'
     trigger: state
-    enabled: false
+    enabled: true
   - entity_id:
     - binary_sensor.sensor_back_outside_door_contact
     to: 'on'
@@ -3119,8 +3101,8 @@
     data:
       rgb_color:
       - 255
-      - 195
       - 92
+      - 179
       brightness_pct: 100
     target:
       entity_id: light.bedroom_chandelier_light
@@ -3333,24 +3315,22 @@
 - id: '1717287475672'
   alias: Raise volume when the AC starts in a room
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - switch.zooz_office_ac
-    - switch.zooz_hotbox_ac
+  triggers:
+  - entity_id:
     - switch.zooz_livingroom_ac
     - switch.zooz_bedroom_plug
     to: 'on'
     from: 'off'
-  condition: []
-  action:
-  - service: media_player.volume_up
-    metadata: {}
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
     target:
       entity_id: '{{ area_entities(area_id(trigger.entity_id))|select(''search'',
         ''media_player.universal'')|select(''is_state_attr'', ''is_volume_muted'',
         false)|select(''is_state'', ''playing'')| list }}'
+    action: media_player.volume_up
   mode: single
 - id: '1717290684944'
   alias: Turn down volume when AC goes off
@@ -4560,6 +4540,7 @@
               volume_level: '{{ state_attr((media_players | first),''volume_level'')
                 | float + 0.02}}'
             action: media_player.volume_set
+            enabled: true
           alias: Speaker playing and unmuted
       action_click_short:
       - variables:
@@ -4923,26 +4904,6 @@
   trace:
     stored_traces: 30
   max: 25
-- id: '1724183807347'
-  alias: Turn off sleeper in hotbox when koopa leaves
-  description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - person.koopa
-    to: not_home
-    for:
-      hours: 0
-      minutes: 1
-      seconds: 0
-  condition: []
-  action:
-  - action: input_boolean.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: input_boolean.sleeper_in_hotbox
-  mode: single
 - id: '1727032753670'
   alias: Alert people in the back to go away
   description: Flash the red lights in the back while people are loitering
@@ -4954,7 +4915,7 @@
     for:
       hours: 0
       minutes: 0
-      seconds: 3
+      seconds: 30
     trigger: state
   conditions: []
   actions:
@@ -5628,7 +5589,7 @@
       - action: script.broadcast_alert_in_the_house
         data:
           message: Front Lock has remained unlocked
-          color: blue
+          color: yellow
       - delay:
           hours: 0
           minutes: 3
@@ -5896,11 +5857,11 @@
   - entity_id:
     - binary_sensor.back_door_loitering_person_occupancy
     to: 'on'
-    from: 'off'
+    from:
     for:
       hours: 0
       minutes: 1
-      seconds: 30
+      seconds: 0
     trigger: state
   conditions:
   - condition: not
@@ -5976,14 +5937,14 @@
       data:
         command: priority_only
     alias: Set maxi phone to DND Priority Only
-    enabled: false
-  - action: notify.mobile_app_phone_maxi
+    enabled: true
+  - alias: Set maxi phone brightness to 1%
+    action: notify.mobile_app_phone_maxi
     metadata: {}
     data:
       message: command_screen_brightness_level
       data:
-        command: 1
-    alias: Set maxi phone brightness to 1%
+        command: 5
   mode: restart
 - id: '1732293937510'
   alias: Undo sleeping actions for Maxi when he awakes
@@ -6049,7 +6010,7 @@
     data:
       message: command_ble_transmitter
       data:
-        command: turn_on
+        command: turn_off
   mode: single
 - id: '1732406375683'
   alias: Lower volume if police is detected in the front during a party
@@ -6567,3 +6528,49 @@
         intent_action: android.intent.action.DIAL
         intent_uri: tel:911
   mode: single
+- id: '1735346521960'
+  alias: Automatically turn back door light back off
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - light.back_door_light
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.back_door_camera_person_occupancy
+    state: 'off'
+  actions:
+  - action: light.turn_off
+    metadata: {}
+    data:
+      transition: 60
+    target:
+      entity_id: light.back_door_light
+  mode: single
+- id: '1735682831028'
+  alias: Raise bathroom volume when door closes
+  description: ''
+  triggers:
+  - entity_id:
+    - binary_sensor.sensor_bathroom_door_contact
+    to: 'off'
+    from: 'on'
+    trigger: state
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  conditions: []
+  actions:
+  - action: media_player.volume_set
+    metadata: {}
+    data:
+      volume_level: 0.53
+    target:
+      entity_id: media_player.universal_bathroom_speakers
+  mode: restart
