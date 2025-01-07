@@ -1,27 +1,20 @@
 - id: '1691007313405'
   alias: Assist play specific artist
   description: ''
-  trigger:
-  - platform: conversation
-    command:
+  triggers:
+  - command:
     - play the artist {artist}
     - play some  [of] {artist}
-  condition: []
-  action:
-  - service: mass.search
-    data:
-      limit: 1
-      media_type:
-      - artist
-      name: '{{ trigger.slots.artist  }}'
-    response_variable: found_artist
-  - service: mass.play_media
-    data:
+    trigger: conversation
+  conditions: []
+  actions:
+  - data:
       media_type: artist
       enqueue: replace
-      media_id: '{{ found_artist.artists.0.name }}'
+      media_id: '{{ trigger.slots.artist  }}'
     target:
       entity_id: media_player.group_mass_home_airplay_speakers
+    action: music_assistant.play_media
   mode: single
 - id: '1691088980213'
   alias: Assist Play Playlist
@@ -54,23 +47,6 @@
     target:
       entity_id: climate.{{ trigger.slots.thermostat| lower | replace('living room','livingroom')}}_ac
   mode: single
-- id: '1693412216159'
-  alias: Assist play specific song
-  description: ''
-  trigger:
-  - platform: conversation
-    command:
-    - (start|play) [the] song {song}
-  condition: []
-  action:
-  - data:
-      media_content_type: music
-      media_content_id: 'plex://{ "track_name": "{{ trigger.slots.song | replace(".","")
-        }}", "allow_multiple": 1 ,"library_name": "Music" }'
-    target:
-      entity_id: media_player.group_mass_home_airplay_speakers
-    action: media_player.play_media
-  mode: single
 - id: '1698434157594'
   alias: Update Map Extractor camera
   description: ''
@@ -81,11 +57,10 @@
       camera: camera.xiaomi_cloud_map_extractor
       mode_to_handle: turn_off_when_docked
 - id: '1708472009602'
-  alias: Play Music when maxi awakes at home
+  alias: Play Random Music when maxi awakes at home
   description: This Automation will start music on the home group when maxi awakes
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - sensor.is_maxi_asleep
     from: asleep
     to: awake
@@ -93,7 +68,8 @@
       hours: 0
       minutes: 5
       seconds: 0
-  condition:
+    trigger: state
+  conditions:
   - condition: state
     entity_id: person.maximiliano
     state: home
@@ -103,11 +79,10 @@
   - condition: state
     entity_id: binary_sensor.all_present_sleeping
     state: 'off'
-  action:
+  actions:
   - data:
-      media_content_type: playlist
-      media_content_id: 100 Random tracks (from library)
-    action: media_player.play_media
+      media_id: 100 Random tracks (from library)
+    action: music_assistant.play_media
     target:
       entity_id: media_player.group_mass_home_airplay_speakers
   mode: single
@@ -135,57 +110,50 @@
 - id: '1711377375732'
   alias: Assist play song by artist next
   description: ''
-  trigger:
-  - platform: conversation
-    command:
+  triggers:
+  - command:
     - queue {song} by {artist}
     - cue {song} by {artist}
-  condition: []
-  action:
-  - service: mass.search
-    data:
+    trigger: conversation
+  conditions: []
+  actions:
+  - data:
       limit: 1
       media_type:
       - track
       name: '{{ trigger.slots.song  }}'
       artist: '{{ trigger.slots.artist  }}'
     response_variable: found_song
-  - service: mass.play_media
-    target:
+    action: music_assistant.search
+    enabled: false
+  - target:
       entity_id: media_player.group_mass_home_airplay_speakers
     data:
       media_type: track
       enqueue: next
-      media_id: '{{ found_song.tracks.0.name }}'
+      media_id: '{{ trigger.slots.song  }}'
       artist: '{{ trigger.slots.artist  }}'
+    action: music_assistant.play_media
   mode: single
 - id: '1711377604136'
   alias: Assist Play song by artist now
   description: ''
-  trigger:
-  - platform: conversation
-    command:
+  triggers:
+  - command:
     - play {song} by {artist}
-  condition: []
-  action:
-  - service: mass.search
-    data:
-      limit: 1
-      media_type:
-      - track
-      name: '{{ trigger.slots.song  }}'
-      artist: '{{ trigger.slots.artist  }}'
-    response_variable: found_song
-  - service: mass.play_media
-    target:
+    trigger: conversation
+  conditions: []
+  actions:
+  - target:
       entity_id:
       - media_player.group_mass_home_airplay_speakers
     data:
       media_type: track
       enqueue: play
-      media_id: '{{ found_song.tracks.0.name }}'
-  - service: mass.play_media
-    target:
+      media_id: '{{ trigger.slots.song  }}'
+      artist: '{{ trigger.slots.artist  }}'
+    action: music_assistant.play_media
+  - target:
       entity_id:
       - media_player.group_mass_home_airplay_speakers
     data:
@@ -193,6 +161,8 @@
       enqueue: add
       media_id: '{{ found_song.tracks.0.name }}'
       radio_mode: true
+    action: mass.play_media
+    enabled: false
   mode: single
 - id: '1711565389493'
   alias: Assist Restart Music Assistant
@@ -220,8 +190,8 @@
   - data:
       media_type: playlist
       enqueue: replace
-      media_id: local maxi
-    action: mass.play_media
+      media_id: local maxi playlist
+    action: music_assistant.play_media
     target:
       entity_id: media_player.group_mass_home_airplay_speakers
   mode: single
@@ -1107,6 +1077,7 @@
     - binary_sensor.group_entrance_motion_occupancy
     - binary_sensor.group_livingroom_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
+    - binary_sensor.group_hotbox_motion_occupancy
     for:
       hours: 0
       minutes: 0
@@ -1204,9 +1175,8 @@
 - id: '1713824382107'
   alias: Turn on lights automatically
   description: 'This one uses motion groups '
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - binary_sensor.group_office_motion_occupancy
     - binary_sensor.group_hallway_motion_occupancy
     - binary_sensor.group_kitchen_motion_occupancy
@@ -1221,15 +1191,17 @@
     - binary_sensor.group_entrance_motion_occupancy
     - binary_sensor.group_workstation_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
+    - binary_sensor.group_hotbox_motion_occupancy
     for:
       hours: 0
       minutes: 0
       seconds: 0
-  condition:
+    trigger: state
+  conditions:
   - condition: template
     value_template: '{{ area_id(trigger.entity_id) | replace(''_top'','''') | replace(''_down'','''')
       not in states(''sensor.active_sleeper_rooms'') | string  }}'
-  action:
+  actions:
   - variables:
       off_lights_in_room: "{% set ns = namespace(f = [] ) %} {% for i in ( [area_id(trigger.entity_id)]
         \ | map('area_entities') | sum(start=[]) | select('match', '^light.') | select('is_state','off')
@@ -1259,16 +1231,16 @@
     - binary_sensor.group_kitchen_motion_occupancy
     - binary_sensor.group_bathroom_motion_occupancy
     - binary_sensor.group_entrance_motion_occupancy
-    - binary_sensor.group_hotbox_top_motion_occupancy
     - binary_sensor.group_livingroom_motion_occupancy
-    - binary_sensor.group_hotbox_down_motion_occupancy
     - binary_sensor.group_workstation_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
+    - binary_sensor.group_hotbox_motion_occupancy
     for:
       hours: 0
       minutes: 5
       seconds: 0
     trigger: state
+    to: 'off'
   conditions:
   - condition: state
     entity_id: input_boolean.following_music
@@ -1873,6 +1845,7 @@
     - binary_sensor.group_salon_motion_occupancy
     - binary_sensor.group_hotbox_top_motion_occupancy
     - binary_sensor.group_hotbox_down_motion_occupancy
+    - binary_sensor.group_hotbox_motion_occupancy
     for:
       hours: 0
       minutes: 6
@@ -2052,13 +2025,13 @@
 - id: '1715034222361'
   alias: Alert maxi that is phone is ringing
   description: This should act in the room he is if he is alone
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - sensor.phone_maxi_phone_state
     to: ringing
-  condition: []
-  action:
+    trigger: state
+  conditions: []
+  actions:
   - variables:
       in_room_speakers: "{% if [area_id(states('sensor.maxi_location_v3'))]   | map('area_entities')
         | sum(start=[]) |    select('search', 'speakers') | select('search','universal')
@@ -2070,8 +2043,7 @@
       attributes: '{{ trigger }}
 
         '
-  - service: tts.speak
-    metadata: {}
+  - metadata: {}
     data:
       cache: false
       message: Maxi's phone is ringing
@@ -2079,25 +2051,26 @@
 
         '
     target:
-      entity_id: tts.piper
+      entity_id: tts.openai_tts_ncage
     enabled: true
+    action: tts.speak
   - wait_template: '{{ trigger.from_state.attributes != "mass" }}'
     continue_on_timeout: true
     timeout: '5'
-  - service: media_player.media_pause
-    metadata: {}
+  - metadata: {}
     data: {}
     target:
       entity_id: '{{in_room_speakers}}
 
         '
+    action: media_player.media_pause
   mode: single
 - id: '1715102391801'
   alias: Alert when there is noise on the terasse
   description: ''
   triggers:
   - entity_id:
-    - binary_sensor.ffmpeg_noise
+    - binary_sensor.noise_ffmpeg_5
     to: 'on'
     for:
       hours: 0
@@ -2223,10 +2196,36 @@
   alias: Doorbell Main automation
   description: Rings and alerts my phone
   triggers:
-  - entity_id:
-    - sensor.remote_doorbell_button_action
-    to: single
-    trigger: state
+  - domain: mqtt
+    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
+    type: action
+    subtype: single
+    trigger: device
+  - domain: mqtt
+    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
+    type: click
+    subtype: single
+    trigger: device
+  - domain: mqtt
+    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
+    type: click
+    subtype: long
+    trigger: device
+  - domain: mqtt
+    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
+    type: action
+    subtype: hold
+    trigger: device
+  - domain: mqtt
+    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
+    type: action
+    subtype: double
+    trigger: device
+  - domain: mqtt
+    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
+    type: click
+    subtype: double
+    trigger: device
   conditions: []
   actions:
   - target:
@@ -2269,6 +2268,7 @@
           command: /maxi-mobile/main-view#security_popup
           ttl: 0
           priority: high
+      enabled: false
   mode: restart
 - id: '1715719948033'
   alias: Reset doorbell stuff on unlock
@@ -2547,9 +2547,8 @@
   alias: Set speakers volume on initial playback v2
   description: Control each home_group speaker  individually instead of a per room
     basis
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - media_player.universal_bathroom_speakers
     - media_player.universal_bedroom_speakers
     - media_player.universal_salon_speakers
@@ -2558,14 +2557,16 @@
     - media_player.universal_kitchen_speakers
     - media_player.universal_office_speakers
     - media_player.universal_livingroom_speakers
+    - media_player.universal_hotbox_speakers
     to: playing
     from: idle
-  condition:
+    trigger: state
+  conditions:
   - condition: template
     value_template: '{{ now() - trigger.from_state.last_changed > timedelta(seconds=10)
       }}'
     enabled: false
-  action:
+  actions:
   - choose:
     - conditions:
       - alias: Is there no sleeper in the room?
@@ -2750,17 +2751,42 @@
 - id: '1716912930623'
   alias: Turn camera to doorway on doorbell action
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - sensor.remote_doorbell_button_action
-    from:
-    to:
-  condition: []
-  action:
-  - service: script.ptz_to_doorway
-    metadata: {}
+  triggers:
+  - domain: mqtt
+    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
+    type: action
+    subtype: single
+    trigger: device
+  - domain: mqtt
+    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
+    type: click
+    subtype: single
+    trigger: device
+  - domain: mqtt
+    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
+    type: action
+    subtype: hold
+    trigger: device
+  - domain: mqtt
+    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
+    type: click
+    subtype: long
+    trigger: device
+  - domain: mqtt
+    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
+    type: action
+    subtype: double
+    trigger: device
+  - domain: mqtt
+    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
+    type: click
+    subtype: double
+    trigger: device
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
+    action: script.ptz_to_doorway
   mode: single
 - id: '1716933958613'
   alias: Automatically turn off the front security horn after 2 minutes and ask if
@@ -3115,7 +3141,7 @@
       message: Someone has entered, a door has been opened
       cache: true
     target:
-      entity_id: tts.piper
+      entity_id: tts.openai_tts_ncage
   - metadata: {}
     data:
       is_volume_muted: false
@@ -3132,14 +3158,14 @@
       message: Someone has entered, a door has been opened
       cache: true
     target:
-      entity_id: tts.piper
+      entity_id: tts.openai_tts_ncage
   - action: tts.speak
     data:
       media_player_entity_id: media_player.universal_bedroom_speakers
       message: Someone has entered, a door has been opened
       cache: true
     target:
-      entity_id: tts.piper
+      entity_id: tts.openai_tts_ncage
   - metadata: {}
     data:
       is_volume_muted: false
@@ -3153,7 +3179,7 @@
       message: Someone has entered, a door has been opened
       cache: true
     target:
-      entity_id: tts.piper
+      entity_id: tts.openai_tts_ncage
   mode: single
 - id: '1717038729859'
   alias: Set front door screen text
@@ -3293,23 +3319,22 @@
     data:
       media_content_id: http://192.168.0.15:8123/local/thunderstorm.mp4
       media_content_type: music
-      announce: true
     target:
       entity_id: '{{ [states(''sensor.where_is_maxi_sleeping'') ]  | map(''area_entities'')
-        |
-
-        sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]?$'')
-        |
-
-        select(''is_state'',''off'') | unique | list }}'
+        | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]?$'')  |
+        unique | list }}'
     action: media_player.play_media
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 1
   - metadata: {}
     data:
       is_volume_muted: false
     target:
       entity_id: '{{ [states(''sensor.where_is_maxi_sleeping'') ]  | map(''area_entities'')
-        | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]?$'')
-        | select(''is_state'',''playing'') | unique | list }}'
+        | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]?$'')  |
+        unique | list }}'
     action: media_player.volume_mute
   mode: single
 - id: '1717287475672'
@@ -3604,7 +3629,7 @@
       announce_volume: 100
       url: https://hass.purgatoire.ca/local/deescalation.mp3
       use_pre_announce: true
-    action: mass.play_announcement
+    action: music_assistant.play_announcement
     target:
       entity_id: media_player.group_mass_home_airplay_speakers
   mode: single
@@ -3819,13 +3844,103 @@
     type: action
     subtype: press_1
     trigger: device
+    id: press_1
+  - domain: mqtt
+    device_id: 401156183b8cc392cc4838000cc56c3c
+    type: action
+    subtype: press_4
+    trigger: device
+    id: press_4
+  - domain: mqtt
+    device_id: 401156183b8cc392cc4838000cc56c3c
+    type: action
+    subtype: press_3
+    trigger: device
+    id: press_3
+  - domain: mqtt
+    device_id: 401156183b8cc392cc4838000cc56c3c
+    type: action
+    subtype: press_2
+    trigger: device
+    id: press_2
   conditions: []
   actions:
-  - metadata: {}
-    data: {}
-    action: light.toggle
-    target:
-      entity_id: light.group_bedroom_lights
+  - choose:
+    - conditions:
+      - condition: trigger
+        id: ''
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data: {}
+        target:
+          entity_id: light.group_bedroom_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - press_4
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_step_pct: 10
+        target:
+          entity_id: light.group_bedroom_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - press_3
+        - press_1
+      sequence:
+      - choose:
+        - conditions:
+          - condition: state
+            entity_id: input_boolean.sleeper_in_bedroom
+            state: 'on'
+          - condition: state
+            entity_id: light.group_bedroom_lights
+            state: 'off'
+          sequence:
+          - action: light.turn_on
+            metadata: {}
+            data:
+              kelvin: 3167
+              brightness_pct: 15
+            target:
+              entity_id: light.group_bedroom_lights
+        - conditions:
+          - condition: state
+            entity_id: binary_sensor.sleeper_in_bedroom
+            state: 'off'
+          - condition: state
+            entity_id: light.group_bedroom_lights
+            state: 'off'
+          sequence:
+          - action: light.turn_on
+            metadata: {}
+            data:
+              kelvin: 5300
+              brightness_pct: 100
+              transition: 3
+            target:
+              entity_id: light.group_bedroom_lights
+        default:
+        - action: light.toggle
+          metadata: {}
+          data: {}
+          target:
+            entity_id: light.group_bedroom_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - press_2
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_step_pct: -10
+        target:
+          entity_id: light.group_bedroom_lights
   mode: single
 - id: '1722263369374'
   alias: assist Stop home group music
@@ -5300,7 +5415,6 @@
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
     - assist_satellite.hallway_assistant_05a784_assist_satellite
     - assist_satellite.lv_assistant_059a5c_assist_satellite
-    - assist_satellite.lvw_assistant_05a8d4_assist_satellite
     - assist_satellite.office_assistant_04dc50_assist_satellite
     - assist_satellite.salon_assistant_0505ec_assist_satellite
     from:
@@ -5505,16 +5619,18 @@
       message: Please leave this room immediately.
       language: English
     target:
-      entity_id: tts.piper
+      entity_id:
+      - tts.openai_tts_ncage
   - action: tts.speak
     metadata: {}
     data:
       cache: true
       media_player_entity_id: media_player.universal_bedroom_speakers
-      message: Veuillez sortir de la chambre immdediatment
+      message: Veuillez sortir de la chambre immdediatement
       language: french
     target:
-      entity_id: tts.piper
+      entity_id:
+      - tts.openai_tts_ncage
   mode: single
 - id: '1730428380200'
   alias: Assist Show cameras on TVs
@@ -5607,7 +5723,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - binary_sensor.ffmpeg_noise
+    - binary_sensor.noise_ffmpeg_5
     to: 'on'
     from: 'off'
     for:
@@ -6218,19 +6334,19 @@
   triggers:
   - trigger: state
     entity_id:
-    - sensor.office_lights_color
+    - sensor.hotbox_lights_color
   conditions: []
   actions:
   - variables:
-      red: '{{ (((states(''sensor.office_lights_color'') | string).split('','').0.replace("(","")
+      red: '{{ (((states(''sensor.hotbox_lights_color'') | string).split('','').0.replace("(","")
         | int / 255 )| string)[:4] }}
 
         '
-      green: '{{ (((states(''sensor.office_lights_color'') | string).split('','').1
+      green: '{{ (((states(''sensor.hotbox_lights_color'') | string).split('','').1
         | int / 255 )| string)[:4] }}
 
         '
-      blue: '{{ (((states(''sensor.office_lights_color'') | string).split('','').2.replace(")","")
+      blue: '{{ (((states(''sensor.hotbox_lights_color'') | string).split('','').2.replace(")","")
         | int / 255 )| string)[:4] }}
 
         '
@@ -6241,6 +6357,69 @@
       retain: false
       topic: homeassistant/button/DESKTOP_MAXI/custom/action
       payload: '%wpe% -control applyProperties -properties RAW~({"schemecolor":"{{red}}
+        {{green}} {{blue}}"})~END'
+    enabled: true
+  - action: mqtt.publish
+    metadata: {}
+    data:
+      qos: 0
+      retain: false
+      topic: homeassistant/button/DESKTOP_MAXI/custom/action
+      payload: '%wpe% -control applyProperties -properties RAW~({"wavecolorleft":"{{red}}
+        {{green}} {{blue}}"})~END'
+    enabled: true
+  - action: mqtt.publish
+    metadata: {}
+    data:
+      qos: 0
+      retain: false
+      topic: homeassistant/button/DESKTOP_MAXI/custom/action
+      payload: '%wpe% -control applyProperties -properties RAW~({"wavecolor":"{{red}}
+        {{green}} {{blue}}"})~END'
+    enabled: true
+  - action: mqtt.publish
+    metadata: {}
+    data:
+      qos: 0
+      retain: false
+      topic: homeassistant/button/DESKTOP_MAXI/custom/action
+      payload: '%wpe% -control applyProperties -properties RAW~({"e9Color1":"{{red}}
+        {{green}} {{blue}}"})~END'
+    enabled: true
+  - action: mqtt.publish
+    metadata: {}
+    data:
+      qos: 0
+      retain: false
+      topic: homeassistant/button/DESKTOP_MAXI/custom/action
+      payload: '%wpe% -control applyProperties -properties RAW~({"e9Color2":"{{red}}
+        {{green}} {{blue}}"})~END'
+    enabled: true
+  - action: mqtt.publish
+    metadata: {}
+    data:
+      qos: 0
+      retain: false
+      topic: homeassistant/button/DESKTOP_MAXI/custom/action
+      payload: '%wpe% -control applyProperties -properties RAW~({"e9Color3":"{{red}}
+        {{green}} {{blue}}"})~END'
+    enabled: true
+  - action: mqtt.publish
+    metadata: {}
+    data:
+      qos: 0
+      retain: false
+      topic: homeassistant/button/DESKTOP_MAXI/custom/action
+      payload: '%wpe% -control applyProperties -properties RAW~({"e9Color4":"{{red}}
+        {{green}} {{blue}}"})~END'
+    enabled: true
+  - action: mqtt.publish
+    metadata: {}
+    data:
+      qos: 0
+      retain: false
+      topic: homeassistant/button/DESKTOP_MAXI/custom/action
+      payload: '%wpe% -control applyProperties -properties RAW~({"apple":"{{red}}
         {{green}} {{blue}}"})~END'
     enabled: true
   mode: restart
@@ -6574,3 +6753,30 @@
     target:
       entity_id: media_player.universal_bathroom_speakers
   mode: restart
+- id: '1736017695181'
+  alias: Lower hotbox down light when maxi open his webcam
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.desktop_maxi_webcamactive
+    from: 'off'
+    to: 'on'
+  conditions:
+  - condition: state
+    entity_id: light.hotbox_down_light
+    state: 'on'
+  - condition: numeric_state
+    entity_id: light.hotbox_down_light
+    attribute: brightness
+    above: 30
+  actions:
+  - action: light.turn_on
+    metadata: {}
+    data:
+      transition: 1
+      brightness_pct: 29
+      kelvin: 2780
+    target:
+      entity_id: light.hotbox_down_light
+  mode: single
