@@ -66,7 +66,7 @@
     to: awake
     for:
       hours: 0
-      minutes: 5
+      minutes: 6
       seconds: 0
     trigger: state
   conditions:
@@ -81,7 +81,9 @@
     state: 'off'
   actions:
   - data:
-      media_id: 100 Random tracks (from library)
+      media_id: All favorited tracks
+      enqueue: replace
+      radio_mode: true
     action: music_assistant.play_media
     target:
       entity_id: media_player.group_mass_home_airplay_speakers
@@ -4705,8 +4707,8 @@
   triggers:
   - entity_id:
     - lock.lock_front_door
-    attribute: action_user
     trigger: state
+    to: unlocked
   conditions:
   - alias: Was the door unlocked?
     condition: template
@@ -4732,7 +4734,8 @@
         '
       color: cyan
     action: script.broadcast_alert_in_the_house
-  mode: single
+  mode: parallel
+  max: 10
 - id: '1723530969899'
   alias: 'Turn off Livingroom lights when bedroom Sleeper turns on '
   description: 'Check also that the Livingroom is empty '
@@ -4769,6 +4772,7 @@
     - media_player.universal_kitchen_speakers
     - media_player.universal_office_speakers
     - media_player.universal_livingroom_speakers
+    - media_player.universal_hotbox_speakers
     to: playing
     from:
     trigger: state
@@ -5089,12 +5093,11 @@
   description: ''
   triggers:
   - entity_id:
-    - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
+    - assist_satellite.office_assistant_04dc50_assist_satellite
     - assist_satellite.hallway_assistant_05a784_assist_satellite
     - assist_satellite.lv_assistant_059a5c_assist_satellite
-    - assist_satellite.lvw_assistant_05a8d4_assist_satellite
-    - assist_satellite.office_assistant_04dc50_assist_satellite
     - assist_satellite.salon_assistant_0505ec_assist_satellite
+    - assist_satellite.hotbox_assistant_05a8d4_assist_satellite
     from:
     trigger: state
     to: listening
@@ -5118,15 +5121,25 @@
       if:
       - alias: Speaker present
         condition: template
-        value_template: '{{ playing_speakers != ["","None"]}}'
+        value_template: '{{ playing_speakers.0 != ""}}'
       then:
       - alias: Speakers
         sequence:
+        - variables:
+            original_volume: '{{ state_attr(playing_speakers.0, ''volume_level'')
+              }}
+
+              '
+            desired_volume: '{{ (original_volume | float / 2 ) | round(2, ''floor'')|
+              string }}
+
+              '
         - action: media_player.volume_set
           metadata: {}
           data:
-            volume_level: '{{ (playing_speakers.1 | float - (playing_speakers.1 |
-              float / 2))| string }}'
+            volume_level: '{{ desired_volume }}
+
+              '
           target:
             entity_id: '{{playing_speakers.0}}'
           alias: Lower Music
@@ -5135,43 +5148,52 @@
           timeout: '60'
         - condition: template
           value_template: '{{ state_attr(playing_speakers.0, ''volume_level'') | float
-            == playing_speakers.1 | float / 2 }}'
+            == desired_volume | float }}'
         - action: media_player.volume_set
           metadata: {}
           data:
-            volume_level: '{{playing_speakers.1}}'
+            volume_level: '{{ original_volume }}
+
+              '
           target:
             entity_id: '{{playing_speakers.0}}'
     - alias: Dismiss empty variables
       if:
       - condition: template
-        value_template: '{{ playing_chromecast != ["","None"]}}'
+        value_template: '{{ playing_chromecast.0 != ""}}'
       then:
       - alias: chromecasts
         sequence:
+        - variables:
+            original_volume: '{{ state_attr(playing_chromecasts.0, ''volume_level'')
+              }}
+
+              '
+            desired_volume: '{{ (original_volume | float / 2 ) | round(2, ''floor'')|
+              string }}
+
+              '
         - action: media_player.volume_set
           metadata: {}
           data:
-            volume_level: '{{ (playing_chromecasts.1 | float - (playing_chromecasts.1
-              | float / 2))| string }}'
+            volume_level: '{{ desired_volume }}
+
+              '
           target:
             entity_id: '{{playing_chromecasts.0}}'
-          alias: Lower TV
+          alias: Lower Music
         - wait_template: '{{ states(trigger.entity_id) == "idle" }}'
           continue_on_timeout: true
           timeout: '60'
-        - variables:
-            test1: '{{ state_attr(playing_chromecasts.0, ''volume_level'') | float
-              }}'
-            test2: '{{  playing_chromecasts.1 | float }}'
-          enabled: false
         - condition: template
           value_template: '{{ state_attr(playing_chromecasts.0, ''volume_level'')
-            | float == playing_chromecasts.1 | float / 2 }}'
+            | float == desired_volume | float }}'
         - action: media_player.volume_set
           metadata: {}
           data:
-            volume_level: '{{playing_chromecasts.1}}'
+            volume_level: '{{ original_volume }}
+
+              '
           target:
             entity_id: '{{playing_chromecasts.0}}'
   mode: parallel
@@ -6230,6 +6252,7 @@
       - media_player.universal_salon_speakers
       - media_player.universal_office_speakers
       - media_player.universal_livingroom_speakers
+      - media_player.universal_hotbox_speakers
   mode: single
 - id: '1733533239694'
   alias: Assist quick color change phrase
@@ -6779,4 +6802,23 @@
       kelvin: 2780
     target:
       entity_id: light.hotbox_down_light
+  mode: single
+- id: '1736355787833'
+  alias: Restart FFMPEG noise detection if it crashes
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.noise_ffmpeg_5
+    from:
+    to: unavailable
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 10
+  conditions: []
+  actions:
+  - action: ffmpeg.restart
+    metadata: {}
+    data: {}
   mode: single
