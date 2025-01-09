@@ -1121,10 +1121,10 @@
     action: media_player.volume_mute
   - alias: Set Speaker volume to median volume  if the room is  empty for a long time
     if:
-    - condition: template
-      value_template: '{{ now() - trigger.from_state.last_changed > timedelta(seconds=1000)
+    - alias: Is it beene empty  over 1000 seconds?
+      condition: template
+      value_template: '{{ (now() - trigger.from_state.last_changed) > timedelta(seconds=1000)
         }}'
-      alias: Is it beene empty  over 1000 seconds?
     then:
     - metadata: {}
       data:
@@ -1422,7 +1422,10 @@
   mode: single
 - id: '1714077215807'
   alias: Change light to random pastel colors on press
-  description: ''
+  description: 'This automation changes all lights that are turned on to random pastel
+    colors
+
+    Click it to trigger the effect'
   triggers:
   - entity_id:
     - input_boolean.random_pastel_colors
@@ -2565,9 +2568,9 @@
     trigger: state
   conditions:
   - condition: template
-    value_template: '{{ now() - trigger.from_state.last_changed > timedelta(seconds=10)
+    value_template: '{{ now() - trigger.from_state.last_changed > timedelta(minutes=10)
       }}'
-    enabled: false
+    enabled: true
   actions:
   - choose:
     - conditions:
@@ -2995,6 +2998,23 @@
         - action: blow_horn_back
           title: Blow the horn for 2 minutes?
     action: notify.mobile_app_phone_maxi
+  - if:
+    - condition: state
+      entity_id: person.maximiliano
+      state: home
+    then:
+    - metadata: {}
+      data:
+        message: Someone is in the back!
+        title: Someone is in the back!
+        data:
+          ttl: 0
+          priority: high
+          image: /media/local/backdoor_movement.png
+          actions:
+          - action: blow_horn_back
+            title: Blow the horn for 2 minutes?
+      action: notify.mobile_app_phone_maxi
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
       context: {}
@@ -3338,6 +3358,12 @@
         | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]?$'')  |
         unique | list }}'
     action: media_player.volume_mute
+  - metadata: {}
+    target:
+      entity_id: '{{ [states(''sensor.where_is_maxi_sleeping'') ]  | map(''area_entities'')
+        | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]?$'')  |
+        unique | list }}'
+    action: media_player.volume_up
   mode: single
 - id: '1717287475672'
   alias: Raise volume when the AC starts in a room
@@ -5127,7 +5153,7 @@
         sequence:
         - variables:
             original_volume: '{{ state_attr(playing_speakers.0, ''volume_level'')
-              }}
+              | round(2, ''floor'')| string  }}
 
               '
             desired_volume: '{{ (original_volume | float / 2 ) | round(2, ''floor'')|
@@ -5147,8 +5173,9 @@
           continue_on_timeout: true
           timeout: '60'
         - condition: template
-          value_template: '{{ state_attr(playing_speakers.0, ''volume_level'') | float
-            == desired_volume | float }}'
+          value_template: '{{ (state_attr(playing_speakers.0, ''volume_level'') |
+            float | round(2, ''floor'') | float) == desired_volume  | round(2, ''floor'')
+            }}'
         - action: media_player.volume_set
           metadata: {}
           data:
@@ -5160,13 +5187,13 @@
     - alias: Dismiss empty variables
       if:
       - condition: template
-        value_template: '{{ playing_chromecast.0 != ""}}'
+        value_template: '{{ playing_chromecasts.0 != ""}}'
       then:
       - alias: chromecasts
         sequence:
         - variables:
-            original_volume: '{{ state_attr(playing_chromecasts.0, ''volume_level'')
-              }}
+            original_volume: '{{ state_attr(playing_chromecasts.0, ''volume_level'')  |
+              round(2, ''floor'')|  string  }}
 
               '
             desired_volume: '{{ (original_volume | float / 2 ) | round(2, ''floor'')|
@@ -5186,8 +5213,9 @@
           continue_on_timeout: true
           timeout: '60'
         - condition: template
-          value_template: '{{ state_attr(playing_chromecasts.0, ''volume_level'')
-            | float == desired_volume | float }}'
+          value_template: '{{ (state_attr(playing_chromecasts.0, ''volume_level'')
+            | float | round(2, ''floor'') | float) == desired_volume  | round(2, ''floor'')
+            }}'
         - action: media_player.volume_set
           metadata: {}
           data:
@@ -5414,9 +5442,9 @@
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
     - assist_satellite.hallway_assistant_05a784_assist_satellite
     - assist_satellite.lv_assistant_059a5c_assist_satellite
-    - assist_satellite.lvw_assistant_05a8d4_assist_satellite
     - assist_satellite.office_assistant_04dc50_assist_satellite
     - assist_satellite.salon_assistant_0505ec_assist_satellite
+    - assist_satellite.hotbox_assistant_05a8d4_assist_satellite
     from:
     trigger: state
     to: listening
