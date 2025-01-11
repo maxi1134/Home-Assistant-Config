@@ -1125,11 +1125,13 @@
       condition: template
       value_template: '{{ (now() - trigger.from_state.last_changed) > timedelta(seconds=1000)
         }}'
+      enabled: true
     then:
     - metadata: {}
       data:
         volume_level: "{% if states('sensor.average_unmuted_speakers_volume') | float
-          > \".45\" | float %}\n .45\n{% else %} {{ states('sensor.average_unmuted_speakers_volume')
+          > \".45\" | float %}\n .45    \n{% elif states('sensor.average_unmuted_speakers_volume')
+          | float < \".05\" | float %}\n .15\n{% else %} {{ states('sensor.average_unmuted_speakers_volume')
           }} {% endif %}\n"
       target:
         entity_id: '{{playing_speakers}}'
@@ -1412,7 +1414,7 @@
   - trigger: conversation
     command:
     - random colors lights
-    - random colors lights
+    - random color lights
     - random colored lights
   conditions: []
   actions:
@@ -2566,11 +2568,7 @@
     to: playing
     from: idle
     trigger: state
-  conditions:
-  - condition: template
-    value_template: '{{ now() - trigger.from_state.last_changed > timedelta(minutes=10)
-      }}'
-    enabled: true
+  conditions: []
   actions:
   - choose:
     - conditions:
@@ -3322,29 +3320,23 @@
   - condition: state
     entity_id: person.maximiliano
     state: home
-  - condition: not
-    conditions:
-    - condition: state
-      entity_id: sensor.where_is_maxi_sleeping
-      state: closet
-    enabled: false
   actions:
-  - metadata: {}
-    data: {}
-    target:
-      entity_id: '{{ [states(''sensor.where_is_maxi_sleeping'') ]  | map(''area_entities'')
-        | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]?$'')
-        | select(''is_state'',''off'') | unique | list }}'
-    enabled: false
-    action: media_player.turn_on
+  - variables:
+      sleeper_speaker: '{{ [states(''sensor.where_is_maxi_sleeping'') ]  | map(''area_entities'')
+        | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]?$'')  |
+        unique | list | first}}
+
+        '
+    enabled: true
+  - condition: template
+    value_template: '{{ state_attr(sleeper_speaker,''media_title'') != ''thunderstorm''
+      }} '
   - metadata: {}
     data:
       media_content_id: http://192.168.0.15:8123/local/thunderstorm.mp4
       media_content_type: music
     target:
-      entity_id: '{{ [states(''sensor.where_is_maxi_sleeping'') ]  | map(''area_entities'')
-        | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]?$'')  |
-        unique | list }}'
+      entity_id: '{{ sleeper_speaker }}'
     action: media_player.play_media
   - delay:
       hours: 0
@@ -3354,16 +3346,22 @@
     data:
       is_volume_muted: false
     target:
-      entity_id: '{{ [states(''sensor.where_is_maxi_sleeping'') ]  | map(''area_entities'')
-        | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]?$'')  |
-        unique | list }}'
+      entity_id: '{{ sleeper_speaker }}'
     action: media_player.volume_mute
   - metadata: {}
     target:
-      entity_id: '{{ [states(''sensor.where_is_maxi_sleeping'') ]  | map(''area_entities'')
-        | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]?$'')  |
-        unique | list }}'
+      entity_id: '{{ sleeper_speaker }}'
     action: media_player.volume_up
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 3
+  - action: media_player.volume_set
+    metadata: {}
+    data:
+      volume_level: 0.49
+    target:
+      entity_id: '{{ sleeper_speaker }}'
   mode: single
 - id: '1717287475672'
   alias: Raise volume when the AC starts in a room
@@ -5119,11 +5117,12 @@
   description: ''
   triggers:
   - entity_id:
-    - assist_satellite.office_assistant_04dc50_assist_satellite
-    - assist_satellite.hallway_assistant_05a784_assist_satellite
-    - assist_satellite.lv_assistant_059a5c_assist_satellite
+    - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
     - assist_satellite.salon_assistant_0505ec_assist_satellite
-    - assist_satellite.hotbox_assistant_05a8d4_assist_satellite
+    - assist_satellite.hallway_assistant_assist_satellite
+    - assist_satellite.hotbox_assistant_assist_satellite
+    - assist_satellite.office_assistant_assist_satellite
+    - assist_satellite.lv_assistant_assist_satellite
     from:
     trigger: state
     to: listening
@@ -5440,11 +5439,11 @@
   triggers:
   - entity_id:
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
-    - assist_satellite.hallway_assistant_05a784_assist_satellite
-    - assist_satellite.lv_assistant_059a5c_assist_satellite
-    - assist_satellite.office_assistant_04dc50_assist_satellite
     - assist_satellite.salon_assistant_0505ec_assist_satellite
-    - assist_satellite.hotbox_assistant_05a8d4_assist_satellite
+    - assist_satellite.hallway_assistant_assist_satellite
+    - assist_satellite.hotbox_assistant_assist_satellite
+    - assist_satellite.office_assistant_assist_satellite
+    - assist_satellite.lv_assistant_assist_satellite
     from:
     trigger: state
     to: listening
@@ -5463,10 +5462,11 @@
   triggers:
   - entity_id:
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
-    - assist_satellite.hallway_assistant_05a784_assist_satellite
-    - assist_satellite.lv_assistant_059a5c_assist_satellite
-    - assist_satellite.office_assistant_04dc50_assist_satellite
     - assist_satellite.salon_assistant_0505ec_assist_satellite
+    - assist_satellite.hallway_assistant_assist_satellite
+    - assist_satellite.hotbox_assistant_assist_satellite
+    - assist_satellite.office_assistant_assist_satellite
+    - assist_satellite.lv_assistant_assist_satellite
     from:
     trigger: state
     to: idle
@@ -6268,19 +6268,43 @@
   conditions: []
   actions:
   - variables:
-      average_volume: '{{ state_attr(''media_player.group_mass_home_airplay_speakers'',''volume_level'')}}'
-  - action: media_player.volume_set
-    metadata: {}
-    data:
-      volume_level: '{{average_volume}}'
-    target:
-      entity_id:
-      - media_player.universal_hallway_speakers
-      - media_player.universal_kitchen_speakers
-      - media_player.universal_salon_speakers
-      - media_player.universal_office_speakers
-      - media_player.universal_livingroom_speakers
-      - media_player.universal_hotbox_speakers
+      average_volume: '{{ states(''sensor.average_unmuted_speakers_volume'')}}'
+      unmuted_speakers: '{{ state_attr(''sensor.active_speakers_rooms'',''unmuted_rooms'')}}'
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: input_boolean.following_music
+        state: 'off'
+      sequence:
+      - action: media_player.volume_set
+        metadata: {}
+        data:
+          volume_level: '{{average_volume}}'
+        target:
+          entity_id:
+          - media_player.universal_hallway_speakers
+          - media_player.universal_kitchen_speakers
+          - media_player.universal_salon_speakers
+          - media_player.universal_office_speakers
+          - media_player.universal_livingroom_speakers
+          - media_player.universal_hotbox_speakers
+    - conditions:
+      - condition: state
+        entity_id: input_boolean.following_music
+        state: 'on'
+      sequence:
+      - repeat:
+          sequence:
+          - action: media_player.volume_set
+            metadata: {}
+            data:
+              volume_level: '{{average_volume}}'
+            target:
+              entity_id: '{{ "media_player.universal_" + unmuted_speakers[repeat.index
+                - 1] + "_speakers" }}
+
+                '
+          for_each: '{{ unmuted_speakers }}'
   mode: single
 - id: '1733533239694'
   alias: Assist quick color change phrase
