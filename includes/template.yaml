@@ -191,7 +191,7 @@
           {% set array = states.media_player 
           | selectattr('entity_id', 'search', 'speakers') 
           | selectattr('entity_id', 'search', 'universal') 
-          | rejectattr('entity_id', 'search', 'following|home|group|hotbox') 
+          | rejectattr('entity_id', 'search', 'following|home|group') 
           | rejectattr('attributes.is_volume_muted', 'eq', True) 
           | selectattr('state', 'eq', 'playing') 
           | map(attribute='attributes.volume_level') 
@@ -506,39 +506,12 @@
       - name: "active_speakers_rooms"
         unique_id: "active_speakers_rooms"
         state: >-
-            {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
-            {% for media_player in states.media_player -%} 
-              {%- if  "plex" not in media_player.entity_id and "speaker" in media_player.entity_id and "universal" not in media_player.entity_id and "template" not in media_player.entity_id and "roku" not in media_player.entity_id and "chromecast" not in media_player.entity_id and "group" not in media_player.entity_id and "display" not in media_player.entity_id -%}  
-                {%- if media_player.state == 'playing' -%}
-                {% set currentroomname = area_id(media_player.entity_id) %}
-                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname ] -%}    
-                {%- endif -%}
-              {%- endif -%}
-            {% endfor %} 
-            {{ ns.mediaactiverooms | unique | list}}
+            {{ integration_entities('universal')     |    select('search', 'speakers') |  select('is_state','playing') | list | expand     | rejectattr('entity_id', 'search', 'home') | map(attribute='entity_id') | unique | list | replace('media_player.universal_','') | replace('_speakers','')   }}
         attributes:
           muted_rooms: >-
-            {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
-            {% for media_player in states.media_player -%} 
-              {%- if  "plex" not in media_player.entity_id and "speaker" in media_player.entity_id and "universal" not in media_player.entity_id and "template" not in media_player.entity_id and "roku" not in media_player.entity_id and "chromecast" not in media_player.entity_id and "group" not in media_player.entity_id and "display" not in media_player.entity_id -%}  
-                {%- if media_player.state == 'playing' and state_attr(media_player.entity_id,'is_volume_muted') == true  -%}
-                {% set currentroomname = area_id(media_player.entity_id) %}
-                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname ] -%}   
-                {%- endif -%}
-              {%- endif -%}
-            {% endfor %} 
-            {{ ns.mediaactiverooms | unique | list}}
+            {{ integration_entities('universal')     |    select('search', 'speakers') | select('is_state','playing') | list | expand |  selectattr('attributes.is_volume_muted', 'eq', true)     | rejectattr('entity_id', 'search', 'home') | map(attribute='entity_id')| unique | list | replace('media_player.universal_','')  | replace('_speakers','')  }}
           unmuted_rooms: >-
-            {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
-            {% for media_player in states.media_player -%} 
-              {%- if  "plex" not in media_player.entity_id and "speaker" in media_player.entity_id and "universal" not in media_player.entity_id and "template" not in media_player.entity_id and "roku" not in media_player.entity_id and "chromecast" not in media_player.entity_id and "group" not in media_player.entity_id and "display" not in media_player.entity_id -%}  
-                {%- if media_player.state == 'playing' and state_attr(media_player.entity_id,'is_volume_muted') == false  -%}
-                {% set currentroomname = area_id(media_player.entity_id) %}
-                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname ] -%}   
-                {%- endif -%}
-              {%- endif -%}
-            {% endfor %} 
-            {{ ns.mediaactiverooms | unique | list}}
+             {{ integration_entities('universal')     |    select('search', 'speakers') | select('is_state','playing') | list | expand |  selectattr('attributes.is_volume_muted', 'eq', false)  | rejectattr('entity_id', 'search', 'home')    | map(attribute='entity_id')| unique| list | replace('media_player.universal_','')  | replace('_speakers','')  }}
 
 
 
