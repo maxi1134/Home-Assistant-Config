@@ -1,6 +1,6 @@
 substitutions:
-  name: hotbox-assistant
-  friendly_name: Hotbox assistant
+  name: salon-assistant
+  friendly_name: Salon assistant
 ## You can change the friendly name if you wish on line 7 below. The friendly name is how the device will show in HA 
 ## However the <name:> is how HA connects to the device eg. esp32-s3-box-3.local is the mDNS hostname for the device.
 ## Once added to HA changing the device name can lead to connection issues, between HA and the device.
@@ -8,7 +8,7 @@ substitutions:
   
   external_media_player: your_media_player  ##change this to your external media player enity_id: do not include media_player.
   home_assistant_host: http://homeassistant.local:8123 ##change to the full url or IP of your HA server including port
-  tts_voice_speed: "16000" #options #nabu casa "24000" #piper "16000" elevenlabs "44100" must include quotes
+  tts_voice_speed: "24000" #options #nabu casa "24000" #piper "16000" elevenlabs "44100" must include quotes
   
 #################### ON DEVICE WAKE WORDS #######################################
 ####          all of the below wakewords are installed on the device        #####
@@ -140,7 +140,7 @@ wifi:
   on_connect:
     - lambda: |-
         id(wifi_connection) = true;
-    - display.page.show: saver_page
+    - display.page.show: idle_page
     - component.update: s3_box_lcd
   on_disconnect:
     - lambda: |-
@@ -660,10 +660,6 @@ light:
     default_transition_length: 50ms
     
 sensor:
-  - platform: homeassistant
-    id: outside_temp
-    entity_id: sensor.sensor_outside_temperature_temperature
-    internal: true
   - platform: aht10 # remove for no sensor version
     i2c_id: bus_b
     variant: AHT20
@@ -960,7 +956,7 @@ voice_assistant:
         - display.is_displaying_page: listening_page
         - display.is_displaying_page: thinking_page
       then:
-        - display.page.show: saver_page
+        - display.page.show: idle_page
         - component.update: s3_box_lcd
   on_listening:
     - text_sensor.template.publish:
@@ -1007,7 +1003,7 @@ voice_assistant:
                 media_content_type: music
                 announce: "false"
     - delay: 5s
-    - display.page.show: saver_page
+    - display.page.show: idle_page
     - component.update: s3_box_lcd
    
   on_error:
@@ -1023,11 +1019,11 @@ voice_assistant:
               condition:
                 - display.is_displaying_page: error_page
               then:
-                - display.page.show: saver_page
+                - display.page.show: idle_page
                 - component.update: s3_box_lcd
 
   on_idle:
-    - display.page.show: saver_page
+    - display.page.show: idle_page
     - component.update: s3_box_lcd 
     
   on_end:
@@ -1408,7 +1404,7 @@ display:
           it.printf(250, 5, id(icon_font_55), green, "\U000F1828");
           }        
           it.printf(20, 75, id(icon_font_80), blue,"\U000F050F");
-          it.printf(40, 120, id(my_font3), white, "%.f", id(outside_temp).state); // remove for no sensor version
+          it.printf(40, 120, id(my_font3), white, "%.f", id(s3temp).state); // remove for no sensor version
           it.printf(120, 75, id(icon_font_80), yellow,"\U000F06E8" );
           it.printf(220, 75, id(icon_font_80), purple,"\U000F0210");
           it.printf(20, 155, id(icon_font_80), red,"\U000F075A");
@@ -1827,7 +1823,7 @@ display:
           } else {
             it.strftime(160, 88, id(my_font2), TextAlign::CENTER, "%l:%M%p", id(ha_time).now());
           }
-          it.printf(160, 181, id(my_font2), light_blue, TextAlign::CENTER, "%.f°C", id(outside_temp).state); // remove for no sensor version
+          it.printf(160, 181, id(my_font2), light_blue, TextAlign::CENTER, "%.f°C", id(s3temp).state); // remove for no sensor version
          
       - id: ota_page ##### firmware uploading page #####
         lambda: |-
@@ -2242,7 +2238,7 @@ binary_sensor:
             - switch.is_on: s_saver_presc 
             - display.is_displaying_page: saver_page
         then:
-          - display.page.show: saver_page
+          - display.page.show: idle_page
           - component.update: s3_box_lcd
           - script.execute: saver_enabled
 
@@ -3198,7 +3194,7 @@ binary_sensor:
       min_length: 10ms
       max_length: 500ms
       then:
-        - display.page.show: saver_page
+        - display.page.show: idle_page
         - component.update: s3_box_lcd
      
 ##### Timer finished page #####
@@ -3215,7 +3211,7 @@ binary_sensor:
       max_length: 500ms
       then:
         - switch.turn_off: timer_ringing
-        - display.page.show: saver_page
+        - display.page.show: idle_page
         - component.update: s3_box_lcd
 
 ##### Timeout settings buttons #####

@@ -198,50 +198,58 @@
       entity_id: media_player.group_mass_home_airplay_speakers
   mode: single
 - id: '1713377627308'
-  alias: Mute Speakers in the office when computer mic is in use
+  alias: Mute Speakers in the hotbox when computer mic is in use
   description: ''
-  trigger:
+  triggers:
   - type: turned_on
-    platform: device
     device_id: 0cc46b896079dbc299255330f9ea856e
     entity_id: 470a4142c11434774d1b570a456f145b
     domain: binary_sensor
-  condition:
+    trigger: device
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
+  conditions:
   - condition: not
     conditions:
     - condition: state
       entity_id: media_player.universal_office_speakers
       state: 'off'
-  action:
-  - service: media_player.volume_mute
-    metadata: {}
+  actions:
+  - metadata: {}
     data:
       is_volume_muted: true
+    action: media_player.volume_mute
     target:
-      entity_id: media_player.universal_office_speakers
+      entity_id: media_player.universal_hotbox_speakers
   mode: single
 - id: '1713377704036'
-  alias: Unmute Speakers in the office when computer mic goes off
+  alias: Unmute Speakers in the hotbox when computer mic goes off
   description: ''
-  trigger:
+  triggers:
   - type: turned_off
-    platform: device
     device_id: 0cc46b896079dbc299255330f9ea856e
     entity_id: 470a4142c11434774d1b570a456f145b
     domain: binary_sensor
-  condition:
+    trigger: device
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
+  conditions:
   - condition: not
     conditions:
     - condition: state
-      entity_id: media_player.universal_office_speakers
+      entity_id: media_player.universal_hotbox_speakers
       state: 'off'
-  action:
-  - service: media_player.volume_mute
-    metadata: {}
+  actions:
+  - metadata: {}
     data:
       is_volume_muted: false
+    action: media_player.volume_mute
     target:
-      entity_id: media_player.universal_office_speakers
+      entity_id: media_player.universal_hotbox_speakers
   mode: single
 - id: '1713378517441'
   alias: Lock front door when it is closed for 5 seconds
@@ -907,33 +915,39 @@
 - id: '1713538197256'
   alias: Control Hallway Tablet charging
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - sensor.hallway_tablet_battery
-  condition: []
-  action:
+    trigger: state
+  conditions: []
+  actions:
   - choose:
     - conditions:
       - condition: numeric_state
         entity_id: sensor.hallway_tablet_battery
         above: 90
       sequence:
-      - service: switch.turn_off
-        metadata: {}
+      - metadata: {}
         data: {}
         target:
           entity_id: switch.plug_hallway_tablet
+        action: switch.turn_off
     - conditions:
       - condition: numeric_state
         entity_id: sensor.hallway_tablet_battery
         below: 15
       sequence:
-      - service: switch.turn_on
-        metadata: {}
+      - metadata: {}
         data: {}
         target:
           entity_id: switch.plug_hallway_tablet
+        action: switch.turn_on
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: '1'
+        target:
+          entity_id: number.hallway_tablet_screen_brightness
   mode: single
 - id: '1713574201448'
   alias: Turn lights to white when we stop a movie
@@ -1314,7 +1328,7 @@
         entity_id: binary_sensor.group_kitchen_motion_occupancy
         state: 'off'
     enabled: true
-  mode: single
+  mode: restart
 - id: '1714058481200'
   alias: Alert when Microwave finishes
   description: ''
@@ -1592,7 +1606,6 @@
   description: ''
   triggers:
   - entity_id:
-    - media_player.universal_office_chromecast
     - media_player.universal_livingroom_chromecast
     - media_player.universal_hotbox_top_chromecast
     - media_player.universal_hotbox_down_chromecast
@@ -1643,35 +1656,35 @@
 - id: '1714404201504'
   alias: Unmute speakers when TV stops
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - media_player.universal_office_chromecast
+  triggers:
+  - entity_id:
+    - media_player.universal_salon_chromecast
     - media_player.universal_livingroom_chromecast
     - media_player.universal_hotbox_top_chromecast
     - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
     to: paused
     from: playing
-  - platform: state
-    entity_id:
-    - media_player.universal_office_chromecast
+    trigger: state
+  - entity_id:
+    - media_player.universal_salon_chromecast
     - media_player.universal_livingroom_chromecast
     - media_player.universal_hotbox_top_chromecast
     - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
     to: 'off'
     from: paused
-  - platform: state
-    entity_id:
-    - media_player.universal_office_chromecast
+    trigger: state
+  - entity_id:
+    - media_player.universal_salon_chromecast
     - media_player.universal_livingroom_chromecast
     - media_player.universal_hotbox_top_chromecast
     - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
     to: 'off'
     from: playing
-  condition:
+    trigger: state
+  conditions:
   - alias: Check that the chromecast is not muted
     condition: template
     value_template: '{{trigger.to_state.attributes.is_volume_muted == false}}'
@@ -1700,20 +1713,20 @@
       \                 {% endif %}\n                  {% if ns.template_entity !=
       ns.cast_entity %}                  \n                    {{ state_attr(ns.template_entity,
       'media_library_title') != 'Visuals'}}\n                  {% endif %} "
-  action:
+  actions:
   - variables:
       playing_speakers: '{{ [area_id(trigger.entity_id)]   | map(''area_entities'')
         | sum(start=[]) |    select(''search'', ''speakers'') | select(''is_state'',''playing'')
         | unique | list }}
 
         '
-  - service: media_player.volume_mute
-    metadata: {}
+  - metadata: {}
     data:
       is_volume_muted: false
     target:
       entity_id: '{{playing_speakers}}'
     alias: Unmute the speakers
+    action: media_player.volume_mute
   mode: restart
 - id: '1714404505080'
   alias: Close covers in the room when chromecasts start movie
@@ -2233,7 +2246,12 @@
     type: click
     subtype: double
     trigger: device
-  conditions: []
+  conditions:
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: binary_sensor.sensor_front_door_contact
+      state: 'on'
   actions:
   - target:
       entity_id: input_boolean.door_rang
@@ -5745,7 +5763,7 @@
     to: unlocked
     for:
       hours: 0
-      minutes: 5
+      minutes: 6
       seconds: 0
     trigger: state
   conditions: []

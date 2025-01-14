@@ -469,39 +469,12 @@
       - name: "active_chromecast_rooms"
         unique_id: "active_chromecast_rooms"
         state: >-
-            {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
-            {% for media_player in states.media_player -%} 
-              {%- if  "plex" not in media_player.entity_id and "chromecast" in media_player.entity_id and "universal" not in media_player.entity_id and "template" not in media_player.entity_id and "roku" not in media_player.entity_id and "speaker" not in media_player.entity_id and "display" not in media_player.entity_id -%}  
-                {%- if media_player.state == 'playing' -%}
-                {% set currentroomname = area_id(media_player.entity_id) %}
-                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname ] -%}   
-                {%- endif -%}
-              {%- endif -%}
-            {% endfor %} 
-            {{ ns.mediaactiverooms | unique | list}}
+            {{ integration_entities('universal')     |    select('search', 'chromecast') |  select('is_state','playing') | list | expand     | rejectattr('entity_id', 'search', 'home') | map(attribute='entity_id') | unique | list | replace('media_player.universal_','') | replace('_chromecast','')   }}
         attributes:
           muted_rooms: >-
-            {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
-            {% for media_player in states.media_player -%} 
-              {%- if  "plex" not in media_player.entity_id and "chromecast" in media_player.entity_id and "universal" not in media_player.entity_id and "template" not in media_player.entity_id and "roku" not in media_player.entity_id and "speaker" not in media_player.entity_id and "display" not in media_player.entity_id -%}  
-                {%- if media_player.state == 'playing' and state_attr(media_player.entity_id,'is_volume_muted') == true  -%}
-                {% set currentroomname = area_id(media_player.entity_id) %}
-                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname ] -%}   
-                {%- endif -%}
-              {%- endif -%}
-            {% endfor %} 
-            {{ ns.mediaactiverooms | unique | list}}
+            {{ integration_entities('universal')     |    select('search', 'chromecast') | select('is_state','playing') | list | expand |  selectattr('attributes.is_volume_muted', 'eq', true)     | rejectattr('entity_id', 'search', 'home') | map(attribute='entity_id')| unique | list | replace('media_player.universal_','')  | replace('_chromecast','')  }}
           unmuted_rooms: >-
-            {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
-            {% for media_player in states.media_player -%} 
-              {%- if  "plex" not in media_player.entity_id and "chromecast" in media_player.entity_id and "universal" not in media_player.entity_id and "template" not in media_player.entity_id and "roku" not in media_player.entity_id and "speaker" not in media_player.entity_id and "display" not in media_player.entity_id -%}  
-                {%- if media_player.state == 'playing' and state_attr(media_player.entity_id,'is_volume_muted') == false  -%}
-                {% set currentroomname = area_id(media_player.entity_id) %}
-                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname ] -%}   
-                {%- endif -%}
-              {%- endif -%}
-            {% endfor %} 
-            {{ ns.mediaactiverooms | unique | list}}
+            {{ integration_entities('universal')     |    select('search', 'chromecast') | select('is_state','playing') | list | expand |  selectattr('attributes.is_volume_muted', 'eq', false)  | rejectattr('entity_id', 'search', 'home')    | map(attribute='entity_id')| unique| list | replace('media_player.universal_','')  | replace('_chromecast','')  }}
 
       - name: "active_speakers_rooms"
         unique_id: "active_speakers_rooms"
@@ -535,44 +508,60 @@
       - name: "active_media_playback"
         unique_id: "active_media_playback"
         state: >-
-            {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
-            {% for media_player in states.media_player -%} 
-              {%- if  "universal" in media_player.entity_id and ( "chromecast" in media_player.entity_id or "speaker" in media_player.entity_id ) and "following" not in media_player.entity_id -%}  
-                {%- if media_player.state == 'playing' -%}
-                {% set currentroomname = area_id(media_player.entity_id)  %}
-                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname] -%}   
-                {%- endif -%}
-              {%- endif -%}
-            {% endfor %} 
-            {% if ns.mediaactiverooms  | list | length > 0 %}
-            on
-            {% else %}
-            off
-            {%endif%}
+              {% set speakers = integration_entities('universal')     
+              | select('search', 'speakers') 
+              | select('is_state','playing') 
+              | list 
+              | expand   
+              | rejectattr('entity_id', 'search', 'home') 
+              | map(attribute='entity_id') 
+              | unique 
+              | map('regex_replace', 'media_player.universal_', '') 
+              | map('regex_replace', '_speakers', '')
+              |list
+              %}            
+              {% set chromecasts = integration_entities('universal')     
+              | select('search', 'chromecast') 
+              | select('is_state','playing') 
+              | list 
+              | expand   
+              | rejectattr('entity_id', 'search', 'home') 
+              | map(attribute='entity_id') 
+              | unique 
+              | map('regex_replace', 'media_player.universal_', '') 
+              | map('regex_replace', '_chromecast', '')
+              | map('regex_replace', '_top', '')
+              | map('regex_replace', '_bottom', '')
+              |list
+              %}
+              {{ (speakers + chromecasts) | unique | list  | length > 0 }}
         attributes:
           speakers: >-
-            {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
-            {% for media_player in states.media_player -%} 
-              {%- if  "universal" in media_player.entity_id and "speaker" in media_player.entity_id and "chromecast" not in media_player.entity_id and "following" not in media_player.entity_id -%}  
-                {%- if media_player.state == 'playing' -%}
-                {% set currentroomname = area_id(media_player.entity_id)  %}
-                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname ] -%}   
-                {%- endif -%}
-              {%- endif -%}
-            {% endfor %} 
-            {{ ns.mediaactiverooms | unique | list}}
+              {{ integration_entities('universal')     
+              | select('search', 'speakers') 
+              | select('is_state','playing') 
+              | list 
+              | expand   
+              | rejectattr('entity_id', 'search', 'home') 
+              | map(attribute='entity_id') 
+              | unique 
+              | map('regex_replace', 'media_player.universal_', '') 
+              | map('regex_replace', '_speakers', '')
+              |list
+               }}      
           chromecasts: >-
-            {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
-            {% for media_player in states.media_player -%} 
-              {%- if  "universal" in media_player.entity_id and "chromecast" in media_player.entity_id and "speaker" not in media_player.entity_id and "display" not in media_player.entity_id -%}  
-                {%- if media_player.state == 'playing' -%}
-                {% set currentroomname = area_id(media_player.entity_id)  %}
-                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname ] -%}   
-                {%- endif -%}
-              {%- endif -%}
-            {% endfor %} 
-            {{ ns.mediaactiverooms | unique | list}}
-
+              {{ integration_entities('universal')     
+              | select('search', 'chromecast') 
+              | select('is_state','playing') 
+              | list 
+              | expand   
+              | rejectattr('entity_id', 'search', 'home') 
+              | map(attribute='entity_id') 
+              | unique 
+              | map('regex_replace', 'media_player.universal_', '') 
+              | map('regex_replace', '_chromecast', '')
+              |list
+              }}      
 
 
 
@@ -858,3 +847,132 @@
                 {% set location = lastactiveroom %}
             {% endif %}
             {{ location.split ("_")  | first }}
+
+      - name: "Maxi Location v4"
+        unique_id: maxi_location_v4
+        state: >-
+            {% set ns = namespace(counted_list=[]) %}       
+            {% set lastactiveroom = states('sensor.last_active_room') %}     
+            {% set maxialone = states('binary_sensor.maxi_alone') %}
+            {% set braceletroom = states('sensor.b7bracelet1') %}
+            {% set braceletespresenseroom = states('device_tracker.maxi_bracelet_espresense') | lower%}
+              {% if braceletroom == braceletespresenseroom %}
+                  {% set final_bracelet_room = braceletespresenseroom %}
+                {% else %}
+                  {% set final_bracelet_room = braceletroom %}
+              {% endif %}            
+            {% set watchroom = states('sensor.watch_galaxy4') | lower %}
+            {% set watchespresenseroom = states('device_tracker.maxi_watch_4_espresense') | lower %}
+            {% set watchonbody = states('binary_sensor.galaxy_watch_4_on_body_sensor')| lower %}
+            {% if (watchroom == watchespresenseroom) and (watchonbody =="on")%}
+                  {% set final_watch_room = watchespresenseroom %}
+                {% else %}
+                  {% set final_watch_room = watchroom %}
+              {% endif %}              
+            {% set phoneroom = states('sensor.phone_s24') | lower%}
+            {% set phoneespresenseroom = states('device_tracker.maxi_phone_s24_espresense') | lower%}
+            {% if phoneroom == phoneespresenseroom %}
+                  {% set final_phone_room = phoneespresenseroom %}
+                {% else %}
+                  {% set final_phone_room = phoneroom %}
+              {% endif %}           
+            {% set gpslocation = states('device_tracker.phone_maxi') | lower %}            
+            {% set in_home_positions_array = [final_bracelet_room]  + [final_phone_room] %}            
+            {% if watchonbody == 'on' %}
+              {% set in_home_positions_array = in_home_positions_array +  [final_watch_room] %}
+            {% endif %}            
+            {% if maxialone == 'on' %}
+              {% set in_home_positions_array = in_home_positions_array +  [lastactiveroom] %}
+            {% endif %}             
+            {% if gpslocation == 'home' and in_home_positions_array | unique | list | length == 1 %}
+               {{in_home_positions_array | unique | first }}
+            {% elif in_home_positions_array | unique | list | length > 1 %}
+              {% for rooms in  (in_home_positions_array | unique | list) %}
+                 {% set ns.counted_list =  ns.counted_list + [{'name': rooms , "amount": in_home_positions_array | select('search', rooms)  | list | count }] %}
+              {% endfor %}
+            {% endif %}
+            {% set sorted_list = ns.counted_list|sort(attribute='amount', reverse=true) %}
+            {{(sorted_list |  map(attribute='name')) | list  | first }}
+
+      - name: "Maxi Location v5"
+        unique_id: maxi_location_v5
+        state: >-
+            {% set ns = namespace(most_seen_room='') %}       
+            {% set lastactiveroom = states('sensor.last_active_room') %}     
+            {% set maxialone = states('binary_sensor.maxi_alone') %}
+            {% set braceletroom = states('sensor.b7bracelet1') %}
+            {% set braceletespresenseroom = states('device_tracker.maxi_bracelet_espresense') | lower%}            
+            {% set gpslocation = states('device_tracker.phone_maxi') | lower %}     
+            
+              {% if braceletroom == braceletespresenseroom %}
+                  {% set final_bracelet_room = braceletespresenseroom %}
+                {% else %}
+                  {% set final_bracelet_room = braceletroom %}
+              {% endif %}   
+              
+            {% set watchroom = states('sensor.watch_galaxy4') | lower %}
+            {% set watchespresenseroom = states('device_tracker.maxi_watch_4_espresense') | lower %}
+            {% set watchonbody = states('binary_sensor.galaxy_watch_4_on_body_sensor')| lower %}
+            
+            {% if (watchroom == watchespresenseroom) and (watchonbody =="on")%}
+                  {% set final_watch_room = watchespresenseroom %}
+                {% else %}
+                  {% set final_watch_room = watchroom %}
+              {% endif %}     
+              
+            {% set phoneroom = states('sensor.phone_s24') | lower%}
+            {% set phoneespresenseroom = states('device_tracker.maxi_phone_s24_espresense') | lower%}
+            
+            {% if phoneroom == phoneespresenseroom %}
+                  {% set final_phone_room = phoneespresenseroom %}
+                {% else %}
+                  {% set final_phone_room = phoneroom %}
+              {% endif %}    
+                     
+            {% set in_home_positions_array = [final_bracelet_room]  + [final_phone_room] %}   
+            
+            {% if watchonbody == 'on' %}
+              {% set in_home_positions_array = in_home_positions_array +  [final_watch_room] %}
+            {% endif %}  
+            
+            {% if maxialone == 'on' %}
+              {% set in_home_positions_array = in_home_positions_array +  [lastactiveroom] %}
+            {% endif %}    
+            
+            {% if gpslocation == 'home' and in_home_positions_array | unique | list | length == 1 %}
+                 {% set ns.most_seen_room =  in_home_positions_array | unique | first %}
+            {% elif gpslocation == 'home' and in_home_positions_array | unique | list | length > 1 %}
+                 {% set ns.most_seen_room =  in_home_positions_array |  statistical_mode  %}
+            {% endif %}
+            
+            {{ns.most_seen_room }}
+      - name: "Maxi Location by petro"
+        unique_id: maxi_location_by_petro
+        state: >-            
+            {% set info = [
+              ('bracelet', 'device_tracker.maxi_bracelet_espresense', 'sensor.b7bracelet1'),
+              ('watch', 'device_tracker.maxi_watch_4_espresense', 'sensor.watch_galaxy4'),
+              ('phone', 'device_tracker.maxi_phone_s24_espresense', 'sensor.phone_s24'),
+              
+            ] %}
+            {% set ns = namespace(rooms=[], results=[]) %}
+            {% for name, room, sensor in info if name != 'watch' or (name == 'watch' and is_state('binary_sensor.galaxy_watch_4_on_body_sensor', 'on')) %}
+              {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
+              {% if room != 'not_home' and room != 'main floor' %}
+                {% set ns.rooms = ns.rooms + [(name, room)] %}
+              {% endif %}
+              {% set ns.rooms = ns.rooms + [(name, sensor)] %}
+            {% endfor %}
+            
+            {% if is_state('binary_sensor.maxi_alone', 'on') %}
+              {% set ns.rooms = ns.rooms + [('last',states('sensor.last_active_room')|lower)] %}
+            {% endif %}
+
+            {% for room, items in ns.rooms | groupby(attribute='1') %}
+               {% set ns.results = ns.results + [(room, items | map(attribute='0') | list | length)] %}
+            {% endfor %}
+            {% if is_state('device_tracker.phone_maxi', 'home') %}
+              {{ ns.results | sort(attribute='1', reverse=True) | map(attribute='0') | first | default }}
+            {% else %}
+              not_home
+            {% endif %}
