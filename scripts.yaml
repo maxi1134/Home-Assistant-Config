@@ -2,12 +2,12 @@ broadcast_alert_in_the_house:
   alias: important broadcast alert in the house
   sequence:
   - variables:
-      playing_chromecasts: '{{ integration_entities(''universal'') |  select(''search'',
+      playing_chromecasts: '{{ integration_entities(''cast'') |  select(''search'',
         ''chromecast'') | expand | selectattr(''state'', ''eq'', ''playing'')| map(attribute=''entity_id'')|
         list }}
 
         '
-      non_playing_chromecasts: '{{ integration_entities(''universal'') |  select(''search'',
+      non_playing_chromecasts: '{{ integration_entities(''cast'') |  select(''search'',
         ''chromecast'') | expand | rejectattr(''state'', ''eq'', ''playing'')| map(attribute=''entity_id'')|
         list }}
 
@@ -158,7 +158,8 @@ broadcast_alert_in_the_house:
         metadata: {}
         data: "{{ phone_data }}\ndata:\n  ttl: 0\n  priority: high\n"
       enabled: true
-    - if:
+    - alias: 'TVs '
+      if:
       - condition: and
         conditions:
         - condition: state
@@ -173,7 +174,7 @@ broadcast_alert_in_the_house:
         - alias: Broadcast image to paused TVs if image is present
           if:
           - condition: template
-            value_template: '{% if image %}
+            value_template: '{% if image and not url %}
 
               true
 
@@ -243,12 +244,13 @@ broadcast_alert_in_the_house:
             - alias: Broadcast URL  to paused chromecasts
               repeat:
                 sequence:
-                - metadata: {}
+                - action: dash_cast.load_url
+                  metadata: {}
                   data:
-                    media_content_id: '{{url}}'
-                    media_content_type: video
+                    force: true
+                    reload_seconds: 0
                     entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
-                  action: media_player.play_media
+                    url: '{{url}}'
                 for_each: '{{ non_playing_chromecasts }}'
             - wait_for_trigger:
               - trigger: state
@@ -276,7 +278,7 @@ broadcast_alert_in_the_house:
           - action: dash_cast.load_url
             metadata: {}
             data:
-              force: false
+              force: true
               reload_seconds: 0
               entity_id: media_player.hotbox_down_hub
               url: '{{url}}'
@@ -301,7 +303,6 @@ broadcast_alert_in_the_house:
               for_each: '{{ playing_chromecasts }}'
             enabled: true
             continue_on_error: true
-      alias: 'TVs '
   - delay:
       hours: 0
       minutes: 0
@@ -1100,3 +1101,15 @@ equalize_home_group_volume:
       - media_player.universal_livingroom_speakers
   description: ''
   icon: mdi:approximately-equal
+ml_ma_script:
+  use_blueprint:
+    path: Music Assistant/llm_voice_script.yaml
+    input:
+      default_player: media_player.group_mass_home_airplay_speakers
+      play_continuously: Never
+  alias: ML MA Script
+  description: 'This script is used to play music based on a voice request. The tool
+    takes the following arguments: media_type, artist, album, media_id, radio_mode,
+    area. media_id, media_type, and area are always required and must always be supplied
+    as arguments to this tool. Use the parameters as described in the description
+    of each parameter. Use this tool whenever the user requests to play music.'

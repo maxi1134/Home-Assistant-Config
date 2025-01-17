@@ -945,7 +945,21 @@
       - action: number.set_value
         metadata: {}
         data:
-          value: '1'
+          value: '25'
+        target:
+          entity_id: number.hallway_tablet_screen_brightness
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.hallway_tablet_battery
+        above: 20
+      - condition: state
+        entity_id: binary_sensor.hallway_tablet_plugged_in
+        state: 'on'
+      sequence:
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: '100'
         target:
           entity_id: number.hallway_tablet_screen_brightness
   mode: single
@@ -1264,7 +1278,7 @@
     entity_id: input_boolean.following_music
     state: 'on'
   - condition: template
-    value_template: '{{ states(''sensor.maxi_location_v3'') not in [area_id(trigger.entity_id)]
+    value_template: '{{ states(''sensor.maxi_location_by_petro'') not in [area_id(trigger.entity_id)]
       | string  }}'
   actions:
   - variables:
@@ -1567,7 +1581,7 @@
     state: 'on'
   action:
   - variables:
-      playing_speakers: '{{ [area_id(states(''sensor.maxi_location_v3''))]   | map(''area_entities'')
+      playing_speakers: '{{ [area_id(states(''sensor.maxi_location_by_petro''))]   | map(''area_entities'')
         | sum(start=[]) |    select(''search'', ''speakers'') | select(''is_state'',''playing'')
         | unique | list }}
 
@@ -1874,7 +1888,7 @@
     trigger: state
   conditions:
   - condition: template
-    value_template: '{{ states(''sensor.maxi_location_v3'') not in [area_id(trigger.entity_id)]  }}'
+    value_template: '{{ states(''sensor.maxi_location_by_petro'') not in [area_id(trigger.entity_id)]  }}'
   - condition: state
     entity_id: input_boolean.kink_party
     state: 'off'
@@ -2053,11 +2067,11 @@
   conditions: []
   actions:
   - variables:
-      in_room_speakers: "{% if [area_id(states('sensor.maxi_location_v3'))]   | map('area_entities')
+      in_room_speakers: "{% if [area_id(states('sensor.maxi_location_by_petro'))]   | map('area_entities')
         | sum(start=[]) |    select('search', 'speakers') | select('search','universal')
-        | unique | list %} {{ [area_id(states('sensor.maxi_location_v3'))]   | map('area_entities')
+        | unique | list %} {{ [area_id(states('sensor.maxi_location_by_petro'))]   | map('area_entities')
         | sum(start=[]) |    select('search', 'speakers') | select('search','universal')
-        | unique | list }} {% else %} {{ [area_id(states('sensor.maxi_location_v3'))]
+        | unique | list }} {% else %} {{ [area_id(states('sensor.maxi_location_by_petro'))]
         \  | map('area_entities') | sum(start=[]) |  select('search', 'speaker')  |
         unique | list }} {% endif %} \n"
       attributes: '{{ trigger }}
@@ -3331,9 +3345,10 @@
   description: ''
   triggers:
   - entity_id:
-    - binary_sensor.maxi_sleeping
-    to: 'on'
+    - sensor.where_is_maxi_sleeping
     trigger: state
+    from:
+    to:
   conditions:
   - condition: state
     entity_id: person.maximiliano
