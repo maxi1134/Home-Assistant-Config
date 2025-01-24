@@ -83,7 +83,6 @@
   - data:
       media_id: All favorited tracks
       enqueue: replace
-      radio_mode: true
     action: music_assistant.play_media
     target:
       entity_id: media_player.group_mass_home_airplay_speakers
@@ -1140,6 +1139,9 @@
         | unique | list }}
 
         '
+      average_volume: '{{ states(''sensor.average_unmuted_speakers_volume'')}}
+
+        '
   - metadata: {}
     data:
       is_volume_muted: false
@@ -1157,13 +1159,12 @@
     then:
     - metadata: {}
       data:
-        volume_level: "{% if states('sensor.average_unmuted_speakers_volume') | float
-          > \".45\" | float %}\n .45    \n{% elif states('sensor.average_unmuted_speakers_volume')
-          | float < \".05\" | float %}\n .15\n{% else %} {{ states('sensor.average_unmuted_speakers_volume')
-          }} {% endif %}\n"
+        volume_level: "{% if average_volume | float > \".35\" | float %}\n .35    \n{%
+          elif average_volume | float < \".15\" | float %}\n .15\n{% else %} {{ average_volume
+          }} {% endif%}\n"
       target:
         entity_id: '{{playing_speakers}}'
-      alias: Set volume to the average of the house (maximum 45%)
+      alias: Set volume to the average of the house (maximum 35%)
       action: media_player.volume_set
   mode: parallel
   max: 10
@@ -1581,9 +1582,9 @@
     state: 'on'
   action:
   - variables:
-      playing_speakers: '{{ [area_id(states(''sensor.maxi_location_by_petro''))]   | map(''area_entities'')
-        | sum(start=[]) |    select(''search'', ''speakers'') | select(''is_state'',''playing'')
-        | unique | list }}
+      playing_speakers: '{{ [area_id(states(''sensor.maxi_location_by_petro''))]   |
+        map(''area_entities'') | sum(start=[]) |    select(''search'', ''speakers'')
+        | select(''is_state'',''playing'') | unique | list }}
 
         '
   - service: media_player.volume_mute
@@ -1888,7 +1889,8 @@
     trigger: state
   conditions:
   - condition: template
-    value_template: '{{ states(''sensor.maxi_location_by_petro'') not in [area_id(trigger.entity_id)]  }}'
+    value_template: '{{ states(''sensor.maxi_location_by_petro'') | lower not in [area_id(trigger.entity_id)]
+      | lower }}'
   - condition: state
     entity_id: input_boolean.kink_party
     state: 'off'
@@ -2067,11 +2069,11 @@
   conditions: []
   actions:
   - variables:
-      in_room_speakers: "{% if [area_id(states('sensor.maxi_location_by_petro'))]   | map('area_entities')
-        | sum(start=[]) |    select('search', 'speakers') | select('search','universal')
-        | unique | list %} {{ [area_id(states('sensor.maxi_location_by_petro'))]   | map('area_entities')
-        | sum(start=[]) |    select('search', 'speakers') | select('search','universal')
-        | unique | list }} {% else %} {{ [area_id(states('sensor.maxi_location_by_petro'))]
+      in_room_speakers: "{% if [area_id(states('sensor.maxi_location_by_petro'))]
+        \  | map('area_entities') | sum(start=[]) |    select('search', 'speakers')
+        | select('search','universal') | unique | list %} {{ [area_id(states('sensor.maxi_location_by_petro'))]
+        \  | map('area_entities') | sum(start=[]) |    select('search', 'speakers')
+        | select('search','universal') | unique | list }} {% else %} {{ [area_id(states('sensor.maxi_location_by_petro'))]
         \  | map('area_entities') | sum(start=[]) |  select('search', 'speaker')  |
         unique | list }} {% endif %} \n"
       attributes: '{{ trigger }}
@@ -2339,12 +2341,12 @@
   description: ''
   triggers:
   - entity_id:
-    - sensor.galaxy_watch_4_battery_level
+    - sensor.galaxy_watch4_2n0f_battery_level
     to: '100'
     trigger: state
   conditions:
   - condition: state
-    entity_id: sensor.galaxy_watch_4_battery_state
+    entity_id: sensor.galaxy_watch4_2n0f_battery_state
     state: charging
   actions:
   - metadata: {}
@@ -2588,7 +2590,6 @@
     basis
   triggers:
   - entity_id:
-    - media_player.universal_bathroom_speakers
     - media_player.universal_bedroom_speakers
     - media_player.universal_salon_speakers
     - media_player.universal_closet_speaker
@@ -2617,52 +2618,13 @@
             entity_id: input_boolean.following_music
             state: 'off'
           sequence:
-          - alias: Choose volume  depending on fosi state
-            choose:
-            - conditions:
-              - condition: state
-                entity_id: switch.group_fosi_receivers
-                state: 'off'
-              sequence:
-              - choose:
-                - conditions:
-                  - alias: Not a wiim
-                    condition: template
-                    value_template: '{{ "wiim" not in trigger.entity_id}}'
-                  sequence:
-                  - metadata: {}
-                    data:
-                      volume_level: 0.65
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    enabled: true
-                    action: media_player.volume_set
-                  alias: Not a wiim speaker
-                - conditions:
-                  - condition: template
-                    value_template: '{{ "wiim" in trigger.entity_id}}'
-                  sequence:
-                  - metadata: {}
-                    data:
-                      volume_level: 0.4
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    enabled: true
-                    action: media_player.volume_set
-                  alias: wiim speaker
-                alias: Set volume depending on speaker type
-            - conditions:
-              - condition: state
-                entity_id: switch.group_fosi_receivers
-                state: 'on'
-              sequence:
-              - metadata: {}
-                data:
-                  volume_level: 0.35
-                target:
-                  entity_id: '{{trigger.entity_id}}'
-                enabled: true
-                action: media_player.volume_set
+          - metadata: {}
+            data:
+              volume_level: 0.4
+            target:
+              entity_id: '{{trigger.entity_id}}'
+            enabled: true
+            action: media_player.volume_set
           alias: If following music is off
         - conditions:
           - condition: state
@@ -2679,52 +2641,18 @@
                   '
                 alias: Room occupied
               sequence:
-              - alias: Choose volume  depending on fosi state
-                choose:
-                - conditions:
-                  - condition: state
-                    entity_id: switch.group_fosi_receivers
-                    state: 'off'
-                  sequence:
-                  - choose:
-                    - conditions:
-                      - alias: Not a wiim
-                        condition: template
-                        value_template: '{{ "wiim" not in trigger.entity_id}}'
-                      sequence:
-                      - metadata: {}
-                        data:
-                          volume_level: 0.65
-                        target:
-                          entity_id: '{{trigger.entity_id}}'
-                        enabled: true
-                        action: media_player.volume_set
-                      alias: Not a wiim speaker
-                    - conditions:
-                      - condition: template
-                        value_template: '{{ "wiim" in trigger.entity_id}}'
-                      sequence:
-                      - metadata: {}
-                        data:
-                          volume_level: 0.4
-                        target:
-                          entity_id: '{{trigger.entity_id}}'
-                        enabled: true
-                        action: media_player.volume_set
-                      alias: wiim speaker
-                    alias: Set volume depending on speaker type
-                - conditions:
-                  - condition: state
-                    entity_id: switch.group_fosi_receivers
-                    state: 'on'
-                  sequence:
-                  - metadata: {}
-                    data:
-                      volume_level: 0.35
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    enabled: true
-                    action: media_player.volume_set
+              - metadata: {}
+                data:
+                  volume_level: "{% set current_hour = now().hour %}\n{% set volume
+                    = 100 %}\n\n{% if current_hour > 22 %}\n    {% set volume = '.40'
+                    %}\n{% elif current_hour >= 0 and current_hour <= 2 %}\n    {%
+                    set volume = \".35\" %}\n{% elif current_hour > 2 and current_hour
+                    < 7 %}\n    {% set volume = \".30\" %}\n{% else %}\n    {% set
+                    volume = '.45' %}\n{% endif %}\n{{ volume }}\n"
+                target:
+                  entity_id: '{{trigger.entity_id}}'
+                enabled: true
+                action: media_player.volume_set
               - metadata: {}
                 data:
                   is_volume_muted: false
@@ -3419,24 +3347,27 @@
 - id: '1717290684944'
   alias: Turn down volume when AC goes off
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - switch.zooz_office_ac
-    - switch.zooz_hotbox_ac
+  triggers:
+  - entity_id:
     - switch.zooz_livingroom_ac
     - switch.zooz_bedroom_plug
     to: 'off'
     from: 'on'
-  condition: []
-  action:
-  - service: media_player.volume_down
-    metadata: {}
+    trigger: state
+  - trigger: state
+    entity_id:
+    - climate.salon_ac
+    attribute: hvac_action
+    to: cooling
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
     target:
       entity_id: '{{ area_entities(area_id(trigger.entity_id))|select(''search'',
         ''media_player.universal'')|select(''is_state_attr'', ''is_volume_muted'',
         false)|select(''is_state'', ''playing'')| list }}'
+    action: media_player.volume_down
   mode: single
 - id: '1717291435116'
   alias: Reload tablet page when motion is detected in the kitchen
@@ -4766,11 +4697,15 @@
     - lock.lock_front_door
     trigger: state
     to: unlocked
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 1
   conditions:
   - alias: Was the door unlocked?
     condition: template
-    value_template: '{{ trigger.to_state.attributes.action == ''unlock'' and trigger.to_state.attributes.action_source_name
-      == ''keypad'' }}'
+    value_template: '{{  states(''sensor.lock_front_door_action_source_name'') ==
+      ''keypad'' }}'
   actions:
   - action: alarm_control_panel.alarm_disarm
     metadata: {}
@@ -4778,12 +4713,13 @@
     target:
       entity_id: alarm_control_panel.home_alarm
   - variables:
-      user_opening: "{% if trigger.to_state.attributes.action_user | string == '1'
-        %}\n  Maxi\n{% elif trigger.to_state.attributes.action_user | string == '2'
-        %}\n  Myriam\n{% elif trigger.to_state.attributes.action_user | string ==
-        '3' %}\n  Carla\n{% elif trigger.to_state.attributes.action_user | string
-        == '4' %}\n  Fay\n{% elif trigger.to_state.attributes.action_user | string
-        == '6' %}\n  Koopa\n{% else %}\n Unknown\n{% endif %}\n"
+      action_id: '{{ states(''sensor.lock_front_door_action_user'') }}
+
+        '
+      user_opening: "{% if action_id | string == '1' %}\n  Maxi\n{% elif action_id
+        | string == '2' %}\n  Myriam\n{% elif action_id | string == '3' %}\n  Carla\n{%
+        elif action_id | string == '4' %}\n  Fay\n{% elif action_id | string == '9'
+        %}\n  Ré\n{% else %}\n Unknown\n{% endif %}\n"
   - metadata: {}
     data:
       message: '{{ user_opening }} has arrived
@@ -4836,6 +4772,7 @@
   conditions:
   - condition: template
     value_template: '{{ now() - trigger.from_state.last_changed > timedelta(seconds=10)}}'
+    enabled: false
   actions:
   - choose:
     - conditions:
@@ -5606,19 +5543,25 @@
     trigger: state
     attribute: action
     to: unlock_failure_invalid_schedule
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 1
   conditions:
   - alias: Was the door unlocked?
     condition: template
-    value_template: '{{ trigger.to_state.attributes.action == ''unlock_failure_invalid_schedule''
-      and trigger.to_state.attributes.action_source_name == ''keypad'' }}'
+    value_template: '{{  states(''sensor.lock_front_door_action_source_name'') ==
+      ''keypad'' }}'
   - condition: state
     entity_id: person.maximiliano
     state: home
   actions:
   - variables:
-      user_opening: "{% if trigger.to_state.attributes.action_user | string == '0'
-        %}\n  Maxi Testing\n{% elif trigger.to_state.attributes.action_user | string
-        == '9' %}\n  Ré\n{% else %}\n Unknown\n{% endif %}\n"
+      action_id: '{{ states(''sensor.lock_front_door_action_user'') }}
+
+        '
+      user_opening: "{% if action_id | string == '1' %}\n  Maxi\n{% elif action_id
+        | string == '9' %}\n  Ré\n{% else %}\n Unknown\n{% endif %}\n"
   - choose:
     - conditions:
       - condition: template
@@ -5626,7 +5569,7 @@
       sequence:
       - metadata: {}
         data:
-          message: 'A stranger is at the door
+          message: 'A stranger is trying to open the door
 
             '
           color: blue
@@ -6360,36 +6303,48 @@
       area_id: '{{room }}'
   mode: single
 - id: '1733597890338'
-  alias: hotbox down display automation
+  alias: kitchen google display automation
   description: ''
   triggers:
   - trigger: time_pattern
     minutes: /45
   - trigger: state
     entity_id:
-    - media_player.hotbox_down_hub
+    - media_player.kitchen_google_hub
     to: 'off'
     for:
       hours: 0
       minutes: 1
       seconds: 0
+  conditions:
+  - condition: or
+    conditions:
+    - condition: state
+      entity_id: media_player.kitchen_google_hub
+      attribute: app_name
+      state: DashCast
+    - condition: state
+      entity_id: media_player.kitchen_google_hub
+      state: 'off'
+    - condition: state
+      entity_id: media_player.kitchen_google_hub
+      state: idle
   actions:
+  - action: media_player.volume_set
+    metadata: {}
+    data:
+      volume_level: 0
+    target:
+      entity_id: media_player.kitchen_google_hub
   - metadata: {}
     data: {}
     action: media_player.turn_off
     target:
-      entity_id: media_player.hotbox_down_hub
-  - metadata: {}
-    data:
-      dashboard_path: lovelace-hub
-      view_path: hotbox-down-hub
-      entity_id: media_player.hotbox_down_hub
-    action: cast.show_lovelace_view
-    enabled: false
+      entity_id: media_player.kitchen_google_hub
   - action: dash_cast.load_url
     data:
-      entity_id: media_player.hotbox_down_hub
-      url: http://192.168.0.15:8123/lovelace-hub/hotbox-down-hub?kiosk
+      entity_id: media_player.kitchen_google_hub
+      url: http://192.168.0.15:8123/lovelace-hub/kitchen-google-hub?kiosk
       force: true
   mode: single
 - id: '1733789430500'
@@ -6714,6 +6669,15 @@
       hours: 0
       minutes: 0
       seconds: 5
+  - trigger: state
+    entity_id:
+    - binary_sensor.group_bathroom_motion_occupancy
+    from: 'on'
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
   conditions: []
   actions:
   - choose:
@@ -6734,23 +6698,9 @@
       sequence:
       - choose:
         - conditions:
-          - condition: and
-            conditions:
-            - condition: not
-              conditions:
-              - condition: state
-                entity_id: media_player.universal_kitchen_speakers
-                state: playing
-            - condition: not
-              conditions:
-              - condition: state
-                entity_id: media_player.universal_livingroom_chromecast
-                state: playing
-            - condition: not
-              conditions:
-              - condition: state
-                entity_id: media_player.universal_livingroom_speakers
-                state: playing
+          - condition: state
+            entity_id: sensor.active_chromecast_rooms
+            state: '[]'
           sequence:
           - action: media_player.volume_set
             metadata: {}
@@ -6759,17 +6709,16 @@
             target:
               entity_id: media_player.universal_bathroom_speakers
         - conditions:
-          - condition: or
+          - condition: not
             conditions:
             - condition: state
-              entity_id: media_player.universal_kitchen_speakers
-              state: playing
-            - condition: state
-              entity_id: media_player.universal_livingroom_chromecast
-              state: playing
-            - condition: state
-              entity_id: media_player.universal_livingroom_speakers
-              state: playing
+              entity_id: sensor.active_chromecast_rooms
+              state: '[]'
+            - condition: not
+              conditions:
+              - condition: state
+                entity_id: sensor.active_speakers_rooms
+                state: '[''bathroom'']'
           sequence:
           - action: media_player.turn_off
             metadata: {}
@@ -6907,3 +6856,54 @@
     metadata: {}
     data: {}
   mode: single
+- id: '1737487497676'
+  alias: Music Assistant - Local(only) Voice Support Blueprint
+  description: ''
+  use_blueprint:
+    path: music-assistant/mass_assist_blueprint_en.yaml
+    input:
+      default_player_entity_id_input: media_player.group_mass_home_airplay_speakers
+      track_trigger:
+      - (play|listen to) [the ][(track|song)] {media_name} [by [the ](artist|band|group)
+        {artist}] [(in|on|using) [the ]{area_or_player_name}][ (with|using) {radio_mode}]
+      artist_trigger:
+      - (play|listen to) [the ](artist|band|group) {media_name} [(in|on|using) [the
+        ]{area_or_player_name}][ (with|using) {radio_mode}]
+      - (play|listen to) [the ](some|some of|band|group) {media_name} [(in|on|using)
+        [the ]{area_or_player_name}][ (with|using) {radio_mode}]
+- id: '1737729890470'
+  alias: Speaker Automatic Volume v4
+  description: Uses the script 'Speaker Automatic Volume Adjustment script'
+  triggers:
+  - entity_id:
+    - media_player.universal_bathroom_speakers
+    - media_player.universal_bedroom_speakers
+    - media_player.universal_salon_speakers
+    - media_player.universal_closet_speaker
+    - media_player.universal_hallway_speakers
+    - media_player.universal_kitchen_speakers
+    - media_player.universal_office_speakers
+    - media_player.universal_livingroom_speakers
+    - media_player.universal_hotbox_speakers
+    to: playing
+    from:
+    trigger: state
+  conditions:
+  - condition: template
+    value_template: '{{ now() - trigger.from_state.last_changed > timedelta(seconds=10)}}'
+    enabled: false
+  actions:
+  - variables:
+      trigger_speaker: '{{ trigger.entity_id }}
+
+        '
+  - action: script.speaker_automatic_volume_adjustment_script
+    metadata: {}
+    data:
+      received_speaker: '{{trigger_speaker}}
+
+        '
+  mode: parallel
+  trace:
+    stored_traces: 30
+  max: 10

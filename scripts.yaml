@@ -111,7 +111,7 @@ broadcast_alert_in_the_house:
         - metadata: {}
           data:
             cache: true
-            media_player_entity_id: media_player.hotbox_down_display
+            media_player_entity_id: media_player.kitchen_google_hub
             message: '{{ message }}'
           target:
             entity_id: tts.piper
@@ -223,7 +223,7 @@ broadcast_alert_in_the_house:
             data:
               force: false
               reload_seconds: 0
-              entity_id: media_player.hotbox_down_hub
+              entity_id: media_player.kitchen_google_hub
               url: '{{image}}'
           enabled: true
           continue_on_error: true
@@ -280,7 +280,7 @@ broadcast_alert_in_the_house:
             data:
               force: true
               reload_seconds: 0
-              entity_id: media_player.hotbox_down_hub
+              entity_id: media_player.kitchen_google_hub
               url: '{{url}}'
           enabled: true
           continue_on_error: true
@@ -756,8 +756,8 @@ changes_all_on_lights_to_warm_colors:
       - metadata: {}
         data:
           hs_color: "{% set hue_under_20 = range(1, 20) | random | string + ',' +
-            30 | string %} {% set hue_over_260 = range(260, 360) | random | string
-            + ',' + 30 | string %} {% set random = range(1, 3) | random %}           {%
+            55 | string %} {% set hue_over_260 = range(260, 360) | random | string
+            + ',' + 55 | string %} {% set random = range(1, 3) | random %}           {%
             if random == 1 %}\n {{hue_under_20 }}\n{% elif random > 1 %}           {{hue_over_260}}
             {%endif%}\n"
         target:
@@ -1113,3 +1113,217 @@ ml_ma_script:
     area. media_id, media_type, and area are always required and must always be supplied
     as arguments to this tool. Use the parameters as described in the description
     of each parameter. Use this tool whenever the user requests to play music.'
+speaker_automatic_volume_adjustment_script:
+  sequence:
+  - variables:
+      speaker_id: '{{ received_speaker }}
+
+        '
+  - alias: Mute or unmute depending on occupancy
+    choose:
+    - conditions:
+      - alias: Room occupied
+        condition: template
+        value_template: '{{ area_id(speaker_id) | lower in states(''sensor.active_motion_rooms'')
+          | string | lower }}
+
+          '
+      sequence:
+      - choose:
+        - conditions:
+          - condition: time
+            after: 08:45:00
+            before: '11:30:00'
+            weekday:
+            - fri
+            - thu
+            - wed
+            - tue
+            - mon
+            - sat
+            - sun
+          sequence:
+          - metadata: {}
+            data:
+              volume_level: 0.3
+            target:
+              entity_id: '{{speaker_id}}'
+            enabled: true
+            action: media_player.volume_set
+          - metadata: {}
+            data:
+              is_volume_muted: false
+            target:
+              entity_id: '{{speaker_id}}'
+            alias: Unmute speaker
+            action: media_player.volume_mute
+        - conditions:
+          - condition: time
+            after: '11:30:00'
+            before: '21:30:00'
+            weekday:
+            - fri
+            - thu
+            - wed
+            - tue
+            - mon
+            - sun
+            - sat
+          sequence:
+          - metadata: {}
+            data:
+              volume_level: 0.35
+            target:
+              entity_id: '{{speaker_id}}'
+            enabled: true
+            action: media_player.volume_set
+          - metadata: {}
+            data:
+              is_volume_muted: false
+            target:
+              entity_id: '{{speaker_id}}'
+            alias: Unmute speaker
+            action: media_player.volume_mute
+        - conditions:
+          - condition: time
+            after: '21:30:00'
+            before: '23:30:00'
+            weekday:
+            - fri
+            - thu
+            - wed
+            - tue
+            - mon
+            - sun
+            - sat
+          sequence:
+          - metadata: {}
+            data:
+              volume_level: 0.3
+            target:
+              entity_id: '{{speaker_id}}'
+            enabled: true
+            action: media_player.volume_set
+          - metadata: {}
+            data:
+              is_volume_muted: false
+            target:
+              entity_id: '{{speaker_id}}'
+            alias: Unmute speaker
+            action: media_player.volume_mute
+        - conditions:
+          - condition: time
+            after: '23:30:00'
+            before: 01:00:00
+            weekday:
+            - fri
+            - thu
+            - wed
+            - tue
+            - mon
+            - sun
+            - sat
+          sequence:
+          - metadata: {}
+            data:
+              volume_level: 0.27
+            target:
+              entity_id: '{{speaker_id}}'
+            enabled: true
+            action: media_player.volume_set
+          - metadata: {}
+            data:
+              is_volume_muted: false
+            target:
+              entity_id: '{{speaker_id}}'
+            alias: Unmute speaker
+            action: media_player.volume_mute
+        - conditions:
+          - condition: time
+            after: 01:00:00
+            before: 03:00:00
+            weekday:
+            - fri
+            - thu
+            - wed
+            - tue
+            - mon
+            - sun
+            - sat
+          sequence:
+          - metadata: {}
+            data:
+              volume_level: 0.24
+            target:
+              entity_id: '{{speaker_id}}'
+            enabled: true
+            action: media_player.volume_set
+          - metadata: {}
+            data:
+              is_volume_muted: false
+            target:
+              entity_id: '{{speaker_id}}'
+            alias: Unmute speaker
+            action: media_player.volume_mute
+        - conditions:
+          - condition: time
+            after: 03:00:00
+            before: 08:45:00
+            weekday:
+            - fri
+            - thu
+            - wed
+            - tue
+            - mon
+            - sun
+            - sat
+          sequence:
+          - metadata: {}
+            data:
+              volume_level: 0.2
+            target:
+              entity_id: '{{speaker_id}}'
+            enabled: true
+            action: media_player.volume_set
+          - metadata: {}
+            data:
+              is_volume_muted: false
+            target:
+              entity_id: '{{speaker_id}}'
+            alias: Unmute speaker
+            action: media_player.volume_mute
+        default:
+        - metadata: {}
+          data:
+            volume_level: 0.2
+          target:
+            entity_id: '{{speaker_id}}'
+          enabled: true
+          action: media_player.volume_set
+        - metadata: {}
+          data:
+            is_volume_muted: false
+          target:
+            entity_id: '{{speaker_id}}'
+          alias: Unmute speaker
+          action: media_player.volume_mute
+      alias: Set volume if the room is occupied
+    - conditions:
+      - alias: Is the speaker room occupied?
+        condition: template
+        value_template: '{{ area_id(speaker_id) | lower not in states(''sensor.active_motion_rooms'')
+          | string | lower }}
+
+          '
+      sequence:
+      - data:
+          is_volume_muted: true
+        target:
+          entity_id: '{{speaker_id}}'
+        action: media_player.volume_mute
+      alias: Set mute if the room is unoccupied
+  alias: Speaker Automatic Volume Adjustment script
+  description: This script will set the volume of the speaker to a standard volume
+    in relation to the time of the day
+  mode: parallel
+  max: 10
