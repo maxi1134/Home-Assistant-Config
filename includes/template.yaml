@@ -12,7 +12,7 @@
 
 
           
-      - name: "Sensor Patio Occupancy" 
+      - name: "Sensor Patio Occupancy"
         state: >
          {{ not is_state('sensor.patio_camera_person_count', "0")
              or  is_state('binary_sensor.sensor_patio_motion_occupancy', 'on')
@@ -839,51 +839,51 @@
             {% endif %}
             {{ location.split ("_")  | first }}
 
-      - name: "Maxi Location v4"
-        unique_id: maxi_location_v4
-        state: >-
-            {% set ns = namespace(counted_list=[]) %}       
-            {% set lastactiveroom = states('sensor.last_active_room') %}     
-            {% set maxialone = states('binary_sensor.maxi_alone') %}
-            {% set braceletroom = states('sensor.b7bracelet1') %}
-            {% set braceletespresenseroom = states('device_tracker.maxi_bracelet_espresense') | lower%}
-              {% if braceletroom == braceletespresenseroom %}
-                  {% set final_bracelet_room = braceletespresenseroom %}
-                {% else %}
-                  {% set final_bracelet_room = braceletroom %}
-              {% endif %}            
-            {% set watchroom = states('sensor.watch_galaxy4') | lower %}
-            {% set watchespresenseroom = states('device_tracker.maxi_watch_4_espresense') | lower %}
-            {% set watchonbody = states('binary_sensor.galaxy_watch_4_on_body_sensor')| lower %}
-            {% if (watchroom == watchespresenseroom) and (watchonbody =="on")%}
-                  {% set final_watch_room = watchespresenseroom %}
-                {% else %}
-                  {% set final_watch_room = watchroom %}
-              {% endif %}              
-            {% set phoneroom = states('sensor.phone_s24') | lower%}
-            {% set phoneespresenseroom = states('device_tracker.maxi_phone_s24_espresense') | lower%}
-            {% if phoneroom == phoneespresenseroom %}
-                  {% set final_phone_room = phoneespresenseroom %}
-                {% else %}
-                  {% set final_phone_room = phoneroom %}
-              {% endif %}           
-            {% set gpslocation = states('device_tracker.phone_maxi') | lower %}            
-            {% set in_home_positions_array = [final_bracelet_room]  + [final_phone_room] %}            
-            {% if watchonbody == 'on' %}
-              {% set in_home_positions_array = in_home_positions_array +  [final_watch_room] %}
-            {% endif %}            
-            {% if maxialone == 'on' %}
-              {% set in_home_positions_array = in_home_positions_array +  [lastactiveroom] %}
-            {% endif %}             
-            {% if gpslocation == 'home' and in_home_positions_array | unique | list | length == 1 %}
-               {{in_home_positions_array | unique | first }}
-            {% elif in_home_positions_array | unique | list | length > 1 %}
-              {% for rooms in  (in_home_positions_array | unique | list) %}
-                 {% set ns.counted_list =  ns.counted_list + [{'name': rooms , "amount": in_home_positions_array | select('search', rooms)  | list | count }] %}
-              {% endfor %}
-            {% endif %}
-            {% set sorted_list = ns.counted_list|sort(attribute='amount', reverse=true) %}
-            {{(sorted_list |  map(attribute='name')) | list  | first }}
+#     - name: "Maxi Location v4"
+#       unique_id: maxi_location_v4
+#       state: >-
+#           {% set ns = namespace(counted_list=[]) %}       
+#           {% set lastactiveroom = states('sensor.last_active_room') %}     
+#           {% set maxialone = states('binary_sensor.maxi_alone') %}
+#           {% set braceletroom = states('sensor.b7bracelet1') %}
+#           {% set braceletespresenseroom = states('device_tracker.maxi_bracelet_espresense') | lower%}
+#             {% if braceletroom == braceletespresenseroom %}
+#                 {% set final_bracelet_room = braceletespresenseroom %}
+#               {% else %}
+#                 {% set final_bracelet_room = braceletroom %}
+#             {% endif %}            
+#           {% set watchroom = states('sensor.watch_galaxy4') | lower %}
+#           {% set watchespresenseroom = states('device_tracker.maxi_watch_4_espresense') | lower %}
+#           {% set watchonbody = states('binary_sensor.galaxy_watch_4_on_body_sensor')| lower %}
+#           {% if (watchroom == watchespresenseroom) and (watchonbody =="on")%}
+#                 {% set final_watch_room = watchespresenseroom %}
+#               {% else %}
+#                 {% set final_watch_room = watchroom %}
+#             {% endif %}              
+#           {% set phoneroom = states('sensor.phone_s24') | lower%}
+#           {% set phoneespresenseroom = states('device_tracker.maxi_phone_s24_espresense') | lower%}
+#           {% if phoneroom == phoneespresenseroom %}
+#                 {% set final_phone_room = phoneespresenseroom %}
+#               {% else %}
+#                 {% set final_phone_room = phoneroom %}
+#             {% endif %}           
+#           {% set gpslocation = states('device_tracker.phone_maxi') | lower %}            
+#           {% set in_home_positions_array = [final_bracelet_room]  + [final_phone_room] %}            
+#           {% if watchonbody == 'on' %}
+#             {% set in_home_positions_array = in_home_positions_array +  [final_watch_room] %}
+#           {% endif %}            
+#           {% if maxialone == 'on' %}
+#             {% set in_home_positions_array = in_home_positions_array +  [lastactiveroom] %}
+#           {% endif %}             
+#           {% if gpslocation == 'home' and in_home_positions_array | unique | list | length == 1 %}
+#              {{in_home_positions_array | unique | first }}
+#           {% elif in_home_positions_array | unique | list | length > 1 %}
+#             {% for rooms in  (in_home_positions_array | unique | list) %}
+#                {% set ns.counted_list =  ns.counted_list + [{'name': rooms , "amount": in_home_positions_array | select('search', rooms)  | list | count }] %}
+#             {% endfor %}
+#           {% endif %}
+#           {% set sorted_list = ns.counted_list|sort(attribute='amount', reverse=true) %}
+#           {{(sorted_list |  map(attribute='name')) | list  | first }}
 
       - name: "Maxi Location v5"
         unique_id: maxi_location_v5
@@ -945,7 +945,8 @@
               ('watch', 'device_tracker.maxi_watch_4_espresense', 'sensor.watch_galaxy4'),
               ('phone', 'device_tracker.maxi_phone_s24_espresense', 'sensor.phone_s24'),
               
-            ] %}
+            ] %}       
+            {% set gpslocation = states('device_tracker.phone_maxi') | lower %}     
             {% set ns = namespace(rooms=[], results=[]) %}
             {% for name, room, sensor in info if name != 'watch' or (name == 'watch' and is_state('binary_sensor.galaxy_watch_4_on_body_sensor', 'on')) %}
               {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
@@ -964,6 +965,8 @@
             {% endfor %}
             {% if is_state('device_tracker.phone_maxi', 'home') %}
               {{ ns.results | sort(attribute='1', reverse=True) | map(attribute='0') | first | default }}
+            {% elif gpslocation != "home" and gpslocation != "away" %}
+              At {{gpslocation}}
             {% else %}
               not_home
             {% endif %}
