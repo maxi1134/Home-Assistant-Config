@@ -1,0 +1,198 @@
+blueprint:
+  name: Philips Tap Dial Switch
+  description: 'Control lights with a Philips Hue Tap Switch. Use the four buttons
+    to control up to four light(s) with an on/off toggle. The dial can be used to
+    dim the most recently used light. '
+  domain: automation
+  input:
+    remote:
+      name: Philips Hue Tap Switch
+      selector:
+        device:
+          integration: zha
+          manufacturer: Signify Netherlands B.V.
+          model: RDM002
+          multiple: false
+    first_light:
+      name: First Light
+      description: The light(s) to control with first button
+      selector:
+        target:
+          entity:
+          - {}
+    second_light:
+      name: (OPTIONAL) Second Light
+      description: The light(s) to control with second button
+      default: {}
+      selector:
+        target:
+          entity:
+          - {}
+    third_light:
+      name: (OPTIONAL) Third Light
+      description: The light(s) to control with third button
+      default: {}
+      selector:
+        target:
+          entity:
+          - {}
+    forth_light:
+      name: (OPTIONAL) Forth Light
+      description: The light(s) to control with forth button
+      default: {}
+      selector:
+        target:
+          entity:
+          - {}
+    current_light:
+      name: (OPTIONAL) Current Light
+      description: Text helper to track the current light to dim. Set for the dimmer
+        controls to change which light they are controlling according to the last
+        one turned on.
+      default:
+      selector:
+        entity:
+          domain:
+          - input_text
+          multiple: false
+    dim_scale:
+      name: Diming Scale
+      description: Scale factor for the dimming. This value will be multiplied by
+        the value given from the dial. So lower number, more gradual dimming. Larger
+        number, faster dimming.
+      default: 1.0
+      selector:
+        number:
+          min: 0.0
+          max: 5.0
+          step: 0.01
+          mode: slider
+  source_url: https://github.com/apollo1220/blueprints/blob/main/philips_zigbee_dial.yaml
+mode: restart
+max_exceeded: silent
+variables:
+  first_light: !input first_light
+  second_light: !input second_light
+  third_light: !input third_light
+  forth_light: !input forth_light
+  current_light: !input current_light
+  dim_scale: !input dim_scale
+  lights:
+    first_light: !input first_light
+    second_light: !input second_light
+    third_light: !input third_light
+    forth_light: !input forth_light
+trigger:
+- platform: event
+  event_type: zha_event
+  event_data:
+    device_id: !input remote
+action:
+- variables:
+    command: '{{ trigger.event.data.command }}'
+    args: '{% if (trigger.event.data.args is defined) %}{{trigger.event.data.args}}{%
+      endif %}'
+    params: '{% if (trigger.event.data.params is defined) %}{{trigger.event.data.params}}{%
+      endif %}'
+    step_size: '{% if (trigger.event.data.params is defined) and (trigger.event.data.params.step_size
+      is defined) %}{{trigger.event.data.params.step_size}}{% endif %}'
+    step_mode: '{% if (trigger.event.data.params is defined) and (trigger.event.data.params.step_mode
+      is defined) %}{{trigger.event.data.params.step_mode}}{% endif %}'
+    scene: '{% if (trigger.event.data.params is defined) and (trigger.event.data.params.scene_id
+      is defined) %}{{trigger.event.data.params.scene_id}}{% endif %}'
+- choose:
+  - conditions:
+    - '{{ command == ''recall'' }}'
+    - '{{ scene == 1 }}'
+    sequence:
+    - service: homeassistant.toggle
+      target: !input first_light
+    - choose:
+      - conditions: '{{ current_light != none }}'
+        sequence:
+        - service: input_text.set_value
+          target:
+            entity_id: !input current_light
+          data:
+            value: first_light
+  - conditions:
+    - '{{ command == ''recall'' }}'
+    - '{{ second_light != none }}'
+    - '{{ scene == 0 }}'
+    sequence:
+    - service: homeassistant.toggle
+      target: !input second_light
+    - choose:
+      - conditions: '{{ current_light != none }}'
+        sequence:
+        - service: input_text.set_value
+          target:
+            entity_id: !input current_light
+          data:
+            value: second_light
+  - conditions:
+    - '{{ command == ''recall'' }}'
+    - '{{ third_light != none }}'
+    - '{{ scene == 5 }}'
+    sequence:
+    - service: homeassistant.toggle
+      target: !input third_light
+    - choose:
+      - conditions: '{{ current_light != none }}'
+        sequence:
+        - service: input_text.set_value
+          target:
+            entity_id: !input current_light
+          data:
+            value: third_light
+  - conditions:
+    - '{{ command == ''recall'' }}'
+    - '{{ forth_light != none }}'
+    - '{{ scene == 4 }}'
+    sequence:
+    - service: homeassistant.toggle
+      target: !input forth_light
+    - choose:
+      - conditions: '{{ current_light != none }}'
+        sequence:
+        - service: input_text.set_value
+          target:
+            entity_id: !input current_light
+          data:
+            value: forth_light
+  - conditions:
+    - '{{ command == ''step_with_on_off'' }}'
+    - '{{ step_mode == ''StepMode.Up'' }}'
+    sequence:
+    - choose:
+      - conditions: '{{ current_light != none }}'
+        sequence:
+        - service: light.turn_on
+          target: '{{ lights[states(current_light)] }}'
+          data:
+            brightness_step_pct: '{{ step_size * dim_scale }}'
+            transition: 1
+      default:
+      - service: light.turn_on
+        target: !input first_light
+        data:
+          brightness_step_pct: '{{ step_size * dim_scale }}'
+          transition: 1
+  - conditions:
+    - '{{ command == ''step_with_on_off'' }}'
+    - '{{ step_mode == ''StepMode.Down'' }}'
+    sequence:
+    - choose:
+      - conditions: '{{ current_light != none }}'
+        sequence:
+        - service: light.turn_on
+          target: '{{ lights[states(current_light)] }}'
+          data:
+            brightness_step_pct: '{{ -step_size * dim_scale }}'
+            transition: 1
+      default:
+      - service: light.turn_on
+        target: !input first_light
+        data:
+          brightness_step_pct: '{{ -step_size * dim_scale }}'
+          transition: 1
