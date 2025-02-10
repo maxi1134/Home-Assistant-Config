@@ -2090,16 +2090,6 @@
       entity_id: tts.piper
     enabled: true
     action: tts.speak
-  - wait_template: '{{ trigger.from_state.attributes != "mass" }}'
-    continue_on_timeout: true
-    timeout: '5'
-  - metadata: {}
-    data: {}
-    target:
-      entity_id: '{{in_room_speakers}}
-
-        '
-    action: media_player.media_pause
   mode: single
 - id: '1715102391801'
   alias: Alert when there is noise on the terasse
@@ -2281,12 +2271,11 @@
   - parallel:
     - metadata: {}
       data:
-        message: Someone is at the door!
         color: Blue
-        url: http://192.168.0.11:1984/stream.html?src=front_door_camera_sub
         phone_data:
           message: Someone is at the door!
           data:
+            channel: doorbell_notifications
             image: 'https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
 
               '
@@ -2755,30 +2744,29 @@
   alias: Automatically turn off the front security horn after 2 minutes and ask if
     it should restart
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - switch.plug_front_door_horn
     to: 'on'
     for:
       hours: 0
       minutes: 2
       seconds: 0
-  condition: []
-  action:
-  - service: switch.turn_off
-    metadata: {}
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
     target:
       entity_id: switch.plug_front_door_horn
-  - service: camera.snapshot
-    metadata: {}
+    action: switch.turn_off
+  - metadata: {}
     data:
       filename: /media/horn_check.png
     target:
       entity_id: camera.front_door_camera
-  - service: notify.mobile_app_phone_maxi
-    metadata: {}
+    action: camera.snapshot
+  - metadata: {}
     data:
       message: Horn stopped
       data:
@@ -2786,24 +2774,26 @@
         actions:
         - action: restart_horn
           title: Restart the horn?
+        channel: security_alerts_notifications
       title: Security breach
+    action: notify.mobile_app_phone_maxi
   - wait_for_trigger:
-    - platform: event
-      event_type: mobile_app_notification_action
+    - event_type: mobile_app_notification_action
       context: {}
       event_data:
         action: restart_horn
+      trigger: event
     continue_on_timeout: false
     timeout:
       hours: 0
       minutes: 5
       seconds: 0
       milliseconds: 0
-  - service: switch.turn_on
-    target:
+  - target:
       entity_id:
       - switch.plug_front_door_horn
     data: {}
+    action: switch.turn_on
   mode: restart
 - id: '1716934404427'
   alias: Alert when someone is in the front
@@ -2850,6 +2840,7 @@
           title: Enter Text
         ttl: 0
         priority: high
+        channel: security_alerts_notifications
     action: notify.mobile_app_phone_maxi
   - action: llmvision.image_analyzer
     data:
@@ -2875,25 +2866,24 @@
 - id: '1716935540936'
   alias: Alert when the horn goes off and offer to turn it off
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - switch.plug_front_door_horn
     to: 'on'
     for:
       hours: 0
       minutes: 0
       seconds: 0
-  condition: []
-  action:
-  - service: camera.snapshot
-    metadata: {}
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
     data:
       filename: /media/horn_check.png
     target:
       entity_id: camera.front_door_camera
-  - service: notify.mobile_app_phone_maxi
-    metadata: {}
+    action: camera.snapshot
+  - metadata: {}
     data:
       message: Horn started
       data:
@@ -2901,23 +2891,25 @@
         actions:
         - action: stop_horn
           title: Stop the horn?
+        channel: security_alerts_notifications
       title: Security breach
+    action: notify.mobile_app_phone_maxi
   - wait_for_trigger:
-    - platform: event
-      event_type: mobile_app_notification_action
+    - event_type: mobile_app_notification_action
       context: {}
       event_data:
         action: stop_horn
+      trigger: event
     continue_on_timeout: false
     timeout:
       hours: 0
       minutes: 3
       seconds: 0
       milliseconds: 0
-  - service: switch.turn_off
-    target:
+  - target:
       entity_id: switch.plug_front_door_horn
     data: {}
+    action: switch.turn_off
   mode: restart
 - id: '1717016815299'
   alias: Alert when someone is in the back
@@ -2955,6 +2947,7 @@
         actions:
         - action: blow_horn_back
           title: Blow the horn for 2 minutes?
+        channel: security_alerts_notifications
     action: notify.mobile_app_phone_maxi
   - if:
     - condition: state
@@ -2995,32 +2988,31 @@
   alias: Automatically turn off the back security horn after 2 minutes and ask if
     it should restart
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - switch.plug_back_door_horn
     to: 'on'
     for:
       hours: 0
       minutes: 2
       seconds: 0
-  condition: []
-  action:
-  - service: switch.turn_off
-    metadata: {}
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
     target:
       entity_id:
       - switch.plug_back_door_horn
-  - service: camera.snapshot
-    metadata: {}
+    action: switch.turn_off
+  - metadata: {}
     data:
       filename: /media/back_horn_check.png
     target:
       entity_id:
       - camera.back_door_camera
-  - service: notify.mobile_app_phone_maxi
-    metadata: {}
+    action: camera.snapshot
+  - metadata: {}
     data:
       message: Horn stopped
       data:
@@ -3028,23 +3020,25 @@
         actions:
         - action: restart_back_horn
           title: Restart the horn?
+        channel: security_alerts_notifications
       title: Security breach
+    action: notify.mobile_app_phone_maxi
   - wait_for_trigger:
-    - platform: event
-      event_type: mobile_app_notification_action
+    - event_type: mobile_app_notification_action
       context: {}
       event_data:
         action: restart_back_horn
+      trigger: event
     continue_on_timeout: false
     timeout:
       hours: 0
       minutes: 5
       seconds: 0
       milliseconds: 0
-  - service: switch.turn_on
-    data: {}
+  - data: {}
     target:
       entity_id: switch.plug_back_door_horn
+    action: switch.turn_on
   mode: restart
 - id: '1717038269264'
   alias: Alert maxi is someone comes in while he is sleeping
@@ -3096,6 +3090,7 @@
       message: Someone is inside!
       title: A door has been opened {{trigger.entity_id}}
       data:
+        channel: security_alerts_notifications
         ttl: 0
         priority: high
         image: https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
@@ -5395,6 +5390,20 @@
     trigger: state
   conditions: []
   actions:
+  - metadata: {}
+    data:
+      title: Security Alert
+      message: Alerting loiterers to leave the back door
+      data:
+        image: /api/camera_proxy/camera.back_door_camera
+        ttl: 0
+        priority: high
+        channel: security_alerts_notifications
+        actions:
+        - action: URI
+          title: Open Cameras
+          uri: /maxi-mobile/main-view#cameras
+    action: notify.mobile_app_phone_maxi
   - repeat:
       sequence:
       - sequence:
@@ -6000,6 +6009,7 @@
       data:
         ttl: 0
         priority: high
+        channel: security_alerts_notifications
   - action: tts.speak
     metadata: {}
     data:
@@ -6094,6 +6104,15 @@
         data:
           message: Front Lock has remained unlocked
           color: yellow
+      - metadata: {}
+        data:
+          title: 'Front door alert:'
+          data:
+            ttl: 0
+            priority: high
+            channel: security_alerts_notifications
+          message: Front door is currently unlocked
+        action: notify.mobile_app_phone_maxi
       - delay:
           hours: 0
           minutes: 3
@@ -6291,6 +6310,7 @@
               title: Call 911!
             ttl: 0
             priority: high
+            channel: security_alerts_notifications
           message: Smoke detected in the kitchen
         action: notify.mobile_app_phone_maxi
       - delay:
@@ -6379,6 +6399,16 @@
     data: {}
     target:
       entity_id: switch.plug_back_door_horn
+  - metadata: {}
+    data:
+      data:
+        image: /api/camera_proxy/camera.back_door_camera
+        ttl: 0
+        priority: high
+        channel: security_alerts_notifications
+      message: Trying to scare the loiterers away with horn
+      title: Security Alert!
+    action: notify.mobile_app_phone_maxi
   - wait_for_trigger:
     - entity_id:
       - binary_sensor.back_door_camera_person_occupancy
@@ -7272,6 +7302,7 @@
       data:
         ttl: 0
         priority: high
+        channel: security_alerts_notifications
   - action: tts.speak
     metadata: {}
     data:
@@ -7784,3 +7815,56 @@
     path: music-assistant/mass_assist_blueprint_en.yaml
     input:
       default_player_entity_id_input: media_player.group_mass_home_group_speakers
+- id: '1739201293361'
+  alias: Alert maxi that his laptop battery is low
+  description: ''
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - sensor.laptop_maxi_msi_battery_charge_remaining_percentage
+    below: 25
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: person.maximiliano
+        state: home
+      sequence:
+      - variables:
+          in_room_speakers: "{% if [area_id(states('sensor.maxi_location_by_petro'))]
+            \  | map('area_entities') | sum(start=[]) |    select('search', 'speakers')
+            | select('search','mass') | unique | list %} {{ [area_id(states('sensor.maxi_location_by_petro'))]
+            \  | map('area_entities') | sum(start=[]) |    select('search', 'speakers')
+            | select('search','mass') | unique | list }} {% else %} {{ [area_id(states('sensor.maxi_location_by_petro'))]
+            \  | map('area_entities') | sum(start=[]) |  select('search', 'speaker')
+            \ | unique | list }} {% endif %} \n"
+          attributes: '{{ trigger }}
+
+            '
+      - metadata: {}
+        data:
+          cache: false
+          message: Charge your laptop!
+          media_player_entity_id: '{{in_room_speakers}}
+
+            '
+        target:
+          entity_id: tts.piper
+        enabled: true
+        action: tts.speak
+    - conditions:
+      - condition: state
+        entity_id: person.maximiliano
+        state: not_home
+      sequence:
+      - action: notify.mobile_app_phone_maxi
+        metadata: {}
+        data:
+          title: 'Laptop Alert:'
+          data:
+            ttl: 0
+            priority: high
+            channel: laptop_notifications
+          message: LOW BATTERY!
+  mode: single

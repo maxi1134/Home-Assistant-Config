@@ -151,12 +151,13 @@ broadcast_alert_in_the_house:
       then:
       - action: notify.mobile_app_phone_maxi
         metadata: {}
-        data: '{{ phone_data }}
+        data: '{{ phone_data  }}
 
           '
       - action: notify.maxi_notification_group
         metadata: {}
         data: "{{ phone_data }}\ndata:\n  ttl: 0\n  priority: high\n"
+        enabled: false
       enabled: true
     - alias: 'TVs '
       if:
@@ -811,9 +812,9 @@ in_home_defense_script:
   - metadata: {}
     data:
       stop_actions: true
-    target:
-      entity_id: automation.set_speakers_volume_on_initial_playback_v2
     action: automation.turn_off
+    target:
+      entity_id: automation.speaker_automatic_volume_v4
   - data:
       media_content_id: https://hass.purgatoire.ca/local/civil-defense-siren.wav
       media_content_type: music
@@ -852,6 +853,19 @@ in_home_defense_script:
       - switch.plug_front_door_horn
     enabled: true
     action: switch.turn_on
+  - metadata: {}
+    data:
+      message: 'The all on script has been turned on. '
+      title: Intruder Alert
+      data:
+        image: https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
+        actions:
+        - action: open_phone_app_911
+          title: Call 911!
+        ttl: 0
+        priority: high
+        channel: security_alerts_notifications
+    action: notify.mobile_app_phone_maxi
   - wait_for_trigger:
     - entity_id:
       - binary_sensor.home_occupancy
@@ -880,11 +894,10 @@ in_home_defense_script:
       - media_player.universal_hotbox_top_speakers
       - media_player.universal_salon_speakers
       - media_player.universal_office_speakers
-  - target:
-      entity_id:
-      - automation.set_speakers_volume_on_initial_playback_v2
-    data: {}
+  - data: {}
     action: automation.turn_on
+    target:
+      entity_id: automation.speaker_automatic_volume_v4
   mode: restart
 changes_all_on_lights_to_fake_white:
   alias: Changes selected light group to ordered fake white
@@ -921,9 +934,9 @@ inside_only_home_defense_script:
   - metadata: {}
     data:
       stop_actions: true
-    target:
-      entity_id: automation.set_speakers_volume_on_initial_playback_v2
     action: automation.turn_off
+    target:
+      entity_id: automation.speaker_automatic_volume_v4
   - data:
       media_content_id: https://hass.purgatoire.ca/local/civil-defense-siren.wav
       media_content_type: music
