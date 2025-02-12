@@ -547,77 +547,6 @@
       - cover.group_all_blinds
       - cover.cover_bedroom_blinds
   mode: single
-- id: '1713460807856'
-  alias: Start visuals when Party mode is turned on
-  description: ''
-  triggers:
-  - entity_id:
-    - input_boolean.party_mode
-    to: 'on'
-    trigger: state
-  conditions: []
-  actions:
-  - metadata: {}
-    data:
-      requested_playlist: Colorful Backgrounds Visuals
-    action: script.start_visual_playlist_on_plex
-  mode: single
-- id: '1713464997452'
-  alias: Change room lights to semi-saturated colors when party turns on
-  description: ''
-  triggers:
-  - entity_id:
-    - input_boolean.party_mode
-    to: 'on'
-    trigger: state
-  conditions: []
-  actions:
-  - action: script.1714667687332
-    metadata: {}
-    data: {}
-  mode: single
-- id: '1713465737957'
-  alias: Change all single lights to random saturated colors  when acid mode turns
-    on
-  description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - input_boolean.acid_time
-    to: 'on'
-  condition: []
-  action:
-  - variables:
-      lights: "{% set ns = namespace(lights=[]) %} {% set groups = integration_entities('group')|
-        \ select('search', '^light.')   | list %} {% for group in groups %}\n    {%
-        set individual_lights = state_attr(group,'entity_id')%}\n    {% for individual_light
-        in individual_lights %}\n    {% if \"group\" not in individual_light and state_attr(individual_light,
-        'rgb_color') %}\n      {% set ns.lights = ns.lights  + [individual_light]
-        %}\n    {% endif %}\n    {% endfor %}    \n{% endfor %} {{  ns.lights  }}\n"
-  - repeat:
-      sequence:
-      - service: script.change_received_lights_to_random_colors
-        data:
-          lights:
-          - '{{lights[repeat.index - 1]}}'
-          saturation: 100
-      for_each: '{{ lights }}'
-  mode: single
-- id: '1713468195069'
-  alias: Start 4k visuals when acid time turns on
-  description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - input_boolean.acid_time
-    to: 'on'
-  condition: []
-  action:
-  - service: script.start_visual_playlist_on_plex
-    metadata: {}
-    data:
-      requested_playlist: 4k visuals
-  mode: single
 - id: '1713469587813'
   alias: Turn lights to purple when a movie is played
   description: ''
@@ -2441,77 +2370,6 @@
         message: Package is being delivered
         title: Package Detected
       action: notify.mobile_app_phone_maxi
-  mode: single
-- id: '1716329707766'
-  alias: Start music on ACid mode on
-  description: ''
-  triggers:
-  - entity_id:
-    - input_boolean.acid_time
-    to: 'on'
-    trigger: state
-  conditions:
-  - condition: not
-    conditions:
-    - condition: state
-      entity_id: media_player.universal_home_speakers
-      state: playing
-  actions:
-  - action: media_player.play_media
-    target:
-      entity_id: media_player.group_mass_home_group_speakers
-    data:
-      media_content_id: Psychedelic Music
-      media_content_type: playlist
-  mode: single
-- id: '1716329767682'
-  alias: Close all blinds on acid mode
-  description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - input_boolean.acid_time
-    to: 'on'
-  condition:
-  - condition: state
-    entity_id: sun.sun
-    state: above_horizon
-  action:
-  - service: cover.close_cover
-    metadata: {}
-    data: {}
-    target:
-      entity_id: cover.group_all_blinds
-  mode: single
-- id: '1716329795738'
-  alias: Close all blinds on kink party
-  description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - input_boolean.kink_party
-    to: 'on'
-  condition: []
-  action:
-  - service: cover.close_cover
-    metadata: {}
-    data: {}
-    target:
-      entity_id: cover.group_all_blinds
-  mode: single
-- id: '1716330395041'
-  alias: Change alll Lights to warm colors on Kink Party
-  description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - input_boolean.kink_party
-    to: 'on'
-  condition: []
-  action:
-  - service: script.changes_all_on_lights_to_warm_colors
-    metadata: {}
-    data: {}
   mode: single
 - id: '1716416273330'
   alias: Display room color  on TVs when mimiclights mode is triggered
@@ -7244,7 +7102,6 @@
   description: Uses the script 'Speaker Automatic Volume Adjustment script'
   triggers:
   - entity_id:
-    - media_player.universal_bathroom_speakers
     - media_player.universal_bedroom_speakers
     - media_player.universal_salon_speakers
     - media_player.universal_closet_speaker
@@ -7253,8 +7110,8 @@
     - media_player.universal_office_speakers
     - media_player.universal_livingroom_speakers
     - media_player.universal_hotbox_speakers
-    to: playing
-    from:
+    to:
+    from: 'off'
     trigger: state
   conditions:
   - condition: template
@@ -7867,4 +7724,49 @@
             priority: high
             channel: laptop_notifications
           message: LOW BATTERY!
+  mode: single
+- id: '1739316122149'
+  alias: Trigger party script when party mode turns on
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.party_mode
+    from: 'off'
+    to: 'on'
+  conditions: []
+  actions:
+  - action: script.set_whole_house_to_party_ambiance
+    metadata: {}
+    data: {}
+  mode: single
+- id: '1739373811238'
+  alias: Trigger psychedelic script when acid mode turns on
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.acid_time
+    from: 'off'
+    to: 'on'
+  conditions: []
+  actions:
+  - action: script.set_whole_house_to_acid_time
+    metadata: {}
+    data: {}
+  mode: single
+- id: '1739373870986'
+  alias: Trigger kinky ambiance script when kinky party turns on
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.kink_party
+    from: 'off'
+    to: 'on'
+  conditions: []
+  actions:
+  - action: script.set_whole_house_to_kinky_ambiance
+    metadata: {}
+    data: {}
   mode: single
