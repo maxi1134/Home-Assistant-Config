@@ -486,6 +486,7 @@
       - cover.cover_livingroom_blinds
       - cover.cover_salon_blinds
       - cover.cover_hotbox_blinds
+      - cover.cover_bedroom_blinds
     action: cover.close_cover
   mode: single
 - id: '1713451780517'
@@ -2347,17 +2348,15 @@
   - action: llmvision.image_analyzer
     data:
       include_filename: false
-      target_width: 1280
-      max_tokens: 100
+      target_width: 720
+      max_tokens: 30
       temperature: 0.2
-      expose_images: true
-      provider: 01JDD7V3QXP1KN82V27H591YAX
-      model: maxi_llama32-vision
-      message: "  Answer with 'yes' or 'no', is there a package or a delivery man
-        on this\n  picture? Do not use an other word than  'yes' or 'no'"
+      provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
+      model: moondream:latest
+      message: Answer with yes or no, is there a package or a delivery man on this
+        picture? Do not use an other word than  yes or no
       image_entity:
       - camera.front_door_camera
-      detail: low
     response_variable: answer
   - if:
     - condition: template
@@ -3239,19 +3238,18 @@
       entity_id: button.kitchen_tablet_load_start_url
   mode: single
 - id: '1717354512446'
-  alias: Alert when there is motion inside during arm away
+  alias: Alert when there is motion inside during arm away and trigger alarm
   description: ''
   triggers:
   - entity_id:
-    - binary_sensor.group_office_motion_occupancy
     - binary_sensor.group_hallway_motion_occupancy
     - binary_sensor.group_kitchen_motion_occupancy
-    - binary_sensor.group_livingroom_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
     - binary_sensor.group_server_motion_occupancy
     - binary_sensor.group_bathroom_motion_occupancy
     - binary_sensor.group_bedroom_motion_occupancy
     - binary_sensor.group_entrance_motion_occupancy
+    - binary_sensor.group_hotbox_down_motion_occupancy
     for:
       hours: 0
       minutes: 0
@@ -3309,6 +3307,9 @@
       target:
         entity_id: alarm_control_panel.home_alarm
       action: alarm_control_panel.alarm_trigger
+  - action: google_assistant_sdk.send_text_command
+    data:
+      command: where is my phone?
   mode: single
 - id: '1717355119853'
   alias: Turn on light automation once alarm is disarmed
@@ -3461,113 +3462,123 @@
       action: media_player.turn_on
       target:
         entity_id: media_player.universal_livingroom_speakers
-    enabled: true
-  - parallel:
-    - metadata: {}
-      data:
-        is_volume_muted: false
-      action: media_player.volume_mute
-      target:
-        entity_id: media_player.universal_bathroom_speakers
-    - metadata: {}
-      data:
-        is_volume_muted: false
-      action: media_player.volume_mute
-      target:
-        entity_id: media_player.universal_bedroom_speakers
-    - metadata: {}
-      data:
-        is_volume_muted: false
-      action: media_player.volume_mute
-      target:
-        entity_id: media_player.universal_hallway_speakers
-    - metadata: {}
-      data:
-        is_volume_muted: false
-      action: media_player.volume_mute
-      target:
-        entity_id: media_player.universal_hotbox_speakers
-    - metadata: {}
-      data:
-        is_volume_muted: false
-      action: media_player.volume_mute
-      target:
-        entity_id: media_player.universal_kitchen_speakers
-    - metadata: {}
-      data:
-        is_volume_muted: false
-      action: media_player.volume_mute
-      target:
-        entity_id: media_player.universal_salon_speakers
-    - metadata: {}
-      data:
-        is_volume_muted: false
-      action: media_player.volume_mute
-      target:
-        entity_id: media_player.universal_office_speakers
-    - metadata: {}
-      data:
-        is_volume_muted: false
-      action: media_player.volume_mute
-      target:
-        entity_id: media_player.universal_livingroom_speakers
-    enabled: true
-  - parallel:
-    - metadata: {}
-      data:
-        volume_level: 1
-      action: media_player.volume_set
-      target:
-        entity_id: media_player.universal_bathroom_speakers
-    - metadata: {}
-      data:
-        volume_level: 1
-      action: media_player.volume_set
-      target:
-        entity_id: media_player.universal_bedroom_speakers
-    - metadata: {}
-      data:
-        volume_level: 1
-      action: media_player.volume_set
-      target:
-        entity_id: media_player.universal_hallway_speakers
-    - metadata: {}
-      data:
-        volume_level: 1
-      action: media_player.volume_set
-      target:
-        entity_id: media_player.universal_hotbox_speakers
-    - metadata: {}
-      data:
-        volume_level: 1
-      action: media_player.volume_set
-      target:
-        entity_id: media_player.universal_kitchen_speakers
-    - metadata: {}
-      data:
-        volume_level: 1
-      action: media_player.volume_set
-      target:
-        entity_id: media_player.universal_salon_speakers
-    - metadata: {}
-      data:
-        volume_level: 1
-      action: media_player.volume_set
-      target:
-        entity_id: media_player.universal_office_speakers
-    - metadata: {}
-      data:
-        volume_level: 1
-      action: media_player.volume_set
-      target:
-        entity_id: media_player.universal_livingroom_speakers
-    enabled: true
+    enabled: false
   - metadata: {}
     data:
-      announce_volume: 100
-      url: https://hass.purgatoire.ca/local/deescalation.mp3
+      announce_volume: 44
+      url: http://192.168.0.15:8123/local/deescalation.mp3
       use_pre_announce: true
     action: music_assistant.play_announcement
+    target:
+      entity_id: media_player.group_mass_home_group_speakers
+  - parallel:
+    - metadata: {}
+      data:
+        is_volume_muted: false
+      action: media_player.volume_mute
+      target:
+        entity_id: media_player.universal_bathroom_speakers
+    - metadata: {}
+      data:
+        is_volume_muted: false
+      action: media_player.volume_mute
+      target:
+        entity_id: media_player.universal_bedroom_speakers
+    - metadata: {}
+      data:
+        is_volume_muted: false
+      action: media_player.volume_mute
+      target:
+        entity_id: media_player.universal_hallway_speakers
+    - metadata: {}
+      data:
+        is_volume_muted: false
+      action: media_player.volume_mute
+      target:
+        entity_id: media_player.universal_hotbox_speakers
+    - metadata: {}
+      data:
+        is_volume_muted: false
+      action: media_player.volume_mute
+      target:
+        entity_id: media_player.universal_kitchen_speakers
+    - metadata: {}
+      data:
+        is_volume_muted: false
+      action: media_player.volume_mute
+      target:
+        entity_id: media_player.universal_salon_speakers
+    - metadata: {}
+      data:
+        is_volume_muted: false
+      action: media_player.volume_mute
+      target:
+        entity_id: media_player.universal_office_speakers
+    - metadata: {}
+      data:
+        is_volume_muted: false
+      action: media_player.volume_mute
+      target:
+        entity_id: media_player.universal_livingroom_speakers
+    enabled: true
+  - parallel:
+    - metadata: {}
+      data:
+        volume_level: 1
+      action: media_player.volume_set
+      target:
+        entity_id: media_player.universal_bathroom_speakers
+    - metadata: {}
+      data:
+        volume_level: 1
+      action: media_player.volume_set
+      target:
+        entity_id: media_player.universal_bedroom_speakers
+    - metadata: {}
+      data:
+        volume_level: 1
+      action: media_player.volume_set
+      target:
+        entity_id: media_player.universal_hallway_speakers
+    - metadata: {}
+      data:
+        volume_level: 1
+      action: media_player.volume_set
+      target:
+        entity_id: media_player.universal_hotbox_speakers
+    - metadata: {}
+      data:
+        volume_level: 1
+      action: media_player.volume_set
+      target:
+        entity_id: media_player.universal_kitchen_speakers
+    - metadata: {}
+      data:
+        volume_level: 1
+      action: media_player.volume_set
+      target:
+        entity_id: media_player.universal_salon_speakers
+    - metadata: {}
+      data:
+        volume_level: 1
+      action: media_player.volume_set
+      target:
+        entity_id: media_player.universal_office_speakers
+    - metadata: {}
+      data:
+        volume_level: 1
+      action: media_player.volume_set
+      target:
+        entity_id: media_player.universal_livingroom_speakers
+    enabled: true
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 30
+      milliseconds: 0
+  - action: media_player.media_stop
+    metadata: {}
+    data: {}
     target:
       entity_id: media_player.group_mass_home_group_speakers
   mode: single
@@ -4967,272 +4978,6 @@
       area_id: livingroom
       entity_id: light.group_livingroom_lights
   mode: single
-- id: '1723823368949'
-  alias: Automatic Volume on playback v3
-  description: Control each home_group speaker  individually instead of a per room
-    basis
-  triggers:
-  - entity_id:
-    - media_player.universal_bathroom_speakers
-    - media_player.universal_bedroom_speakers
-    - media_player.universal_salon_speakers
-    - media_player.universal_closet_speaker
-    - media_player.universal_hallway_speakers
-    - media_player.universal_kitchen_speakers
-    - media_player.universal_office_speakers
-    - media_player.universal_livingroom_speakers
-    - media_player.universal_hotbox_speakers
-    to: playing
-    from:
-    trigger: state
-  conditions:
-  - condition: template
-    value_template: '{{ now() - trigger.from_state.last_changed > timedelta(seconds=10)}}'
-    enabled: false
-  actions:
-  - choose:
-    - conditions:
-      - alias: Is there no sleeper in the room?
-        condition: template
-        value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_sleeper_rooms'')
-          | string | lower }}
-
-          '
-      sequence:
-      - choose:
-        - conditions:
-          - condition: state
-            entity_id: input_boolean.following_music
-            state: 'off'
-          sequence: []
-          alias: If following music is off
-        - conditions:
-          - condition: state
-            entity_id: input_boolean.following_music
-            state: 'on'
-          sequence:
-          - alias: Mute or unmute depending on occupancy
-            choose:
-            - conditions:
-              - condition: template
-                value_template: '{{ area_id(trigger.entity_id) | lower in states(''sensor.active_motion_rooms'')
-                  | string | lower }}
-
-                  '
-                alias: Room occupied
-              sequence:
-              - choose:
-                - conditions:
-                  - condition: time
-                    after: 09:00:00
-                    before: '11:30:00'
-                    weekday:
-                    - fri
-                    - thu
-                    - wed
-                    - tue
-                    - mon
-                    - sat
-                    - sun
-                  sequence:
-                  - metadata: {}
-                    data:
-                      volume_level: 0.3
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    enabled: true
-                    action: media_player.volume_set
-                  - metadata: {}
-                    data:
-                      is_volume_muted: false
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    alias: Unmute speaker
-                    action: media_player.volume_mute
-                - conditions:
-                  - condition: time
-                    after: '11:30:00'
-                    before: '21:30:00'
-                    weekday:
-                    - fri
-                    - thu
-                    - wed
-                    - tue
-                    - mon
-                    - sun
-                    - sat
-                  sequence:
-                  - metadata: {}
-                    data:
-                      volume_level: 0.35
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    enabled: true
-                    action: media_player.volume_set
-                  - metadata: {}
-                    data:
-                      is_volume_muted: false
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    alias: Unmute speaker
-                    action: media_player.volume_mute
-                - conditions:
-                  - condition: time
-                    after: '21:30:00'
-                    before: '23:30:00'
-                    weekday:
-                    - fri
-                    - thu
-                    - wed
-                    - tue
-                    - mon
-                    - sun
-                    - sat
-                  sequence:
-                  - metadata: {}
-                    data:
-                      volume_level: 0.4
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    enabled: true
-                    action: media_player.volume_set
-                  - metadata: {}
-                    data:
-                      is_volume_muted: false
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    alias: Unmute speaker
-                    action: media_player.volume_mute
-                - conditions:
-                  - condition: time
-                    after: '23:30:00'
-                    before: 01:00:00
-                    weekday:
-                    - fri
-                    - thu
-                    - wed
-                    - tue
-                    - mon
-                    - sun
-                    - sat
-                  sequence:
-                  - metadata: {}
-                    data:
-                      volume_level: 0.3
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    enabled: true
-                    action: media_player.volume_set
-                  - metadata: {}
-                    data:
-                      is_volume_muted: false
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    alias: Unmute speaker
-                    action: media_player.volume_mute
-                - conditions:
-                  - condition: time
-                    after: 01:00:00
-                    before: 03:00:00
-                    weekday:
-                    - fri
-                    - thu
-                    - wed
-                    - tue
-                    - mon
-                    - sun
-                    - sat
-                  sequence:
-                  - metadata: {}
-                    data:
-                      volume_level: 0.25
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    enabled: true
-                    action: media_player.volume_set
-                  - metadata: {}
-                    data:
-                      is_volume_muted: false
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    alias: Unmute speaker
-                    action: media_player.volume_mute
-                - conditions:
-                  - condition: time
-                    after: 03:00:00
-                    before: 09:00:00
-                    weekday:
-                    - fri
-                    - thu
-                    - wed
-                    - tue
-                    - mon
-                    - sun
-                    - sat
-                  sequence:
-                  - metadata: {}
-                    data:
-                      volume_level: 0.22
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    enabled: true
-                    action: media_player.volume_set
-                  - metadata: {}
-                    data:
-                      is_volume_muted: false
-                    target:
-                      entity_id: '{{trigger.entity_id}}'
-                    alias: Unmute speaker
-                    action: media_player.volume_mute
-                default:
-                - metadata: {}
-                  data:
-                    volume_level: 0.35
-                  target:
-                    entity_id: '{{trigger.entity_id}}'
-                  enabled: true
-                  action: media_player.volume_set
-                - metadata: {}
-                  data:
-                    is_volume_muted: false
-                  target:
-                    entity_id: '{{trigger.entity_id}}'
-                  alias: Unmute speaker
-                  action: media_player.volume_mute
-              alias: Set volume if the room is occupied
-            - conditions:
-              - alias: Is the speaker room occupied?
-                condition: template
-                value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_motion_rooms'')
-                  | string | lower }}
-
-                  '
-              sequence:
-              - data:
-                  is_volume_muted: true
-                target:
-                  entity_id: '{{trigger.entity_id}}'
-                action: media_player.volume_mute
-              alias: Set mute if the room is unoccupied
-          alias: If following music is on
-      alias: No sleeper in the room
-    - conditions:
-      - condition: template
-        value_template: '{{ area_id(trigger.entity_id) | lower in states(''sensor.active_sleeper_rooms'')
-          | string | lower }}
-
-          '
-      sequence:
-      - data:
-          is_volume_muted: true
-        target:
-          entity_id: '{{trigger.entity_id}}'
-        action: media_player.volume_mute
-      alias: Sleeper present in the room
-  mode: parallel
-  trace:
-    stored_traces: 30
-  max: 25
 - id: '1727032753670'
   alias: Alert people in the back to go away
   description: Flash the red lights in the back while people are loitering
@@ -6479,9 +6224,9 @@
     trigger: conversation
   conditions: []
   actions:
-  - action: google_assistant_sdk.send_text_command
-    data:
-      command: where is my phone?
+  - action: script.find_phone
+    metadata: {}
+    data: {}
   mode: single
 - id: '1732990123635'
   alias: Assist Equalize volume in the house
@@ -7769,4 +7514,79 @@
   - action: script.set_whole_house_to_kinky_ambiance
     metadata: {}
     data: {}
+  mode: single
+- id: '1739631004694'
+  alias: Sleep actions when "sleeper in hotbox" is turned on
+  description: ''
+  triggers:
+  - entity_id:
+    - input_boolean.sleeper_in_hotbox
+    to: 'on'
+    from: 'off'
+    trigger: state
+  conditions: []
+  actions:
+  - if:
+    - condition: state
+      entity_id: sensor.maxis_current_game
+      state: idle
+    then:
+    - action: button.press
+      metadata: {}
+      data: {}
+      target:
+        entity_id: button.desktop_maxi_hibernate
+  - action: remote.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: remote.hotbox_roku
+  - action: cover.close_cover
+    metadata: {}
+    data: {}
+    target:
+      entity_id: cover.cover_hotbox_blinds
+  - action: light.turn_off
+    metadata: {}
+    data:
+      transition: 2
+    target:
+      area_id: hotbox
+      entity_id: light.group_hotbox_lights
+  mode: single
+- id: '1739631790415'
+  alias: Undo Sleep actions when "sleeper in hotbox" is turned off
+  description: ''
+  triggers:
+  - entity_id:
+    - input_boolean.sleeper_in_hotbox
+    to: 'off'
+    from: 'on'
+    trigger: state
+  conditions: []
+  actions:
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - binary_sensor.group_hotbox_down_motion_occupancy
+      from: 'off'
+      to: 'on'
+    continue_on_timeout: true
+    timeout:
+      hours: 0
+      minutes: 5
+      seconds: 0
+      milliseconds: 0
+  - action: light.turn_on
+    data:
+      brightness_pct: 100
+      transition: 30
+      color_name: warm_white
+    target:
+      entity_id: light.group_hotbox_down_lights
+  - action: cover.open_cover
+    metadata: {}
+    data: {}
+    target:
+      entity_id: cover.cover_hotbox_blinds
   mode: single

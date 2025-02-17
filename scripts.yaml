@@ -815,20 +815,28 @@ in_home_defense_script:
     action: automation.turn_off
     target:
       entity_id: automation.speaker_automatic_volume_v4
+  - metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - switch.plug_back_door_horn
+      - switch.plug_front_door_horn
+    enabled: true
+    action: switch.turn_on
   - data:
-      media_content_id: https://hass.purgatoire.ca/local/civil-defense-siren.wav
+      media_content_id: http://192.168.0.15:8123/local/civil-defense-siren.wav
       media_content_type: music
     action: media_player.play_media
     target:
       entity_id:
       - media_player.universal_bedroom_speakers
-      - media_player.universal_closet_speaker
       - media_player.universal_hallway_speakers
       - media_player.universal_kitchen_speakers
       - media_player.universal_livingroom_speakers
       - media_player.universal_hotbox_top_speakers
       - media_player.universal_salon_speakers
       - media_player.universal_office_speakers
+    continue_on_error: true
   - repeat:
       count: 10
       sequence:
@@ -842,17 +850,9 @@ in_home_defense_script:
           - media_player.universal_hallway_speakers
           - media_player.universal_kitchen_speakers
           - media_player.universal_livingroom_speakers
-          - media_player.universal_hotbox_top_speakers
           - media_player.universal_salon_speakers
           - media_player.universal_office_speakers
-  - metadata: {}
-    data: {}
-    target:
-      entity_id:
-      - switch.plug_back_door_horn
-      - switch.plug_front_door_horn
-    enabled: true
-    action: switch.turn_on
+          - media_player.universal_hotbox_speakers
   - metadata: {}
     data:
       message: 'The all on script has been turned on. '
@@ -887,13 +887,13 @@ in_home_defense_script:
     target:
       entity_id:
       - media_player.universal_bedroom_speakers
-      - media_player.universal_closet_speaker
       - media_player.universal_hallway_speakers
       - media_player.universal_kitchen_speakers
       - media_player.universal_livingroom_speakers
       - media_player.universal_hotbox_top_speakers
       - media_player.universal_salon_speakers
       - media_player.universal_office_speakers
+    continue_on_error: true
   - data: {}
     action: automation.turn_on
     target:
@@ -938,19 +938,18 @@ inside_only_home_defense_script:
     target:
       entity_id: automation.speaker_automatic_volume_v4
   - data:
-      media_content_id: https://hass.purgatoire.ca/local/civil-defense-siren.wav
+      media_content_id: http://192.168.0.15:8123/local/civil-defense-siren.wav
       media_content_type: music
     action: media_player.play_media
     target:
       entity_id:
       - media_player.universal_bedroom_speakers
-      - media_player.universal_closet_speaker
       - media_player.universal_hallway_speakers
       - media_player.universal_kitchen_speakers
       - media_player.universal_livingroom_speakers
-      - media_player.universal_hotbox_top_speakers
       - media_player.universal_salon_speakers
       - media_player.universal_office_speakers
+      - media_player.universal_hotbox_speakers
   - repeat:
       count: 10
       sequence:
@@ -960,13 +959,12 @@ inside_only_home_defense_script:
         target:
           entity_id:
           - media_player.universal_bedroom_speakers
-          - media_player.universal_closet_speaker
           - media_player.universal_hallway_speakers
           - media_player.universal_kitchen_speakers
           - media_player.universal_livingroom_speakers
-          - media_player.universal_hotbox_top_speakers
           - media_player.universal_salon_speakers
           - media_player.universal_office_speakers
+          - media_player.universal_hotbox_speakers
   - wait_for_trigger:
     - entity_id:
       - binary_sensor.home_occupancy
@@ -989,13 +987,12 @@ inside_only_home_defense_script:
     target:
       entity_id:
       - media_player.universal_bedroom_speakers
-      - media_player.universal_closet_speaker
       - media_player.universal_hallway_speakers
       - media_player.universal_kitchen_speakers
       - media_player.universal_livingroom_speakers
-      - media_player.universal_hotbox_top_speakers
       - media_player.universal_salon_speakers
       - media_player.universal_office_speakers
+      - media_player.universal_hotbox_speakers
   mode: restart
 start_plex_media_on_requested_player:
   alias: Start plex media on requested player
@@ -1071,7 +1068,8 @@ set_whole_house_to_cozy_ambiance_2:
       requested_playlist: Fireplace Visuals
     action: script.start_visual_playlist_on_plex
   description: This script can be used by an LLM to create a cozy ambiance in the
-    house. It set fireplace and candle light mood.
+    house. It set fireplace and candle light mood. This is not to be considered to
+    be the normal mode
   icon: mdi:fireplace
 changes_selected_light_group_to_random_fake_white:
   alias: Changes selected light group to random fake white
@@ -1363,13 +1361,75 @@ speaker_automatic_volume_adjustment_script:
   mode: parallel
   max: 10
 llm_script_for_music_assitant_voice_requests:
-  alias: LLM Script for Music Assitant voice requests
-  use_blueprint:
-    path: Music Assistant/llm_voice_script.yaml
-    input:
-      default_player: media_player.group_mass_home_group_speakers
-      play_continuously: Use player settings
-  description: ''
+  mode: parallel
+  max_exceeded: silent
+  description: This Script can be used by the LLM to initiate a playback on a TV
+  fields:
+    media_type:
+      selector:
+        select:
+          options:
+          - tvshow
+          - movie
+      name: Media Type
+      description: This argument is mandatory and must always be provided no matter
+        what!"media_type" can only be one of 2 different values:- "movie" if the search
+        is about a specific movie.- "tvshow" if the search is about a tv show serie.media_type
+        is mandatory and must always be provided. In case a request does not match
+        any of these types, for example when music from a specific genre is requested,
+        then use "tvshow".
+      required: true
+      default: tvshow
+    library_name:
+      selector:
+        text:
+      name: Library Name
+      description: '"library_name" is the library the user wants to play the media
+        from. ''Movies'' for movies and ''TV Shows'' for TV series'
+      required: true
+    media_id:
+      selector:
+        text:
+      name: Media ID
+      description: "This argument is mandatory and must always be provided no matter
+        what!\nmedia_id is the queried name\n- If the search is about a tv show: Then
+        media_id is tv show title \n- If the search is about a movie: Then media_id
+        is the movie title This is a mandatory argument and must always be provided."
+      required: true
+    media_player:
+      selector:
+        entity:
+          filter:
+            integration: cast
+          multiple: false
+      name: Media Player
+      required: true
+      default: media_player.bedroom_chromecast
+      description: This fieds allows the LLM to select the right CHROMECAST to use.
+        A speaker should NEVER be used. And an entity ending with "Speakers" is INCORRECT
+  sequence:
+  - variables:
+      player_data: "{% set ma = integration_entities('cast') %} {% set ma_names =
+        ma\n| map('state_attr', 'friendly_name') | list %} {% set ns =\nnamespace(players=[])
+        %} {% for player in media_player | default([], true)\n%}\n  {% if player in
+        ma %}\n    {% set ns.players = ns.players + [player] %}\n  {% elif player
+        in ma_names %}\n    {% set entity = ma | select('is_state_attr', 'friendly_name',
+        player) | list %}\n    {% set ns.players = ns.players + entity %}\n  {% endif
+        %}\n{% endfor %} {{ ns.players }}\n"
+      target_data:
+        entity_id: '{{ (player_data ) | default(''NA'', true) }}'
+      invalid_target:
+        response: Unable to find valid target
+  - variables:
+      action_data:
+        media_content_type: '{{media_type}}'
+        media_content_id: 'plex://{"library_name": "{{library_name}}", "title":"{{media_id}}",
+          "shuffle": 1}'
+  - action: media_player.play_media
+    data: '{{ dict(action_data.items() | rejectattr(''1'', ''eq'', ''NA'')) }}'
+    target: '{{ dict(target_data.items() | rejectattr(''1'', ''eq'', ''NA'')) }}'
+  - sequence: []
+  alias: LLM Script to start plex media playback on TVs
 set_whole_house_tonsexy_ambiance:
   sequence:
   - alias: Set Fireplace effect on all hue lights
@@ -1566,3 +1626,43 @@ set_whole_house_to_kinky_ambiance:
   description: This script can be used by an LLM in order to set the house to a kinky
     ambiance. The LLM should use this if the user mention having a kink party, a play
     party, a BDSM event, or anything in that vein.
+set_whole_house_to_a_normal_ambiance:
+  sequence:
+  - parallel:
+    - action: light.turn_on
+      metadata: {}
+      data:
+        kelvin: 4282
+        transition: 12
+        brightness_pct: 100
+      target:
+        entity_id: light.group_all_inside_lights
+      alias: Slowly set all inside lights to warm white
+    - if:
+      - condition: state
+        entity_id: media_player.universal_home_speakers
+        state: playing
+      then:
+      - action: music_assistant.play_media
+        metadata: {}
+        data:
+          media_id: All favorited tracks
+          media_type: playlist
+          enqueue: replace_next
+        target:
+          entity_id: media_player.group_mass_home_group_speakers
+      alias: Switch music to favorited tracks
+  alias: Set whole house to a normal ambiance
+  description: "This script can be used by an LLM in order to set the house to a normal
+    ambiance. IT can be used if the user mention needing a normal house ambiance or
+    workspace. \n\nIt can also be triggered if the house requires to be set to normal"
+find_phone:
+  sequence:
+  - action: google_assistant_sdk.send_text_command
+    data:
+      command: where is my phone?
+  alias: Find phone
+  description: 'This script can be used by an LLM in order to help Maxi find his phone.
+
+
+    This male ring the phone for him.'
