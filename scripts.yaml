@@ -1666,3 +1666,132 @@ find_phone:
 
 
     This male ring the phone for him.'
+generate_front_door_person_description:
+  sequence:
+  - action: llmvision.image_analyzer
+    data:
+      include_filename: false
+      target_width: 720
+      max_tokens: 100
+      temperature: 0.2
+      provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
+      model: minicpm-v:latest
+      image_entity:
+      - camera.front_door_camera
+      message: Describe any potential human activity on this image. Do not comment
+        on the scenery.
+    response_variable: answer
+  - stop: Finished
+    response_variable: answer
+  alias: Generate front door camera description
+  description: 'This script can be used by the LLM to describe the current situation
+    at the front door. '
+generate_patio_camera_description:
+  sequence:
+  - action: llmvision.image_analyzer
+    data:
+      include_filename: false
+      target_width: 720
+      max_tokens: 100
+      temperature: 0.2
+      provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
+      model: minicpm-v:latest
+      image_entity:
+      - camera.patio_camera
+      message: Describe any potential human activity on this outside image. Do not
+        comment on the scenery.
+    response_variable: answer
+  - stop: Finished
+    response_variable: answer
+  alias: 'Generate patio  camera description '
+  description: This script can be used by the LLM to describe the current situation
+    on the patio
+generate_back_door_camera_description:
+  sequence:
+  - action: llmvision.image_analyzer
+    data:
+      include_filename: false
+      target_width: 1024
+      max_tokens: 100
+      temperature: 0.1
+      provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
+      model: minicpm-v:latest
+      image_entity:
+      - camera.back_door_camera
+      message: Describe any potential human activity on this outside image. Do not
+        comment on the scenery.
+    response_variable: answer
+  - stop: Finished
+    response_variable: answer
+  alias: 'Generate back door camera description  '
+  description: This script can be used by the LLM to describe the current situation
+    at the back door
+reset_tablet_endpoint_interface:
+  sequence:
+  - variables:
+      load_url: "{{  integration_entities('fully_kiosk')     \n        | select('search',
+        'start_url') \n        | select('search',  area )\n        | list \n        }}\n"
+  - action: button.press
+    metadata: {}
+    data: {}
+    target:
+      entity_id: '{{ load_url }}'
+  mode: parallel
+  max_exceeded: silent
+  description: This Script can be used by the LLM to reload and reset the interface
+    on a tablet.
+  fields:
+    area:
+      selector:
+        area:
+          entity:
+            integration: music_assistant
+            domain: media_player
+          multiple: false
+      name: Area
+      description: The area or areas for which the action is requested. In case no
+        area is provided, use the area the request comes from.
+      required: true
+  alias: 'Reset Tablet Endpoint interface '
+llm_math_script:
+  sequence:
+  - variables:
+      math_result: "{% if \"Multi\" | lower in operator | lower %}\n  {{ first_number
+        * second_number }}\n{% elif \"Add\" | lower in operator | lower%}\n  {{ first_number
+        + second_number }}\n{% elif \"Divi\" | lower in operator | lower%}\n  {{ first_number
+        / second_number }}\n{% elif \"Sub\" | lower in operator | lower%}\n  {{ first_number
+        - second_number }}\n{% endif %}\n"
+  - stop: Results computed
+    response_variable: math_result
+  mode: parallel
+  max_exceeded: silent
+  description: 'This Script can be used by the LLM to do mathematic.
+
+
+    This script should ALWAYS AND ABSOLUTELY POSITIVELY SOLELY USED FOR MATHEMATIC.
+    The LLM should NEVER attempt to solve the problem itself'
+  fields:
+    first_number:
+      selector:
+        number:
+          min: 0
+          max: 999999
+      name: First number
+      description: The first number of the equations given by the user.
+      required: true
+    second_number:
+      selector:
+        number:
+          min: 0
+          max: 999999
+      name: second number
+      description: The second number of the equations given by the user.
+      required: true
+    operator:
+      selector:
+        text: {}
+      name: operator
+      description: The oeprator of the equations given by the user. It can either
+        be "Multiplication", "Addition", "Division", or "Substraction".
+      required: true
+  alias: LLM Math Script
