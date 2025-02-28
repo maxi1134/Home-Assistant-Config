@@ -1116,24 +1116,24 @@
 - id: '1713813890992'
   alias: Reload tablets 4 minutes after HA restarts
   description: ''
-  trigger:
-  - platform: numeric_state
-    entity_id:
+  triggers:
+  - entity_id:
     - sensor.bootminutes
     below: 5
     above: 3
-  condition: []
-  action:
-  - service: button.press
-    metadata: {}
+    trigger: numeric_state
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
     target:
       entity_id:
-      - button.samsung_galaxy_tab_e_8_0_load_start_url
       - button.hotbox_tablet_load_start_url
       - button.hallway_tablet_load_start_url
       - button.kitchen_tablet_load_start_url
       - button.livingroom_tablet_load_start_url
+      - button.closet_tablet_load_start_url
+    action: button.press
   mode: single
 - id: '1713824382107'
   alias: Turn on lights automatically
@@ -2201,6 +2201,7 @@
   - parallel:
     - metadata: {}
       data:
+        message: Someone is at the door!
         color: Blue
         phone_data:
           message: Someone is at the door!
@@ -2219,41 +2220,47 @@
               title: Open Cameras
               uri: /maxi-mobile/main-view#cameras
       action: script.broadcast_alert_in_the_house
-    - alias: Open camera view on maxi phone
-      action: notify.mobile_app_phone_maxi
-      metadata: {}
-      data:
-        message: command_webview
-        data:
-          command: /maxi-mobile/main-view#security_popup
-          ttl: 0
-          priority: high
-      enabled: false
   mode: restart
 - id: '1715719948033'
   alias: Reset doorbell stuff on unlock
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - lock.lock_front_door
     to: unlocked
-  condition: []
-  action:
-  - service: input_boolean.turn_off
-    metadata: {}
+    trigger: state
+  - trigger: state
+    entity_id:
+    - input_boolean.door_rang
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 4
+      seconds: 0
+  - trigger: state
+    entity_id:
+    - input_boolean.door_double_rang
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 4
+      seconds: 0
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
     target:
       entity_id:
       - input_boolean.door_rang
       - input_boolean.door_double_rang
       - input_boolean.waiting_someone
-  - service: input_text.set_value
-    metadata: {}
+    action: input_boolean.turn_off
+  - metadata: {}
     data:
       value: Empty
     target:
       entity_id: input_text.front_door_phone_text
+    action: input_text.set_value
   mode: single
 - id: '1715788063807'
   alias: Tell maxi when his watch is charged
@@ -2352,7 +2359,7 @@
       max_tokens: 30
       temperature: 0.2
       provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
-      model: moondream:latest
+      model: minicpm-v:latest
       message: Answer with yes or no, is there a package or a delivery man on this
         picture? Do not use an other word than  yes or no
       image_entity:
@@ -3016,31 +3023,52 @@
 - id: '1717038729859'
   alias: Set front door screen text
   description: ''
-  trigger:
-  - platform: event
-    event_type: mobile_app_notification_action
+  triggers:
+  - event_type: mobile_app_notification_action
     event_data:
       action: REPLY
-  condition: []
-  action:
-  - service: input_text.set_value
+    trigger: event
+  conditions: []
+  actions:
+  - action: switch.turn_on
     metadata: {}
+    data: {}
+    target:
+      entity_id: switch.front_door_phone_screen
+  - metadata: {}
     data:
       value: '{{trigger.event.data.reply_text}}'
     target:
       entity_id: input_text.front_door_phone_text
+    action: input_text.set_value
   - delay:
       hours: 0
       minutes: 5
       seconds: 0
       milliseconds: 0
-  - service: input_text.set_value
-    metadata: {}
+  - metadata: {}
     data:
       value: Empty
     target:
       entity_id: input_text.front_door_phone_text
-  mode: single
+    action: input_text.set_value
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - binary_sensor.front_door_camera_person_occupancy
+      from:
+      to: 'off'
+    timeout:
+      hours: 0
+      minutes: 10
+      seconds: 0
+      milliseconds: 0
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.front_door_phone_screen
+  mode: restart
 - id: '1717284487763'
   alias: Arm night alarm when everyone is sleeping
   description: ''
@@ -3172,7 +3200,7 @@
   - action: media_player.volume_set
     metadata: {}
     data:
-      volume_level: 0.49
+      volume_level: 0.42
     target:
       entity_id: '{{ sleeper_speaker }}'
   mode: single
@@ -3823,7 +3851,7 @@
         metadata: {}
         data: {}
         target:
-          entity_id: light.group_bedroom_lights
+          entity_id: light.hotbox_top_led_leds_bed_section
     - conditions:
       - condition: trigger
         id:
@@ -3834,7 +3862,7 @@
         data:
           brightness_step_pct: 10
         target:
-          entity_id: light.group_bedroom_lights
+          entity_id: light.group_hotbox_top_lights
     - conditions:
       - condition: trigger
         id:
@@ -3844,10 +3872,10 @@
       - choose:
         - conditions:
           - condition: state
-            entity_id: input_boolean.sleeper_in_bedroom
+            entity_id: input_boolean.sleeper_in_hotbox
             state: 'on'
           - condition: state
-            entity_id: light.group_bedroom_lights
+            entity_id: light.group_hotbox_top_lights
             state: 'off'
           sequence:
           - action: light.turn_on
@@ -3856,14 +3884,14 @@
               kelvin: 3167
               brightness_pct: 15
             target:
-              entity_id: light.group_bedroom_lights
+              entity_id: light.group_hotbox_top_lights
         - conditions:
           - condition: state
-            entity_id: binary_sensor.sleeper_in_bedroom
             state: 'off'
+            entity_id: input_boolean.sleeper_in_hotbox
           - condition: state
-            entity_id: light.group_bedroom_lights
             state: 'off'
+            entity_id: light.group_hotbox_top_lights
           sequence:
           - action: light.turn_on
             metadata: {}
@@ -3872,13 +3900,13 @@
               brightness_pct: 100
               transition: 3
             target:
-              entity_id: light.group_bedroom_lights
+              entity_id: light.group_hotbox_top_lights
         default:
         - action: light.toggle
           metadata: {}
           data: {}
           target:
-            entity_id: light.group_bedroom_lights
+            entity_id: light.group_hotbox_top_lights
     - conditions:
       - condition: trigger
         id:
@@ -3889,7 +3917,7 @@
         data:
           brightness_step_pct: -10
         target:
-          entity_id: light.group_bedroom_lights
+          entity_id: light.group_hotbox_top_lights
   mode: single
 - id: '1722263369374'
   alias: assist Stop home group music
@@ -6002,6 +6030,10 @@
     data: {}
     target:
       entity_id: switch.plug_back_door_horn
+    enabled: false
+  - action: script.find_phone
+    metadata: {}
+    data: {}
   - metadata: {}
     data:
       data:
@@ -6861,7 +6893,7 @@
   conditions:
   - condition: template
     value_template: '{{ (now() - trigger.from_state.last_changed) > timedelta(seconds=120)}}'
-    enabled: true
+    enabled: false
     alias: Only continue if non-playing for over 120 seconds
   actions:
   - variables:
@@ -7530,6 +7562,12 @@
     - condition: state
       entity_id: sensor.maxis_current_game
       state: idle
+    - condition: state
+      entity_id: binary_sensor.computer_maxi_pc_computer_maxi_pc_microphoneactive
+      state: 'off'
+    - condition: state
+      entity_id: binary_sensor.desktop_maxi_webcamactive
+      state: 'off'
     then:
     - action: button.press
       metadata: {}
@@ -7552,7 +7590,16 @@
       transition: 2
     target:
       area_id: hotbox
-      entity_id: light.group_hotbox_lights
+      entity_id:
+      - light.group_hotbox_lights
+      - light.hotbox_assistant_lcd_backlight
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - switch.hotbox_tablet_screen
+      - switch.hotbox_tablet_motion_detection
   mode: single
 - id: '1739631790415'
   alias: Undo Sleep actions when "sleeper in hotbox" is turned off
@@ -7584,9 +7631,314 @@
       color_name: warm_white
     target:
       entity_id: light.group_hotbox_down_lights
-  - action: cover.open_cover
+  - action: switch.turn_on
     metadata: {}
     data: {}
     target:
-      entity_id: cover.cover_hotbox_blinds
+      entity_id:
+      - switch.hotbox_tablet_screen
+      - switch.hotbox_tablet_motion_detection
+  - if:
+    - condition: state
+      entity_id: sun.sun
+      state: above_horizon
+    then:
+    - action: cover.open_cover
+      metadata: {}
+      data: {}
+      target:
+        entity_id: cover.cover_hotbox_blinds
+  mode: single
+- id: '1740413822383'
+  alias: Hotbox Top Black hue Dial Automation
+  description: ''
+  triggers:
+  - domain: mqtt
+    device_id: 19def7fc56657d54fccacd364b0ec3fa
+    type: action
+    subtype: dial_rotate_right_step
+    trigger: device
+  conditions: []
+  actions: []
+  mode: single
+- id: '1740414023092'
+  alias: Philips hue dial automation
+  description: ''
+  use_blueprint:
+    path: freakshock88/philips_hue_tap_dial_switch_zigbee2mqtt_actions_blueprint.yaml
+    input:
+      mqtt_topic: zigbee2mqtt/remote_salon_hue dial
+      remote_button_3_single_press:
+      - action: media_player.media_play
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.universal_hotbox_speakers
+      - action: media_player.media_play
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.universal_hotbox_top_chromecast
+      remote_button_4_single_press:
+      - choose:
+        - conditions:
+          - condition: state
+            entity_id: media_player.universal_hotbox_top_chromecast
+            attribute: is_volume_muted
+            state: false
+            alias: If TV unmuted
+          - condition: or
+            conditions:
+            - condition: state
+              entity_id: media_player.universal_hotbox_speakers
+              state: 'off'
+            - condition: state
+              entity_id: media_player.universal_hotbox_speakers
+              attribute: is_volume_muted
+              state: true
+            alias: If Speaker off or muted
+          - condition: not
+            conditions:
+            - condition: state
+              entity_id: media_player.universal_hotbox_top_chromecast
+              state: 'off'
+            alias: if TV not off
+          sequence:
+          - action: media_player.turn_off
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.universal_hotbox_top_chromecast
+        - conditions:
+          - alias: If speaker unmuted
+            condition: or
+            conditions:
+            - condition: state
+              entity_id: media_player.universal_hotbox_speakers
+              attribute: is_volume_muted
+              state: false
+          - condition: or
+            conditions:
+            - condition: state
+              entity_id: media_player.universal_hotbox_top_chromecast
+              state: 'off'
+            - condition: state
+              entity_id: media_player.universal_hotbox_top_chromecast
+              attribute: is_volume_muted
+              state: true
+              alias: If TV unmuted
+            alias: If TV muted or OFF
+          sequence:
+          - action: media_player.turn_off
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.universal_hotbox_speakers
+        default:
+        - action: media_player.media_pause
+          metadata: {}
+          data: {}
+          target:
+            area_id:
+            - hotbox_top
+            - hotbox
+      remote_button_1_hold: []
+      remote_button_1_single_press:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_pct: 1
+        target:
+          entity_id: light.hotbox_top_led_leds_bed_section
+      remote_button_4_hold:
+      - choose:
+        - conditions:
+          - condition: state
+            entity_id: media_player.universal_hotbox_top_chromecast
+            attribute: is_volume_muted
+            state: false
+            alias: If TV unmuted
+          - condition: or
+            conditions:
+            - condition: state
+              entity_id: media_player.universal_hotbox_speakers
+              state: 'off'
+            - condition: state
+              entity_id: media_player.universal_hotbox_speakers
+              attribute: is_volume_muted
+              state: true
+            alias: If Speaker off or muted
+          - condition: not
+            conditions:
+            - condition: state
+              entity_id: media_player.universal_hotbox_top_chromecast
+              state: 'off'
+            alias: if TV not off
+          sequence:
+          - action: media_player.turn_off
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.universal_hotbox_top_chromecast
+        - conditions:
+          - alias: If speaker unmuted
+            condition: or
+            conditions:
+            - condition: state
+              entity_id: media_player.universal_hotbox_speakers
+              attribute: is_volume_muted
+              state: false
+          - condition: or
+            conditions:
+            - condition: state
+              entity_id: media_player.universal_hotbox_top_chromecast
+              state: 'off'
+            - condition: state
+              entity_id: media_player.universal_hotbox_top_chromecast
+              attribute: is_volume_muted
+              state: true
+              alias: If TV unmuted
+            alias: If TV muted or OFF
+          sequence:
+          - action: media_player.turn_off
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.universal_hotbox_speakers
+        default:
+        - action: media_player.media_stop
+          metadata: {}
+          data: {}
+          target:
+            area_id:
+            - hotbox_top
+            - hotbox
+- id: '1740689782460'
+  alias: Control brightness of Closet tablet to avoid discharge
+  description: ''
+  triggers:
+  - entity_id:
+    - sensor.hallway_tablet_battery
+    trigger: state
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.samsung_galaxy_tab_e_8_0_battery
+        below: 15
+      - condition: state
+        entity_id: switch.samsung_galaxy_tab_e_8_0_screen
+        state: 'on'
+      sequence:
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: '10'
+        target:
+          entity_id:
+          - number.samsung_galaxy_tab_e_8_0_screen_brightness
+  mode: single
+- id: '1740690697244'
+  alias: Control brightness of Front door Phone to avoid discharge
+  description: ''
+  triggers:
+  - entity_id:
+    - sensor.hallway_tablet_battery
+    trigger: state
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.front_door_phone_battery
+        below: 15
+      - condition: state
+        entity_id: switch.front_door_phone_screen
+        state: 'on'
+      sequence:
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: '5'
+        target:
+          entity_id: number.front_door_phone_screen_brightness
+      - action: switch.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: switch.front_door_phone_screen
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.front_door_phone_battery
+        below: 50
+      - condition: state
+        entity_id: switch.front_door_phone_screen
+        state: 'on'
+      sequence:
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: '50'
+        target:
+          entity_id: number.front_door_phone_screen_brightness
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.front_door_phone_battery
+        above: 90
+      - condition: state
+        entity_id: switch.front_door_phone_screen
+        state: 'off'
+      sequence:
+      - action: switch.turn_on
+        metadata: {}
+        data: {}
+        target:
+          entity_id: switch.front_door_phone_screen
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: '100'
+        target:
+          entity_id: number.front_door_phone_screen_brightness
+  mode: single
+- id: '1740691034464'
+  alias: Turn on front door screen on occupancy
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.front_door_camera_person_occupancy
+    from:
+    to: 'on'
+  conditions:
+  - condition: state
+    entity_id: switch.front_door_phone_screen
+    state: 'off'
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.front_door_phone_screen
+  mode: single
+- id: '1740691064559'
+  alias: Turn off front door screen on clear of occupancy
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.front_door_camera_person_occupancy
+    from: 'on'
+    to: 'off'
+  conditions:
+  - condition: state
+    entity_id: switch.front_door_phone_screen
+    state: 'on'
+  actions:
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.front_door_phone_screen
   mode: single
