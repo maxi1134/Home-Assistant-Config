@@ -8197,3 +8197,124 @@
       entity_id:
       - input_boolean.waiting_uber
   mode: single
+- id: '1740935035535'
+  alias: Automatically turn off bathroom light
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.group_bathroom_motion_occupancy
+    from: 'on'
+    to: 'off'
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.shower_in_use
+    state: 'off'
+    enabled: true
+  - condition: state
+    entity_id: binary_sensor.sensor_bathroom_door_contact
+    state: 'on'
+    enabled: true
+  actions:
+  - action: light.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: light.group_bathroom_lights
+  mode: single
+- id: '1740935205313'
+  alias: Adjust closet tablet screen brigthess to match the lights
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.closet_lights_brightness
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 1
+  conditions: []
+  actions:
+  - variables:
+      brightness: '{{ trigger.to_state.state }}
+
+        '
+  - action: number.set_value
+    metadata: {}
+    data:
+      value: '{{brightness}}'
+    target:
+      entity_id: number.samsung_galaxy_tab_e_8_0_screen_brightness
+  mode: restart
+- id: '1740935638351'
+  alias: Execute sleep actions when "Sleeper in closet" turns on
+  description: Sleeper actions for cloet
+  triggers:
+  - entity_id:
+    - input_boolean.sleeper_in_closet
+    to: 'on'
+    from: 'off'
+    trigger: state
+  conditions: []
+  actions:
+  - action: light.turn_off
+    metadata: {}
+    data:
+      transition: 2
+    target:
+      area_id: closet
+      entity_id:
+      - light.group_closet_lights
+      - light.closet_string_2
+      - light.closet_string_1
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.samsung_galaxy_tab_e_8_0_screen
+  mode: single
+- id: '1740935693012'
+  alias: Undo sleeper actions when Sleeper in closet turns off
+  description: undo Sleeper actions for closet
+  triggers:
+  - entity_id:
+    - input_boolean.sleeper_in_closet
+    to: 'off'
+    from: 'on'
+    trigger: state
+  conditions: []
+  actions:
+  - action: light.turn_on
+    metadata: {}
+    data:
+      transition: 20
+      brightness_pct: 44
+    target:
+      area_id: closet
+      entity_id:
+      - light.group_closet_lights
+      - light.closet_string_2
+      - light.closet_string_1
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.samsung_galaxy_tab_e_8_0_screen
+  mode: single
+- id: '1740935997156'
+  alias: Toggle sleeper in hotbox boolean input  on double press
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.remote_hotbox_sleeper_button_action
+    from:
+    to:
+  conditions: []
+  actions:
+  - action: input_boolean.toggle
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.sleeper_in_hotbox
+  mode: single
