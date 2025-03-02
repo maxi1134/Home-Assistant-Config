@@ -2186,7 +2186,7 @@
   - condition: not
     conditions:
     - condition: state
-      entity_id: binary_sensor.sensor_front_door_contact
+      entity_id: binary_sensor.sensor_front_outside_door_contact
       state: 'on'
   actions:
   - target:
@@ -2201,7 +2201,7 @@
   - parallel:
     - metadata: {}
       data:
-        message: Someone is at the door!
+        broadcast_url: http://192.168.0.15:8123/local/doorbell.mp3
         color: Blue
         phone_data:
           message: Someone is at the door!
@@ -7931,6 +7931,10 @@
     - binary_sensor.front_door_camera_person_occupancy
     from: 'on'
     to: 'off'
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
   conditions:
   - condition: state
     entity_id: switch.front_door_phone_screen
@@ -7941,4 +7945,255 @@
     data: {}
     target:
       entity_id: switch.front_door_phone_screen
+  mode: single
+- id: '1740757033954'
+  alias: Turn off front door screen if it remains open 10 minutes
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - switch.front_door_phone_screen
+    from:
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+  conditions:
+  - condition: state
+    entity_id: switch.front_door_phone_screen
+    state: 'on'
+  actions:
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.front_door_phone_screen
+  mode: single
+- id: '1740900314884'
+  alias: Turn on media automations when alarm is disarmed
+  description: ''
+  triggers:
+  - entity_id:
+    - alarm_control_panel.home_alarm
+    from: triggered
+    to: disarmed
+    trigger: state
+  conditions: []
+  actions:
+  - data:
+      stop_actions: true
+    action: automation.turn_on
+    target:
+      entity_id:
+      - automation.mute_speakers_when_the_room_is_empty
+      - automation.speaker_automatic_volume_v4
+  mode: single
+- id: '1740934084849'
+  alias: Turn off acid time when everyone goes to bed
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.all_present_sleeping
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 30
+      seconds: 0
+  conditions:
+  - condition: state
+    entity_id: input_boolean.acid_time
+    state: 'on'
+  actions: []
+  mode: single
+- id: '1740934326306'
+  alias: 'Disable Waiting someone after an hour '
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.waiting_someone
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 1
+      minutes: 0
+      seconds: 0
+  conditions: []
+  actions:
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.waiting_someone
+  mode: single
+- id: '1740934447857'
+  alias: Turn off sleeper in closet after 10 hours
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.sleeper_in_closet
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 10
+      minutes: 0
+      seconds: 0
+  conditions: []
+  actions:
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - input_boolean.sleeper_in_closet
+  mode: single
+- id: '1740934578627'
+  alias: Automaticaally Turn off sleeper in patio
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.sleeper_in_patio
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 50
+      seconds: 0
+  conditions: []
+  actions:
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - binary_sensor.group_patio_motion_occupancy
+      from: 'on'
+      to: 'on'
+      for:
+        hours: 0
+        minutes: 5
+        seconds: 0
+    timeout:
+      hours: 2
+      minutes: 0
+      seconds: 0
+      milliseconds: 0
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.sleeper_in_patio
+  mode: single
+- id: '1740934632114'
+  alias: Automatically turn off sleeper in livingroom
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.sleeper_in_livingroom
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 10
+      minutes: 0
+      seconds: 0
+  conditions: []
+  actions:
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - input_boolean.sleeper_in_livingroom
+  mode: single
+- id: '1740934675324'
+  alias: Automatically turn off party mode
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.party_mode
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 16
+      minutes: 0
+      seconds: 0
+  conditions: []
+  actions:
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - input_boolean.party_mode
+  mode: single
+- id: '1740934697660'
+  alias: Automatically turn off acid time mode
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.acid_time
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 16
+      minutes: 0
+      seconds: 0
+  conditions: []
+  actions:
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - input_boolean.acid_time
+  mode: single
+- id: '1740934738782'
+  alias: Automatically turn off aerating appartment
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.aerating_appartment
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 4
+      minutes: 0
+      seconds: 0
+  conditions: []
+  actions:
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - input_boolean.aerating_appartment
+  mode: single
+- id: '1740934774262'
+  alias: Automatically turn off waiting uber
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.waiting_uber
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 1
+      minutes: 30
+      seconds: 0
+  conditions: []
+  actions:
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - input_boolean.waiting_uber
   mode: single
