@@ -551,17 +551,18 @@
 - id: '1713469587813'
   alias: Turn lights to purple when a movie is played
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - media_player.universal_office_chromecast
     - media_player.universal_livingroom_chromecast
     - media_player.universal_hotbox_top_chromecast
     - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
-    to: playing
-  condition: []
-  action:
+    to: movie
+    trigger: state
+    attribute: media_content_type
+  conditions: []
+  actions:
   - repeat:
       sequence:
       - variables:
@@ -583,8 +584,7 @@
         - condition: template
           value_template: '{{ not trigger.to_state.attributes.media_series_title }}'
         then:
-        - service: light.turn_on
-          metadata: {}
+        - metadata: {}
           data:
             rgb_color:
             - 255
@@ -593,11 +593,12 @@
             brightness_pct: '30'
           target:
             entity_id: '{{ on_lights_in_room | list }}'
+          action: light.turn_on
       count: 1
     enabled: true
   - wait_for_trigger:
-    - platform: template
-      value_template: '{{ states(trigger.entity_id) == "off" }}'
+    - value_template: '{{ states(trigger.entity_id) == "off" }}'
+      trigger: template
     timeout:
       hours: 4
       minutes: 0
@@ -616,8 +617,7 @@
       trigger_full: '{{ trigger.to_state.attributes }}
 
         '
-  - service: light.turn_on
-    metadata: {}
+  - metadata: {}
     data:
       rgb_color:
       - 255
@@ -626,6 +626,7 @@
       brightness_pct: '100'
     target:
       entity_id: '{{ on_lights_in_room | list}}'
+    action: light.turn_on
   mode: restart
 - id: '1713533595890'
   alias: Disarm alarm-away when "User Home" turns on
@@ -3168,10 +3169,32 @@
         unique | list | first}}
 
         '
+      sleeper_speaker_mass: '{{ [states(''sensor.where_is_maxi_sleeping'') ]  | map(''area_entities'')
+        | sum(start=[]) | select(''match'', ''^media_player.mass.*speaker[s]?$'')  |
+        unique | list | first}}
+
+        '
+      maxi_location: '{{states(''sensor.where_is_maxi_sleeping'')}}
+
+        '
+      sleeper_helper: '{{ [maxi_location]  | map(''area_entities'') | sum(start=[])
+        | select(''match'', ''^input_boolean.sleeper_in_.*'')  | unique | list | first}}
+
+        '
     enabled: true
   - condition: template
     value_template: '{{ state_attr(sleeper_speaker,''media_title'') != ''thunderstorm''
       }} '
+  - action: media_player.unjoin
+    metadata: {}
+    data: {}
+    target:
+      entity_id: "{{ sleeper_speaker_mass }}\n  \n"
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 5
+      milliseconds: 0
   - metadata: {}
     data:
       media_content_id: http://192.168.0.15:8123/local/thunderstorm.mp4
@@ -3179,10 +3202,6 @@
     target:
       entity_id: '{{ sleeper_speaker }}'
     action: media_player.play_media
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 1
   - metadata: {}
     data:
       is_volume_muted: false
@@ -5691,7 +5710,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - media_player.group_mass_home_group_speakers
+    - media_player.universal_home_speakers
     to: 'off'
     for:
       hours: 0
@@ -8317,4 +8336,37 @@
     data: {}
     target:
       entity_id: input_boolean.sleeper_in_hotbox
+  mode: single
+- id: '1740953881544'
+  alias: Alert maxi in the room where he is when his phone rings
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.phone_maxi_phone_state
+    to: ringing
+  conditions: []
+  actions:
+  - variables:
+      speaker: "{{ integration_entities('music_assistant') \n | expand\n | selectattr('entity_id',
+        'search', states('sensor.maxi_location_by_petro') )\n | map(attribute='entity_id')
+        | list }} \n"
+  - action: media_player.unjoin
+    metadata: {}
+    data: {}
+    target:
+      entity_id: "{{ speaker }} \n"
+  - action: tts.speak
+    metadata: {}
+    data:
+      cache: true
+      media_player_entity_id: "{{ speaker }} \n"
+      message: Phone ringing near the "{{states('device_tracker.maxi_phone_s24_espresense')}}
+    entity_id: tts.piper
+  - action: media_player.join
+    metadata: {}
+    data:
+      group_members: "{{ speaker }} \n"
+    target:
+      entity_id: media_player.mass_livingroom_airplay_wiim_speaker
   mode: single
