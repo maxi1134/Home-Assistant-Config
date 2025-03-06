@@ -63,16 +63,6 @@ broadcast_alert_in_the_house:
           sequence:
           - if:
             - condition: template
-              value_template: '{{ not light_entity_ids[repeat.index].2 | bool }}'
-            then:
-            - target:
-                entity_id: '{{light_entity_ids[repeat.index].0}}'
-              enabled: true
-              alias: Turn back off lights to previous state
-              action: light.turn_{{ light_entity_ids[repeat.index].2 }}
-            alias: Turn off lights back to off
-          - if:
-            - condition: template
               value_template: '{{ light_entity_ids[repeat.index].2 | bool }}'
             then:
             - target:
@@ -83,6 +73,16 @@ broadcast_alert_in_the_house:
               alias: Turn back on lights to previous state
               action: light.turn_{{ light_entity_ids[repeat.index].2 }}
             alias: Turn on lights back to their original colors
+          - if:
+            - condition: template
+              value_template: '{{ not light_entity_ids[repeat.index].2 | bool }}'
+            then:
+            - target:
+                entity_id: '{{light_entity_ids[repeat.index].0}}'
+              enabled: true
+              alias: Turn back off lights to previous state
+              action: light.turn_{{ light_entity_ids[repeat.index].2 }}
+            alias: Turn off lights back to off
           count: '{{ light_entity_ids | length - 1 }}'
     - alias: 'Announcements '
       if:
@@ -136,6 +136,43 @@ broadcast_alert_in_the_house:
             entity_id: tts.piper
           alias: TTS in the closet
           action: tts.speak
+    - alias: 'music asssitant Announcements '
+      if:
+      - condition: template
+        value_template: '{% if broadcast_url %}
+
+          true
+
+          {% else %}
+
+          false
+
+          {% endif %}'
+      then:
+      - alias: Announcements
+        parallel:
+        - action: music_assistant.play_announcement
+          data:
+            url: '{{ broadcast_url }}'
+            announce_volume: 35
+          target:
+            entity_id: media_player.group_mass_home_group_speakers
+        - action: music_assistant.play_announcement
+          data:
+            url: '{{ broadcast_url }}'
+            announce_volume: 35
+          target:
+            entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+        - metadata: {}
+          data:
+            cache: true
+            media_player_entity_id: media_player.mass_closet_wiim_speaker
+            message: '{{ message }}'
+          target:
+            entity_id: tts.piper
+          alias: TTS in the closet
+          action: tts.speak
+          enabled: false
     - alias: 'Notifications '
       if:
       - condition: template
@@ -1120,17 +1157,38 @@ equalize_home_group_volume:
   sequence:
   - variables:
       average_volume: '{{ state_attr(''media_player.group_mass_home_group_speakers'',''volume_level'')}}'
-  - action: media_player.volume_set
-    metadata: {}
-    data:
-      volume_level: '{{average_volume}}'
-    target:
-      entity_id:
+      speakers:
       - media_player.universal_hallway_speakers
       - media_player.universal_kitchen_speakers
       - media_player.universal_salon_speakers
       - media_player.universal_office_speakers
       - media_player.universal_livingroom_speakers
+      - media_player.universal_hotbox_speakers
+  - action: media_player.volume_set
+    metadata: {}
+    data:
+      volume_level: '{{average_volume}}'
+    target:
+      entity_id: '{{ speakers}}
+
+        '
+  - repeat:
+      sequence:
+      - alias: Mute if empty
+        if:
+        - alias: Is the speaker room occupied?
+          condition: template
+          value_template: '{{ area_id(repeat.item) | lower not in states(''sensor.active_motion_rooms'')
+            | string | lower }}
+
+            '
+        then:
+        - data:
+            is_volume_muted: true
+          target:
+            entity_id: '{{repeat.item}}'
+          action: media_player.volume_mute
+      for_each: '{{speakers}}'
   description: This script can be used by an LLM in order to equalize the volume in
     the house. This can also be called 'normalization'
   icon: mdi:approximately-equal
@@ -1403,13 +1461,14 @@ llm_script_for_music_assitant_voice_requests:
       default: media_player.hotbox_top_chromecast
   sequence:
   - variables:
-      player_data: "{% if media_player %} \n{{integration_entities('cast') \n | expand\n
-        | selectattr('entity_id', 'search', 'chromecast')\n | selectattr('entity_id',
-        'search', media_player.split(' ') | first | lower)\n | map(attribute='entity_id')
-        | list }}     \n{% elif area %} \n{{ integration_entities('cast') \n | expand\n
-        | selectattr('entity_id', 'search', 'chromecast')\n | selectattr('entity_id',
-        'search', area.split(' ') | first | lower)\n | map(attribute='entity_id')
-        | list }} \n{% endif %}\n"
+      player_data: "{% if media_player | first %} \n{% set media_player_no_space =
+        media_player |first| replace(' ','') %}\n{{integration_entities('cast') \n
+        | expand\n | selectattr('entity_id', 'search', 'chromecast')\n | selectattr('entity_id',
+        'search', media_player_no_space | lower)\n | map(attribute='entity_id') |
+        list }}     \n{% elif area | first %} \n{{ integration_entities('cast') \n
+        | expand\n | selectattr('entity_id', 'search', 'chromecast')\n | selectattr('entity_id',
+        'search', area | first | lower)\n | map(attribute='entity_id') | list }} \n{%
+        endif %}\n"
       target_data:
         entity_id: '{{ (player_data ) | default(''NA'', true) }}'
       invalid_target:

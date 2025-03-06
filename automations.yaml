@@ -213,7 +213,7 @@
   - condition: not
     conditions:
     - condition: state
-      entity_id: media_player.universal_office_speakers
+      entity_id: media_player.universal_hotbox_speakers
       state: 'off'
   actions:
   - metadata: {}
@@ -4967,19 +4967,31 @@
   alias: Front door automation on unlock for main codes
   description: ''
   triggers:
-  - entity_id:
-    - lock.lock_front_door
-    trigger: state
-    to: unlocked
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 1
-  conditions:
-  - alias: Was the door unlocked?
-    condition: template
-    value_template: '{{  states(''sensor.lock_front_door_action_source_name'') ==
-      ''keypad'' }}'
+  - trigger: state
+    entity_id:
+    - sensor.lock_front_door_action_user
+    from:
+    to: '1'
+    id: maxi
+  - trigger: state
+    entity_id:
+    - sensor.lock_front_door_action_user
+    from:
+    to: '2'
+    id: myriam
+  - trigger: state
+    entity_id:
+    - sensor.lock_front_door_action_user
+    from:
+    to: '4'
+    id: fay
+  - trigger: state
+    entity_id:
+    - sensor.lock_front_door_action_user
+    from:
+    to: '9'
+    id: Re
+  conditions: []
   actions:
   - action: alarm_control_panel.alarm_disarm
     metadata: {}
@@ -4987,18 +4999,25 @@
     target:
       entity_id: alarm_control_panel.home_alarm
   - variables:
-      action_id: '{{ states(''sensor.lock_front_door_action_user'') }}
+      action_id: '{{ trigger.to_state.state }}
 
         '
-      user_opening: "{% if action_id | string == '1' %}\n  Maxi\n{% elif action_id
-        | string == '2' %}\n  Myriam\n{% elif action_id | string == '3' %}\n  Carla\n{%
-        elif action_id | string == '4' %}\n  Fay\n{% elif action_id | string == '9'
-        %}\n  Ré\n{% else %}\n Unknown\n{% endif %}\n"
+      user_opening: '{{ trigger.id }}
+
+        '
   - metadata: {}
     data:
       message: '{{ user_opening }} has arrived
 
         '
+      phone_data:
+        message: '{{ user_opening }} has arrived
+
+          '
+        data:
+          ttl: 0
+          priority: high
+          channel: security_alerts_notifications
       color: cyan
     action: script.broadcast_alert_in_the_house
   mode: parallel
@@ -6232,7 +6251,8 @@
       - camera.front_door_camera
     response_variable: answer
     alias: Analyse if a cop is present
-  - if:
+  - alias: Lower volume if a cop is present and notify maxi
+    if:
     - condition: template
       value_template: '{{ "YES" in answer.reponse_text | upper }}'
     then:
@@ -6262,7 +6282,6 @@
         volume_level: 0.28
       target:
         entity_id: media_player.group_mass_home_group_speakers
-    alias: Lower volume if a cop is present and notify maxi
   mode: single
 - id: '1732911162102'
   alias: Assist Trigger find my phone
