@@ -30,7 +30,8 @@ broadcast_alert_in_the_house:
             set ns.rgb_dict = ns.rgb_dict + rgb_dict %}\n    {% endif %}    \n{% endfor
             %}  {{ ns.rgb_dict }}\n"
         alias: 'Store Lights entity_id and current rgb values '
-      - if:
+      - alias: Change lights conditionally
+        if:
         - condition: template
           value_template: '{% if color %}
 
@@ -41,6 +42,7 @@ broadcast_alert_in_the_house:
             false
 
             {% endif %}'
+          alias: ' {{color}} variable  is present'
         then:
         - alias: Turn all lights to selected color
           repeat:
@@ -52,7 +54,6 @@ broadcast_alert_in_the_house:
               enabled: true
               action: light.turn_on
             count: '{{ light_entity_ids | length - 1 }}'
-        alias: Change lights conditionally
       - delay:
           hours: 0
           minutes: 0
@@ -196,158 +197,98 @@ broadcast_alert_in_the_house:
         data: "{{ phone_data }}\ndata:\n  ttl: 0\n  priority: high\n"
         enabled: false
       enabled: true
-    - alias: 'TVs '
-      if:
-      - condition: and
-        conditions:
-        - condition: state
-          entity_id: input_boolean.party_mode
-          state: 'off'
-        - condition: state
-          entity_id: input_boolean.kink_party
-          state: 'off'
-      then:
-      - alias: TVs
-        parallel:
-        - alias: Broadcast image to paused TVs if image is present
-          if:
-          - condition: template
-            value_template: '{% if image and not url %}
+    - alias: TVs
+      parallel:
+      - alias: Broadcast image to paused TVs if image is present
+        if:
+        - condition: template
+          value_template: '{% if image and not url %}
 
-              true
+            true
 
-              {% else %}
+            {% else %}
 
-              false
+            false
 
-              {% endif %}'
-          then:
-          - sequence:
-            - alias: Broadcast Image to paused chromecasts
-              repeat:
-                sequence:
-                - metadata: {}
-                  data:
-                    media_content_id: '{{image}}'
-                    media_content_type: image
-                    entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
-                  action: media_player.play_media
-                for_each: '{{ non_playing_chromecasts }}'
-            - wait_for_trigger:
-              - trigger: state
-                entity_id:
-                - lock.lock_front_door
-                to: locked
-                for:
-                  hours: 0
-                  minutes: 0
-                  seconds: 15
-              timeout:
-                hours: 0
-                minutes: 2
-                seconds: 0
-                milliseconds: 0
-            - alias: Turn off precedent chromecats
-              repeat:
-                sequence:
-                - action: media_player.turn_off
-                  metadata: {}
-                  data: {}
-                  target:
-                    entity_id: '{{ non_playing_chromecasts }}'
-                for_each: '{{ non_playing_chromecasts }}'
-          - action: dash_cast.load_url
-            metadata: {}
-            data:
-              force: false
-              reload_seconds: 0
-              entity_id: media_player.kitchen_google_hub
-              url: '{{image}}'
-          enabled: true
-          continue_on_error: true
-        - alias: Broadcast image to paused TVs if url is present
-          if:
-          - condition: template
-            value_template: '{% if url %}
-
-              true
-
-              {% else %}
-
-              false
-
-              {% endif %}'
-          then:
-          - sequence:
-            - alias: Broadcast URL  to paused chromecasts
-              repeat:
-                sequence:
-                - action: dash_cast.load_url
-                  metadata: {}
-                  data:
-                    force: true
-                    reload_seconds: 0
-                    entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
-                    url: '{{url}}'
-                for_each: '{{ non_playing_chromecasts }}'
-            - wait_for_trigger:
-              - trigger: state
-                entity_id:
-                - lock.lock_front_door
-                to: locked
-                for:
-                  hours: 0
-                  minutes: 0
-                  seconds: 15
-              timeout:
-                hours: 0
-                minutes: 2
-                seconds: 0
-                milliseconds: 0
-            - alias: Turn off precedent chromecats
-              repeat:
-                sequence:
-                - action: media_player.turn_off
-                  metadata: {}
-                  data: {}
-                  target:
-                    entity_id: '{{ non_playing_chromecasts }}'
-                for_each: '{{ non_playing_chromecasts }}'
-          - action: dash_cast.load_url
-            metadata: {}
-            data:
-              force: true
-              reload_seconds: 0
-              entity_id: media_player.kitchen_google_hub
-              url: '{{url}}'
-          enabled: true
-          continue_on_error: true
-        - if:
-          - condition: state
-            entity_id: input_boolean.party_mode
-            state: 'off'
-          - condition: state
-            entity_id: input_boolean.acid_time
-            state: 'off'
-          then:
-          - alias: Pause Playing Chromecasts
+            {% endif %}'
+        then:
+        - sequence:
+          - alias: Broadcast Image to paused chromecasts
             repeat:
               sequence:
               - metadata: {}
-                data: {}
-                target:
-                  entity_id: '{{playing_chromecasts[repeat.index - 1]}}'
-                action: media_player.media_pause
-              for_each: '{{ playing_chromecasts }}'
-            enabled: true
-            continue_on_error: true
+                data:
+                  media_content_id: '{{image}}'
+                  media_content_type: image
+                  entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
+                action: media_player.play_media
+              for_each: '{{ non_playing_chromecasts }}'
+        - action: dash_cast.load_url
+          metadata: {}
+          data:
+            force: false
+            reload_seconds: 0
+            entity_id: media_player.kitchen_google_hub
+            url: '{{image}}'
+        enabled: true
+        continue_on_error: true
+      - alias: Broadcast image to paused TVs if url is present
+        if:
+        - condition: template
+          value_template: '{% if url %}
+
+            true
+
+            {% else %}
+
+            false
+
+            {% endif %}'
+        then:
+        - sequence:
+          - alias: Broadcast URL  to paused chromecasts
+            repeat:
+              sequence:
+              - action: dash_cast.load_url
+                metadata: {}
+                data:
+                  force: true
+                  reload_seconds: 0
+                  entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
+                  url: '{{url}}'
+              for_each: '{{ non_playing_chromecasts }}'
+        - action: dash_cast.load_url
+          metadata: {}
+          data:
+            force: true
+            reload_seconds: 0
+            entity_id: media_player.kitchen_google_hub
+            url: '{{url}}'
+        enabled: true
+        continue_on_error: true
+      - if:
+        - condition: state
+          entity_id: input_boolean.party_mode
+          state: 'off'
+        then:
+        - alias: Pause Playing Chromecasts
+          repeat:
+            sequence:
+            - metadata: {}
+              data: {}
+              target:
+                entity_id: '{{playing_chromecasts[repeat.index - 1]}}'
+              action: media_player.media_pause
+            for_each: '{{ playing_chromecasts }}'
+          enabled: true
+          continue_on_error: true
   - delay:
       hours: 0
       minutes: 0
       seconds: 10
   mode: queued
   icon: mdi:speaker-message
-  max: 10
+  max: 3
 change_received_lights_to_random_colors:
   alias: Change received lights to random color
   sequence:
@@ -506,7 +447,7 @@ non_important_broadcast_alert_in_the_house:
         parallel:
         - metadata: {}
           data:
-            media_player_entity_id: media_player.group_mass_home_airplay_speakers
+            media_player_entity_id: media_player.group_mass_home_group_speakers
             message: '{{ message }}'
           target:
             entity_id: tts.piper

@@ -1252,11 +1252,11 @@
     entity_id: binary_sensor.all_present_sleeping
     state: 'off'
   actions:
+  - action: script.non_important_broadcast_alert_in_the_house
+    data:
+      message: Dryer has finished
   - repeat:
       sequence:
-      - action: script.non_important_broadcast_alert_in_the_house
-        data:
-          message: Dryer has finished
       - delay:
           hours: 0
           minutes: 30
@@ -1273,7 +1273,7 @@
       - condition: state
         entity_id: binary_sensor.group_kitchen_motion_occupancy
         state: 'off'
-    enabled: true
+    enabled: false
   mode: restart
 - id: '1714058481200'
   alias: Alert when Microwave finishes
@@ -1301,7 +1301,7 @@
         hours: 0
         minutes: 0
         seconds: 5
-      below: 28
+      below: 5
       trigger: numeric_state
     continue_on_timeout: false
     timeout:
@@ -1310,28 +1310,9 @@
       seconds: 0
       milliseconds: 0
     enabled: true
-  - repeat:
-      sequence:
-      - action: script.non_important_broadcast_alert_in_the_house
-        data:
-          message: Microwave finished
-      - delay:
-          hours: 0
-          minutes: 4
-          seconds: 0
-          milliseconds: 0
-      - condition: state
-        entity_id: binary_sensor.group_kitchen_motion_occupancy
-        for:
-          hours: 0
-          minutes: 3
-          seconds: 0
-        state: 'off'
-      while:
-      - condition: state
-        entity_id: binary_sensor.group_kitchen_motion_occupancy
-        state: 'off'
-    enabled: true
+  - action: script.non_important_broadcast_alert_in_the_house
+    data:
+      message: Microwave finished
   mode: restart
 - id: '1714058675432'
   alias: Alert when Washer finishes
@@ -1356,7 +1337,7 @@
         hours: 0
         minutes: 10
         seconds: 0
-      below: 1
+      below: 0.01
       trigger: numeric_state
   - metadata: {}
     data:
@@ -1989,39 +1970,6 @@
         action: light.turn_off
       alias: If the front door light is off
   mode: restart
-- id: '1715034222361'
-  alias: Alert maxi that is phone is ringing
-  description: This should act in the room he is if he is alone
-  triggers:
-  - entity_id:
-    - sensor.phone_maxi_phone_state
-    to: ringing
-    trigger: state
-  conditions: []
-  actions:
-  - variables:
-      in_room_speakers: "{% if [area_id(states('sensor.maxi_location_by_petro'))]
-        \  | map('area_entities') | sum(start=[]) |    select('search', 'speakers')
-        | select('search','mass') | unique | list %} {{ [area_id(states('sensor.maxi_location_by_petro'))]
-        \  | map('area_entities') | sum(start=[]) |    select('search', 'speakers')
-        | select('search','mass') | unique | list }} {% else %} {{ [area_id(states('sensor.maxi_location_by_petro'))]
-        \  | map('area_entities') | sum(start=[]) |  select('search', 'speaker')  |
-        unique | list }} {% endif %} \n"
-      attributes: '{{ trigger }}
-
-        '
-  - metadata: {}
-    data:
-      cache: false
-      message: Maxi's phone is ringing
-      media_player_entity_id: '{{in_room_speakers}}
-
-        '
-    target:
-      entity_id: tts.piper
-    enabled: true
-    action: tts.speak
-  mode: single
 - id: '1715102391801'
   alias: Alert when there is noise on the terasse
   description: ''
@@ -2202,6 +2150,9 @@
   - parallel:
     - metadata: {}
       data:
+        url: 'http://192.168.0.11:1984/stream.html?src=faceshot_camera_sub&src=front_door_camera_sub&mode=webrtc,mse,hls,mjpeg
+
+          '
         broadcast_url: http://192.168.0.15:8123/local/doorbell.mp3
         color: Blue
         phone_data:
@@ -2262,6 +2213,21 @@
     target:
       entity_id: input_text.front_door_phone_text
     action: input_text.set_value
+  - variables:
+      chromecasts_with_cameras: '{{ integration_entities(''cast'') |  select(''search'',
+        ''chromecast'')|  select(''is_state_attr'', ''app_name'', ''DashCast'') |
+        expand | map(attribute=''entity_id'')| list }}
+
+        '
+  - action: media_player.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: '{{ integration_entities(''cast'') |  select(''search'', ''chromecast'')|  select(''is_state_attr'',
+        ''app_name'', ''DashCast'') | expand | map(attribute=''entity_id'')| list
+        }}
+
+        '
   mode: single
 - id: '1715788063807'
   alias: Tell maxi when his watch is charged
@@ -5326,7 +5292,14 @@
       transition: 2
     target:
       area_id: livingroom
-      entity_id: light.group_livingroom_lights
+      entity_id:
+      - light.group_livingroom_lights
+      - light.lv_assistant_lcd_backlight
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.livingroom_tablet_screen
   mode: single
 - id: '1728310438747'
   alias: Undo Sleep actions when "sleeper in livingroom" is turned off
@@ -6862,7 +6835,7 @@
   - action: media_player.volume_set
     metadata: {}
     data:
-      volume_level: 0.53
+      volume_level: 0.32
     target:
       entity_id: media_player.universal_bathroom_speakers
   mode: restart
@@ -8389,3 +8362,56 @@
     target:
       entity_id: media_player.mass_livingroom_airplay_wiim_speaker
   mode: single
+- id: '1741317422533'
+  alias: Adjust hallway tablet screen brigthess to match the lights
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - light.group_hallway_lights
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 1
+    attribute: brightness
+  conditions:
+  - condition: numeric_state
+    entity_id: sensor.hallway_tablet_battery
+    above: 30
+  actions:
+  - variables:
+      brightness: '{{ trigger.to_state.attributes.brightness }}
+
+        '
+  - action: number.set_value
+    metadata: {}
+    data:
+      value: '{{brightness}}'
+    target:
+      entity_id: number.hallway_tablet_screen_brightness
+  mode: restart
+- id: '1741317700233'
+  alias: Adjust livingroom main tablet screen brigthess to match the lights
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - light.group_livingroom_lights
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 1
+    attribute: brightness
+  conditions: []
+  actions:
+  - variables:
+      brightness: '{{ trigger.to_state.attributes.brightness }}
+
+        '
+  - action: number.set_value
+    metadata: {}
+    data:
+      value: '{{brightness}}'
+    target:
+      entity_id: number.livingroom_tablet_screen_brightness
+  mode: restart
