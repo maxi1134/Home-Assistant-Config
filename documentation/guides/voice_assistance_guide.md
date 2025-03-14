@@ -107,7 +107,6 @@ _____
   - 7: Select your `Speech-to-text` [service](https://www.home-assistant.io/integrations/Whisper).
   - 8: Select your `Text-to-speech` [service](https://www.home-assistant.io/integrations/piper/).
 _____
-_____
 
 # Step 4) Setting up ESPHOME Voice assistant satellites.
 
@@ -150,6 +149,7 @@ _____
     - 4: Select `Wirelessly` or `Plug into this computer`.
     - 5: Wait for the install to finish and then click `Close`.
 
+_____
 
 # Step 5) Integrating The Assistant sattelite into Home-Assistant
   - 1: Adding the device to Home assistant
@@ -162,3 +162,34 @@ _____
     - 7: click "Finish"
     - 8: Select the corresponding Area
     - 9: click "Finish"
+_____
+_____
+_____
+# Optional Steps:
+  - ##   Use GPU Accelerated Whisper
+    #### This will require [Docker-Compose](https://docs.docker.com/desktop/setup/install/linux/)
+    - 1: Create a compose.yaml file somewhere in your host.
+    - 2: Copy this text inside:
+      ```
+        services:
+            faster-whisper:
+              image: ghcr.io/linuxserver/faster-whisper:gpu
+              container_name: faster-whisper-gpu
+              runtime: nvidia
+              environment:
+                - NVIDIA_VISIBLE_DEVICES=all
+                - NVIDIA_DRIVER_CAPABILITIES=all
+                - PUID=1000
+                - PGID=1000
+                - TZ=Etc/UTC
+                - WHISPER_MODEL=Systran/faster-whisper-large-v3
+                - WHISPER_BEAM=5 #optional
+                - WHISPER_LANG=en #optional
+              volumes:
+                - /path/to/storage/of/the/config:/config
+              ports:
+                - 10300:10300
+              restart: unless-stopped
+        ```
+    - 3: Run `sudo docker compose up -d`
+    - 4: Integrate through `Wyoming` protocol in `Home Assistant` with the IP of the `host` and the port `10300`
