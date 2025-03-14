@@ -20,32 +20,33 @@ _____
 # Step 1) Installing Ollama
 
 We will start by installing `Ollama` on our machine learning host.   
-I recommend using a good machine with access to a GPU with at least 12 GB of Vram. (24 if you are to use the same model as me, at it takes 19GB on its own). 
-(This can run also with as low as 3-4gb! Using Llama 3.2 )
-I also thinkg it's better to keep the model loaded in the machine at all time for speedy reaction times on our satellites.
+I recommend using a good machine with access to a GPU with at least 12 GB of Vram.
+(This can run also with as low as 3-4gb! Using Llama 3.2 or other small 3b models )
+I also personally think that it's better to keep the model loaded in the host at all time for speedy reaction times on our satellites.
 
-**Here an example of the IDLE VRAM usage for  `Ollama` with the `qwen2.5:14b-instruct-q8_0` model:**
+**Here an example of the IDLE VRAM usage for  `Ollama` with the `qwen2.5:7b-instruct-q8_0` model:**
 ```
 
 +-----------------------------------------------------------------------------------------+
-| NVIDIA-SMI 565.57.01              Driver Version: 565.57.01      CUDA Version: 12.7     |
+| NVIDIA-SMI 570.86.16              Driver Version: 570.86.16      CUDA Version: 12.8     |
 |-----------------------------------------+------------------------+----------------------+
 | GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
 | Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
 |                                         |                        |               MIG M. |
 |=========================================+========================+======================|
 |   0  NVIDIA GeForce RTX 3090        Off |   00000000:01:00.0 Off |                  N/A |
-|  0%   35C    P8             17W /  370W |   18025MiB /  24576MiB |      0%      Default |
+| 69%   60C    P2            210W /  370W |    9579MiB /  24576MiB |      0%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
 
 +-----------------------------------------------------------------------------------------+
 | Processes:                                                                              |
-|  GPU   GI   CI        PID   Type   Process name                              GPU Memory |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
 |        ID   ID                                                               Usage      |
 |=========================================================================================|
-|    0   N/A  N/A   4171841      C   ...unners/cuda_v12/ollama_llama_server      18016MiB |
+|    0   N/A  N/A         2724508      C   ...a_v12_avx/ollama_llama_server       9570MiB |
 +-----------------------------------------------------------------------------------------+
+
 
 ```
 
@@ -60,13 +61,13 @@ In order to do so, simply run this command:
 
 Once Ollama if installed, we will need to pull the model we want to use.
 
-I recommend using `qwen2.5:14b-instruct-q8_0` if you can spare the VRAM. 
-( ~21GB of it).
+I recommend using `qwen2.5:7b-instruct-q8_0` if you can spare the VRAM. 
+( ~10gb of it).
 
 If you happen to be more VRAM-limited, you can also try using a Llama3.2 model, which run on 3B parameters. (should run on a 6GB GPU, maybe even 4GB with a lower Quantization) 
 
 You can do so with:
-`ollama pull qwen2.5:14b-instruct-q8_0`
+`ollama pull qwen2.5:7b-instruct-q8_0`
 or
 `ollama pull llama3.2:3b-instruct-q8_0`
 
@@ -101,7 +102,7 @@ _____
   - 2: Click on `Voice Assistants`.
   - 3: Click on `Add Assistant`
   - 4: Enter the name `LLM Voice Assistant`
-  - 5: Select `llama3.2` or `qwen2.5:14b-instruct-q8_0`
+  - 5: Select `llama3.2` or `qwen2.5:7b-instruct-q8_0`
   - 6: Check `Prefer handling commands locally` so it is on.
   - 7: Select your `Speech-to-text` [service](https://www.home-assistant.io/integrations/Whisper).
   - 8: Select your `Text-to-speech` [service](https://www.home-assistant.io/integrations/piper/).
@@ -128,7 +129,7 @@ _____
   substitutions:
     name: esphome-assistant
     friendly_name: ESPHome Assistant
-    micro_wake_word_model: alexa
+    micro_wake_word_model: okay_nabu
   packages:
     esphome.voice-assistant: github://esphome/wake-word-voice-assistants/esp32-s3-box-3/esp32-s3-box-3.yaml@main
   esphome:
