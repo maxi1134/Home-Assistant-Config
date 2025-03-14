@@ -19,10 +19,10 @@ _____
 
 # Step 1) Installing Ollama
 
-We will start by installing `Ollama` on our machine learning host.   
-I recommend using a good machine with access to a GPU with at least 12 GB of Vram.
-(This can run also with as low as 3-4gb! Using Llama 3.2 or other small 3b models )
-I also personally think that it's better to keep the model loaded in the host at all time for speedy reaction times on our satellites.
+We will start by installing `Ollama` on our machine learning host.  
+I recommend using a good machine with access to a GPU with at least 12 GB of Vram.  
+(This can run also with as low as 3-4gb! Using Llama 3.2 or other small 3b models )  
+I also personally think that it's better to keep the model loaded in the host at all time for speedy reaction times on our satellites. 
 
 **Here an example of the IDLE VRAM usage for  `Ollama` with the `qwen2.5:7b-instruct-q8_0` model:**
 ```
