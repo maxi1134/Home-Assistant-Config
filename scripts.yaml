@@ -140,6 +140,31 @@ broadcast_alert_in_the_house:
     - alias: 'music asssitant Announcements '
       if:
       - condition: template
+        value_template: '{% if message %}
+
+          true
+
+          {% else %}
+
+          false
+
+          {% endif %}'
+      then:
+      - alias: Announcements
+        parallel:
+        - metadata: {}
+          data:
+            cache: true
+            media_player_entity_id: media_player.group_mass_home_group_speakers
+            message: '{{ message }}'
+          target:
+            entity_id: tts.piper
+          alias: TTS in the home
+          action: tts.speak
+          enabled: true
+    - alias: 'music asssitant Announcements '
+      if:
+      - condition: template
         value_template: '{% if broadcast_url %}
 
           true
@@ -164,6 +189,7 @@ broadcast_alert_in_the_house:
             announce_volume: 35
           target:
             entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+          enabled: false
         - metadata: {}
           data:
             cache: true
@@ -1351,7 +1377,7 @@ speaker_automatic_volume_adjustment_script:
   mode: parallel
   max: 10
 llm_script_for_music_assitant_voice_requests:
-  mode: parallel
+  mode: single
   max_exceeded: silent
   description: This Script can be used by the LLM to initiate a playback on a TV
   fields:
@@ -1403,8 +1429,8 @@ llm_script_for_music_assitant_voice_requests:
   sequence:
   - variables:
       player_data: "{% if media_player | first %} \n{% set media_player_no_space =
-        media_player |first| replace(' ','') %}\n{{integration_entities('cast') \n
-        | expand\n | selectattr('entity_id', 'search', 'chromecast')\n | selectattr('entity_id',
+        media_player.split(' ') | first%}    \n{{integration_entities('cast') \n |
+        expand\n | selectattr('entity_id', 'search', 'chromecast')\n | selectattr('entity_id',
         'search', media_player_no_space | lower)\n | map(attribute='entity_id') |
         list }}     \n{% elif area | first %} \n{{ integration_entities('cast') \n
         | expand\n | selectattr('entity_id', 'search', 'chromecast')\n | selectattr('entity_id',
@@ -1671,7 +1697,7 @@ generate_front_door_person_description:
     data:
       include_filename: false
       target_width: 720
-      max_tokens: 100
+      max_tokens: 300
       temperature: 0.2
       provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
       model: minicpm-v:latest
@@ -1794,3 +1820,30 @@ llm_math_script:
         be "Multiplication", "Addition", "Division", or "Substraction".
       required: true
   alias: LLM Math Script
+changes_all_on_lights_to_white:
+  sequence:
+  - variables:
+      all_on_lights: '{{ integration_entities(''group'')|  select(''search'', ''light.group_all_lights'')   |
+        expand | selectattr("attributes.rgb_color", "defined") |  selectattr("state",
+        "eq", "on") | map(attribute=''entity_id'')  | list }}
+
+        '
+  - repeat:
+      sequence:
+      - metadata: {}
+        data:
+          kelvin: 4632
+          brightness_pct: 100
+        target:
+          entity_id: '{{all_on_lights[repeat.index - 1]}}'
+        action: light.turn_on
+      for_each: '{{ all_on_lights }}'
+  alias: Changes all on lights to white
+  mode: restart
+  icon: mdi:white-balance-iridescent
+  fields: {}
+  description: 'This script can be used to change the lights in the house to the preferred
+    shade of white
+
+
+    It can be used by an LLM to trigger this action when requested'
