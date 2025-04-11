@@ -16,6 +16,7 @@ substitutions:
 #################################################################################
 # TO REMOVE A WAKE WORD - COMMENT OUT THE CORESPONDING LINE FROM THE CONFIG BELOW - CTRL + F to search for "models" 
 
+ # micro_wake_word_model_1: alexa
   micro_wake_word_model_3: okay_nabu
 ####################################################################
 
@@ -53,9 +54,7 @@ substitutions:
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
-  min_version: 2024.9.0
-  platformio_options:
-    board_build.flash_mode: dio
+  min_version: 2025.2.0
   on_boot:
     priority: 600
     then:
@@ -69,40 +68,24 @@ esphome:
             switch.is_on: output_audio
           then:
             media_player.volume_set:    
-              id: adf_media_player
+              id: s3_media_player
               volume: 0 
   project:
     name: "BigBobbas.s3box"
-    version: "2024.09.01"
+    version: "2024.09.02"
 esp32:
   board: esp32s3box
   flash_size: 16MB
   framework:
     type: esp-idf
-    version: 4.4.8
-    platform_version: 5.4.0
     sdkconfig_options:
       CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
       CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
       CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
-      CONFIG_AUDIO_BOARD_CUSTOM: "y"
-      CONFIG_ESP32_S3_BOX_3_BOARD: "y"
-    components:
-      - name: esp32_s3_box_3_board
-        source: github://jesserockz/esp32-s3-box-3-board@main
-        refresh: 0s
    
 psram:
   mode: octal
   speed: 80MHz
-  
-external_components:
-  - source:
-      type: git
-      url: https://github.com/gnumpi/esphome_audio
-      ref: dev-next
-    components: [ adf_pipeline, i2s_audio ]
-    refresh: 0s  
   
 api:
   on_client_connected:
@@ -119,16 +102,15 @@ ota:
   - platform: esphome
     on_begin:
       - lambda: id(led).turn_on().set_brightness(1.0).set_transition_length(0).perform();
-                id(led).loop();
-      
+                id(led).loop(); 
       - display.page.show: ota_page
       - component.update: s3_box_lcd   
+
 logger:
   hardware_uart: USB_SERIAL_JTAG
   logs:
     text_sensor: WARN
     component: ERROR
-
 
 wifi:
   ssid: !secret wifi_ssid
@@ -142,10 +124,13 @@ wifi:
         id(wifi_connection) = true;
     - display.page.show: saver_page
     - component.update: s3_box_lcd
+    - switch.turn_on: speaker_enable
   on_disconnect:
     - lambda: |-
         id(wifi_connection) = false;
+
 captive_portal:      
+
 time:
   - platform: homeassistant
     id: ha_time
@@ -253,7 +238,41 @@ select:
                     state: !lambda 'return "12 Hr";'
         - component.update: s3_box_lcd
                 
-script:           
+script: 
+  - id: start_voice_assistant
+    then:
+      - if:
+          condition:
+            switch.is_off: mute_switch
+          then:
+            - if:
+                condition:
+                  lambda: return id(wake_word_engine_location).state == "In Home Assistant";
+                then:
+                  - lambda: id(va).set_use_wake_word(true);
+                  - voice_assistant.start_continuous:
+            - if:
+                condition:
+                  lambda: return id(wake_word_engine_location).state == "On device";
+                then:
+                  - lambda: id(va).set_use_wake_word(false);
+                  - micro_wake_word.start
+
+  - id: stop_voice_assistant
+    then:
+      - if:
+          condition:
+            lambda: return id(wake_word_engine_location).state == "In Home Assistant";
+          then:
+            - lambda: id(va).set_use_wake_word(false);
+            - voice_assistant.stop:
+      - if:
+          condition:
+            lambda: return id(wake_word_engine_location).state == "On device";
+          then:
+            - voice_assistant.stop:
+            - micro_wake_word.stop:
+          
   - id: set_volume
     then:
       - media_player.volume_set:
@@ -296,15 +315,18 @@ script:
             - component.update: s3_box_lcd
     mode: restart 
  
-  - id: timer_started
-    then:      
-      while:
-        condition:
-          switch.is_on: timer_ringing
-        then:    
-          - media_player.play_media:
-              media_url: '${home_assistant_host}/local/sounds/timer_finished.mp3'
-          - delay: 1s   
+  # - id: timer_started
+    # then:      
+      # while:
+        # condition:
+          # switch.is_on: timer_ringing
+        # then: 
+          # - voice_assistant.stop
+          # - delay: 150ms   
+          # - media_player.speaker.play_on_device_media_file:
+              # media_file: wake_sound_file
+              # announcement: true
+          # - delay: 1s   
         
   - id: timer_started_external
     then:
@@ -319,8 +341,7 @@ script:
                 media_content_id: '${home_assistant_host}/local/sounds/timer_finished.mp3'
                 media_content_type: music
           - delay: 1700ms
-        
-        
+                
   - id: timer_ending
     then:
       - wait_until: 
@@ -328,7 +349,6 @@ script:
       - script.execute: saver_enabled
       - display.page.show: time_remaining_page
       - component.update: s3_box_lcd         
-
 
   - id: increment_digit_1
     then:
@@ -342,13 +362,11 @@ script:
           id(current_pin) += "2";  
           ESP_LOGD("increment_digit_2", "Current PIN: %s", id(current_pin).c_str());
 
-
   - id: increment_digit_3
     then:
       - lambda: |-
           id(current_pin) += "3";  
           ESP_LOGD("increment_digit_3", "Current PIN: %s", id(current_pin).c_str());
-
 
   - id: increment_digit_4
     then:
@@ -356,13 +374,11 @@ script:
           id(current_pin) += "4";  
           ESP_LOGD("increment_digit_4", "Current PIN: %s", id(current_pin).c_str());
 
-
   - id: increment_digit_5
     then:
       - lambda: |-
           id(current_pin) += "5";  
           ESP_LOGD("increment_digit_5", "Current PIN: %s", id(current_pin).c_str());
-
 
   - id: increment_digit_6
     then:
@@ -370,13 +386,11 @@ script:
           id(current_pin) += "6";  
           ESP_LOGD("increment_digit_6", "Current PIN: %s", id(current_pin).c_str());
 
-
   - id: increment_digit_7
     then:
       - lambda: |-
           id(current_pin) += "7";  
           ESP_LOGD("increment_digit_7", "Current PIN: %s", id(current_pin).c_str());
-
 
   - id: increment_digit_8
     then:
@@ -507,6 +521,14 @@ button:
     entity_category: diagnostic
     
 switch:
+  - platform: gpio
+    name: Speaker Enable
+    id: speaker_enable
+    pin: GPIO46
+    restore_mode: ALWAYS_OFF
+    entity_category: config
+    disabled_by_default: true
+
   - platform: template
     name: Display conversation
     id: display_conversation
@@ -524,11 +546,11 @@ switch:
     entity_category: config  
     on_turn_on: 
       media_player.volume_set:    
-        id: adf_media_player
+        id: s3_media_player
         volume: 0    
     on_turn_off: 
       media_player.volume_set:    
-        id: adf_media_player
+        id: s3_media_player
         volume: 1.0 
       
   - platform: template
@@ -568,11 +590,11 @@ switch:
     optimistic: true
     on_turn_on:   
       media_player.volume_set:    
-        id: adf_media_player
+        id: s3_media_player
         volume: 0
     on_turn_off:
       media_player.volume_set: 
-        id: adf_media_player
+        id: s3_media_player
         volume: 1.0       
         
   - platform: template
@@ -591,25 +613,52 @@ switch:
     restore_mode: RESTORE_DEFAULT_OFF
     entity_category: config
 
-  - platform: template # remove for no sensor version
-    id: s_saver_presc
-    name: Screen wake on motion
-    icon: 'mdi:motion-sensor'
-    entity_category: config
-    optimistic: true    
-    restore_mode: RESTORE_DEFAULT_OFF 
-     
-  - platform: template
+  - platform: template 
     id: timer_ringing
     optimistic: true
     internal: true
     restore_mode: ALWAYS_OFF
-    on_turn_on:
-      - lambda: id(led).turn_on().set_brightness(1.0).perform();
-      - delay: 15min
-      - switch.turn_off: timer_ringing 
+
     on_turn_off:
-      - media_player.stop
+      # Turn off the repeat mode and disable the pause between playlist items
+      - lambda: |-
+              id(s3_media_player)
+                ->make_call()
+                .set_command(media_player::MediaPlayerCommand::MEDIA_PLAYER_COMMAND_REPEAT_OFF)
+                .set_announcement(true)
+                .perform();
+              id(s3_media_player)->set_playlist_delay_ms(speaker::AudioPipelineType::ANNOUNCEMENT, 0);
+      # Stop playing the alarm
+      - media_player.stop:
+          announcement: true
+      - if:
+          condition:
+            lambda: return id(wake_word_engine_location).state == "On device";
+          then:
+            - lambda: id(va).set_use_wake_word(false);
+            - micro_wake_word.start     
+          else:
+            - lambda: id(va).set_use_wake_word(true);
+            - voice_assistant.start
+    on_turn_on:
+      - lambda: id(va).set_use_wake_word(false);
+      - voice_assistant.stop:
+      - micro_wake_word.stop:
+      - delay: 150ms
+      # Turn on the repeat mode and pause for 1000 ms between playlist items/repeats
+      - lambda: id(led).turn_on().set_brightness(1.0).perform();
+      - lambda: |-
+            id(s3_media_player)
+              ->make_call()
+              .set_command(media_player::MediaPlayerCommand::MEDIA_PLAYER_COMMAND_REPEAT_ONE)
+              .set_announcement(true)
+              .perform();
+            id(s3_media_player)->set_playlist_delay_ms(speaker::AudioPipelineType::ANNOUNCEMENT, 1000);
+      - media_player.speaker.play_on_device_media_file:
+          media_file: timer_finished_sound
+          announcement: true
+      - delay: 15min
+      - switch.turn_off: timer_ringing
       
   - platform: template
     id: wake_sound
@@ -659,48 +708,12 @@ light:
     restore_mode: ALWAYS_ON
     default_transition_length: 50ms
     
-sensor:
+sensor:       
   - platform: homeassistant
     id: outside_temp
     entity_id: sensor.sensor_outside_temperature_temperature
     internal: true
-  - platform: aht10 # remove for no sensor version
-    i2c_id: bus_b
-    variant: AHT20
-    temperature:
-      name: "S3 Temperature"
-      id: s3temp
-    humidity:
-      name: "S3 Humidity"
-    update_interval: 60s
 
-  - platform: adc # remove for no sensor version
-    pin: GPIO10
-    id: battery_voltage
-    unit_of_measurement: "V"
-    accuracy_decimals: 1
-    device_class: "voltage"
-    entity_category: "diagnostic"
-    disabled_by_default: true
-    update_interval: 30s
-    attenuation: auto
-    filters:
-        - multiply: 4.11
-
-  - platform: copy # remove for no sensor version
-    id: battery_percent
-    source_id: battery_voltage
-    name: "Battery level"
-    unit_of_measurement: "%"
-    accuracy_decimals: 0
-    device_class: "battery"
-    entity_category: "diagnostic"
-    filters:
-      - lambda: return (x - 2.7) / (4.2 - 2.7) * 100;
-      - clamp:
-          min_value: 0
-          max_value: 100
-          
   - platform: uptime
     id: up_sens
     on_value:
@@ -803,83 +816,74 @@ text_sensor:
     id: alarm_status  
     on_value:
       - component.update: s3_box_lcd    
-      
+
+
 i2s_audio:
-  - id: i2s_shared
-    i2s_lrclk_pin:
-      number: GPIO45
-      ignore_strapping_warning: true
+  - id: i2s_audio_bus
+    i2s_lrclk_pin: GPIO45
     i2s_bclk_pin: GPIO17
     i2s_mclk_pin: GPIO2
-    access_mode: duplex
 
-adf_pipeline:
-  - platform: i2s_audio
-    type: audio_out
-    id: adf_i2s_out
-    i2s_audio_id: i2s_shared
-    i2s_dout_pin: GPIO15
-    adf_alc: false
-    dac:
-      i2c_id: bus_a
-      model: es8311
-      address: 0x18
-      enable_pin:
-        number: GPIO46
-        ignore_strapping_warning: true
-    sample_rate: 16000
+audio_adc:
+  - platform: es7210
+    id: es7210_adc
+    i2c_id: bus_a
     bits_per_sample: 16bit
-    fixed_settings: true
+    sample_rate: 16000
 
+audio_dac:
+  - platform: es8311
+    id: es8311_dac
+    i2c_id: bus_a
+    bits_per_sample: 16bit
+    sample_rate: 48000
+
+microphone:
   - platform: i2s_audio
-    type: audio_in
-    id: adf_i2s_in
-    i2s_audio_id: i2s_shared
+    id: box_mic
+    sample_rate: 16000
     i2s_din_pin: GPIO16
-    pdm: false
-    adc:
-      i2c_id: bus_a
-      model: es7210
-      address: 0x40
-    sample_rate: 16000
     bits_per_sample: 16bit
-    fixed_settings: true
+    adc_type: external
+
+speaker:
+  - platform: i2s_audio
+    id: box_speaker
+    i2s_dout_pin: GPIO15
+    dac_type: external
+    sample_rate: 48000
+    bits_per_sample: 16bit
+    channel: left
+    audio_dac: es8311_dac
+    buffer_duration: 100ms
+
 
 media_player:
-  - platform: adf_pipeline
-    id: adf_media_player
-    name: s3-box_media_player
-    internal: false
-    keep_pipeline_alive: true
-    announcement_audio:
-      sample_rate: ${tts_voice_speed}
-      bits_per_sample: 16
-      num_channels: 1
-    pipeline:
-      - self
-      - resampler
-      - adf_i2s_out
-    on_play: 
-      - lambda: |-
-          id(media_state) = true;
-      - component.update: s3_box_lcd
-    on_idle:
-      - lambda: |-
-          id(media_state) = false;
-      - component.update: s3_box_lcd
-microphone:
-  - platform: adf_pipeline
-    id: box_mic
-    keep_pipeline_alive: true
-    pipeline:
-      - adf_i2s_in
-      - resampler
-      - self
+  - platform: speaker
+    name: None
+    id: s3_media_player
+    volume_min: 0.5
+    volume_max: 0.8
+    task_stack_in_psram: true
+    announcement_pipeline:
+      speaker: box_speaker
+      format: FLAC
+      sample_rate: 48000
+      num_channels: 1  # S3 Box only has one output channel
+    files:
+      - id: timer_finished_sound
+        file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/timer_finished.flac
+      - id: wake_sound_file
+        file: https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/sounds/awake.flac
+
 
 micro_wake_word:  
   vad:
   models: 
+   # - model: ${micro_wake_word_model_1}
+    # - model: ${micro_wake_word_model_2}
     - model: ${micro_wake_word_model_3}
+    # - model: ${micro_wake_word_model_4}
   on_wake_word_detected:
     - if:
         condition:
@@ -887,11 +891,12 @@ micro_wake_word:
             - switch.is_off: output_audio          
             - switch.is_on: wake_sound
         then:
-          - media_player.play_media:
-              id: adf_media_player
-              media_url: '${home_assistant_host}/local/sounds/awake.mp3'
-          - delay: 500ms
-          - media_player.stop
+          - media_player.speaker.play_on_device_media_file:
+              media_file: wake_sound_file
+              announcement: true
+          - wait_until:
+            - media_player.is_idle:
+          - delay: 150ms
           - voice_assistant.start:
               wake_word: !lambda return wake_word;
         else:
@@ -907,37 +912,48 @@ micro_wake_word:
                     entity_id: media_player.${external_media_player}
                     media_content_id: '${home_assistant_host}/local/sounds/awake.mp3'
                     media_content_type: music
-              - media_player.stop
               - voice_assistant.start:
                   wake_word: !lambda return wake_word;
- 
             else:
               if:
                 condition:
                   - switch.is_off: wake_sound
                 then:
-                  - media_player.stop
                   - voice_assistant.start:
                       wake_word: !lambda return wake_word;
+
 voice_assistant:
   id: va
   microphone: box_mic
-  media_player: adf_media_player
+  media_player: s3_media_player
   use_wake_word: true
   noise_suppression_level: 2
   auto_gain: 31dBFS
   volume_multiplier: 4.0
   on_wake_word_detected:
+    - voice_assistant.stop:
+    - lambda: id(va).set_use_wake_word(false);
     - if:
         condition:
           and:
             - switch.is_off: output_audio          
             - switch.is_on: wake_sound
-        then:    
-          - media_player.play_media:
-              media_url: '${home_assistant_host}/local/sounds/awake.mp3'
-          - delay: 500ms
-          - media_player.stop
+        then:
+          # - voice_assistant.stop:
+          # - delay: 150ms
+          # - if:
+              # condition:
+                # not:
+                  # microphone.is_capturing:
+              # then:
+          - media_player.speaker.play_on_device_media_file:
+              media_file: wake_sound_file
+              announcement: true
+          - wait_until:
+              - media_player.is_idle              
+          - delay: 150ms
+          - voice_assistant.start
+          - lambda: id(va).set_use_wake_word(false);
           - display.page.show: listening_page
           - component.update: s3_box_lcd
         else:
@@ -953,7 +969,8 @@ voice_assistant:
                     entity_id: media_player.${external_media_player}
                     media_content_id: '${home_assistant_host}/local/sounds/awake.mp3'
                     media_content_type: music
-    - media_player.stop
+            else:
+              - voice_assistant.start
   on_start:    
     if: 
       condition:
@@ -1114,7 +1131,7 @@ voice_assistant:
               - switch.is_off: output_audio
             then:
               - switch.turn_on: timer_ringing
-              - script.execute: timer_started
+              # - script.execute: timer_started
               - display.page.show: timer_finished_page
               - component.update: s3_box_lcd
     
@@ -1122,38 +1139,38 @@ image:
   - file: "https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/images/error.png"
     id: error_img
     resize: 320x240
-    type: RGB24
-    use_transparency: true
+    type: RGB
+    transparency: alpha_channel
   - file: "https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/images/idle.png"
     id: idle_img
     resize: 320x240
-    type: RGB24
-    use_transparency: true
+    type: RGB
+    transparency: alpha_channel
   - file: "https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/images/listening.png"
     id: listening_img
     resize: 320x240
-    type: RGB24
-    use_transparency: true
+    type: RGB
+    transparency: alpha_channel
   - file: "https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/images/thinking.png"
     id: thinking_img
     resize: 320x240
-    type: RGB24
-    use_transparency: true
+    type: RGB
+    transparency: alpha_channel
   - file: "https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/images/replying.png"
     id: replying_img
     resize: 320x240
-    type: RGB24
-    use_transparency: true
+    type: RGB
+    transparency: alpha_channel
   - file: "https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/images/loading.png"
     id: loading_img
     resize: 320x240
-    type: RGB24
-    use_transparency: true
+    type: RGB
+    transparency: alpha_channel
   - file: "https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/images/logo.png"
     id: logo_img
     resize: 80x75
-    type: RGB24
-    use_transparency: true 
+    type: RGB
+    transparency: alpha_channel 
 font:
   - file: "https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/fonts/consola.ttf"
     id: my_font
@@ -1407,8 +1424,7 @@ display:
           } else if(id(alarm_status).state == "armed_night") {
           it.printf(250, 5, id(icon_font_55), green, "\U000F1828");
           }        
-          it.printf(20, 75, id(icon_font_80), blue,"\U000F050F");
-          it.printf(40, 120, id(my_font3), white, "%.f", id(outside_temp).state); // remove for no sensor version
+          it.printf(20, 75, id(icon_font_80), blue,"\U000F050F");          
           it.printf(120, 75, id(icon_font_80), yellow,"\U000F06E8" );
           it.printf(220, 75, id(icon_font_80), purple,"\U000F0210");
           it.printf(20, 155, id(icon_font_80), red,"\U000F075A");
@@ -1496,9 +1512,7 @@ display:
           it.printf(160, 145, id(my_font5), yellow, TextAlign::CENTER, "${name}.local");
           it.printf(160, 175, id(my_font5), light_blue, TextAlign::CENTER, "Device Uptime DDD:H:M:S");
           it.printf(160, 195, id(my_font5), yellow, TextAlign::CENTER, "%s", id(up_sens_text).state.c_str());
-          it.printf(40, 210, id(my_font5), light_blue, TextAlign::LEFT, "Battery Level"); // remove for no sensor version
-          it.printf(265, 210, id(my_font5), yellow, TextAlign::RIGHT, "%.f%%", id(battery_percent).state); // remove for no sensor version   
-          
+         
           
       - id: ss_set_page ##### screen saver settings page #####
         lambda: |-
@@ -1512,12 +1526,6 @@ display:
                  it.printf(255, 135, id(icon_font_55), lime, "\U000F0521");
           } else {   
                  it.printf(255, 135, id(icon_font_55), blue_drk, "\U000F0A19");
-          } 
-          it.printf(250, 175, id(my_font5), light_blue, TextAlign::RIGHT, "Wake on presence :"); // remove for no sensor version 6 lines          
-          if(id(s_saver_presc).state) {
-                 it.printf(255, 165, id(icon_font_55), lime, "\U000F0521");
-          } else {   
-                 it.printf(255, 165, id(icon_font_55), blue_drk, "\U000F0A19");
           } 
           it.printf(250, 205, id(my_font5), light_blue, TextAlign::RIGHT, "Timeout to blank :");          
           if(id(s_saver_mode).state) {
@@ -1827,15 +1835,16 @@ display:
           } else {
             it.strftime(160, 88, id(my_font2), TextAlign::CENTER, "%l:%M%p", id(ha_time).now());
           }
-          it.printf(160, 181, id(my_font2), light_blue, TextAlign::CENTER, "%.f°C", id(outside_temp).state); // remove for no sensor version
+          it.printf(160, 181, id(my_font2), light_blue, TextAlign::CENTER, "%.f°C", id(outside_temp).state); 
          
       - id: ota_page ##### firmware uploading page #####
         lambda: |-
           it.fill(Color::BLACK);
           it.printf(160, 60, id(icon_font_80), red, TextAlign::CENTER, "\U000F08D6");  
           it.printf((it.get_width() / 2), (it.get_height() / 2), id(my_font3), red, TextAlign::CENTER, "FIRMWARE UPDATING");
-          it.printf(160,190, id(my_font3), red, TextAlign::CENTER, "won't be long....");
-          
+          it.printf(160,155, id(my_font5), blue, TextAlign::CENTER, "Once update and restarted");
+          it.printf(160,190, id(my_font5), blue, TextAlign::CENTER, "press the reboot button");
+          it.printf(160,225, id(my_font5), blue, TextAlign::CENTER, "to enable touch");
       - id: settings_page ##### settings parent page #####
         lambda: |-
           it.fill(id(black));
@@ -2159,14 +2168,14 @@ i2c:
   - id: bus_a
     sda: GPIO08
     scl: GPIO18
-    scan: false
+    scan: true
     sda_pullup_enabled: true
     scl_pullup_enabled: true
     frequency: 100kHz
 
   - sda: GPIO41
     scl: GPIO40
-    scan: false
+    scan: true
     sda_pullup_enabled: true
     scl_pullup_enabled: true
     frequency: 50kHz
@@ -2176,6 +2185,7 @@ i2c:
 touchscreen:
   - platform: gt911
     i2c_id: bus_a
+    address: 0x5D
     id: gt911_touchscreen
     interrupt_pin:
       number: GPIO3
@@ -2249,24 +2259,6 @@ binary_sensor:
           - display.page.show: idle_page
           - component.update: s3_box_lcd
 
-###### radar sensor ########   # remove for no sensor version
-  - platform: gpio
-    pin:
-      number: GPIO21
-    name: "Presence detect"
-    disabled_by_default: false
-    device_class: "occupancy"
-    on_state:
-      if:
-        condition:
-          and:
-            - switch.is_on: s_saver
-            - switch.is_on: s_saver_presc 
-            - display.is_displaying_page: saver_page
-        then:
-          - display.page.show: saver_page
-          - component.update: s3_box_lcd
-          - script.execute: saver_enabled
 
 ##### satus bar buttons #####             
   - platform: touchscreen
@@ -3115,21 +3107,6 @@ binary_sensor:
       then:
         - switch.toggle: s_saver
         - component.update: s3_box_lcd
-      
-  - platform: touchscreen # remove for no sensor version
-    page_id: ss_set_page
-    id: ss_wake_presc
-    internal: true
-    x_min: 250
-    x_max: 315
-    y_min: 180
-    y_max: 205
-    on_click:
-      min_length: 10ms
-      max_length: 500ms
-      then:
-        - switch.toggle: s_saver_presc
-        - component.update: s3_box_lcd
         
   - platform: touchscreen
     page_id: ss_set_page
@@ -3314,11 +3291,7 @@ binary_sensor:
             call.set_value(sleep);
             call.perform();
         - component.update: s3_box_lcd
-        
-        
-        
-        
-        
+          
   - id: ss_bright_down
     page_id: timeout_settings_page
     platform: touchscreen

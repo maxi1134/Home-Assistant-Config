@@ -389,25 +389,26 @@
 - id: '1713407853586'
   alias: Lock back door 5 minutes after unlocking
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - lock.back_door
     to: unlocked
     for:
       hours: 0
       minutes: 5
       seconds: 0
-  condition:
+    trigger: state
+  conditions:
   - condition: state
     entity_id: binary_sensor.sensor_back_outside_door_contact
     state: 'off'
-  action:
-  - service: lock.lock
-    metadata: {}
+    enabled: true
+  actions:
+  - metadata: {}
     data: {}
     target:
       entity_id: lock.back_door
+    action: lock.lock
   mode: single
 - id: '1713408006382'
   alias: Turn back door lights on when someone is detected
@@ -1066,7 +1067,7 @@
   actions:
   - variables:
       playing_speakers: '{{ [area_id(trigger.entity_id)]   | map(''area_entities'')
-        | sum(start=[]) |    select(''search'', ''speakers'') | select(''is_state'',''playing'')
+        | sum(start=[]) |    select(''search'', ''universal'') | select(''is_state'',''playing'')
         | unique | list }}
 
         '
@@ -1215,7 +1216,7 @@
   actions:
   - variables:
       playing_speakers: '{{ [area_id(trigger.entity_id)]   | map(''area_entities'')
-        | sum(start=[]) |    select(''search'', ''speakers'') | select(''is_state'',''playing'')
+        | sum(start=[]) |    select(''search'', ''universal'') | select(''is_state'',''playing'')
         | unique | list }}
 
         '
@@ -1457,14 +1458,13 @@
   - entity_id:
     - media_player.universal_office_speakers
     - media_player.universal_hallway_speakers
-    - media_player.universal_hotbox_top_speakers
     - media_player.universal_kitchen_speakers
     - media_player.universal_livingroom_speakers
-    - media_player.universal_hotbox_down_speakers
     - media_player.universal_salon_speakers
     - media_player.universal_closet_speaker
     - media_player.universal_bedroom_speakers
     - media_player.universal_bathroom_speakers
+    - media_player.universal_hotbox_speakers
     to: idle
     for:
       hours: 0
@@ -1564,6 +1564,7 @@
       == \"\" %}\n    {% set ns.template_entity = ns.cast_entity %}\n{% endif %}\n{%
       if ns.template_entity != ns.cast_entity %}                  \n  {{ state_attr(ns.template_entity,
       'media_library_title') != 'Visuals'}}\n{% endif %} \n"
+    enabled: false
   actions:
   - variables:
       playing_speakers: '{{ [area_id(trigger.entity_id)]   | map(''area_entities'')
@@ -2304,7 +2305,7 @@
     for:
       hours: 0
       minutes: 0
-      seconds: 3
+      seconds: 2
     trigger: state
   conditions:
   - condition: state
@@ -2939,6 +2940,7 @@
     target:
       entity_id: light.bedroom_chandelier_light
     action: light.turn_on
+    enabled: false
   - action: tts.speak
     data:
       media_player_entity_id: ' {{ [states(''sensor.where_is_maxi_sleeping'') | capitalize
@@ -2972,6 +2974,7 @@
       cache: true
     target:
       entity_id: tts.piper
+    enabled: false
   - metadata: {}
     data:
       is_volume_muted: false
@@ -2979,9 +2982,10 @@
       entity_id:
       - media_player.universal_bedroom_speakers
     action: media_player.volume_mute
+    enabled: false
   - action: tts.speak
     data:
-      media_player_entity_id: media_player.universal_bedroom_speakers
+      media_player_entity_id: media_player.universal_hotbox_speakers
       message: Someone has entered, a door has been opened
       cache: true
     target:
@@ -3185,7 +3189,7 @@
   - action: media_player.volume_set
     metadata: {}
     data:
-      volume_level: 0.42
+      volume_level: 0.34
     target:
       entity_id: '{{ sleeper_speaker }}'
   mode: single
@@ -3258,7 +3262,6 @@
     - binary_sensor.group_hallway_motion_occupancy
     - binary_sensor.group_kitchen_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
-    - binary_sensor.group_server_motion_occupancy
     - binary_sensor.group_bathroom_motion_occupancy
     - binary_sensor.group_bedroom_motion_occupancy
     - binary_sensor.group_entrance_motion_occupancy
@@ -3830,15 +3833,6 @@
   - choose:
     - conditions:
       - condition: trigger
-        id: ''
-      sequence:
-      - action: light.toggle
-        metadata: {}
-        data: {}
-        target:
-          entity_id: light.hotbox_top_led_leds_bed_section
-    - conditions:
-      - condition: trigger
         id:
         - press_4
       sequence:
@@ -3851,7 +3845,6 @@
     - conditions:
       - condition: trigger
         id:
-        - press_3
         - press_1
       sequence:
       - choose:
@@ -3901,6 +3894,17 @@
         metadata: {}
         data:
           brightness_step_pct: -10
+        target:
+          entity_id: light.group_hotbox_top_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - press_3
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          brightness_pct: 2
         target:
           entity_id: light.group_hotbox_top_lights
   mode: single
@@ -4250,8 +4254,8 @@
       action_rotate_left:
       - variables:
           speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+            sum(start=[]) |    select(''search'', ''airplay'') |  expand   |map(attribute=''entity_id'')
+            | list}}
 
             '
           chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
@@ -4285,8 +4289,8 @@
       action_rotate_right:
       - variables:
           speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+            sum(start=[]) |    select(''search'', ''airplay'') |  expand   |map(attribute=''entity_id'')
+            | list}}
 
             '
           chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
@@ -4317,8 +4321,8 @@
       action_click_short:
       - variables:
           speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+            sum(start=[]) |    select(''search'', ''airplay'') |  expand   |map(attribute=''entity_id'')
+            | list}}
 
             '
           chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
@@ -6026,7 +6030,7 @@
     from:
     for:
       hours: 0
-      minutes: 1
+      minutes: 2
       seconds: 0
     trigger: state
   conditions:
@@ -6695,7 +6699,7 @@
   mode: parallel
   max: 25
 - id: '1734911416848'
-  alias: Stop bathroom speaker when door opens
+  alias: Mute bathroom speaker when door opens
   description: ''
   triggers:
   - entity_id:
@@ -6715,9 +6719,10 @@
         entity_id: binary_sensor.group_bathroom_motion_occupancy
         state: 'off'
       sequence:
-      - action: media_player.turn_off
+      - action: media_player.volume_mute
         metadata: {}
-        data: {}
+        data:
+          is_volume_muted: true
         target:
           entity_id: media_player.universal_bathroom_speakers
     - conditions:
@@ -6749,9 +6754,10 @@
                 entity_id: sensor.active_speakers_rooms
                 state: '[''bathroom'']'
           sequence:
-          - action: media_player.turn_off
+          - action: media_player.volume_mute
             metadata: {}
-            data: {}
+            data:
+              is_volume_muted: true
             target:
               entity_id: media_player.universal_bathroom_speakers
   mode: restart
@@ -6899,7 +6905,7 @@
     - media_player.universal_livingroom_speakers
     - media_player.universal_hotbox_speakers
     to:
-    from: 'off'
+    from: idle
     trigger: state
   conditions:
   - condition: template
@@ -6984,7 +6990,7 @@
       action_rotate_left:
       - variables:
           speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
+            sum(start=[]) |    select(''search'', ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
             ''false'') |map(attribute=''entity_id'') | list}}
 
             '
@@ -7115,7 +7121,7 @@
           entity_id: '{{media_players}}'
         action: media_player.media_next_track
 - id: '1738094823714'
-  alias: Stop bathroom speaker when no motion and door open
+  alias: Mute bathroom speaker when no motion and door open
   description: ''
   triggers:
   - trigger: state
@@ -7131,9 +7137,10 @@
     entity_id: binary_sensor.sensor_bathroom_door_contact
     state: 'on'
   actions:
-  - action: media_player.turn_off
+  - action: media_player.volume_mute
     metadata: {}
-    data: {}
+    data:
+      is_volume_muted: true
     target:
       entity_id: media_player.universal_bathroom_speakers
   mode: restart
@@ -8415,3 +8422,544 @@
     target:
       entity_id: number.livingroom_tablet_screen_brightness
   mode: restart
+- id: '1741877702709'
+  alias: Start music when maxi returns home
+  description: Only trigger if maxi is alone
+  triggers:
+  - entity_id:
+    - person.maximiliano
+    from: not_home
+    to: home
+    for:
+      hours: 0
+      minutes: 3
+      seconds: 0
+    trigger: state
+  conditions:
+  - condition: state
+    entity_id: person.maximiliano
+    state: home
+  - condition: state
+    entity_id: media_player.group_mass_home_group_speakers
+    state: 'off'
+  - condition: state
+    entity_id: binary_sensor.maxi_alone
+    state: 'on'
+  actions:
+  - data:
+      media_id: All favorited tracks
+      enqueue: replace
+    action: music_assistant.play_media
+    target:
+      entity_id: media_player.group_mass_home_group_speakers
+  mode: single
+- id: '1742862883906'
+  alias: Turn on parking light on person occupancy
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    - binary_sensor.parking_camera_person_occupancy
+    to: 'on'
+    from:
+  conditions: []
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_parking_lamp
+  mode: single
+- id: '1742862955443'
+  alias: Turn off Parking light on 5 minuts of no occupancy
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.group_parking_occupancy
+    from: 'on'
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+  conditions: []
+  actions:
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_parking_lamp
+  mode: single
+- id: '1742998769189'
+  alias: Analyze person in the parking when car is present to detect burglary
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 30
+    to: 'on'
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.parking_exit_camera_car_occupancy
+    state: 'on'
+  actions:
+  - action: llmvision.stream_analyzer
+    metadata: {}
+    data:
+      remember: false
+      use_memory: false
+      duration: 3
+      max_frames: 10
+      include_filename: false
+      target_width: 1280
+      max_tokens: 100
+      temperature: 0.2
+      generate_title: false
+      expose_images: true
+      provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
+      model: minicpm-v:latest
+      message: Answer only with yes or no; Is this person trying to break in into
+        the car?
+      image_entity:
+      - camera.parking_exit_camera
+    response_variable: answer
+    alias: Ask VisionLLM if someone is trying to break in into the car
+  - condition: template
+    value_template: '{{ "YES" in answer.reponse_text | upper }}'
+    alias: Stop if no one is trying to break in
+  - action: script.find_phone
+    metadata: {}
+    data: {}
+  - metadata: {}
+    data:
+      title: Car break-in attempt
+      message: AI detected a  potential car break-in in the parking
+      data:
+        ttl: 0
+        priority: high
+        image: api/camera_proxy/camera.parking_exit_camera
+    action: notify.mobile_app_phone_maxi
+  mode: single
+- id: '1743004781903'
+  alias: Alert if someone is loitering by the car for too long
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    for:
+      hours: 0
+      minutes: 4
+      seconds: 30
+    to: 'on'
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.parking_exit_camera_car_occupancy
+    state: 'on'
+  actions:
+  - metadata: {}
+    data:
+      title: Car security alert
+      message: Persn loitering beside the car
+      data:
+        ttl: 0
+        priority: high
+        image: api/camera_proxy/camera.parking_exit_camera
+    action: notify.mobile_app_phone_maxi
+  mode: single
+- id: '1743014018855'
+  alias: Turn on parking light when someone is detected in the back balcony
+  description: ''
+  triggers:
+  - entity_id:
+    - binary_sensor.back_door_camera_person_occupancy
+    to: 'on'
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
+    target:
+      entity_id: switch.plug_parking_lamp
+    action: switch.turn_on
+    data: {}
+  mode: single
+- id: '1743016095414'
+  alias: Turn on parking light when a car is moving
+  description: ''
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - sensor.parking_exit_camera_car_active_count
+    - sensor.parking_camera_car_active_count
+    above: 0
+  conditions: []
+  actions:
+  - metadata: {}
+    target:
+      entity_id: switch.plug_parking_lamp
+    action: switch.turn_on
+    data: {}
+  mode: single
+- id: '1743179648448'
+  alias: Alert when someone is in the parking
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    from:
+    to: 'on'
+    id: parking_exit
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_camera_person_occupancy
+    from:
+    to: 'on'
+    id: parking
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - parking_exit
+      sequence:
+      - metadata: {}
+        data:
+          filename: /media/parking_exit_movement.png
+        target:
+          entity_id:
+          - camera.parking_exit_camera
+        action: camera.snapshot
+      - metadata: {}
+        data:
+          message: Someone is in the parking exit!
+          title: Someone is in the parking exit!
+          data:
+            ttl: 0
+            priority: high
+            image: /media/local/parking_exit_movement.png
+            actions:
+            - action: blow_horn_back
+              title: Blow the horn for 2 minutes?
+            channel: security_alerts_notifications
+        action: notify.mobile_app_phone_maxi
+    - conditions:
+      - condition: trigger
+        id:
+        - parking
+      sequence:
+      - metadata: {}
+        data:
+          filename: /media/parking_movement.png
+        target:
+          entity_id:
+          - camera.parking_camera
+        action: camera.snapshot
+      - metadata: {}
+        data:
+          message: Someone is in the parking!
+          title: Someone is in the parking!
+          data:
+            ttl: 0
+            priority: high
+            image: /media/local/parking_movement.png
+            actions:
+            - action: blow_horn_back
+              title: Blow the horn for 2 minutes?
+            channel: security_alerts_notifications
+        action: notify.mobile_app_phone_maxi
+  - wait_for_trigger:
+    - event_type: mobile_app_notification_action
+      context: {}
+      event_data:
+        action: blow_horn_back
+      trigger: event
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 5
+      seconds: 0
+      milliseconds: 0
+  - metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_back_door_horn
+    action: switch.turn_on
+  mode: restart
+- id: '1743281098829'
+  alias: Alert when back horns rings and offer to turn it off
+  description: ''
+  triggers:
+  - entity_id:
+    - switch.plug_back_door_horn
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
+    data:
+      filename: /media/back_horn_check.png
+    action: camera.snapshot
+    target:
+      entity_id: camera.back_door_camera
+  - metadata: {}
+    data:
+      message: Back horn started
+      data:
+        image: /media/local/back_horn_check.png
+        actions:
+        - action: stop_horn
+          title: Stop the horn?
+        channel: security_alerts_notifications
+      title: Security breach
+    action: notify.mobile_app_phone_maxi
+  - wait_for_trigger:
+    - event_type: mobile_app_notification_action
+      context: {}
+      event_data:
+        action: stop_horn
+      trigger: event
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 3
+      seconds: 0
+      milliseconds: 0
+  - data: {}
+    action: switch.turn_off
+    target:
+      entity_id: switch.plug_back_door_horn
+  mode: restart
+- id: '1743452959837'
+  alias: Unmute playing bathroom speaker when someone enters
+  description: ''
+  triggers:
+  - entity_id:
+    - binary_sensor.sensor_bathroom_motion_occupancy
+    to: 'on'
+    from: 'off'
+    trigger: state
+  conditions:
+  - condition: state
+    entity_id: media_player.universal_bathroom_speakers
+    state: playing
+  actions:
+  - action: media_player.volume_mute
+    metadata: {}
+    data:
+      is_volume_muted: false
+    target:
+      entity_id: media_player.universal_bathroom_speakers
+  mode: restart
+- id: '1743747879302'
+  alias: Ring horn in the back if someone tries to approach while maxi is scared
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.hotbox_window_presence_person_occupancy
+    from: 'off'
+    to: 'on'
+  conditions:
+  - condition: state
+    entity_id: input_boolean.maxi_is_scared
+    state: 'on'
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_back_door_horn
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - binary_sensor.back_door_camera_person_occupancy
+      from: 'on'
+      to: 'off'
+      for:
+        hours: 0
+        minutes: 0
+        seconds: 10
+    timeout:
+      hours: 0
+      minutes: 0
+      seconds: 30
+      milliseconds: 0
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_back_door_horn
+  mode: single
+- id: '1743869107759'
+  alias: Update cloudflare when IP changes
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - device_tracker.ucg_ultra
+    attribute: ip
+  conditions: []
+  actions:
+  - action: cloudflare.update_records
+    metadata: {}
+    data: {}
+  mode: single
+- id: '1743895167890'
+  alias: Turn on outside lights when someone is in Felix back camera
+  description: ''
+  triggers:
+  - entity_id:
+    - binary_sensor.felix_back_camera_person_occupancy
+    to: 'on'
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
+    data:
+      color_temp: 254
+      brightness: 255
+    target:
+      entity_id: light.back_door_light
+    action: light.turn_on
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_parking_lamp
+  mode: single
+- id: '1743895395707'
+  alias: Alert when someone is near felix door
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.felix_back_camera_person_occupancy
+    from:
+    to: 'on'
+  conditions: []
+  actions:
+  - metadata: {}
+    data:
+      filename: /media/felix_movement.png
+    action: camera.snapshot
+    target:
+      entity_id: camera.felix_back_camera
+  - metadata: {}
+    data:
+      message: Someone is at felix door
+      title: Someone is at felix door
+      data:
+        ttl: 0
+        priority: high
+        image: /media/local/felix_movement.png
+        actions:
+        - action: blow_horn_back
+          title: Blow the horn for 2 minutes?
+        channel: security_alerts_notifications
+    action: notify.mobile_app_phone_maxi
+  - wait_for_trigger:
+    - event_type: mobile_app_notification_action
+      context: {}
+      event_data:
+        action: blow_horn_back
+      trigger: event
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 5
+      seconds: 0
+      milliseconds: 0
+  - metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_back_door_horn
+    action: switch.turn_on
+  mode: restart
+- id: '1743954245142'
+  alias: Turn on back door light when door opens
+  description: ''
+  triggers:
+  - entity_id:
+    - binary_sensor.sensor_back_outside_door_contact
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+    trigger: state
+  conditions: []
+  actions:
+  - action: light.turn_on
+    metadata: {}
+    data:
+      kelvin: 4882
+      brightness_pct: 100
+    target:
+      entity_id: light.back_door_light
+  mode: single
+- id: '1744235712389'
+  alias: Turn off parking light 5 minutes after it turns on if there's no person presence
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - switch.plug_parking_lamp
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: binary_sensor.parking_camera_person_occupancy
+        state: 'off'
+      - condition: state
+        entity_id: binary_sensor.parking_exit_camera_person_occupancy
+        state: 'off'
+      sequence:
+      - action: switch.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: switch.plug_parking_lamp
+    - conditions:
+      - condition: or
+        conditions:
+        - condition: state
+          entity_id: binary_sensor.parking_camera_person_occupancy
+          state: 'on'
+        - condition: state
+          entity_id: binary_sensor.parking_exit_camera_person_occupancy
+          state: 'on'
+      sequence:
+      - wait_for_trigger:
+        - trigger: state
+          entity_id:
+          - binary_sensor.parking_exit_camera_person_occupancy
+          to: 'off'
+          for:
+            hours: 0
+            minutes: 5
+            seconds: 0
+      - action: switch.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: switch.plug_parking_lamp
+  mode: single
