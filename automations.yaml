@@ -1091,12 +1091,12 @@
     then:
     - metadata: {}
       data:
-        volume_level: "{% if average_volume | float > \".35\" | float %}\n .35    \n{%
-          elif average_volume | float < \".15\" | float %}\n .15\n{% else %} {{ average_volume
+        volume_level: "{% if average_volume | float > \".55\" | float %}\n .55    \n{%
+          elif average_volume | float < \".20\" | float %}\n .20\n{% else %} {{ average_volume
           }} {% endif%}\n"
       target:
         entity_id: '{{playing_speakers}}'
-      alias: Set volume to the average of the house (maximum 35%)
+      alias: Set volume to the average of the house (maximum 55%)
       action: media_player.volume_set
   mode: parallel
   max: 10
@@ -2670,29 +2670,13 @@
           title: Blow the horn for 2 minutes?
         - action: REPLY
           title: Enter Text
+        - action: URI
+          title: Open Camera
+          uri: 'intent://scan/#Intent;scheme=reolink;package=com.mcu.reolink;action=android.intent.action.VIEW;S.UID=95270001J6YVJA91;S.DEVNAME=Front
+            Door PTZ Camera;S.ALMTYPE=Person;S.ALMCHN=Fluent;S.ALMNAME=Detection;S.ALMTIME={{now().isoformat()}};end '
         ttl: 0
         priority: high
         channel: security_alerts_notifications
-    action: notify.mobile_app_phone_maxi
-  - action: llmvision.image_analyzer
-    data:
-      provider: 01JDD7V3QXP1KN82V27H591YAX
-      model: maxi_llama32-vision
-      message: Describe this person only using adjectives, with no preamble, format
-        it as bulletpoints, if there is no person say so
-      max_tokens: 42
-      temperature: 0.3
-      include_filename: true
-      image_entity:
-      - camera.front_door_camera
-      expose_images: true
-    response_variable: return
-    enabled: false
-  - metadata: {}
-    data:
-      message: '{{return.response_text}}'
-      title: This is who is in the front
-    enabled: false
     action: notify.mobile_app_phone_maxi
   mode: restart
 - id: '1716935540936'
@@ -3155,6 +3139,7 @@
   - condition: template
     value_template: '{{ state_attr(sleeper_speaker,''media_title'') != ''thunderstorm''
       }} '
+    enabled: false
   - action: media_player.unjoin
     metadata: {}
     data: {}
@@ -6212,7 +6197,8 @@
     entity_id: input_boolean.party_mode
     state: 'on'
   actions:
-  - action: llmvision.image_analyzer
+  - alias: Analyse if a cop is present
+    action: llmvision.image_analyzer
     data:
       include_filename: false
       target_width: 1280
@@ -6221,13 +6207,12 @@
       temperature: 0.2
       expose_images: true
       provider: 01JDD7V3QXP1KN82V27H591YAX
-      model: maxi_llama32-vision
+      model: minicpm-v:latest
       message: '  Answer with ''yes'' or ''no'', is there a police officer or a security
         guard on this image? Only use one word to answer'
       image_entity:
       - camera.front_door_camera
     response_variable: answer
-    alias: Analyse if a cop is present
   - alias: Lower volume if a cop is present and notify maxi
     if:
     - condition: template
@@ -8622,6 +8607,18 @@
     from:
     to: 'on'
     id: parking
+  - trigger: state
+    entity_id:
+    - binary_sensor.reolink_parking_camera_person
+    from:
+    to: 'on'
+    id: reolink_parking
+  - trigger: state
+    entity_id:
+    - binary_sensor.reolink_parking_exit_camera_person
+    from:
+    to: 'on'
+    id: reolink_parking_exit
   conditions: []
   actions:
   - choose:
@@ -8648,6 +8645,10 @@
             actions:
             - action: blow_horn_back
               title: Blow the horn for 2 minutes?
+            - action: URI
+              title: Open Camera
+              uri: 'intent://scan/#Intent;scheme=reolink;package=com.mcu.reolink;action=android.intent.action.VIEW;S.UID=95270004NZ8J1BQS;S.DEVNAME=Parking
+                Exit Camera;S.ALMTYPE=Person;S.ALMCHN=<CAM_CHANNEL_HERE>;S.ALMNAME=Detection;S.ALMTIME={{now().isoformat()}};end '
             channel: security_alerts_notifications
         action: notify.mobile_app_phone_maxi
     - conditions:
@@ -8673,11 +8674,73 @@
             actions:
             - action: blow_horn_back
               title: Blow the horn for 2 minutes?
+            - action: URI
+              title: Open Camera
+              uri: 'intent://scan/#Intent;scheme=reolink;package=com.mcu.reolink;action=android.intent.action.VIEW;S.UID=95270008OTDJDYBC;S.DEVNAME=Parking
+                Camera;S.ALMTYPE=Person;S.ALMCHN=<CAM_CHANNEL_HERE>;S.ALMNAME=Detection;S.ALMTIME={{now().isoformat()}};end '
+            channel: security_alerts_notifications
+        action: notify.mobile_app_phone_maxi
+    - conditions:
+      - condition: trigger
+        id:
+        - reolink_parking
+      sequence:
+      - metadata: {}
+        data:
+          filename: /media/reolink_parking_movement.png
+        action: camera.snapshot
+        target:
+          entity_id: camera.reolink_parking_camera_fluent
+      - metadata: {}
+        data:
+          message: Someone is in the parking! (R)
+          title: Someone is in the parking! (R)
+          data:
+            ttl: 0
+            priority: high
+            image: /media/local/reolink_parking_movement.png
+            actions:
+            - action: blow_horn_back
+              title: Blow the horn for 2 minutes?
+            - action: URI
+              title: Open Camera
+              uri: 'intent://scan/#Intent;scheme=reolink;package=com.mcu.reolink;action=android.intent.action.VIEW;S.UID=95270008OTDJDYBC;S.DEVNAME=Parking
+                Camera;S.ALMTYPE=Person;S.ALMCHN=<CAM_CHANNEL_HERE>;S.ALMNAME=Detection;S.ALMTIME={{now().isoformat()}};end '
+            channel: security_alerts_notifications
+        action: notify.mobile_app_phone_maxi
+    - conditions:
+      - condition: trigger
+        id:
+        - reolink_parking_exit
+      sequence:
+      - metadata: {}
+        data:
+          filename: /media/reolink_parking_exit_movement.png
+        action: camera.snapshot
+        target:
+          entity_id: camera.reolink_parking_exit_camera_fluent
+      - metadata: {}
+        data:
+          message: Someone is in the parking exit! (R)
+          title: Someone is in the parking exit! (R)
+          data:
+            ttl: 0
+            priority: high
+            image: /media/local/reolink_parking_exit_movement.png
+            actions:
+            - action: blow_horn_back
+              title: Blow the horn for 2 minutes?
+            - action: URI
+              title: Open Camera
+              uri: 'intent://scan/#Intent;scheme=reolink;package=com.mcu.reolink;action=android.intent.action.VIEW;S.UID=95270004NZ8J1BQS;S.DEVNAME=Parking
+                Exit Camera;S.ALMTYPE=Person;S.ALMCHN=<CAM_CHANNEL_HERE>;S.ALMNAME=Detection;S.ALMTIME={{now().isoformat()}};end '
             channel: security_alerts_notifications
         action: notify.mobile_app_phone_maxi
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
-      context: {}
+      context:
+        user_id:
+        - 7f1de31122574f6fa2215e519d6083ea
       event_data:
         action: blow_horn_back
       trigger: event
@@ -8692,7 +8755,8 @@
     target:
       entity_id: switch.plug_back_door_horn
     action: switch.turn_on
-  mode: restart
+  mode: parallel
+  max: 4
 - id: '1743281098829'
   alias: Alert when back horns rings and offer to turn it off
   description: ''
@@ -8962,4 +9026,83 @@
         data: {}
         target:
           entity_id: switch.plug_parking_lamp
+  mode: single
+- id: '1744572056958'
+  alias: Turn off parking audio detection when patio is occupied
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.group_patio_motion_occupancy
+    to: 'on'
+  conditions: []
+  actions:
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - switch.parking_exit_camera_audio_detection
+  mode: single
+- id: '1744572115522'
+  alias: Turn on parking audio detection when patio occupancy is off
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.group_patio_motion_occupancy
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
+  conditions: []
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - switch.parking_exit_camera_audio_detection
+  mode: single
+- id: '1744572189762'
+  alias: Turn on parking audio detection when patio occupancy is off
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.group_patio_motion_occupancy
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
+  conditions: []
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - switch.parking_exit_camera_audio_detection
+  mode: single
+- id: '1744578292338'
+  alias: Alert maxi if Felix back camera hears a fire alarm
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.felix_back_camera_fire_alarm_sound
+    to: 'on'
+    from: 'off'
+  conditions: []
+  actions:
+  - action: notify.mobile_app_phone_maxi
+    data:
+      message: Fire alarm detected near felix exit
+      title: Fire Alert
+      data:
+        ttl: 0
+        priority: high
+        channel: security_alerts_notifications
   mode: single
