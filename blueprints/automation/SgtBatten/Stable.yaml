@@ -1,0 +1,2020 @@
+blueprint:
+  name: Frigate Notifications (0.14.0.2w)
+  author: SgtBatten
+  homeassistant:
+    min_version: 2024.11.0
+  description: "## Frigate Notifications\n\nA highly customisable Notification template
+    for Frigate Camera Notifications.\n\n### Software Version Requirements\n  - Minimum
+    Home Assistant Version: 2024.10\n  - Minimum Frigate Version: 0.14.0\n  - Minimum
+    Frigate Integration Version: 5.7.0\n    - **Note:** \"Enable the unauthenticated
+    notification event proxy\" must be ticked during setup\n  - An MQTT broker connected
+    to Home Assistant and Frigate.\n  - Minimum iOS Version: 15.0\n\n### Required
+    Configuration Options:\n  - Frigate Cameras\n  - Mobile Device (Running HA Companion
+    App)\n\n### Features:\n  - Easily select the camera entities or mobile device
+    using a drop-down menu.\n  - Configure multiple cameras in one automation. \n\n
+    \ For the full features list visit the [GitHub Repository][1]\n\n[1]: https://github.com/SgtBatten/HA_blueprints/blob/main/Frigate_Camera_Notifications\n\n##
+    Support\nGo to https://github.com/SgtBatten/HA_blueprints to report bugs, request
+    new features, or get support with your configuration.\n"
+  domain: automation
+  source_url: https://github.com/SgtBatten/HA_blueprints/blob/main/Frigate_Camera_Notifications/Stable.yaml
+  input:
+    camera:
+      name: Frigate Cameras
+      description: "Select the cameras that will trigger notifications. \nIf you do
+        not see cameras listed in the drop-down, check you have the Frigate integration
+        installed.\nTo more effectively customise the notifications you may need to
+        create one automation per camera.\n"
+      selector:
+        entity:
+          filter:
+          - integration: frigate
+            domain:
+            - camera
+          multiple: true
+    notify_device:
+      name: Mobile Device
+      description: Select a device that runs the official Home Assistant app to receive
+        notifications. If you wish to notify a group of devices and/or Android/Fire
+        TV use the field below to override this selection. This will be ignored in
+        that case but is still required.
+      default: false
+      selector:
+        device:
+          filter:
+          - integration: mobile_app
+          multiple: false
+    notify_group:
+      name: Notification Group or Android/Fire TV (Optional)
+      description: 'The name of the group or individual TV to send notifications to.
+
+        If set, this will override the individual devices above.
+
+
+        Note: If the group contains both mobile devices and TVs, the TV will not display
+        the snapshot unless "TV notifications" is set to true. However, this will
+        stop Android phones from receiving thumbnails.
+
+        '
+      default: ''
+    base_url:
+      name: Base URL (Optional)
+      description: 'The external URL for your Home Assistant instance.
+
+        Recommended for iOS and required for Android/Fire TV.
+
+        Must include the scheme i.e http:// or https://
+
+        Examples: http://192.168.1.25:8123   https://homeassistant.mydomain.com
+
+        '
+      default: ''
+    mqtt_topic:
+      name: MQTT Topic (Advanced)
+      description: The MQTT topic Frigate sends review messages in.
+      default: frigate/reviews
+    client_id:
+      name: Client ID (Optional-Advanced)
+      description: Used to support multiple instances of Frigate. Leave blank if you
+        don't know what to do.
+      default: ''
+    telegram:
+      name: '# Telegram Configuration
+
+        '
+      description: These are Telegram specific Options.
+      icon: mdi:phone-outline
+      collapsed: true
+      input:
+        telegram_base_url:
+          name: Telegram Base URL (Optional)
+          description: 'The internal URL for your Home Assistant instance.
+
+            Used only for telegram integration (For downloading media). Useful when
+            your base URL points to a proxy instance
+
+            which could be unreachable from your home assistant instance. If unset
+            telegram will use Base URL.
+
+            Must include the scheme i.e http:// or https://
+
+            Examples: http://192.168.1.25:8123
+
+            '
+          default: ''
+        notify_telegram_chat_id:
+          name: Telegram Chat ID (Optional)
+          description: 'The chat ID to send telegram notifications to.
+
+            If set, this will override individual devices and groups above. Note:
+            TV (far below) must be set to false.
+
+            Base URL must start with https since telegram URL buttons only work with
+            https.
+
+            '
+          default: ''
+    notification_customisations:
+      name: '# Notification Customisations
+
+        '
+      description: These are Notification Customisation Options
+      icon: mdi:bell
+      collapsed: true
+      input:
+        title:
+          name: Notification Title (Optional)
+          description: The title of the notification.
+          default: ''
+        message:
+          name: Notification Message
+          description: 'The message of the notification.
+
+            You can use variables such as {{camera_name}} and {{label}}
+
+            e.g., A {{ label }} {{ '' was'' if type == ''end'' else '''' }} detected
+            on the {{ camera_name }} camera.
+
+            '
+          default: A {{ label }} {{ 'was detected' }} on the {{ camera_name }} camera.
+          selector:
+            select:
+              options:
+              - label: 'Default:   e.g., A Person was detected on the Side camera.'
+                value: A {{ label }} {{ 'was detected' }} on the {{ camera_name }}
+                  camera.
+              - label: 'Short:     e.g., Person detected - Side'
+                value: '{{ label }} detected - {{ camera_name }}'
+              - label: Short with a timestamp HH:MM
+                value: '{{ label }} detected - {{ camera_name }} at {{event[''after''][''start_time'']|timestamp_custom(''%H:%M'')}}'
+              - label: 'Long:      e.g., A Person was detected on the Side camera
+                  in the driveway.'
+                value: '{{ label }}{{ '' was'' if type == ''end'' else '''' }} detected
+                  on the {{ camera_name }} camera{{'' in the '' if after_zones|length}}{{
+                  after_zones | join('', '') | replace(''_'', '' '' ) | title }}.'
+              - label: Long with a timestamp HH:MM
+                value: '{{ label }}{{ '' was'' if type == ''end'' else '''' }} detected
+                  on the {{ camera_name }} camera{{'' in the '' if after_zones|length}}{{
+                  after_zones | join('', '') | replace(''_'', '' '' ) | title }} at
+                  {{event[''after''][''start_time'']|timestamp_custom(''%H:%M'')}}.'
+              custom_value: true
+              multiple: false
+              sort: false
+        update_sub_label:
+          name: Update Sub Labels (Advanced)
+          description: 'Update the title and/or message with the matched face name
+            and trigger a notification update.
+
+
+            Requires face detection to be configured via Double Take (Advanced). Requires
+            Title and/or Message to contain {{ label }} variable
+
+            '
+          default: true
+          selector:
+            boolean: {}
+        subtitle:
+          name: Subtitle
+          description: A secondary heading you can use in your notifications.
+          default: ''
+        critical:
+          name: Critical Notification (Optional)
+          description: 'Send as a critical notification to the mobile device. This
+            will ignore silent/vibrate modes.
+
+            You can choose to limit critical notifications to certain times using
+            a template (some examples are provided but you can enter your own as long
+            as it outputs true or false)
+
+            '
+          default: 'false'
+          selector:
+            select:
+              options:
+              - 'false'
+              - 'true'
+              - '{{''false'' if now().hour in [8,9,10,11,12,13,14,15,16,17,18] else
+                ''true''}}'
+              - '{{''true'' if is_state(''sun.sun'', ''above_horizon'') else ''false''
+                }}'
+              - '{{ event[''after''][''top_score''] |float(0) > 0.8 }}'
+              custom_value: true
+              multiple: false
+              sort: false
+        tts:
+          name: Use TTS to override silent/dnd modes on specific phones.
+          description: 'Some phones (the Samsung galaxy line, in particular,) disable
+            the ability to use `alarm_stream` as a means to bypass the current sound
+            settings. This option allows TTS to announce the alert instead, which
+            does bypass the sound settings.
+
+            '
+          default: false
+          selector:
+            boolean: {}
+        tts_helper:
+          name: Entity to store ids already alerted by TTS
+          description: 'In order for TTS to honor alert_once settings, create a text
+            helper (/config/helpers), which will be used to store the ids for any
+            tts alerts that have gone out. Set the maximum character count to 250
+            to store the latest 25 alert ids. Then select it here
+
+            '
+          default: ''
+          selector:
+            entity:
+              filter:
+              - integration: input_text
+              multiple: false
+        alert_once:
+          name: Alert Once (Optional)
+          description: Only the first notification for each event will play a sound.
+            Updates, including new thumbnails, will be silent. iOS users who use Critical
+            Notifications above will still hear default critical sounds for updates.
+          default: false
+          selector:
+            boolean: {}
+        attachment:
+          name: Initial Attachment
+          description: 'Choose which image or GIF to attach to the initial notification.
+
+
+            Note: TVs will always get sent the snapshot.
+
+            '
+          default: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/thumbnail.jpg'
+          selector:
+            select:
+              options:
+              - label: Thumbnail
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/thumbnail.jpg'
+              - label: Snapshot
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg'
+              - label: Snapshot with bounding box
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1'
+              - label: Snapshot cropped
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?crop=1'
+              - label: Snapshot cropped with bounding box
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1&crop=1'
+              - label: Review GIF
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif'
+              - label: Object 1 Event GIF
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/event_preview.gif'
+              - label: Thumbnail (2:1)
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/thumbnail.jpg?format=android'
+              - label: Snapshot (2:1)
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?format=android'
+              - label: Snapshot with bounding box (2:1)
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1&format=android'
+              - label: Snapshot cropped (2:1)
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?crop=1&format=android'
+              - label: Snapshot cropped with bounding box (2:1)
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1&crop=1&format=android'
+              mode: dropdown
+              custom_value: false
+              multiple: false
+              sort: false
+        attachment_2:
+          name: Subsequent Attachment (Optional)
+          description: "Choose which image or GIF to attach to the notification for
+            any updates. It is recommended to enable Final Update\nSet to None to
+            continue using Initial Attachment for updates. \n\nNote: TVs will get
+            sent the snapshot if GIF is selected.\n"
+          default: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/thumbnail.jpg'
+          selector:
+            select:
+              options:
+              - label: None
+                value: ''
+              - label: Thumbnail
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/thumbnail.jpg'
+              - label: Snapshot
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg'
+              - label: Snapshot with bounding box
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1'
+              - label: Snapshot cropped
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?crop=1'
+              - label: Snapshot cropped with bounding box
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1&crop=1'
+              - label: Review GIF
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif'
+              - label: Object 1 Event GIF
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/event_preview.gif'
+              - label: Thumbnail (2:1)
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/thumbnail.jpg?format=android'
+              - label: Snapshot (2:1)
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?format=android'
+              - label: Snapshot with bounding box (2:1)
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1&format=android'
+              - label: Snapshot cropped (2:1)
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?crop=1&format=android'
+              - label: Snapshot cropped with bounding box (2:1)
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1&crop=1&format=android'
+              mode: dropdown
+              custom_value: false
+              multiple: false
+              sort: false
+        video:
+          name: Video (Optional)
+          description: You can optionally attach the clip to the notification which
+            will replace the attachment above, if available.
+          default: ''
+          selector:
+            select:
+              options:
+              - label: None
+                value: ''
+              - label: Review GIF
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif?format=ts'
+              - label: Object 1 Event GIF
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/event_preview.gif?format=ts'
+              - label: Clip mp4
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/clip.mp4'
+              - label: Clip m3u8 (IOS)
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
+              mode: dropdown
+              custom_value: false
+              multiple: false
+              sort: false
+        final_update:
+          name: Final update (Optional)
+          description: Update the notification at the end of the event. Used to ensure
+            the full video of GIF is sent. Configure the delay if necessary in the
+            timers section (default - 5 seconds).
+          default: false
+          selector:
+            boolean: {}
+        color:
+          name: Notification Color - Android and TV only (Optional)
+          description: "Set the color of the notification on your Android mobile device
+            or TV. \nTV supports `grey`, `black`, `indigo`, `green`, `red`, `cyan`,
+            `teal`, `amber` or `pink` only.\n"
+          default: '#03a9f4'
+          selector:
+            select:
+              options:
+              - label: Primary (Steelblue)
+                value: '#03a9f4'
+              - label: Red
+                value: '#f44336'
+              - label: Pink
+                value: '#e91e63'
+              - label: Purple
+                value: '#926bc7'
+              - label: Deep Purple
+                value: '#6e41ab'
+              - label: Indigo
+                value: '#3f51b5'
+              - label: Blue
+                value: '#2196f3'
+              - label: Light Blue
+                value: '#03a9f4'
+              - label: Cyan
+                value: '#00bcd4'
+              - label: Teal
+                value: '#009688'
+              - label: Green
+                value: '#4caf50'
+              - label: Light Green
+                value: '#8bc34a'
+              - label: Lime
+                value: '#cddc39'
+              - label: Yellow
+                value: '#ffeb3b'
+              - label: Amber
+                value: '#ffc107'
+              - label: Orange
+                value: '#ff9800'
+              - label: Deep Orange
+                value: '#ff5722'
+              - label: Brown
+                value: '#795548'
+              - label: Light Grey
+                value: '#bdbdbd'
+              - label: Grey
+                value: '#9e9e9e'
+              - label: Dark Grey
+                value: '#606060'
+              - label: Blue Grey
+                value: '#607d8b'
+              - label: Black
+                value: '#000000'
+              - label: White
+                value: '#ffffff'
+              custom_value: false
+              multiple: false
+              sort: false
+        icon:
+          name: Notification Icon (Optional)
+          description: Change the icon that displays on the notification. You can
+            enter a single icon or create a template like the example given in the
+            dropdown. You must include 'mdi:' in the icon name.
+          default: mdi:homeassistant
+          selector:
+            select:
+              options:
+              - mdi:homeassistant
+              - mdi:cctv
+              - mdi:{{'account-outline' if label == 'Person' else 'dog' if label ==
+                'Dog' else 'cat' if label == 'Cat' else 'car' if label == 'Car' else
+                'home-assistant'}}
+              custom_value: true
+              multiple: false
+              sort: false
+        group:
+          name: Group
+          description: The group name that will determine if notifications are grouped
+            on your mobile device. If you want notifications grouped by camera, ensure
+            it contains {{camera}}
+          default: '{{camera}}-frigate-notification'
+        sound:
+          name: Notification Sound - iOS only (Optional)
+          description: You can specify a sound file on your device that will play
+            for the notifications. You will need to import the sound file into Home
+            Assistant.
+          default: default
+          selector:
+            select:
+              options:
+              - default
+              - none
+              custom_value: true
+              multiple: false
+              sort: false
+        volume:
+          name: Volume Sound - iOS only (Optional)
+          description: You can specify a sound level between 0 and 100
+          default: 100
+          selector:
+            number:
+              max: 100.0
+              min: 0.0
+              unit_of_measurement: '%'
+              step: 1.0
+              mode: slider
+        ios_live_view:
+          name: Live View Entity - iOS only (Optional)
+          description: Attach a live view from the selected entity to the notification
+            for iOS devices.
+          default: ''
+          selector:
+            entity:
+              filter:
+              - domain:
+                - camera
+              multiple: false
+        android_auto:
+          name: Android Auto
+          description: Show the notification on Android Auto if the receiving device
+            is connected.
+          default: false
+          selector:
+            boolean: {}
+        sticky:
+          name: Sticky - Android only (Optional)
+          description: 'When enabled, the notification will stay active on the device
+            after tapping it and remain there until cleared.
+
+            '
+          default: false
+          selector:
+            boolean: {}
+        channel:
+          name: Notification Channel - Android only (Optional)
+          description: Create a new channel for notifications to allow custom notification
+            sounds, vibration patterns, and override of Do Not Disturb mode. Configured
+            directly on the device.
+          default: ''
+    filters:
+      name: '# Filters
+
+        '
+      description: These help limit when or what you are notified about.
+      icon: mdi:filter
+      collapsed: true
+      input:
+        review_severity:
+          name: Event Type
+          description: 'Specify the classification of Frigate events to be notified
+            about.
+
+            '
+          default:
+          - alert
+          - detection
+          selector:
+            select:
+              options:
+              - label: Alerts
+                value: alert
+              - label: Detections
+                value: detection
+              multiple: true
+              custom_value: false
+              sort: false
+        master_condition:
+          name: Master Condition (Optional)
+          description: Set conditions that will stop the automation from running if
+            the result is false. No other tests will be conducted later. This is a
+            kill switch on initiation.
+          default: []
+          selector:
+            condition: {}
+        zone_filter:
+          name: Zone Filter on/off (Optional)
+          description: Enable to only notify if an object has entered a zone listed
+            below.
+          default: false
+          selector:
+            boolean: {}
+        zones:
+          name: Required Zones (Optional - Enabled Above)
+          description: 'Enter the name of one zone at a time. It must be lowercase
+            and include underscores as per your Frigate config.
+
+            By default any zone is acceptable. If you desire ALL listed zones to be
+            entered before getting a notification, enable the multi toggle below.
+
+            '
+          default: []
+          selector:
+            select:
+              options:
+              - examples
+              - porch
+              - front_door
+              - side
+              - garden
+              multiple: true
+              custom_value: true
+              sort: false
+        zone_multi:
+          name: Multi-Zone (Optional)
+          description: Require all zones specified above to be entered, instead of
+            any listed zone. Zone Filter must be enabled also.
+          default: false
+          selector:
+            boolean: {}
+        zone_order_enforced:
+          name: Zone Order Enforced (Optional)
+          description: "Combined with Multi-Zone, requires zones to be entered in
+            the same order as their requirement. \nUseful for alerting on arriving
+            vehicles, while ignoring departing vehicles, for instance\n"
+          default: false
+          selector:
+            boolean: {}
+        labels:
+          name: Object Filter (Optional)
+          description: Specify objects you wish to be notified about. Enter or select
+            one object at a time.
+          default: ''
+          selector:
+            select:
+              options:
+              - person
+              - dog
+              - cat
+              - car
+              - package
+              - bird
+              multiple: true
+              custom_value: true
+              sort: false
+        presence_filter:
+          name: Presence Filter (Optional)
+          description: Only notify if ALL of the selected presence entities are not
+            "home".
+          default: ''
+          selector:
+            entity:
+              filter:
+              - domain:
+                - device_tracker
+                - person
+                - group
+              multiple: true
+        state_filter:
+          name: State Filter on/off (Optional)
+          description: Enable the two State Filter settings below. Only notify if
+            the selected entity is in the specified states.
+          default: false
+          selector:
+            boolean: {}
+        state_entity:
+          name: State Filter Entity (Optional)
+          description: Only notify if the selected entity is in the below state. You
+            must enable "State Filter" above to use this.
+          default: ''
+          selector:
+            entity: {}
+        state_filter_states:
+          name: State Filter States (Optional)
+          description: Enter the states that the above entity must be in, one at a
+            time.
+          default: []
+          selector:
+            select:
+              options: []
+              multiple: true
+              custom_value: true
+              sort: false
+        disable_times:
+          name: Time Filter (Optional)
+          description: Prevent notifications from being sent during the specified
+            hours
+          default: []
+          selector:
+            select:
+              multiple: true
+              options:
+              - label: 00:00 - 00:59
+                value: '0'
+              - label: 01:00 - 01:59
+                value: '1'
+              - label: 02:00 - 02:59
+                value: '2'
+              - label: 03:00 - 03:59
+                value: '3'
+              - label: 04:00 - 04:59
+                value: '4'
+              - label: 05:00 - 05:59
+                value: '5'
+              - label: 06:00 - 06:59
+                value: '6'
+              - label: 07:00 - 07:59
+                value: '7'
+              - label: 08:00 - 08:59
+                value: '8'
+              - label: 09:00 - 09:59
+                value: '9'
+              - label: 10:00 - 10:59
+                value: '10'
+              - label: 11:00 - 11:59
+                value: '11'
+              - label: 12:00 - 12:59
+                value: '12'
+              - label: 13:00 - 13:59
+                value: '13'
+              - label: 14:00 - 14:59
+                value: '14'
+              - label: 15:00 - 15:59
+                value: '15'
+              - label: 16:00 - 16:59
+                value: '16'
+              - label: 17:00 - 17:59
+                value: '17'
+              - label: 18:00 - 18:59
+                value: '18'
+              - label: 19:00 - 19:59
+                value: '19'
+              - label: 20:00 - 20:59
+                value: '20'
+              - label: 21:00 - 21:59
+                value: '21'
+              - label: 22:00 - 22:59
+                value: '22'
+              - label: 23:00 - 23:59
+                value: '23'
+              custom_value: false
+              sort: false
+        custom_filter:
+          name: Custom Filter (Optional - Advanced)
+          description: A filter that must result in true or false but can be templated
+            as necessary. You will need to ensure it is enclosed with appropriate
+            \"quotes\" and \{\{brackets\}\}.
+          default: true
+    timers:
+      name: '# Timers
+
+        '
+      description: These are Timers you can customise
+      icon: mdi:gesture-double-tap
+      collapsed: true
+      input:
+        cooldown:
+          name: Cooldown (Optional)
+          description: Delay before sending another notification for this camera after
+            the last event.
+          default: 0
+          selector:
+            number:
+              max: 86400.0
+              min: 0.0
+              unit_of_measurement: seconds
+              step: 1.0
+              mode: slider
+        timeout:
+          name: Timeout
+          description: Length of time the automation will wait for MQTT updates.
+          default: 2
+          selector:
+            number:
+              max: 90.0
+              min: 0.0
+              unit_of_measurement: minutes
+              step: 1.0
+              mode: slider
+        silence_timer:
+          name: Silence New Notifications (Optional)
+          description: "How long to pause notifications for this camera when requested
+            as part of the actionable notification. \nNote: Restarting Home Assistant
+            during the period will break the timer and may disable the automation\n"
+          default: 30
+          selector:
+            number:
+              max: 3600.0
+              min: 0.0
+              unit_of_measurement: minutes
+              step: 1.0
+              mode: slider
+        loiter_timer:
+          name: Loitering Notifications (Optional)
+          description: 'Sends new loitering notification if a stationary object is
+            detected for longer than the specified time. 0 is off and will not send
+            notifications.
+
+            '
+          default: 0
+          selector:
+            number:
+              max: 3600.0
+              min: 0.0
+              unit_of_measurement: seconds
+              step: 1.0
+              mode: slider
+        initial_delay:
+          name: Delay initial notification (Optional)
+          description: 'How long to delay the first notification for each event. Only
+            applies if all conditions are met when the first event is defined by frigate
+
+
+            Use this if you DO NOT use "update image" and are experiencing notifications
+            without attached images. Start with small numbers.
+
+            '
+          default: 0
+          selector:
+            number:
+              max: 15.0
+              min: 0.0
+              unit_of_measurement: seconds
+              step: 1.0
+              mode: slider
+        final_delay:
+          name: Delay Final notification (Optional)
+          description: 'How long to delay the final notification for each event. Only
+            applies if Final Update is enabled.
+
+            '
+          default: 5
+          selector:
+            number:
+              max: 20.0
+              min: 0.0
+              unit_of_measurement: seconds
+              step: 1.0
+              mode: slider
+    actions:
+      name: '# Action Buttons and URLS
+
+        '
+      description: These are Action Buttons and URL Options
+      icon: mdi:gesture-double-tap
+      collapsed: true
+      input:
+        tap_action:
+          name: Tap Action URL
+          description: 'The URL to open when tapping on the notification. Some presets
+            are provided, you can also set your own by typing in the box.
+
+            These options define the text and URLs associated with the three action
+            buttons at the bottom of the notification.'
+          default: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/clip.mp4'
+          selector:
+            select:
+              options:
+              - label: View Clip
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/clip.mp4'
+              - label: View Clip (IOS)
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
+              - label: View GIF
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif'
+              - label: View Snapshot
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg'
+              - label: View Stream
+                value: '{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json[''after''][''camera'']
+                  | lower | replace(''-'',''_'')}}?token={{state_attr( ''camera.''
+                  ~ camera, ''access_token'')}}'
+              - label: Open Home Assistant (web)
+                value: '{{base_url}}/lovelace'
+              - label: Open Home Assistant (app)
+                value: /lovelace
+              - label: Open Frigate
+                value: /ccab4aaf_frigate/dashboard
+              - label: Open Frigate (Full Access)
+                value: /ccab4aaf_frigate-fa/dashboard
+              - label: Open Frigate (proxy)
+                value: /ccab4aaf_frigate-proxy/dashboard
+              - label: Open Reolink App (Android)
+                value: app://com.mcu.reolink
+              - label: None (Android)
+                value: noAction
+              - label: Notification History (Android)
+                value: settings://notification_history
+              custom_value: true
+              multiple: false
+              sort: false
+        button_1:
+          name: Action Button 1 Text
+          description: The text used on the first Action button at the bottom of the
+            notification. Set the URL below. (Default is "View Clip")
+          default: View Clip
+        url_1:
+          name: Action Button 1 URL
+          description: Customise what happens when you press the first Action Button.
+            Select from one of the preconfigured options or enter your own custom
+            URL.
+          default: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/clip.mp4'
+          selector:
+            select:
+              options:
+              - label: View Clip
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/clip.mp4'
+              - label: View Clip (IOS)
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
+              - label: View GIF
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif'
+              - label: View Snapshot
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg'
+              - label: View Stream
+                value: '{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json[''after''][''camera'']
+                  | lower | replace(''-'',''_'')}}?token={{state_attr( ''camera.''
+                  ~ camera, ''access_token'')}}'
+              - label: Open Home Assistant (web)
+                value: '{{base_url}}/lovelace'
+              - label: Open Home Assistant (app)
+                value: /lovelace
+              - label: Open Frigate
+                value: /ccab4aaf_frigate/dashboard
+              - label: Open Frigate (Full Access)
+                value: /ccab4aaf_frigate-fa/dashboard
+              - label: Open Frigate (proxy)
+                value: /ccab4aaf_frigate-proxy/dashboard
+              - label: Open Reolink App (Android)
+                value: app://com.mcu.reolink
+              custom_value: true
+              multiple: false
+              sort: false
+        icon_1:
+          name: Action Button 1 icon - iOS Only
+          description: Customise the Icon on the first Action Button. Only the iOS
+            SFSymbols library is supported, not mdi:icons. e.g., sfsymbols:bell
+          default: ''
+        button_2:
+          name: Action Button 2 Text
+          description: The text used on the second Action button at the bottom of
+            the notification. Set the URL below.
+          default: View Snapshot
+        url_2:
+          name: Action Button 2 URL
+          description: Customise what happens when you press the second Action Button.
+            Select from one of the preconfigured options or enter your own custom
+            URL.
+          default: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg'
+          selector:
+            select:
+              options:
+              - label: View Clip
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/clip.mp4'
+              - label: View Clip (IOS)
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
+              - label: View Snapshot
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg'
+              - label: View Stream
+                value: '{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json[''after''][''camera'']
+                  | lower | replace(''-'',''_'')}}?token={{state_attr( ''camera.''
+                  ~ camera, ''access_token'')}}'
+              - label: Open Home Assistant (web)
+                value: '{{base_url}}/lovelace'
+              - label: Open Home Assistant (app)
+                value: /lovelace
+              - label: Open Frigate
+                value: /ccab4aaf_frigate/dashboard
+              - label: Open Frigate (Full Access)
+                value: /ccab4aaf_frigate-fa/dashboard
+              - label: Open Frigate (proxy)
+                value: /ccab4aaf_frigate-proxy/dashboard
+              - label: Open Reolink App (Android)
+                value: app://com.mcu.reolink
+              - label: Custom Action (Manual Trigger)
+                value: custom-{{ this.entity_id }}
+              custom_value: true
+              multiple: false
+              sort: false
+        icon_2:
+          name: Action Button 2 icon - iOS Only
+          description: Customise the Icon on the second Action Button. Only the iOS
+            SFSymbols library is supported, not mdi:icons. e.g., sfsymbols:bell
+          default: ''
+        button_3:
+          name: Action Button 3 Text
+          description: The text used on the third Action button at the bottom of the
+            notification. Set the URL below.
+          default: Silence New Notifications
+        url_3:
+          name: Action Button 3 URL
+          description: Customise what happens when you press the third Action Button.
+            Select from one of the preconfigured options or enter your own custom
+            URL.
+          default: silence-{{ this.entity_id }}
+          selector:
+            select:
+              options:
+              - label: Silence New Notifications
+                value: silence-{{ this.entity_id }}
+              - label: View Clip
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/clip.mp4'
+              - label: View Clip (IOS)
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
+              - label: View Snapshot
+                value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg'
+              - label: View Stream
+                value: '{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json[''after''][''camera'']
+                  | lower | replace(''-'',''_'')}}?token={{state_attr( ''camera.''
+                  ~ camera, ''access_token'')}}'
+              - label: Open Home Assistant (web)
+                value: '{{base_url}}/lovelace'
+              - label: Open Home Assistant (app)
+                value: /lovelace
+              - label: Open Frigate
+                value: /ccab4aaf_frigate/dashboard
+              - label: Open Frigate (Full Access)
+                value: /ccab4aaf_frigate-fa/dashboard
+              - label: Open Frigate (proxy)
+                value: /ccab4aaf_frigate-proxy/dashboard
+              - label: Open Reolink App (Android)
+                value: app://com.mcu.reolink
+              - label: Custom Action (Manual Trigger)
+                value: custom-{{ this.entity_id }}
+              custom_value: true
+              multiple: false
+              sort: false
+        icon_3:
+          name: Action Button 3 icon - iOS Only
+          description: Customise the Icon on the third Action Button. Only the iOS
+            SFSymbols library is supported, not mdi:icons. e.g., sfsymbols:bell
+          default: ''
+        custom_action_manual:
+          name: Custom Action (Manual Trigger)
+          description: Customisable action that you can trigger with the Custom Action
+            buttons in the notification. Select Custom Action on any Action Button
+            above.
+          selector:
+            action: {}
+          default: []
+        custom_action_auto:
+          name: Custom Action (Auto Trigger)
+          description: Customisable action that will trigger on the initial notification
+            (subject to all other notification conditions).
+          selector:
+            action: {}
+          default: []
+        custom_action_auto_multi:
+          name: Custom Action (Auto Trigger in Loop)
+          description: Customisable action that will trigger on all subsequent notifications
+            (subject to all other notification conditions). If you want it to also
+            trigger on the initial notification, you must enter it in both input fields.
+          selector:
+            action: {}
+          default: []
+    tv_notifications:
+      name: '# TV Notifications
+
+        '
+      description: These are TV Notification Options
+      icon: mdi:television
+      collapsed: true
+      input:
+        tv:
+          name: TV Notification (Optional)
+          description: 'Set to true if you are notifying an Android/Fire TV
+
+            Can also be used to prioritise snapshots on the TV over Android mobile
+            apps when notifying a mixed device group.
+
+            Base URL must be set
+
+
+            The below settings are for TV notifications only
+
+            '
+          default: false
+          selector:
+            boolean: {}
+        tv_position:
+          name: TV Notification Position (Optional)
+          description: Set the position of the notification on your TV
+          default: center
+          selector:
+            select:
+              mode: dropdown
+              options:
+              - bottom-right
+              - bottom-left
+              - top-right
+              - top-left
+              - center
+              custom_value: false
+              multiple: false
+              sort: false
+        tv_size:
+          name: TV Notification Size (Optional)
+          description: Set the size of the notification on your TV.
+          default: large
+          selector:
+            select:
+              mode: dropdown
+              options:
+              - small
+              - medium
+              - large
+              - max
+              custom_value: false
+              multiple: false
+              sort: false
+        tv_duration:
+          name: TV Notification Duration (Optional)
+          description: The duration (in seconds) that the notification will display
+            on your TV.
+          default: 10
+          selector:
+            number:
+              max: 300.0
+              min: 0.0
+              unit_of_measurement: seconds
+              step: 1.0
+              mode: slider
+        tv_transparency:
+          name: TV notification Transparency (Optional)
+          description: Set the transparency of the notification on your TV.
+          default: 0%
+          selector:
+            select:
+              mode: dropdown
+              options:
+              - 0%
+              - 25%
+              - 50%
+              - 75%
+              - 100%
+              custom_value: false
+              multiple: false
+              sort: false
+        tv_interrupt:
+          name: TV Notification Interrupt (Optional)
+          description: If set to true the notification is interactive and can be dismissed
+            or selected to display more details. Depending on the running app (e.g.,
+            Netflix), this may stop playback.
+          default: false
+          selector:
+            boolean: {}
+    debug:
+      name: '# DEBUG
+
+        '
+      description: These are DEBUG Options
+      icon: mdi:bug
+      collapsed: true
+      input:
+        debug:
+          name: Debug
+          description: Enable to send debug messages to the home assistant logbook.
+          default: false
+          selector:
+            boolean: {}
+        redacted:
+          name: Redact Base URL
+          description: Hides the Base URL in the debug output for easier sharing.
+            Does not hide it from other parts of the trace.
+          default: true
+          selector:
+            boolean: {}
+mode: parallel
+trigger_variables:
+  mqtt_topic: !input mqtt_topic
+triggers:
+- trigger: mqtt
+  topic: '{{mqtt_topic}}'
+  payload: new
+  value_template: '{{value_json[''type'']}}'
+  id: frigate-event
+- trigger: event
+  event_type: mobile_app_notification_action
+  event_data:
+    action: silence-{{ this.entity_id }}
+  id: silence
+- trigger: event
+  event_type: mobile_app_notification_action
+  event_data:
+    action: custom-{{ this.entity_id}}
+  id: custom
+variables:
+  input_camera: !input camera
+  input_camera_name: '{{input_camera|expand|map(attribute=''attributes.camera_name'',
+    default=''none'')|list}}'
+  camera: '{{trigger.payload_json[''after''][''camera''] if trigger.id == ''frigate-event''}}'
+  camera_name: '{{ camera | replace(''_'', '' '') | title }}'
+  input_severity: !input review_severity
+  severity: '{{trigger.payload_json[''after''][''severity''] if trigger.id == ''frigate-event''}}'
+  type: '{{trigger.payload_json[''type''] if trigger.id == ''frigate-event''}}'
+  input_base_url: !input base_url
+  base_url: '{{ input_base_url.rstrip(''/'')}}'
+  input_telegram_base_url: !input telegram_base_url
+  telegram_base_url: '{{ input_telegram_base_url.rstrip(''/'') if input_telegram_base_url
+    else base_url }}'
+  update_sub_label: !input update_sub_label
+  input_client_id: !input client_id
+  client_id: '{{input_client_id if not input_client_id else ''/'' + input_client_id
+    if ''/'' not in input_client_id else input_client_id }}'
+  alert_once: !input alert_once
+  final_update: !input final_update
+  ios_live_view: !input ios_live_view
+  android_auto: !input android_auto
+  notify_group: !input notify_group
+  notify_group_target: '{{ notify_group | lower | regex_replace(''^notify\.'', '''')
+    | replace('' '',''_'') }}'
+  telegram_chat_id: !input notify_telegram_chat_id
+  telegram: '{{true if (telegram_chat_id | length > 0) else false}}'
+  zone_only: !input zone_filter
+  input_zones: !input zones
+  zones: '{{ input_zones }}'
+  zone_multi: !input zone_multi
+  zone_order_enforced: !input zone_order_enforced
+  input_labels: !input labels
+  labels: '{{ input_labels | list | lower }}'
+  presence_entity: !input presence_filter
+  disable_times: !input disable_times
+  cooldown: !input cooldown
+  timeout: !input timeout
+  loitering: false
+  loiter_timer: !input loiter_timer
+  initial_delay: !input initial_delay
+  final_delay: !input final_delay
+  fps: '{{ states(''sensor.'' + camera + ''_camera_fps'')|int(5) }}'
+  state_only: !input state_filter
+  input_entity: !input state_entity
+  input_states: !input state_filter_states
+  states_filter: '{{ input_states | list | lower }}'
+  custom_filter: !input custom_filter
+  color: !input color
+  sound: !input sound
+  input_volume: !input volume
+  volume: '{{ (1 * input_volume|int(100))/100 }}'
+  sticky: !input sticky
+  tv: !input tv
+  tv_position: !input tv_position
+  tv_size: !input tv_size
+  tv_duration: !input tv_duration
+  tv_transparency: !input tv_transparency
+  tv_interrupt: !input tv_interrupt
+  debug: !input debug
+  redacted: !input redacted
+  master_condition: !input master_condition
+  severity_satisfied: '{{input_severity|select(''in'', severity)|list|length > 0 if
+    trigger.id == ''frigate-event''}}'
+  objects: '{{ trigger.payload_json[''after''][''data''][''objects''] if trigger.id
+    == ''frigate-event'' }}'
+  objects_satisfied: '{{ not labels|length or labels|select(''in'', objects)|list|length
+    > 0 or (''person-verified'' in objects and ''person'' in labels) }}'
+  initial_home: '{{ presence_entity != '''' and presence_entity|expand|selectattr(''state'',''eq'',''home'')|list|length
+    != 0 }}'
+  state_satisfied: '{{ not state_only or states(input_entity)|lower in states_filter
+    }}'
+  before_zones: '{{ trigger.payload_json[''before''][''data''][''zones''] if trigger.id
+    == ''frigate-event'' }}'
+  after_zones: '{{ trigger.payload_json[''after''][''data''][''zones''] if trigger.id
+    == ''frigate-event'' }}'
+  zone_multi_filter: '{{zone_only and zone_multi and after_zones|length and zones
+    and zones |reject(''in'', after_zones) |list |length == 0 }}'
+conditions:
+  condition: or
+  conditions:
+  - condition: trigger
+    id: silence
+  - condition: trigger
+    id: custom
+  - condition: and
+    conditions:
+    - condition: trigger
+      id: frigate-event
+    - alias: Camera Match
+      condition: template
+      value_template: '{{ input_camera_name|select(''equalto'', camera)|list|length>0
+        }}'
+    - alias: Master Condition
+      condition: !input master_condition
+    - alias: Cooldown
+      condition: template
+      value_template: '{{ not this.attributes.last_triggered or (now() - this.attributes.last_triggered).seconds
+        > cooldown }}'
+    - alias: Disable Times
+      condition: template
+      value_template: '{{ not disable_times|length or not now().hour in disable_times|map(''int'')|list
+        }}'
+actions:
+- choose:
+  - alias: Silence New Object Notifications
+    conditions:
+    - condition: trigger
+      id: silence
+    sequence:
+    - action: automation.turn_off
+      target:
+        entity_id: '{{ this.entity_id }}'
+      data:
+        stop_actions: false
+    - delay:
+        minutes: !input silence_timer
+    - action: automation.turn_on
+      target:
+        entity_id: '{{ this.entity_id }}'
+  - alias: Custom Action Manual
+    conditions:
+    - condition: trigger
+      id: custom
+    sequence: !input custom_action_manual
+  - alias: Frigate Event
+    conditions:
+    - condition: trigger
+      id: frigate-event
+    sequence:
+    - variables:
+        event: '{{ trigger.payload_json }}'
+        detections: '{{ event[''after''][''data''][''detections''] }}'
+        review_id: '{{event[''after''][''id'']}}'
+        id: '{{ detections[0] }}'
+        objects: '{{ event[''after''][''data''][''objects''] }}'
+        sub_labels: '{{ event[''after''][''data''][''sub_labels''] }}'
+        label: "{% if update_sub_label %}\n  {% set data = namespace(labels=[]) %}
+          \n  {% if labels|length %}\n    {% for obj in objects|select('in', labels)
+          %}\n      {% if \"-verified\" in obj %}\n      {% else %}\n        {% set
+          data.labels = data.labels + [obj] %}\n      {% endif %}\n    {% endfor %}
+          {% set data.labels = data.labels + sub_labels %} \n    {{ data.labels |
+          unique | list | sort | join(\", \") | title }}\n  {% else %}\n    {% for
+          obj in objects %}\n      {% if \"-verified\" in obj %}\n      {% else %}\n
+          \       {% set data.labels = data.labels + [obj] %}\n      {% endif %}\n
+          \   {% endfor %} {% set data.labels = data.labels + sub_labels %} \n    {{
+          data.labels | unique | list | sort | join(\", \") | title }}\n  {% endif
+          %}\n{% else %}\n  {{ objects | list | join(\", \") | title }}\n{% endif
+          %}"
+        any_zones_entered: '{{ zones | length == 0 or ((zones | select(''in'', after_zones)
+          | list | length) > 0) }}'
+        zone_single_satisfied: '{{ any_zones_entered if zone_only else true}}'
+        all_zones_entered: '{{ zones | length == 0 or ((zones | reject(''in'', after_zones)
+          | list | length) == 0) }}'
+        zone_multi_satisfied: '{{ all_zones_entered if zone_only and zone_multi else
+          true}}'
+        ordered_zones_match: "{% set ns = namespace(intersection=[]) %} {% for item
+          in after_zones %}\n    {% if item in zones %}\n        {% set ns.intersection
+          = ns.intersection + [item] %}\n    {% endif %}\n{% endfor %} {{ ns.intersection
+          == zones }}\n"
+        zone_order_satisfied: '{{ (zone_only and zone_multi and ordered_zones_match)
+          if zone_order_enforced else true }}'
+        zones_satisfied: '{{zone_single_satisfied and zone_multi_satisfied and zone_order_satisfied}}'
+        title: !input title
+        message: !input message
+        subtitle: !input subtitle
+        tap_action: !input tap_action
+        button_1: !input button_1
+        button_2: !input button_2
+        button_3: !input button_3
+        url_1: !input url_1
+        url_2: !input url_2
+        url_3: !input url_3
+        icon_1: !input icon_1
+        icon_2: !input icon_2
+        icon_3: !input icon_3
+        critical_input: !input critical
+        critical: '{{ true if critical_input == ''true'' else true if critical_input
+          == True else false }}'
+        tts: !input tts
+        tts_helper: !input tts_helper
+        custom_filter: !input custom_filter
+        icon: !input icon
+        group: !input group
+        channel: !input channel
+        attachment: !input attachment
+        video: !input video
+        custom_action_auto: !input custom_action_auto
+    - alias: 'Debug: Initial Output'
+      choose:
+      - conditions:
+        - '{{debug}}'
+        sequence:
+        - action: logbook.log
+          data_template:
+            name: Frigate Notification
+            message: "DEBUG: \n  Info:\n    FPS: {{fps}}, \n    Frigate Review id:
+              {{review_id}}{{', Frigate client ID: ' + client_id if client_id else
+              ''}}, \n    Frigate Detections: {{detections}}\n    Objects: {{label}},\n
+              \   Sub Labels: {{sub_labels | join(', ')}}\n  Config: \n    Camera(formatted):
+              {{camera}}({{camera_name}}), \n    Base URL: {{'REDACTED' if base_url
+              and redacted else base_url}},\n    Critical: {{critical}}, \n    TTS:
+              {{tts}} \n    TTS Helper: {{tts_helper if tts else 'N/A'}},\n    Alert
+              Once: {{alert_once}}, \n    Final_Update (delay): {{final_update}} ({{final_delay}})s,
+              \n    Attachment: {{attachment if not redacted or not base_url else
+              attachment |replace(base_url, 'REDACTED')}}\n    Video: {{video if not
+              redacted or not base_url else video |replace(base_url, 'REDACTED')}},
+              \n    iOS URL: {{(video if not redacted or not base_url else video |replace(base_url,
+              'REDACTED')) if video|length >0 else attachment if not redacted or not
+              base_url else attachment |replace(base_url, 'REDACTED')}}\n    Target:
+              {{'group (input/formatted): ' + notify_group + '/' + notify_group_target
+              + ', ' if notify_group else 'Mobile Device'}}, \n    Cooldown: {{cooldown}}s,
+              \n    Initial Delay: {{initial_delay}}s, \n    Color: {{color}}, \n
+              \   Sound: {{sound}}, \n    Volume: {{ iif(sound == 'none', 0, volume)
+              }}\n    IOS Live entity: \"{{ios_live_view}}\"\n    Android Auto: {{android_auto}},
+              \n    Tag: {{ id }}, \n    Group: {{group}}, \n    Channel: {{channel}}
+              {{' - overridden by alarm_stream' if critical}}, \n    Sticky: {{sticky}},
+              \n    Title: {{title}}, \n    Message: {{message}},\n    Subtitle: {{subtitle}},
+              \n    Tap Action: {{tap_action if not redacted or not base_url else
+              tap_action |replace(base_url, 'REDACTED')}}, \n    Action Button 1 Text/URL/Icon:
+              {{iif(button_1, button_1, 'unset')}} ({{url_1 if not redacted or not
+              base_url else url_1 |replace(base_url, 'REDACTED')}}) {{icon_1}}, \n
+              \   Action Button 2 Text/URL/Icon: {{iif(button_2, button_2, 'unset')}}
+              ({{url_2 if not redacted or not base_url else url_2 |replace(base_url,
+              'REDACTED')}}) {{icon_2}}, \n    Action Button 3 Text/URL/Icon: {{iif(button_3,
+              button_3, 'unset')}} ({{url_3 if not redacted or not base_url else url_3
+              |replace(base_url, 'REDACTED')}}) {{icon_3}}, \n    Icon: {{icon}}\n
+              \   TV: {{ tv }}, \n      Position: {{tv_position}}, \n      Size: {{tv_size}},
+              \n      Duration: {{tv_duration}}, \n      Transparency: {{tv_transparency}},
+              \n      TV Interrupt: {{tv_interrupt}}, \n    Telegram: {{telegram}},\n
+              \   Telegram_chat_id: {{telegram_chat_id}},\n  Filters: \n    Severity:\n
+              \     Required Severity: {{input_severity}},\n      TEST: {{'PASS' if
+              severity_satisfied else 'FAIL'}} - {{severity}}\n    Zones: \n      Zone
+              Filter toggle on: {{zone_only}}, \n      Multi-Zone toggle on: {{zone_multi}},
+              \n      Required zones: {{input_zones}}, \n      Zone Order toggle on:
+              {{zone_order_enforced}}\n      Entered Zones: {{after_zones}},\n      TEST:
+              {{'PASS' if zones_satisfied else 'FAIL' }} {{'(Multi)' if zone_only
+              and zone_multi}} {{'(Order-Enforced)' if zone_only and zone_multi and
+              zone_order_enforced}}, \n    Required objects: \n      Input: {{input_labels}},
+              \n      TEST: {{'PASS' if objects_satisfied else 'FAIL'}} - {{objects}}\n
+              \   presence entity (not home):\n      Entity: {{presence_entity}}\n
+              \     TEST:  {{'PASS' if not initial_home else 'FAIL'}}, \n    disabled
+              times: {{disable_times}}, \n    State Filter: \n      State Filter toggle
+              on: {{state_only}}, \n      State Filter Entity: {{input_entity}}, \n
+              \     Required States: {{input_states}}, \n      TEST: {{'PASS' if state_satisfied
+              else 'FAIL' }},\n    Custom Filter: {{custom_filter}}\n"
+    - choose:
+      - conditions:
+        - alias: Severity Filter
+          condition: template
+          value_template: '{{ severity_satisfied }}'
+        - alias: Object Filter
+          condition: template
+          value_template: '{{ objects_satisfied }}'
+        - alias: Zone Filter
+          condition: template
+          value_template: '{{ zones_satisfied }}'
+        - alias: Presence Filter
+          condition: template
+          value_template: '{{ not initial_home }}'
+        - alias: State Filter
+          condition: template
+          value_template: '{{ state_satisfied }}'
+        - alias: Custom Filter
+          condition: template
+          value_template: '{{ custom_filter }}'
+        sequence:
+        - alias: Delay for image
+          choose:
+          - conditions: '{{initial_delay > 0}}'
+            sequence:
+            - delay:
+                seconds: '{{initial_delay}}'
+        - alias: Custom Action Auto
+          choose:
+          - conditions: '{{ custom_action_auto |length > 0 }}'
+            sequence: !input custom_action_auto
+        - alias: Send Notification
+          sequence:
+          - choose:
+            - conditions: '{{ telegram }}'
+              sequence:
+              - action: telegram_bot.send_photo
+                data:
+                  target: '{{telegram_chat_id}}'
+                  caption: '{{message}}'
+                  url: '{{attachment|replace( base_url, telegram_base_url )}}'
+            - conditions: '{{ not notify_group_target }}'
+              sequence:
+              - device_id: !input notify_device
+                domain: mobile_app
+                type: notify
+                title: '{{title}}'
+                message: '{{message}}'
+                data:
+                  tag: '{{ id }}'
+                  group: '{{ group }}'
+                  color: '{{color}}'
+                  subject: '{{subtitle}}'
+                  image: '{{attachment}}'
+                  video: '{{video}}'
+                  clickAction: '{{tap_action}}'
+                  ttl: 0
+                  priority: high
+                  notification_icon: '{{icon}}'
+                  sticky: '{{sticky}}'
+                  channel: '{{''alarm_stream'' if critical else channel}}'
+                  car_ui: '{{android_auto}}'
+                  subtitle: '{{subtitle}}'
+                  url: '{{tap_action}}'
+                  attachment:
+                    url: '{{video if video else attachment }}'
+                    content-type: '{{ ''application/vnd.apple.mpegurl'' if ''m3u8''
+                      in video else ''mp4'' if ''mp4'' in video else ''jpeg'' if ''jpg''
+                      in attachment else ''gif'' }}'
+                  push:
+                    sound:
+                      name: '{{sound}}'
+                      volume: '{{ iif(sound == ''none'', 0, volume) }}'
+                      critical: '{{ iif(critical, 1, 0) }}'
+                  entity_id: '{{ios_live_view}}'
+                  actions:
+                  - action: URI
+                    title: '{{button_1}}'
+                    uri: '{{url_1}}'
+                    icon: '{{icon_1}}'
+                  - action: URI
+                    title: '{{button_2}}'
+                    uri: '{{url_2}}'
+                    icon: '{{icon_2}}'
+                  - action: '{{ ''URI'' if ''/'' in url_3 else url_3 }}'
+                    title: '{{button_3}}'
+                    uri: '{{url_3}}'
+                    icon: '{{icon_3}}'
+                    destructive: true
+            - conditions: '{{ tv }}'
+              sequence:
+              - action: notify.{{ notify_group_target }}
+                data:
+                  title: '{{title}}'
+                  message: '{{message}}'
+                  data:
+                    tag: '{{ id }}'
+                    group: '{{ group }}'
+                    color: '{{color}}'
+                    subject: '{{subtitle}}'
+                    clickAction: '{{tap_action}}'
+                    ttl: 0
+                    priority: high
+                    notification_icon: '{{icon}}'
+                    sticky: '{{sticky}}'
+                    channel: '{{''alarm_stream'' if critical else channel}}'
+                    car_ui: '{{android_auto}}'
+                    image:
+                      url: '{{attachment | replace(''review_preview.gif'',''snapshot.jpg'')
+                        | replace(''event_preview.gif'',''snapshot.jpg'')}}'
+                    fontsize: '{{tv_size}}'
+                    position: '{{tv_position}}'
+                    duration: '{{tv_duration}}'
+                    transparency: '{{tv_transparency}}'
+                    interrupt: '{{tv_interrupt}}'
+                    timeout: 30
+                    subtitle: '{{subtitle}}'
+                    url: '{{tap_action}}'
+                    attachment:
+                      url: '{{video if video else attachment }}'
+                      content-type: '{{ ''application/vnd.apple.mpegurl'' if ''m3u8''
+                        in video else ''mp4'' if ''mp4'' in video else ''jpeg'' if
+                        ''jpg'' in attachment else ''gif'' }}'
+                    push:
+                      sound:
+                        name: '{{sound}}'
+                        volume: '{{ iif(sound == ''none'', 0, volume) }}'
+                        critical: '{{ iif(critical, 1, 0) }}'
+                    entity_id: '{{ios_live_view}}'
+                    actions:
+                    - action: URI
+                      title: '{{button_1}}'
+                      uri: '{{url_1}}'
+                      icon: '{{icon_1}}'
+                    - action: URI
+                      title: '{{button_2}}'
+                      uri: '{{url_2}}'
+                      icon: '{{icon_2}}'
+                    - action: '{{ ''URI'' if ''/'' in url_3 else url_3 }}'
+                      title: '{{button_3}}'
+                      uri: '{{url_3}}'
+                      icon: '{{icon_3}}'
+                      destructive: true
+            default:
+            - action: notify.{{ notify_group_target }}
+              data:
+                title: '{{title}}'
+                message: '{{message}}'
+                data:
+                  tag: '{{ id }}'
+                  group: '{{ group }}'
+                  color: '{{color}}'
+                  subject: '{{subtitle}}'
+                  image: '{{attachment}}'
+                  video: '{{video}}'
+                  clickAction: '{{tap_action}}'
+                  ttl: 0
+                  priority: high
+                  notification_icon: '{{icon}}'
+                  sticky: '{{sticky}}'
+                  channel: '{{''alarm_stream'' if critical else channel}}'
+                  car_ui: '{{android_auto}}'
+                  subtitle: '{{subtitle}}'
+                  fontsize: '{{tv_size}}'
+                  position: '{{tv_position}}'
+                  duration: '{{tv_duration}}'
+                  transparency: '{{tv_transparency}}'
+                  interrupt: '{{tv_interrupt}}'
+                  url: '{{tap_action}}'
+                  attachment:
+                    url: '{{video if video else attachment }}'
+                    content-type: '{{ ''application/vnd.apple.mpegurl'' if ''m3u8''
+                      in video else ''mp4'' if ''mp4'' in video else ''jpeg'' if ''jpg''
+                      in attachment else ''gif'' }}'
+                  push:
+                    sound:
+                      name: '{{sound}}'
+                      volume: '{{ iif(sound == ''none'', 0, volume) }}'
+                      critical: '{{ iif(critical, 1, 0) }}'
+                  entity_id: '{{ios_live_view}}'
+                  actions:
+                  - action: URI
+                    title: '{{button_1}}'
+                    uri: '{{url_1}}'
+                    icon: '{{icon_1}}'
+                  - action: URI
+                    title: '{{button_2}}'
+                    uri: '{{url_2}}'
+                    icon: '{{icon_2}}'
+                  - action: '{{ ''URI'' if ''/'' in url_3 else url_3 }}'
+                    title: '{{button_3}}'
+                    uri: '{{url_3}}'
+                    icon: '{{icon_3}}'
+                    destructive: true
+          - if: '{{tts and (not tts_helper or not alert_once or (tts_helper and id
+              not in states(tts_helper)))}}'
+            then:
+              sequence:
+              - choose:
+                - conditions: '{{ not notify_group_target }}'
+                  sequence:
+                  - device_id: !input notify_device
+                    domain: mobile_app
+                    type: notify
+                    message: '{{''TTS''}}'
+                    data:
+                      tag: '{{ id }}{{''-tts''}}'
+                      channel: '{{''alarm_stream'' if critical else channel}}'
+                      alert_once: '{{ alert_once }}'
+                      tts_text: '{{message}}'
+                default:
+                - action: notify.{{ notify_group_target }}
+                  data:
+                    message: '{{''TTS''}}'
+                    data:
+                      tag: '{{ id }}{{''-tts''}}'
+                      channel: '{{''alarm_stream'' if critical else channel}}'
+                      alert_once: '{{ alert_once }}'
+                      tts_text: '{{message}}'
+              - action: input_text.set_value
+                data:
+                  value: '{% set newIds = id + ''|'' + states(tts_helper) %}
+
+                    {{ newIds[:250] }}
+
+                    '
+                target:
+                  entity_id: '{{tts_helper}}'
+    - repeat:
+        sequence:
+        - wait_for_trigger:
+          - trigger: mqtt
+            topic: '{{mqtt_topic}}'
+            payload: '{{ review_id }}'
+            value_template: '{{ value_json[''after''][''id''] }}'
+          timeout:
+            minutes: '{{timeout}}'
+          continue_on_timeout: false
+        - variables:
+            attachment_2: !input attachment_2
+            attachment: '{{iif(attachment_2, attachment_2, attachment)}}'
+            event: '{{ wait.trigger.payload_json }}'
+            type: '{{event[''type'']}}'
+            initial_severity: '{{severity}}'
+            old_objects: '{{objects}}'
+            last_zones: '{{after_zones}}'
+            severity: '{{event[''after''][''severity'']}}'
+            severity_updated: '{{initial_severity != severity}}'
+            severity_satisfied: '{{((input_severity | select(''equalto'', severity)
+              | list | length) > 0) }}'
+            objects: '{{ event[''after''][''data''][''objects''] }}'
+            objects_satisfied: '{{ not labels|length or labels|select(''in'', objects)|list|length
+              > 0 or (''person-verified'' in objects and ''person'' in labels) }}'
+            home: '{{presence_entity |reject(''in'', '''') |select(''is_state'', ''home'')
+              |list |length != 0 }}'
+            presence_changed: '{{ presence_entity |reject(''in'', '''') |expand |map(attribute=''last_changed'')
+              |list |select(''gt'', as_datetime(event[''before''][''start_time'']))
+              |list |length != 0 }}'
+            before_zones: '{{ event[''before''][''data''][''zones''] | default([])
+              }}'
+            after_zones: '{{ event[''after''][''data''][''zones''] | default([]) }}'
+            any_zones_entered: '{{ zones | length == 0 or ((zones | select(''in'',
+              after_zones) | list | length) > 0) }}'
+            zone_single_satisfied: '{{ any_zones_entered if zone_only else true}}'
+            all_zones_entered: '{{ zones | length == 0 or ((zones | reject(''in'',
+              after_zones) | list | length) == 0) }}'
+            zone_multi_satisfied: '{{ all_zones_entered if zone_only and zone_multi
+              else true}}'
+            ordered_zones_match: "{% set ns = namespace(intersection=[]) %} {% for
+              item in after_zones %}\n    {% if item in zones %}\n        {% set ns.intersection
+              = ns.intersection + [item] %}\n    {% endif %}\n{% endfor %} {{ ns.intersection
+              == zones }}\n"
+            zone_order_satisfied: '{{ (zone_only and zone_multi and ordered_zones_match)
+              if zone_order_enforced else true }}'
+            zones_satisfied: '{{zone_single_satisfied and zone_multi_satisfied and
+              zone_order_satisfied}}'
+            new_entered_zones: '{{ zones | select(''in'', after_zones) | list }}'
+            last_entered_zones: '{{ zones | select(''in'', last_zones) | list }}'
+            entered_new_zones: '{{ not zone_only and after_zones | length > last_zones
+              | length }}'
+            entered_new_filter_zones: '{{ zone_only and zones | length > 0 and (new_entered_zones
+              | length > last_entered_zones | length) }}'
+            state_satisfied: '{{ not state_only or states(input_entity)|lower in states_filter
+              }}'
+            before_sub_labels: '{{ sub_labels }}'
+            sub_labels: '{{ event[''after''][''data''][''sub_labels''] | default([])
+              }}'
+            label: "{% if update_sub_label %}\n  {% set data = namespace(labels=[])
+              %} \n  {% if labels|length %}\n    {% for obj in objects|select('in',
+              labels) %}\n      {% if \"-verified\" in obj %}\n      {% else %}\n
+              \       {% set data.labels = data.labels + [obj] %}\n      {% endif
+              %}\n    {% endfor %} {% set data.labels = data.labels + sub_labels %}
+              \n    {{ data.labels | unique | list | sort | join(\", \") | title }}\n
+              \ {% else %}\n    {% for obj in objects %}\n      {% if \"-verified\"
+              in obj %}\n      {% else %}\n        {% set data.labels = data.labels
+              + [obj] %}\n      {% endif %}\n    {% endfor %} {% set data.labels =
+              data.labels + sub_labels %} \n    {{ data.labels | unique | list | sort
+              | join(\", \") | title }}\n  {% endif %}\n{% else %}\n  {{objects |
+              list | join(', ') | title}}\n{% endif %}"
+            title: !input title
+            message: !input message
+            subtitle: !input subtitle
+            critical_input: !input critical
+            critical: '{{ true if critical_input == ''true'' else true if critical_input
+              == True else false }}'
+            tts: !input tts
+            sub_label_updated: '{{ update_sub_label and sub_labels != before_sub_labels
+              }}'
+            zone_updated: '{{ (entered_new_filter_zones and zones_satisfied) or entered_new_zones
+              }}'
+            object_updated: '{{ old_objects | select(''in'', labels) | list | length  !=
+              objects | select(''in'', labels) | list | length }}'
+            silent_update: '{{ alert_once or (not presence_changed and not zone_updated
+              and not object_updated and not sub_label_updated) }}'
+            custom_action_auto_multi: !input custom_action_auto_multi
+        - alias: 'Debug: Loop Output'
+          choose:
+          - conditions:
+            - '{{debug}}'
+            sequence:
+            - action: logbook.log
+              data_template:
+                name: Frigate Notification
+                message: "DEBUG (in loop):\n  Send Notification: {{custom_filter and
+                  not home and zones_satisfied and state_satisfied and objects_satisfied
+                  and severity_satisfied and ((final_update and type == 'end') or
+                  (severity_updated or presence_changed or zone_updated or object_updated
+                  or sub_label_updated)) }}\n  Info:\n    Sub Label: {{sub_labels}},\n
+                  \   Image: \"{{attachment if not redacted or not base_url else attachment
+                  |replace(base_url, 'REDACTED')}}\"\n    Title: {{title}}\n    Message:
+                  {{message}}\n    iOS sound: {{'Critical' if critical else 'disabled
+                  by alert once' if alert_once else 'Silent' if silent_update else
+                  sound}},\n    Android Sound: {{'disabled by alert once' if alert_once
+                  else 'enabled'}},\n    iOS url: \"{{(video if not redacted or not
+                  base_url else video |replace(base_url, 'REDACTED')) if video else
+                  attachment if not redacted or not base_url else attachment |replace(base_url,
+                  'REDACTED')}}\", \n    Video: \"{{video if not redacted or not base_url
+                  else video |replace(base_url, 'REDACTED')}}\", \n\n    Critical:
+                  {{critical}},\n    TTS: {{tts}}\n  Triggers:\n    New Snapshot:
+                  False (not functional with reviews)\n    Severity Changed: {{severity_updated}},\n
+                  \   Presence Changed: {{presence_changed}},\n    Object changed:
+                  {{object_updated}},\n    Zones Changed: {{'True' if entered_new_filter_zones
+                  and zones_satisfied else 'True - zone filter disabled' if entered_new_zones
+                  and not zone_only else 'True - Filter Criteria not met' if entered_new_zones
+                  else 'False'}},\n    Sublabel changed: {{ sub_label_updated }}{{'
+                  - Disabled' if not update_sub_label}},\n    Final Update: {{final_update
+                  and type == 'end'}}\n  Conditions:\n    Filters:\n      Severity:\n
+                  \       Required Severity: {{input_severity}}\n        TEST: {{'PASS'
+                  if severity_satisfied else 'FAIL'}} - {{severity}}, \n      Zones:\n
+                  \       Zone Filter toggle on: {{zone_only}},\n        Multi-Zone
+                  toggle on: {{zone_multi}},\n        Required zones: {{input_zones}},\n
+                  \       Zone Order toggle on: {{zone_order_enforced}}\n        Last
+                  Zones: {{ last_zones | list | length }} - {{last_zones}},\n        New
+                  Zones: {{ after_zones | list | length }} - {{after_zones}},\n        TEST:
+                  {{'PASS' if zones_satisfied else 'FAIL' }} {{'(Multi)' if zone_only
+                  and zone_multi}} {{'(Order-Enforced)' if zone_only and zone_multi
+                  and zone_order_enforced}},\n      Object Filter:\n        Input:
+                  {{input_labels}},\n        TEST: {{'PASS' if objects_satisfied else
+                  'FAIL'}} - {{objects}},\n      Presence entity (not home):\n        Entity:
+                  {{presence_entity}},\n        TEST:  {{'PASS' if not home else 'FAIL'}},\n
+                  \     Time Filter:\n        Disabled times: {{disable_times}},\n
+                  \       TEST: {{'PASS' if now().hour not in disable_times else 'FAIL'}}\n
+                  \     State Filter:\n        State Filter toggle on: {{state_only}},\n
+                  \       State Filter Entity: {{input_entity}},\n        Required
+                  States: {{input_states}},\n        TEST: {{'PASS' if state_satisfied
+                  else 'FAIL'}},\n      Custom Filter: {{'PASS' if custom_filter else
+                  'FAIL'}},\n"
+        - choose:
+          - conditions:
+            - and:
+              - alias: Severity Filter
+                condition: template
+                value_template: '{{severity_satisfied}}'
+              - alias: Object Filter
+                condition: template
+                value_template: '{{ objects_satisfied }}'
+              - alias: Zone Filter
+                condition: template
+                value_template: '{{zones_satisfied}}'
+              - alias: State Filter
+                condition: template
+                value_template: '{{state_satisfied}}'
+              - alias: Custom Filter
+                condition: template
+                value_template: '{{custom_filter}}'
+              - alias: Presence Filter
+                condition: template
+                value_template: '{{not home}}'
+              - or:
+                - alias: Presence Changed
+                  condition: template
+                  value_template: '{{presence_changed}}'
+                - alias: Zone Changed
+                  condition: template
+                  value_template: '{{zone_updated}}'
+                - alias: Sub Label Changed
+                  condition: template
+                  value_template: '{{sub_label_updated}}'
+                - alias: Object Changed
+                  condition: template
+                  value_template: '{{object_updated}}'
+                - alias: Severity Changed
+                  condition: template
+                  value_template: '{{severity_updated}}'
+                - and:
+                  - alias: Final Update
+                    condition: template
+                    value_template: '{{final_update}}'
+                  - alias: End of Event
+                    condition: template
+                    value_template: '{{event[''type''] == ''end''}}'
+            sequence:
+            - alias: Custom Action Auto Multi
+              choose:
+              - conditions:
+                - '{{ custom_action_auto_multi | length > 0 }}'
+                sequence: !input custom_action_auto_multi
+            - alias: Delay for Final Update
+              choose:
+              - conditions:
+                - '{{ event[''type''] == ''end'' }}'
+                - '{{ final_update }}'
+                sequence:
+                - delay:
+                    seconds: '{{final_delay}}'
+            - alias: Update Notification
+              sequence:
+              - choose:
+                - conditions: '{{ telegram }}'
+                  sequence:
+                  - choose:
+                    - conditions:
+                      - '{{ event[''type''] == ''end'' }}'
+                      - '{{ video | length > 0 }}'
+                      sequence:
+                      - action: telegram_bot.send_video
+                        data:
+                          target: '{{telegram_chat_id}}'
+                          caption: '{{message}}'
+                          url: '{{ video | replace(base_url, telegram_base_url) }}'
+                          inline_keyboard:
+                          - - - '{{button_1}}'
+                              - '{{url_1}}'
+                            - - '{{button_2}}'
+                              - '{{url_2}}'
+                          - - - '{{button_3}}'
+                              - '{{url_3}}'
+                    default:
+                    - action: telegram_bot.send_photo
+                      data:
+                        target: '{{telegram_chat_id}}'
+                        caption: '{{message}}'
+                        url: '{{attachment | replace(base_url,telegram_base_url)}}'
+                        inline_keyboard:
+                        - - - '{{button_1}}'
+                            - '{{url_1}}'
+                          - - '{{button_2}}'
+                            - '{{url_2}}'
+                        - - - '{{button_3}}'
+                            - '{{url_3}}'
+                - conditions: '{{ not notify_group_target }}'
+                  sequence:
+                  - device_id: !input notify_device
+                    domain: mobile_app
+                    type: notify
+                    title: '{{title}}'
+                    message: '{{message}}'
+                    data:
+                      tag: '{{ id }}'
+                      group: '{{ group }}'
+                      color: '{{color}}'
+                      subject: '{{subtitle}}'
+                      image: '{{attachment}}'
+                      video: '{{video}}'
+                      clickAction: '{{tap_action}}'
+                      ttl: 0
+                      priority: high
+                      alert_once: '{{ alert_once }}'
+                      notification_icon: '{{icon}}'
+                      sticky: '{{sticky}}'
+                      channel: '{{''alarm_stream'' if critical else channel}}'
+                      car_ui: '{{android_auto}}'
+                      subtitle: '{{subtitle}}'
+                      url: '{{tap_action}}'
+                      attachment:
+                        url: '{{video if video else attachment }}'
+                        content-type: '{{ ''application/vnd.apple.mpegurl'' if ''m3u8''
+                          in video else ''mp4'' if ''mp4'' in video else ''jpeg''
+                          if ''jpg'' in attachment else ''gif'' }}'
+                      push:
+                        sound:
+                          name: '{{ iif(silent_update, ''none'', sound) }}'
+                          volume: '{{ iif((silent_update or sound == ''none''), 0,
+                            volume) }}'
+                          critical: '{{ iif(critical, 1, 0) }}'
+                      entity_id: '{{ios_live_view}}'
+                      actions:
+                      - action: URI
+                        title: '{{button_1}}'
+                        uri: '{{url_1}}'
+                        icon: '{{icon_1}}'
+                      - action: URI
+                        title: '{{button_2}}'
+                        uri: '{{url_2}}'
+                        icon: '{{icon_2}}'
+                      - action: '{{ ''URI'' if ''/'' in url_3 else url_3 }}'
+                        title: '{{button_3}}'
+                        uri: '{{url_3}}'
+                        icon: '{{icon_3}}'
+                        destructive: true
+                - conditions: '{{ tv }}'
+                  sequence:
+                  - action: notify.{{ notify_group_target }}
+                    data:
+                      title: '{{title}}'
+                      message: '{{message}}'
+                      data:
+                        tag: '{{ id }}'
+                        group: '{{ group }}'
+                        color: '{{color}}'
+                        subject: '{{subtitle}}'
+                        clickAction: '{{tap_action}}'
+                        ttl: 0
+                        priority: high
+                        alert_once: '{{ alert_once }}'
+                        notification_icon: '{{icon}}'
+                        sticky: '{{sticky}}'
+                        channel: '{{''alarm_stream'' if critical else channel}}'
+                        car_ui: '{{android_auto}}'
+                        image:
+                          url: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg'
+                        video: '{{video}}'
+                        fontsize: '{{tv_size}}'
+                        position: '{{tv_position}}'
+                        duration: '{{tv_duration}}'
+                        transparency: '{{tv_transparency}}'
+                        interrupt: '{{tv_interrupt}}'
+                        timeout: 30
+                        subtitle: '{{subtitle}}'
+                        url: '{{tap_action}}'
+                        attachment:
+                          url: '{{video if video else attachment }}'
+                          content-type: '{{ ''application/vnd.apple.mpegurl'' if ''m3u8''
+                            in video else ''mp4'' if ''mp4'' in video else ''jpeg''
+                            if ''jpg'' in attachment else ''gif'' }}'
+                        push:
+                          sound:
+                            name: '{{ iif(silent_update, ''none'', sound) }}'
+                            volume: '{{ iif((silent_update or sound == ''none''),
+                              0, volume) }}'
+                            critical: '{{ iif(critical, 1, 0) }}'
+                        entity_id: '{{ios_live_view}}'
+                        actions:
+                        - action: URI
+                          title: '{{button_1}}'
+                          uri: '{{url_1}}'
+                          icon: '{{icon_1}}'
+                        - action: URI
+                          title: '{{button_2}}'
+                          uri: '{{url_2}}'
+                          icon: '{{icon_2}}'
+                        - action: '{{ ''URI'' if ''/'' in url_3 else url_3 }}'
+                          title: '{{button_3}}'
+                          uri: '{{url_3}}'
+                          icon: '{{icon_3}}'
+                          destructive: true
+                default:
+                - action: notify.{{ notify_group_target }}
+                  data:
+                    title: '{{title}}'
+                    message: '{{message}}'
+                    data:
+                      tag: '{{ id }}'
+                      group: '{{ group }}'
+                      color: '{{color}}'
+                      subject: '{{subtitle}}'
+                      image: '{{attachment}}'
+                      video: '{{video}}'
+                      clickAction: '{{tap_action}}'
+                      ttl: 0
+                      priority: high
+                      alert_once: '{{ alert_once }}'
+                      notification_icon: '{{icon}}'
+                      sticky: '{{sticky}}'
+                      channel: '{{''alarm_stream'' if critical else channel}}'
+                      car_ui: '{{android_auto}}'
+                      fontsize: '{{tv_size}}'
+                      position: '{{tv_position}}'
+                      duration: '{{tv_duration}}'
+                      transparency: '{{tv_transparency}}'
+                      interrupt: '{{tv_interrupt}}'
+                      subtitle: '{{subtitle}}'
+                      url: '{{tap_action}}'
+                      attachment:
+                        url: '{{video if video else attachment }}'
+                        content-type: '{{ ''application/vnd.apple.mpegurl'' if ''m3u8''
+                          in video else ''mp4'' if ''mp4'' in video else ''jpeg''
+                          if ''jpg'' in attachment else ''gif'' }}'
+                      push:
+                        sound:
+                          name: '{{ iif(silent_update, ''none'', sound) }}'
+                          volume: '{{ iif((silent_update or sound == ''none''), 0,
+                            volume) }}'
+                          critical: '{{ iif(critical, 1, 0) }}'
+                      entity_id: '{{ios_live_view}}'
+                      actions:
+                      - action: URI
+                        title: '{{button_1}}'
+                        uri: '{{url_1}}'
+                        icon: '{{icon_1}}'
+                      - action: URI
+                        title: '{{button_2}}'
+                        uri: '{{url_2}}'
+                        icon: '{{icon_2}}'
+                      - action: '{{ ''URI'' if ''/'' in url_3 else url_3 }}'
+                        title: '{{button_3}}'
+                        uri: '{{url_3}}'
+                        icon: '{{icon_3}}'
+                        destructive: true
+              - if: '{{tts and (not tts_helper or not alert_once or (tts_helper and
+                  id not in states(tts_helper)))}}'
+                then:
+                  sequence:
+                  - choose:
+                    - conditions: '{{ not notify_group_target }}'
+                      sequence:
+                      - device_id: !input notify_device
+                        domain: mobile_app
+                        type: notify
+                        message: '{{''TTS''}}'
+                        data:
+                          tag: '{{ id }}{{''-loitering-tts'' if loitering}}'
+                          channel: '{{''alarm_stream'' if critical else channel}}'
+                          alert_once: '{{ alert_once }}'
+                          tts_text: '{{message}}'
+                    default:
+                    - action: notify.{{ notify_group_target }}
+                      data:
+                        message: '{{''TTS''}}'
+                        data:
+                          tag: '{{ id }}{{''-loitering-tts'' if loitering}}'
+                          channel: '{{''alarm_stream'' if critical else channel}}'
+                          alert_once: '{{ alert_once }}'
+                          tts_text: '{{message}}'
+                  - action: input_text.set_value
+                    data:
+                      value: '{% set newIds = id + ''|'' + states(tts_helper) %}
+
+                        {{ newIds[:250] }}
+
+                        '
+                    target:
+                      entity_id: '{{tts_helper}}'
+        until: '{{ not wait.trigger or wait.trigger.payload_json[''type''] == ''end''
+          }}'

@@ -941,34 +941,52 @@ inside_only_home_defense_script:
     action: automation.turn_off
     target:
       entity_id: automation.speaker_automatic_volume_v4
-  - data:
-      media_content_id: http://192.168.0.15:8123/local/civil-defense-siren.wav
-      media_content_type: music
-    action: media_player.play_media
+  - action: media_player.clear_playlist
+    metadata: {}
+    data: {}
+    target:
+      entity_id: media_player.group_mass_home_group_speakers
+  - action: media_player.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: media_player.group_mass_home_group_speakers
+  - action: media_player.play_media
+    metadata:
+      title: burglar_alarm.mp3
+      thumbnail:
+      media_class: music
+      children_media_class:
+      navigateIds:
+      - {}
+      - media_content_type: app
+        media_content_id: media-source://media_source
+      - media_content_type: ''
+        media_content_id: media-source://media_source/local/sounds
+    data:
+      media_content_id: media-source://media_source/local/sounds/burglar_alarm.mp3
+      media_content_type: audio/mpeg
+    target:
+      entity_id: media_player.group_mass_home_group_speakers
+  - action: media_player.media_play
+    metadata: {}
+    data: {}
+    target:
+      entity_id: media_player.group_mass_home_group_speakers
+  - action: media_player.volume_set
+    metadata: {}
+    data:
+      volume_level: 1
     target:
       entity_id:
-      - media_player.universal_bedroom_speakers
-      - media_player.universal_hallway_speakers
-      - media_player.universal_kitchen_speakers
-      - media_player.universal_livingroom_speakers
-      - media_player.universal_salon_speakers
-      - media_player.universal_office_speakers
-      - media_player.universal_hotbox_speakers
-  - repeat:
-      count: 10
-      sequence:
-      - action: media_player.volume_up
-        metadata: {}
-        data: {}
-        target:
-          entity_id:
-          - media_player.universal_bedroom_speakers
-          - media_player.universal_hallway_speakers
-          - media_player.universal_kitchen_speakers
-          - media_player.universal_livingroom_speakers
-          - media_player.universal_salon_speakers
-          - media_player.universal_office_speakers
-          - media_player.universal_hotbox_speakers
+      - media_player.group_mass_home_group_speakers
+      - media_player.mass_bedroom_airplay_wiim_speaker
+      - media_player.mass_hotbox_airplay_wiim_speaker
+      - media_player.mass_kitchen_airplay_wiim_speaker
+      - media_player.mass_livingroom_airplay_wiim_speaker
+      - media_player.mass_office_airplay_wiim_speaker
+      - media_player.mass_salon_airplay_wiim_speaker
+      - media_player.mass_hallway_airplay_wiim_speaker
   - wait_for_trigger:
     - entity_id:
       - binary_sensor.home_occupancy
@@ -981,7 +999,7 @@ inside_only_home_defense_script:
       trigger: state
     timeout:
       hours: 0
-      minutes: 30
+      minutes: 10
       seconds: 0
       milliseconds: 0
     continue_on_timeout: true
@@ -989,15 +1007,14 @@ inside_only_home_defense_script:
     metadata: {}
     data: {}
     target:
-      entity_id:
-      - media_player.universal_bedroom_speakers
-      - media_player.universal_hallway_speakers
-      - media_player.universal_kitchen_speakers
-      - media_player.universal_livingroom_speakers
-      - media_player.universal_salon_speakers
-      - media_player.universal_office_speakers
-      - media_player.universal_hotbox_speakers
+      entity_id: media_player.group_mass_home_group_speakers
+  - action: automation.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: automation.speaker_automatic_volume_v4
   mode: restart
+  description: ''
 start_plex_media_on_requested_player:
   alias: Start plex media on requested player
   sequence:
@@ -1051,6 +1068,7 @@ set_whole_house_to_cozy_ambiance_2:
       entity_id:
       - light.salon_wall_light
       - light.livingroom_wall_light
+      - light.office_ceiling_light
   - action: light.turn_on
     metadata: {}
     data:
@@ -1428,9 +1446,10 @@ llm_script_for_music_assitant_voice_requests:
       default: media_player.hotbox_top_chromecast
   sequence:
   - variables:
-      player_data: "{% if media_player | first %} \n{% set media_player_no_space =
-        media_player.split(' ') | first%}    \n{{integration_entities('cast') \n |
-        expand\n | selectattr('entity_id', 'search', 'chromecast')\n | selectattr('entity_id',
+      player_data: "\n{% if media_player | first %} \n{% set media_player_no_space
+        = media_player.replace('universal_','').replace('media_player.','').replace('_chromecast','').replace('_','
+        ').split(' ')|  first%}  \n{{integration_entities('cast') \n | expand\n |
+        selectattr('entity_id', 'search', 'chromecast')\n | selectattr('entity_id',
         'search', media_player_no_space | lower)\n | map(attribute='entity_id') |
         list }}     \n{% elif area | first %} \n{{ integration_entities('cast') \n
         | expand\n | selectattr('entity_id', 'search', 'chromecast')\n | selectattr('entity_id',

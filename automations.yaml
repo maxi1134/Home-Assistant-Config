@@ -413,40 +413,23 @@
 - id: '1713408006382'
   alias: Turn back door lights on when someone is detected
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
+    - binary_sensor.back_entrance_presence_person_occupancy
+    - binary_sensor.reolink_back_door_camera_person
+    - binary_sensor.hotbox_window_presence_person_occupancy
     - binary_sensor.back_door_camera_person_occupancy
     to: 'on'
-  condition: []
-  action:
-  - service: light.turn_on
-    metadata: {}
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
     data:
       color_temp: 254
       brightness: 255
     target:
       entity_id: light.back_door_light
-  - wait_for_trigger:
-    - platform: state
-      entity_id:
-      - binary_sensor.back_door_camera_person_occupancy
-      to: 'off'
-      for:
-        hours: 0
-        minutes: 0
-        seconds: 30
-    timeout:
-      hours: 0
-      minutes: 0
-      seconds: 0
-      milliseconds: 0
-  - service: light.turn_off
-    metadata: {}
-    data:
-      transition: 30
-    target:
-      entity_id: light.back_door_light
+    action: light.turn_on
   mode: single
 - id: '1713451307697'
   alias: Sleep actions when "maxi is sleeping" is turned on and maxi is home
@@ -724,6 +707,15 @@
     - condition: state
       entity_id: media_player.bathroom_speaker
       state: playing
+    - condition: state
+      entity_id: media_player.universal_kitchen_speakers
+      state: playing
+    - condition: state
+      entity_id: media_player.universal_livingroom_speakers
+      state: playing
+    - condition: state
+      entity_id: media_player.universal_livingroom_chromecast
+      state: playing
   actions:
   - metadata: {}
     data:
@@ -771,41 +763,14 @@
     entity_id: binary_sensor.sensor_bathroom_door_contact
     state: 'off'
   actions:
-  - choose:
-    - conditions:
-      - condition: state
-        entity_id: media_player.bathroom_speaker
-        state: 'off'
+  - repeat:
+      count: 2
       sequence:
-      - metadata: {}
+      - action: media_player.volume_up
+        metadata: {}
         data: {}
         target:
-          entity_id: media_player.bathroom_speaker
-        action: media_player.volume_up
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: media_player.bathroom_speaker
-        action: media_player.volume_up
-    - conditions:
-      - condition: state
-        entity_id: media_player.bathroom_speaker
-        state: playing
-      sequence:
-      - metadata: {}
-        data: {}
-        target:
-          entity_id:
-          - media_player.bathroom_speaker
-        enabled: true
-        action: media_player.volume_up
-      - metadata: {}
-        data: {}
-        target:
-          entity_id:
-          - media_player.bathroom_speaker
-        enabled: true
-        action: media_player.volume_up
+          entity_id: media_player.universal_bathroom_speakers
   mode: single
 - id: '1713536741103'
   alias: Start/stop bathroom fan when Bathroom humidity changes
@@ -2734,17 +2699,13 @@
   - trigger: state
     entity_id:
     - binary_sensor.back_entrance_presence_person_occupancy
-    - binary_sensor.hotbox_window_presence_person_occupancy
     - binary_sensor.back_door_loitering_all_occupancy
     from:
     to: 'on'
   conditions:
-  - condition: not
-    conditions:
-    - condition: state
-      entity_id: alarm_control_panel.home_alarm
-      state: disarmed
-    enabled: false
+  - condition: state
+    entity_id: input_boolean.party_in_the_back_yard
+    state: 'off'
   actions:
   - metadata: {}
     data:
@@ -2765,23 +2726,6 @@
           title: Blow the horn for 2 minutes?
         channel: security_alerts_notifications
     action: notify.mobile_app_phone_maxi
-  - if:
-    - condition: state
-      entity_id: person.maximiliano
-      state: home
-    then:
-    - metadata: {}
-      data:
-        message: Someone is in the back!
-        title: Someone is in the back!
-        data:
-          ttl: 0
-          priority: high
-          image: /media/local/backdoor_movement.png
-          actions:
-          - action: blow_horn_back
-            title: Blow the horn for 2 minutes?
-      action: notify.mobile_app_phone_maxi
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
       context: {}
@@ -2865,23 +2809,28 @@
     to: 'on'
     trigger: state
     enabled: true
+    id: patio_door
   - entity_id:
     - binary_sensor.sensor_server_door_contact
     to: 'on'
     trigger: state
     enabled: true
+    id: server_door
   - entity_id:
     - binary_sensor.sensor_back_outside_door_contact
     to: 'on'
     trigger: state
+    id: back_outside_door
   - entity_id:
     - binary_sensor.sensor_front_door_contact
     to: 'on'
     trigger: state
+    id: entrance_door
   - entity_id:
     - binary_sensor.sensor_front_outside_door_contact
     to: 'on'
     trigger: state
+    id: front_door
   conditions:
   - condition: state
     entity_id: alarm_control_panel.home_alarm
@@ -2892,19 +2841,8 @@
   actions:
   - metadata: {}
     data:
-      stop_actions: true
-    action: automation.turn_off
-    target:
-      entity_id: automation.mute_speakers_when_the_room_is_empty
-  - metadata: {}
-    data: {}
-    target:
-      entity_id: light.group_all_lights
-    action: light.turn_off
-  - metadata: {}
-    data:
       message: Someone is inside!
-      title: A door has been opened {{trigger.entity_id}}
+      title: '{{trigger.id}} has been opened!'
       data:
         channel: security_alerts_notifications
         ttl: 0
@@ -2916,21 +2854,23 @@
     action: notify.mobile_app_phone_maxi
   - metadata: {}
     data:
-      rgb_color:
-      - 255
-      - 92
-      - 179
-      brightness_pct: 100
+      stop_actions: true
+    action: automation.turn_off
     target:
-      entity_id: light.bedroom_chandelier_light
+      entity_id: automation.mute_speakers_when_the_room_is_empty
+  - metadata: {}
+    data:
+      color_temp_kelvin: 4805
+      brightness_pct: 100
     action: light.turn_on
-    enabled: false
+    target:
+      entity_id: light.group_all_lights
   - action: tts.speak
     data:
       media_player_entity_id: ' {{ [states(''sensor.where_is_maxi_sleeping'') | capitalize
         ]  | map(''area_entities'') | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]'')
         | unique | list }}'
-      message: Someone has entered, a door has been opened
+      message: Someone has entered, '{{trigger.id}}' has been opened
       cache: true
     target:
       entity_id: tts.piper
@@ -2947,30 +2887,14 @@
       media_player_entity_id: ' {{ [states(''sensor.where_is_maxi_sleeping'') | capitalize
         ]  | map(''area_entities'') | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]'')
         | unique | list }}'
-      message: Someone has entered, a door has been opened
+      message: Someone has entered, '{{trigger.id}}' has been opened
       cache: true
     target:
       entity_id: tts.piper
-  - action: tts.speak
-    data:
-      media_player_entity_id: media_player.universal_bedroom_speakers
-      message: Someone has entered, a door has been opened
-      cache: true
-    target:
-      entity_id: tts.piper
-    enabled: false
-  - metadata: {}
-    data:
-      is_volume_muted: false
-    target:
-      entity_id:
-      - media_player.universal_bedroom_speakers
-    action: media_player.volume_mute
-    enabled: false
   - action: tts.speak
     data:
       media_player_entity_id: media_player.universal_hotbox_speakers
-      message: Someone has entered, a door has been opened
+      message: Someone has entered,'{{trigger.id}}' has been opened
       cache: true
     target:
       entity_id: tts.piper
@@ -4100,68 +4024,106 @@
       integration: Zigbee2MQTT
       controller_entity: sensor.remote_salon_dial_action
       action_rotate_left:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: "{% set linkplay_device = [area_id(trigger.event.data.entity_id)]
+              \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
+              'linkplay') |  expand  \n    |map(attribute='entity_id') | list | first
+              | default %}\n{% set mass_device = [area_id(trigger.event.data.entity_id)]
+              \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
+              'mass') |  expand  \n    |map(attribute='entity_id') | list | first
+              | default%}\n{% if state_attr(linkplay_device, 'is_volume_muted') ==
+              false %} {{mass_device}} {% endif %}\n"
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)] | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list | first | default }}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            media_players: '{{ [speaker] + [chromecast] }}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - choose:
-        - conditions:
-          - alias: Test if chromecast or speaker present
+              '
+          alias: Find unmuted media players
+        - if:
+          - alias: Test if speaker present
             condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  or
-              ''chromecast'' in media_players |          string | lower }}'
-          sequence:
+            value_template: '{{ ''speaker'' in media_players | string | lower  }}'
+            enabled: true
+          then:
           - target:
-              entity_id: '{{media_players}}'
+              entity_id: '{{media_players | first}}'
             data_template:
               volume_level: '{{ state_attr((media_players | first),''volume_level'')
                 - 0.03}}'
             action: media_player.volume_set
-          alias: Speaker playing and unmuted
+            enabled: true
+          alias: Lower speaker volume
+        - if:
+          - alias: Test if chromecast present
+            condition: template
+            value_template: '{{ ''chromecast'' in media_players | string | lower  }}'
+            enabled: true
+          then:
+          - target:
+              entity_id: '{{media_players | first}}'
+            data_template:
+              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+                - 0.03}}'
+            action: media_player.volume_set
+            enabled: true
+          alias: Lower Chromecast volume
       helper_last_controller_event: input_text.dial_salon_helper
       rotate_left_loop: true
       rotate_right_loop: true
       action_rotate_right:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: "{% set linkplay_device = [area_id(trigger.event.data.entity_id)]
+              \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
+              'linkplay') |  expand  \n    |map(attribute='entity_id') | list | first
+              | default %}\n{% set mass_device = [area_id(trigger.event.data.entity_id)]
+              \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
+              'mass') |  expand  \n    |map(attribute='entity_id') | list | first
+              | default%}\n{% if state_attr(linkplay_device, 'is_volume_muted') ==
+              false %} {{mass_device}} {% endif %}\n"
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)] | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list | first | default }}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            media_players: '{{ [speaker] + [chromecast] }}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - choose:
-        - conditions:
-          - alias: Test if chromecast or speaker present
+              '
+          alias: Find unmuted media players
+        - if:
+          - alias: Test Speaker present
             condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  or
-              ''chromecast'' in media_players |          string | lower }}'
-          sequence:
+            value_template: '{{ ''speaker'' in media_players | string | lower  }}'
+            enabled: true
+          then:
           - target:
-              entity_id: '{{media_players}}'
+              entity_id: '{{media_players | first}}'
             data_template:
               volume_level: '{{ state_attr((media_players | first),''volume_level'')
                 + 0.02}}'
             action: media_player.volume_set
-          alias: Speaker playing and unmuted
+            enabled: true
+          alias: Lower Speaker Volume
+        - if:
+          - alias: Test if chromecast present
+            condition: template
+            value_template: '{{ ''chromecast'' in media_players | string | lower  }}'
+            enabled: true
+          then:
+          - target:
+              entity_id: '{{media_players | first}}'
+            data_template:
+              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+                + 0.02}}'
+            action: media_player.volume_set
+            enabled: true
+          alias: Lower Chromecast Volume
       action_click_short:
       - variables:
           speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
@@ -4237,82 +4199,122 @@
       integration: Zigbee2MQTT
       controller_entity: sensor.remote_hallway_dial_action
       action_rotate_left:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   |map(attribute=''entity_id'')
-            | list}}
+      - sequence:
+        - variables:
+            speaker: "{% set linkplay_device = [area_id(trigger.event.data.entity_id)]
+              \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
+              'linkplay') |  expand  \n    |map(attribute='entity_id') | list | first
+              | default %}\n{% set mass_device = [area_id(trigger.event.data.entity_id)]
+              \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
+              'mass') |  expand  \n    |map(attribute='entity_id') | list | first
+              | default%}\n{% if state_attr(linkplay_device, 'is_volume_muted') ==
+              false %} {{mass_device}} {% endif %}\n"
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)] | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list | first | default }}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            media_players: '{{ [speaker] + [chromecast] }}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - choose:
-        - conditions:
-          - alias: Test if chromecast or speaker present
+              '
+          alias: Find unmuted media players
+      - parallel:
+        - if:
+          - alias: Test if chromecast present
             condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  or
-              ''chromecast'' in media_players |          string | lower }}'
+            value_template: '{{ ''chromecast'' in media_players | string | lower  }}'
             enabled: true
-          sequence:
+          then:
           - target:
-              entity_id: '{{media_players}}'
+              entity_id: '{{media_players | first}}'
             data_template:
               volume_level: '{{ state_attr((media_players | first),''volume_level'')
                 - 0.03}}'
             action: media_player.volume_set
             enabled: true
-          alias: Speaker playing and unmuted
+          alias: Lower Chromecast volume
+        - if:
+          - alias: Test if speaker present
+            condition: template
+            value_template: '{{ ''speaker'' in media_players | string | lower  }}'
+            enabled: true
+          then:
+          - target:
+              entity_id: '{{media_players | first}}'
+            data_template:
+              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+                - 0.03}}'
+            action: media_player.volume_set
+            enabled: true
+          alias: Lower speaker volume
       helper_last_controller_event: input_text.dial_hallway_helper
       rotate_left_loop: true
       rotate_right_loop: true
       action_rotate_right:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   |map(attribute=''entity_id'')
-            | list}}
+      - sequence:
+        - variables:
+            speaker: "{% set linkplay_device = [area_id(trigger.event.data.entity_id)]
+              \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
+              'linkplay') |  expand  \n    |map(attribute='entity_id') | list | first
+              | default %}\n{% set mass_device = [area_id(trigger.event.data.entity_id)]
+              \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
+              'mass') |  expand  \n    |map(attribute='entity_id') | list | first
+              | default%}\n{% if state_attr(linkplay_device, 'is_volume_muted') ==
+              false %} {{mass_device}} {% endif %}\n"
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)] | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list | first | default }}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            media_players: '{{ [speaker] + [chromecast] }}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - choose:
-        - conditions:
-          - alias: Test if chromecast or speaker present
-            condition: template
-            value_template: "     {{ 'speaker' in media_players | string | lower  or
-              'chromecast' in media_players |\n          string | lower }}"
-            enabled: false
-          sequence:
-          - target:
-              entity_id: '{{media_players}}'
-            data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
-                + 0.02}}'
-            action: media_player.volume_set
-            enabled: true
-          alias: Speaker playing and unmuted
+              '
+          alias: Find unmuted media players
+        - parallel:
+          - if:
+            - alias: Test Speaker present
+              condition: template
+              value_template: '{{ ''speaker'' in media_players | string | lower  }}'
+              enabled: true
+            then:
+            - target:
+                entity_id: '{{media_players | first}}'
+              data_template:
+                volume_level: '{{ state_attr((media_players | first),''volume_level'')
+                  + 0.02}}'
+              action: media_player.volume_set
+              enabled: true
+            alias: Lower Speaker Volume
+          - if:
+            - alias: Test if chromecast present
+              condition: template
+              value_template: '{{ ''chromecast'' in media_players | string | lower  }}'
+              enabled: true
+            then:
+            - target:
+                entity_id: '{{media_players | first}}'
+              data_template:
+                volume_level: '{{ state_attr((media_players | first),''volume_level'')
+                  + 0.02}}'
+              action: media_player.volume_set
+              enabled: true
+            alias: Lower Chromecast Volume
       action_click_short:
       - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   |map(attribute=''entity_id'')
-            | list}}
-
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+          speaker: "{% set linkplay_device = [area_id(trigger.event.data.entity_id)]
+            \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
+            'linkplay') |  expand  \n    |map(attribute='entity_id') | list | first
+            %}\n{% set mass_device = [area_id(trigger.event.data.entity_id)]     |
+            map('area_entities')   |\n    sum(start=[]) |    select('search', 'mass')
+            |  expand  \n    |map(attribute='entity_id') | list | first%}\n{% if state_attr(linkplay_device,
+            'is_volume_muted') == false %} {{mass_device}} {% endif %}\n"
+          chromecast: '{{ [area_id(trigger.event.data.entity_id)] | map(''area_entities'')   |
+            sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+            ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+            ''false'') |map(attribute=''entity_id'') | list | string | replace( ''['',
+            '''')| replace( '']'', '''') }}
 
             '
           media_players: '{{ speaker + chromecast }}
@@ -4326,14 +4328,18 @@
         action: media_player.media_play_pause
       action_click_triple:
       - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
-
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+          speaker: "{% set linkplay_device = [area_id(trigger.event.data.entity_id)]
+            \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
+            'linkplay') |  expand  \n    |map(attribute='entity_id') | list | first
+            %}\n{% set mass_device = [area_id(trigger.event.data.entity_id)]     |
+            map('area_entities')   |\n    sum(start=[]) |    select('search', 'mass')
+            |  expand  \n    |map(attribute='entity_id') | list | first%}\n{% if state_attr(linkplay_device,
+            'is_volume_muted') == false %} {{mass_device}} {% endif %}\n"
+          chromecast: '{{ [area_id(trigger.event.data.entity_id)] | map(''area_entities'')   |
+            sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+            ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+            ''false'') |map(attribute=''entity_id'') | list | string | replace( ''['',
+            '''')| replace( '']'', '''') }}
 
             '
           media_players: '{{ speaker + chromecast }}
@@ -4350,14 +4356,18 @@
       helper_debounce_delay: 0
       action_click_double:
       - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
-
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+          speaker: "{% set linkplay_device = [area_id(trigger.event.data.entity_id)]
+            \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
+            'linkplay') |  expand  \n    |map(attribute='entity_id') | list | first
+            %}\n{% set mass_device = [area_id(trigger.event.data.entity_id)]     |
+            map('area_entities')   |\n    sum(start=[]) |    select('search', 'mass')
+            |  expand  \n    |map(attribute='entity_id') | list | first%}\n{% if state_attr(linkplay_device,
+            'is_volume_muted') == false %} {{mass_device}} {% endif %}\n"
+          chromecast: '{{ [area_id(trigger.event.data.entity_id)] | map(''area_entities'')   |
+            sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+            ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+            ''false'') |map(attribute=''entity_id'') | list | string | replace( ''['',
+            '''')| replace( '']'', '''') }}
 
             '
           media_players: '{{ speaker + chromecast }}
@@ -6826,7 +6836,7 @@
   - action: media_player.volume_set
     metadata: {}
     data:
-      volume_level: 0.32
+      volume_level: 0.4
     target:
       entity_id: media_player.universal_bathroom_speakers
   mode: restart
@@ -8446,6 +8456,8 @@
     entity_id:
     - binary_sensor.parking_exit_camera_person_occupancy
     - binary_sensor.parking_camera_person_occupancy
+    - binary_sensor.reolink_parking_camera_person
+    - binary_sensor.reolink_parking_exit_camera_person
     to: 'on'
     from:
   conditions: []
@@ -8564,6 +8576,7 @@
   triggers:
   - entity_id:
     - binary_sensor.back_door_camera_person_occupancy
+    - binary_sensor.reolink_back_door_camera_person
     to: 'on'
     trigger: state
   conditions: []
@@ -8601,12 +8614,14 @@
     from:
     to: 'on'
     id: parking_exit
+    enabled: false
   - trigger: state
     entity_id:
     - binary_sensor.parking_camera_person_occupancy
     from:
     to: 'on'
     id: parking
+    enabled: false
   - trigger: state
     entity_id:
     - binary_sensor.reolink_parking_camera_person
@@ -8619,7 +8634,18 @@
     from:
     to: 'on'
     id: reolink_parking_exit
-  conditions: []
+  conditions:
+  - condition: state
+    entity_id: input_boolean.party_in_the_back_yard
+    state: 'off'
+  - condition: state
+    entity_id: binary_sensor.maxi_sleeping
+    state: 'off'
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: alarm_control_panel.home_alarm
+      state: armed_away
   actions:
   - choose:
     - conditions:
@@ -8818,6 +8844,17 @@
   - condition: state
     entity_id: media_player.universal_bathroom_speakers
     state: playing
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: media_player.universal_kitchen_speakers
+      state: playing
+    - condition: state
+      entity_id: media_player.universal_livingroom_speakers
+      state: playing
+    - condition: state
+      entity_id: media_player.universal_livingroom_chromecast
+      state: playing
   actions:
   - action: media_player.volume_mute
     metadata: {}
@@ -8833,6 +8870,7 @@
   - trigger: state
     entity_id:
     - binary_sensor.hotbox_window_presence_person_occupancy
+    - binary_sensor.back_entrance_presence_person_occupancy
     from: 'off'
     to: 'on'
   conditions:
@@ -8845,6 +8883,11 @@
     data: {}
     target:
       entity_id: switch.plug_back_door_horn
+  - action: siren.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: siren.reolink_back_door_camera_siren
   - wait_for_trigger:
     - trigger: state
       entity_id:
@@ -8857,14 +8900,19 @@
         seconds: 10
     timeout:
       hours: 0
-      minutes: 0
-      seconds: 30
+      minutes: 3
+      seconds: 0
       milliseconds: 0
   - action: switch.turn_off
     metadata: {}
     data: {}
     target:
       entity_id: switch.plug_back_door_horn
+  - action: siren.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: siren.reolink_back_door_camera_siren
   mode: single
 - id: '1743869107759'
   alias: Update cloudflare when IP changes
@@ -8897,6 +8945,7 @@
     target:
       entity_id: light.back_door_light
     action: light.turn_on
+    enabled: false
   - action: switch.turn_on
     metadata: {}
     data: {}
@@ -9106,3 +9155,412 @@
         priority: high
         channel: security_alerts_notifications
   mode: single
+- id: '1744744086412'
+  alias: 'Frigate back Doors Notifications '
+  description: Always run, even if maxi is sleeping
+  use_blueprint:
+    path: SgtBatten/Stable.yaml
+    input:
+      presence_filter:
+      - ''
+      camera:
+      - camera.back_door_camera
+      notify_device: c05131fc3bc6fcb2ce597a5d15723962
+      title: Back door Presence Detected
+      message: '{{ label }} detected - {{ camera_name }} at {{event[''after''][''start_time'']|timestamp_custom(''%H:%M'')}}'
+      update_sub_label: false
+      subtitle: '{{ camera_name }}  presence triggered'
+      critical: 'false'
+      tts: false
+      tts_helper: input_text.frigate_alerted_ids
+      video: '{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif?format=ts'
+      attachment_2: '{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif'
+      final_update: false
+      color: '#f44336'
+      icon: mdi:cctv
+      sticky: true
+      channel: security_alerts_notifications
+      url_1: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/clip.mp4'
+      button_2: View Stream
+      url_2: '{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json[''after''][''camera'']
+        | lower | replace(''-'',''_'')}}?token={{state_attr( ''camera.'' ~ camera,
+        ''access_token'')}}'
+      cooldown: 2
+      attachment: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1'
+      alert_once: true
+      labels:
+      - person
+      review_severity:
+      - alert
+      - detection
+      sound: default
+      custom_action_manual:
+      - action: switch.turn_on
+        metadata: {}
+        data: {}
+        target:
+          entity_id: switch.plug_back_door_horn
+      button_3: Blare Back door horn
+      url_3: custom-{{ this.entity_id }}
+      zone_filter: true
+      zones:
+      - back_entrance_presence
+- id: '1744750292983'
+  alias: Start bathroom muzak when door closes
+  description: ''
+  triggers:
+  - entity_id:
+    - binary_sensor.sensor_bathroom_door_contact
+    to: 'off'
+    from: 'on'
+    trigger: state
+  conditions:
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: media_player.bathroom_speaker
+      state: playing
+  actions:
+  - metadata: {}
+    data:
+      media_content_id: 'plex://{ "library_name": "Muzak", "shuffle": 1, "allow_multiple":
+        1}'
+      media_content_type: music
+    target:
+      entity_id: media_player.bathroom_speaker
+    action: media_player.play_media
+  - metadata: {}
+    data:
+      volume_level: 0.4
+    action: media_player.volume_set
+    target:
+      entity_id: media_player.bathroom_speaker
+  mode: restart
+- id: '1744750478317'
+  alias: Immediately mute bathroom speaker when door open and stuff is playing around
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.sensor_bathroom_door_contact
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+    from: 'off'
+  conditions:
+  - condition: or
+    conditions:
+    - condition: state
+      entity_id: media_player.universal_kitchen_speakers
+      state: playing
+    - condition: state
+      entity_id: media_player.universal_livingroom_speakers
+      state: playing
+    - condition: state
+      entity_id: media_player.universal_livingroom_chromecast
+      state: playing
+  actions:
+  - action: media_player.volume_mute
+    metadata: {}
+    data:
+      is_volume_muted: true
+    target:
+      entity_id: media_player.universal_bathroom_speakers
+  mode: restart
+- id: '1744810927278'
+  alias: Turn on camera floodlight when someone is detected and maxi is scared is
+    on
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.hotbox_window_presence_person_occupancy
+    - binary_sensor.back_entrance_presence_person_occupancy
+    - binary_sensor.reolink_back_door_camera_person
+    from: 'off'
+    to: 'on'
+  conditions:
+  - condition: state
+    entity_id: input_boolean.maxi_is_scared
+    state: 'on'
+  actions:
+  - action: light.turn_on
+    metadata: {}
+    data:
+      brightness_pct: 100
+    target:
+      entity_id: light.reolink_back_door_camera_floodlight
+  mode: single
+- id: '1744811034444'
+  alias: Set back door camera floodlight to auto during night time
+  description: ''
+  triggers:
+  - trigger: sun
+    event: sunset
+    offset: 0
+  conditions: []
+  actions:
+  - action: select.select_option
+    metadata: {}
+    data:
+      option: auto
+    target:
+      entity_id: select.reolink_back_door_camera_floodlight_mode
+  mode: single
+- id: '1744811074820'
+  alias: Turn off automatic back door floodlight whrn sun rises
+  description: ''
+  triggers:
+  - trigger: sun
+    event: sunrise
+    offset: 0
+  conditions: []
+  actions:
+  - action: select.select_option
+    metadata: {}
+    data:
+      option: 'off'
+    target:
+      entity_id: select.reolink_back_door_camera_floodlight_mode
+  mode: single
+- id: '1744811669242'
+  alias: Automatically turn off Back door light when there is no motion
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.back_door_occupancy
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 0
+    from: 'on'
+  conditions: []
+  actions:
+  - action: light.turn_off
+    metadata: {}
+    data:
+      transition: 60
+    target:
+      entity_id:
+      - light.back_door_light
+  - action: light.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - light.reolink_back_door_camera_floodlight
+  mode: single
+- id: '1744811754806'
+  alias: Alert when someone is in the back (Reolink)
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.reolink_back_door_camera_person
+    from:
+    to: 'on'
+  conditions:
+  - condition: state
+    entity_id: input_boolean.party_in_the_back_yard
+    state: 'off'
+  actions:
+  - metadata: {}
+    data:
+      filename: /media/reolink_backdoor_movement.png
+    target:
+      entity_id:
+      - camera.reolink_back_door_camera_fluent
+    action: camera.snapshot
+  - metadata: {}
+    data:
+      message: Someone is in the back! (r)
+      title: Someone is in the back! (r)
+      data:
+        ttl: 0
+        priority: high
+        image: /media/local/reolink_backdoor_movement.png
+        actions:
+        - action: blow_horn_back
+          title: Blow the horn for 2 minutes?
+        channel: security_alerts_notifications
+    action: notify.mobile_app_phone_maxi
+  - wait_for_trigger:
+    - event_type: mobile_app_notification_action
+      context: {}
+      event_data:
+        action: blow_horn_back
+      trigger: event
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 5
+      seconds: 0
+      milliseconds: 0
+  - metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_back_door_horn
+    action: switch.turn_on
+  mode: restart
+- id: '1745168989088'
+  alias: Turn off 'Party in the back yard' after 2 hours on
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.party_in_the_back_yard
+    to: 'on'
+    for:
+      hours: 2
+      minutes: 0
+      seconds: 0
+  conditions: []
+  actions:
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.party_in_the_back_yard
+  mode: single
+- id: '1745368052673'
+  alias: Turn on Parking Infrared when Parking Exit infrared goes off
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.reolink_parking_exit_camera_day_night_state
+    from:
+    to: day
+  - trigger: state
+    entity_id:
+    - device_tracker.unifi_default_ec_71_db_a1_ab_77
+    to: not_home
+  - trigger: state
+    entity_id:
+    - sensor.reolink_parking_exit_camera_day_night_state
+    from:
+    to: unavailable
+  - trigger: state
+    entity_id:
+    - sensor.reolink_parking_exit_camera_day_night_state
+    from:
+    to: unknown
+  - trigger: state
+    entity_id:
+    - switch.reolink_parking_exit_camera_infrared_lights_in_night_mode
+    from: 'on'
+    to: 'off'
+  conditions: []
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.reolink_parking_camera_infrared_lights_in_night_mode
+  mode: single
+- id: '1745467773993'
+  alias: Frigate Parking notifications
+  description: Only runs if maxi is NOT asleep
+  use_blueprint:
+    path: SgtBatten/Stable.yaml
+    input:
+      presence_filter:
+      - ''
+      camera:
+      - camera.parking_camera
+      - camera.parking_exit_camera
+      notify_device: c05131fc3bc6fcb2ce597a5d15723962
+      title: 'Movement on {{ camera_name }} '
+      message: '{{ label }} detected - {{ camera_name }} at {{event[''after''][''start_time'']|timestamp_custom(''%H:%M'')}}'
+      update_sub_label: false
+      subtitle: '{{ camera_name }}  presence triggered'
+      critical: 'false'
+      tts: false
+      tts_helper: input_text.frigate_alerted_ids
+      video: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/clip.mp4'
+      attachment_2: '{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif'
+      final_update: false
+      color: '#f44336'
+      icon: mdi:cctv
+      sticky: true
+      channel: security_alerts_notifications
+      url_1: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/clip.mp4'
+      button_2: View Stream
+      url_2: '{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json[''after''][''camera'']
+        | lower | replace(''-'',''_'')}}?token={{state_attr( ''camera.'' ~ camera,
+        ''access_token'')}}'
+      cooldown: 2
+      attachment: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1'
+      alert_once: true
+      labels:
+      - person
+      review_severity:
+      - alert
+      - detection
+      sound: default
+      master_condition:
+      - condition: state
+        entity_id: binary_sensor.maxi_sleeping
+        state: 'off'
+      - condition: not
+        conditions:
+        - condition: state
+          entity_id: alarm_control_panel.home_alarm
+          state: armed_away
+      - condition: state
+        entity_id: input_boolean.party_in_the_back_yard
+        state: 'off'
+- id: '1745468097447'
+  alias: 'Frigate front Doors Notifications '
+  description: Always run, even if maxi is sleeping
+  use_blueprint:
+    path: SgtBatten/Stable.yaml
+    input:
+      presence_filter:
+      - ''
+      camera:
+      - camera.front_door_camera
+      notify_device: c05131fc3bc6fcb2ce597a5d15723962
+      title: Front Door Presence Detected
+      message: '{{ label }} detected - {{ camera_name }} at {{event[''after''][''start_time'']|timestamp_custom(''%H:%M'')}}'
+      update_sub_label: false
+      subtitle: '{{ camera_name }}  presence triggered'
+      critical: 'false'
+      tts: false
+      tts_helper: input_text.frigate_alerted_ids
+      video: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/event_preview.gif?format=ts'
+      attachment_2: '{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif'
+      final_update: false
+      color: '#f44336'
+      icon: mdi:cctv
+      sticky: true
+      channel: security_alerts_notifications
+      url_1: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/clip.mp4'
+      button_2: View Stream
+      url_2: '{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json[''after''][''camera'']
+        | lower | replace(''-'',''_'')}}?token={{state_attr( ''camera.'' ~ camera,
+        ''access_token'')}}'
+      cooldown: 2
+      attachment: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1'
+      alert_once: true
+      labels:
+      - person
+      review_severity:
+      - alert
+      - detection
+      sound: default
+      custom_action_manual:
+      - action: switch.turn_on
+        metadata: {}
+        data: {}
+        target:
+          entity_id: switch.plug_front_door_horn
+      button_3: Blare the Front horn
+      url_3: custom-{{ this.entity_id }}
+      zones:
+      - front_door_loitering
+      zone_filter: true
