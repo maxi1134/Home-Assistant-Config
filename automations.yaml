@@ -469,7 +469,6 @@
       entity_id:
       - cover.cover_livingroom_blinds
       - cover.cover_salon_blinds
-      - cover.cover_hotbox_blinds
       - cover.cover_bedroom_blinds
     action: cover.close_cover
   mode: single
@@ -1430,6 +1429,7 @@
     - media_player.universal_bedroom_speakers
     - media_player.universal_bathroom_speakers
     - media_player.universal_hotbox_speakers
+    - media_player.universal_home_speakers
     to: idle
     for:
       hours: 0
@@ -2370,116 +2370,6 @@
               entity_id: '{{repeat.item}}'
           for_each: '{{ off_chromecasts }}'
   mode: single
-- id: '1716559893302'
-  alias: Set speakers volume on initial playback v2
-  description: Control each home_group speaker  individually instead of a per room
-    basis
-  triggers:
-  - entity_id:
-    - media_player.universal_bedroom_speakers
-    - media_player.universal_salon_speakers
-    - media_player.universal_closet_speaker
-    - media_player.universal_hallway_speakers
-    - media_player.universal_kitchen_speakers
-    - media_player.universal_office_speakers
-    - media_player.universal_livingroom_speakers
-    - media_player.universal_hotbox_speakers
-    to: playing
-    from: idle
-    trigger: state
-  conditions: []
-  actions:
-  - choose:
-    - conditions:
-      - alias: Is there no sleeper in the room?
-        condition: template
-        value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_sleeper_rooms'')
-          | string | lower }}
-
-          '
-      sequence:
-      - choose:
-        - conditions:
-          - condition: state
-            entity_id: input_boolean.following_music
-            state: 'off'
-          sequence:
-          - metadata: {}
-            data:
-              volume_level: 0.4
-            target:
-              entity_id: '{{trigger.entity_id}}'
-            enabled: true
-            action: media_player.volume_set
-          alias: If following music is off
-        - conditions:
-          - condition: state
-            entity_id: input_boolean.following_music
-            state: 'on'
-          sequence:
-          - alias: Mute or unmute depending on occupancy
-            choose:
-            - conditions:
-              - condition: template
-                value_template: '{{ area_id(trigger.entity_id) | lower in states(''sensor.active_motion_rooms'')
-                  | string | lower }}
-
-                  '
-                alias: Room occupied
-              sequence:
-              - metadata: {}
-                data:
-                  volume_level: "{% set current_hour = now().hour %}\n{% set volume
-                    = 100 %}\n\n{% if current_hour > 22 %}\n    {% set volume = '.40'
-                    %}\n{% elif current_hour >= 0 and current_hour <= 2 %}\n    {%
-                    set volume = \".35\" %}\n{% elif current_hour > 2 and current_hour
-                    < 7 %}\n    {% set volume = \".30\" %}\n{% else %}\n    {% set
-                    volume = '.45' %}\n{% endif %}\n{{ volume }}\n"
-                target:
-                  entity_id: '{{trigger.entity_id}}'
-                enabled: true
-                action: media_player.volume_set
-              - metadata: {}
-                data:
-                  is_volume_muted: false
-                target:
-                  entity_id: '{{trigger.entity_id}}'
-                alias: Unmute speaker
-                action: media_player.volume_mute
-              alias: Set volume if the room is occupied
-            - conditions:
-              - alias: Is the speaker room occupied?
-                condition: template
-                value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_motion_rooms'')
-                  | string | lower }}
-
-                  '
-              sequence:
-              - data:
-                  is_volume_muted: true
-                target:
-                  entity_id: '{{trigger.entity_id}}'
-                action: media_player.volume_mute
-              alias: Set mute if the room is unoccupied
-          alias: If following music is on
-      alias: No sleeper in the room
-    - conditions:
-      - condition: template
-        value_template: '{{ area_id(trigger.entity_id) | lower in states(''sensor.active_sleeper_rooms'')
-          | string | lower }}
-
-          '
-      sequence:
-      - data:
-          is_volume_muted: true
-        target:
-          entity_id: '{{trigger.entity_id}}'
-        action: media_player.volume_mute
-      alias: Sleeper present in the room
-  trace:
-    stored_traces: 30
-  mode: parallel
-  max: 25
 - id: '1716566146304'
   alias: Assist play next song
   description: ''
@@ -3848,36 +3738,6 @@
   condition: []
   action: []
   mode: single
-- id: '1722878184182'
-  alias: Assist Control covers
-  description: Open or close covers
-  trigger:
-  - platform: conversation
-    command:
-    - (close|open) [the] {room} (cover|window|blind|covers|blinds|windows)
-  condition: []
-  action:
-  - variables:
-      covers: "{{ [area_id(trigger.slots.room | lower)]  | map('area_entities') |
-        sum(start=[]) |\n  select('match', '^cover.') | unique | list }}\n"
-  - choose:
-    - conditions:
-      - condition: template
-        value_template: '{{ ''close'' in trigger.sentence | lower }}'
-      sequence:
-      - service: cover.close_cover
-        data: {}
-        target:
-          entity_id: '{{covers}}'
-    - conditions:
-      - condition: template
-        value_template: '{{ ''open'' in trigger.sentence | lower }}'
-      sequence:
-      - service: cover.open_cover
-        data: {}
-        target:
-          entity_id: '{{covers}}'
-  mode: single
 - id: '1722909291790'
   alias: Dial livingroom library control
   description: ''
@@ -3887,134 +3747,181 @@
       integration: Zigbee2MQTT
       controller_entity: sensor.remote_livingroom_library_dial_action
       action_rotate_left:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list | default([])}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - choose:
-        - conditions:
-          - alias: Test if chromecast or speaker present
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
             condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  or
-              ''chromecast'' in media_players |          string | lower }}'
-          sequence:
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
           - target:
-              entity_id: '{{media_players}}'
+              entity_id: '{{chromecast}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
                 - 0.03}}'
             action: media_player.volume_set
-          alias: Speaker playing and unmuted
+            enabled: true
+            alias: Modify Chromecast Sound
+          else:
+          - target:
+              entity_id: '{{speaker}}'
+            data_template:
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') - 0.03}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Speaker sound
+        enabled: true
       helper_last_controller_event: input_text.dial_livingroom_library_helper
       rotate_left_loop: true
       rotate_right_loop: true
       action_rotate_right:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - choose:
-        - conditions:
-          - alias: Test if chromecast or speaker present
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
             condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  or
-              ''chromecast'' in media_players |          string | lower }}'
-          sequence:
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
           - target:
-              entity_id: '{{media_players}}'
+              entity_id: '{{chromecast}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
                 + 0.02}}'
             action: media_player.volume_set
-          alias: Speaker playing and unmuted
+            enabled: true
+            alias: Modify Chromecast Sound
+          else:
+          - target:
+              entity_id: '{{speaker}}'
+            data_template:
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') + 0.02}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Speaker sound
+        enabled: true
       action_click_short:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.media_play_pause
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_play_pause
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_play_pause
+        enabled: true
       action_click_triple:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.turn_off
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.turn_off
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.turn_off
+        enabled: true
       rotate_left_max_loop_repeats: 10
       rotate_right_max_loop_repeats: 10
       helper_debounce_delay: 0
       action_click_double:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.media_next_track
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_next_track
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_next_track
+        enabled: true
 - id: '1722919148822'
   alias: Dial salon automation
   description: ''
@@ -4026,170 +3933,179 @@
       action_rotate_left:
       - sequence:
         - variables:
-            speaker: "{% set linkplay_device = [area_id(trigger.event.data.entity_id)]
-              \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
-              'linkplay') |  expand  \n    |map(attribute='entity_id') | list | first
-              | default %}\n{% set mass_device = [area_id(trigger.event.data.entity_id)]
-              \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
-              'mass') |  expand  \n    |map(attribute='entity_id') | list | first
-              | default%}\n{% if state_attr(linkplay_device, 'is_volume_muted') ==
-              false %} {{mass_device}} {% endif %}\n"
-            chromecast: '{{ [area_id(trigger.event.data.entity_id)] | map(''area_entities'')   |
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
+
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
               sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
               ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
-              ''false'') |map(attribute=''entity_id'') | list | first | default }}
+              ''false'') |map(attribute=''entity_id'') | list | default([])}}
 
               '
-            media_players: '{{ [speaker] + [chromecast] }}
-
-              '
-          alias: Find unmuted media players
+          alias: Find media players
         - if:
-          - alias: Test if speaker present
+          - alias: 'If a chromecast is present '
             condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  }}'
-            enabled: true
+            value_template: '{{ chromecast | string != ''[]'' }}'
           then:
           - target:
-              entity_id: '{{media_players | first}}'
+              entity_id: '{{chromecast}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
                 - 0.03}}'
             action: media_player.volume_set
             enabled: true
-          alias: Lower speaker volume
-        - if:
-          - alias: Test if chromecast present
-            condition: template
-            value_template: '{{ ''chromecast'' in media_players | string | lower  }}'
-            enabled: true
-          then:
+            alias: Modify Chromecast Sound
+          else:
           - target:
-              entity_id: '{{media_players | first}}'
+              entity_id: '{{speaker}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
-                - 0.03}}'
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') - 0.03}}'
             action: media_player.volume_set
             enabled: true
-          alias: Lower Chromecast volume
+            alias: Modify Speaker sound
+        enabled: true
       helper_last_controller_event: input_text.dial_salon_helper
       rotate_left_loop: true
       rotate_right_loop: true
       action_rotate_right:
       - sequence:
         - variables:
-            speaker: "{% set linkplay_device = [area_id(trigger.event.data.entity_id)]
-              \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
-              'linkplay') |  expand  \n    |map(attribute='entity_id') | list | first
-              | default %}\n{% set mass_device = [area_id(trigger.event.data.entity_id)]
-              \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
-              'mass') |  expand  \n    |map(attribute='entity_id') | list | first
-              | default%}\n{% if state_attr(linkplay_device, 'is_volume_muted') ==
-              false %} {{mass_device}} {% endif %}\n"
-            chromecast: '{{ [area_id(trigger.event.data.entity_id)] | map(''area_entities'')   |
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
+
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
               sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
               ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
-              ''false'') |map(attribute=''entity_id'') | list | first | default }}
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
               '
-            media_players: '{{ [speaker] + [chromecast] }}
-
-              '
-          alias: Find unmuted media players
+          alias: Find media players
         - if:
-          - alias: Test Speaker present
+          - alias: 'If a chromecast is present '
             condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  }}'
-            enabled: true
+            value_template: '{{ chromecast | string != ''[]'' }}'
           then:
           - target:
-              entity_id: '{{media_players | first}}'
+              entity_id: '{{chromecast}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
                 + 0.02}}'
             action: media_player.volume_set
             enabled: true
-          alias: Lower Speaker Volume
-        - if:
-          - alias: Test if chromecast present
-            condition: template
-            value_template: '{{ ''chromecast'' in media_players | string | lower  }}'
-            enabled: true
-          then:
+            alias: Modify Chromecast Sound
+          else:
           - target:
-              entity_id: '{{media_players | first}}'
+              entity_id: '{{speaker}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
-                + 0.02}}'
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') + 0.02}}'
             action: media_player.volume_set
             enabled: true
-          alias: Lower Chromecast Volume
+            alias: Modify Speaker sound
+        enabled: true
       action_click_short:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.media_play_pause
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_play_pause
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_play_pause
+        enabled: true
       action_click_triple:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.turn_off
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.turn_off
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.turn_off
+        enabled: true
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       helper_debounce_delay: 0
       action_click_double:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.media_next_track
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_next_track
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_next_track
+        enabled: true
 - id: '1722920464413'
   alias: dial hallway automation
   description: ''
@@ -4201,184 +4117,179 @@
       action_rotate_left:
       - sequence:
         - variables:
-            speaker: "{% set linkplay_device = [area_id(trigger.event.data.entity_id)]
-              \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
-              'linkplay') |  expand  \n    |map(attribute='entity_id') | list | first
-              | default %}\n{% set mass_device = [area_id(trigger.event.data.entity_id)]
-              \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
-              'mass') |  expand  \n    |map(attribute='entity_id') | list | first
-              | default%}\n{% if state_attr(linkplay_device, 'is_volume_muted') ==
-              false %} {{mass_device}} {% endif %}\n"
-            chromecast: '{{ [area_id(trigger.event.data.entity_id)] | map(''area_entities'')   |
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
+
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
               sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
               ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
-              ''false'') |map(attribute=''entity_id'') | list | first | default }}
+              ''false'') |map(attribute=''entity_id'') | list | default([])}}
 
               '
-            media_players: '{{ [speaker] + [chromecast] }}
-
-              '
-          alias: Find unmuted media players
-      - parallel:
+          alias: Find media players
         - if:
-          - alias: Test if chromecast present
+          - alias: 'If a chromecast is present '
             condition: template
-            value_template: '{{ ''chromecast'' in media_players | string | lower  }}'
-            enabled: true
+            value_template: '{{ chromecast | string != ''[]'' }}'
           then:
           - target:
-              entity_id: '{{media_players | first}}'
+              entity_id: '{{chromecast}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
                 - 0.03}}'
             action: media_player.volume_set
             enabled: true
-          alias: Lower Chromecast volume
-        - if:
-          - alias: Test if speaker present
-            condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  }}'
-            enabled: true
-          then:
+            alias: Modify Chromecast Sound
+          else:
           - target:
-              entity_id: '{{media_players | first}}'
+              entity_id: '{{speaker}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
-                - 0.03}}'
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') - 0.03}}'
             action: media_player.volume_set
             enabled: true
-          alias: Lower speaker volume
+            alias: Modify Speaker sound
+        enabled: true
       helper_last_controller_event: input_text.dial_hallway_helper
       rotate_left_loop: true
       rotate_right_loop: true
       action_rotate_right:
       - sequence:
         - variables:
-            speaker: "{% set linkplay_device = [area_id(trigger.event.data.entity_id)]
-              \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
-              'linkplay') |  expand  \n    |map(attribute='entity_id') | list | first
-              | default %}\n{% set mass_device = [area_id(trigger.event.data.entity_id)]
-              \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
-              'mass') |  expand  \n    |map(attribute='entity_id') | list | first
-              | default%}\n{% if state_attr(linkplay_device, 'is_volume_muted') ==
-              false %} {{mass_device}} {% endif %}\n"
-            chromecast: '{{ [area_id(trigger.event.data.entity_id)] | map(''area_entities'')   |
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
+
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
               sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
               ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
-              ''false'') |map(attribute=''entity_id'') | list | first | default }}
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
               '
-            media_players: '{{ [speaker] + [chromecast] }}
-
-              '
-          alias: Find unmuted media players
-        - parallel:
-          - if:
-            - alias: Test Speaker present
-              condition: template
-              value_template: '{{ ''speaker'' in media_players | string | lower  }}'
-              enabled: true
-            then:
-            - target:
-                entity_id: '{{media_players | first}}'
-              data_template:
-                volume_level: '{{ state_attr((media_players | first),''volume_level'')
-                  + 0.02}}'
-              action: media_player.volume_set
-              enabled: true
-            alias: Lower Speaker Volume
-          - if:
-            - alias: Test if chromecast present
-              condition: template
-              value_template: '{{ ''chromecast'' in media_players | string | lower  }}'
-              enabled: true
-            then:
-            - target:
-                entity_id: '{{media_players | first}}'
-              data_template:
-                volume_level: '{{ state_attr((media_players | first),''volume_level'')
-                  + 0.02}}'
-              action: media_player.volume_set
-              enabled: true
-            alias: Lower Chromecast Volume
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - target:
+              entity_id: '{{chromecast}}'
+            data_template:
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
+                + 0.02}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Chromecast Sound
+          else:
+          - target:
+              entity_id: '{{speaker}}'
+            data_template:
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') + 0.02}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Speaker sound
+        enabled: true
       action_click_short:
-      - variables:
-          speaker: "{% set linkplay_device = [area_id(trigger.event.data.entity_id)]
-            \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
-            'linkplay') |  expand  \n    |map(attribute='entity_id') | list | first
-            %}\n{% set mass_device = [area_id(trigger.event.data.entity_id)]     |
-            map('area_entities')   |\n    sum(start=[]) |    select('search', 'mass')
-            |  expand  \n    |map(attribute='entity_id') | list | first%}\n{% if state_attr(linkplay_device,
-            'is_volume_muted') == false %} {{mass_device}} {% endif %}\n"
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)] | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
-            ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list | string | replace( ''['',
-            '''')| replace( '']'', '''') }}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.media_play_pause
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_play_pause
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_play_pause
+        enabled: true
       action_click_triple:
-      - variables:
-          speaker: "{% set linkplay_device = [area_id(trigger.event.data.entity_id)]
-            \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
-            'linkplay') |  expand  \n    |map(attribute='entity_id') | list | first
-            %}\n{% set mass_device = [area_id(trigger.event.data.entity_id)]     |
-            map('area_entities')   |\n    sum(start=[]) |    select('search', 'mass')
-            |  expand  \n    |map(attribute='entity_id') | list | first%}\n{% if state_attr(linkplay_device,
-            'is_volume_muted') == false %} {{mass_device}} {% endif %}\n"
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)] | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
-            ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list | string | replace( ''['',
-            '''')| replace( '']'', '''') }}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.turn_off
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.turn_off
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.turn_off
+        enabled: true
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       helper_debounce_delay: 0
       action_click_double:
-      - variables:
-          speaker: "{% set linkplay_device = [area_id(trigger.event.data.entity_id)]
-            \    | map('area_entities')   |\n    sum(start=[]) |    select('search',
-            'linkplay') |  expand  \n    |map(attribute='entity_id') | list | first
-            %}\n{% set mass_device = [area_id(trigger.event.data.entity_id)]     |
-            map('area_entities')   |\n    sum(start=[]) |    select('search', 'mass')
-            |  expand  \n    |map(attribute='entity_id') | list | first%}\n{% if state_attr(linkplay_device,
-            'is_volume_muted') == false %} {{mass_device}} {% endif %}\n"
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)] | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
-            ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list | string | replace( ''['',
-            '''')| replace( '']'', '''') }}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.media_next_track
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_next_track
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_next_track
+        enabled: true
 - id: '1723154539730'
   alias: Dial office control automation
   description: ''
@@ -4388,134 +4299,181 @@
       integration: Zigbee2MQTT
       controller_entity: sensor.remote_office_dial_action_action
       action_rotate_left:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list | default([])}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - choose:
-        - conditions:
-          - alias: Test if chromecast or speaker present
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
             condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  or
-              ''chromecast'' in media_players |          string | lower }}'
-          sequence:
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
           - target:
-              entity_id: '{{media_players}}'
+              entity_id: '{{chromecast}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
                 - 0.03}}'
             action: media_player.volume_set
-          alias: Speaker playing and unmuted
+            enabled: true
+            alias: Modify Chromecast Sound
+          else:
+          - target:
+              entity_id: '{{speaker}}'
+            data_template:
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') - 0.03}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Speaker sound
+        enabled: true
       helper_last_controller_event: input_text.dial_office_helper
       rotate_left_loop: true
       rotate_right_loop: true
       action_rotate_right:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - choose:
-        - conditions:
-          - alias: Test if chromecast or speaker present
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
             condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  or
-              ''chromecast'' in media_players |          string | lower }}'
-          sequence:
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
           - target:
-              entity_id: '{{media_players}}'
+              entity_id: '{{chromecast}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
                 + 0.02}}'
             action: media_player.volume_set
-          alias: Speaker playing and unmuted
+            enabled: true
+            alias: Modify Chromecast Sound
+          else:
+          - target:
+              entity_id: '{{speaker}}'
+            data_template:
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') + 0.02}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Speaker sound
+        enabled: true
       action_click_short:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.media_play_pause
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_play_pause
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_play_pause
+        enabled: true
       action_click_triple:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.turn_off
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.turn_off
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.turn_off
+        enabled: true
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       helper_debounce_delay: 0
       action_click_double:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.media_next_track
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_next_track
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_next_track
+        enabled: true
 - id: '1723157141694'
   alias: Dial livingroom wall control automation
   description: ''
@@ -4525,134 +4483,181 @@
       integration: Zigbee2MQTT
       controller_entity: sensor.remote_livingroom_wall_dial_action
       action_rotate_left:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list | default([])}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - choose:
-        - conditions:
-          - alias: Test if chromecast or speaker present
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
             condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  or
-              ''chromecast'' in media_players |          string | lower }}'
-          sequence:
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
           - target:
-              entity_id: '{{media_players}}'
+              entity_id: '{{chromecast}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
                 - 0.03}}'
             action: media_player.volume_set
-          alias: Speaker playing and unmuted
+            enabled: true
+            alias: Modify Chromecast Sound
+          else:
+          - target:
+              entity_id: '{{speaker}}'
+            data_template:
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') - 0.03}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Speaker sound
+        enabled: true
       helper_last_controller_event: input_text.dial_livingroom_helper
       rotate_left_loop: true
       rotate_right_loop: true
       action_rotate_right:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - choose:
-        - conditions:
-          - alias: Test if chromecast or speaker present
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
             condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  or
-              ''chromecast'' in media_players |          string | lower }}'
-          sequence:
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
           - target:
-              entity_id: '{{media_players}}'
+              entity_id: '{{chromecast}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
                 + 0.02}}'
             action: media_player.volume_set
-          alias: Speaker playing and unmuted
+            enabled: true
+            alias: Modify Chromecast Sound
+          else:
+          - target:
+              entity_id: '{{speaker}}'
+            data_template:
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') + 0.02}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Speaker sound
+        enabled: true
       action_click_short:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.media_play_pause
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_next_track
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_next_track
+        enabled: true
       action_click_triple:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.turn_off
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.turn_off
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.turn_off
+        enabled: true
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       helper_debounce_delay: 0
       action_click_double:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.media_next_track
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_next_track
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_next_track
+        enabled: true
 - id: '1723161942387'
   alias: dial kitchen control automation
   description: ''
@@ -4662,134 +4667,181 @@
       integration: Zigbee2MQTT
       controller_entity: sensor.remote_kitchen_dial_action
       action_rotate_left:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list | default([])}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - choose:
-        - conditions:
-          - alias: Test if chromecast or speaker present
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
             condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  or
-              ''chromecast'' in media_players |          string | lower }}'
-          sequence:
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
           - target:
-              entity_id: '{{media_players}}'
+              entity_id: '{{chromecast}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
                 - 0.03}}'
             action: media_player.volume_set
-          alias: Speaker playing and unmuted
+            enabled: true
+            alias: Modify Chromecast Sound
+          else:
+          - target:
+              entity_id: '{{speaker}}'
+            data_template:
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') - 0.03}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Speaker sound
+        enabled: true
       helper_last_controller_event: input_text.dial_kitchen_helper
       rotate_left_loop: true
       rotate_right_loop: true
       action_rotate_right:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - choose:
-        - conditions:
-          - alias: Test if chromecast or speaker present
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
             condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  or
-              ''chromecast'' in media_players |          string | lower }}'
-          sequence:
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
           - target:
-              entity_id: '{{media_players}}'
+              entity_id: '{{chromecast}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
                 + 0.02}}'
             action: media_player.volume_set
-          alias: Speaker playing and unmuted
+            enabled: true
+            alias: Modify Chromecast Sound
+          else:
+          - target:
+              entity_id: '{{speaker}}'
+            data_template:
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') + 0.02}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Speaker sound
+        enabled: true
       action_click_short:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.media_play_pause
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_play_pause
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_play_pause
+        enabled: true
       action_click_triple:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.turn_off
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.turn_off
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.turn_off
+        enabled: true
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       helper_debounce_delay: 0
       action_click_double:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.media_next_track
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_next_track
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_next_track
+        enabled: true
 - id: '1723169196057'
   alias: dial office desk control automation
   description: ''
@@ -4799,135 +4851,181 @@
       integration: Zigbee2MQTT
       controller_entity: sensor.remote_office_desk_dial_action
       action_rotate_left:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list | default([])}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - choose:
-        - conditions:
-          - alias: Test if chromecast or speaker present
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
             condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  or
-              ''chromecast'' in media_players |          string | lower }}'
-          sequence:
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
           - target:
-              entity_id: '{{media_players}}'
+              entity_id: '{{chromecast}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
-                | float - 0.03}}'
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
+                - 0.03}}'
             action: media_player.volume_set
-          alias: Speaker playing and unmuted
+            enabled: true
+            alias: Modify Chromecast Sound
+          else:
+          - target:
+              entity_id: '{{speaker}}'
+            data_template:
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') - 0.03}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Speaker sound
+        enabled: true
       helper_last_controller_event: input_text.dial_office_desk_helper
       rotate_left_loop: true
       rotate_right_loop: true
       action_rotate_right:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - choose:
-        - conditions:
-          - alias: Test if chromecast or speaker present
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
             condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  or
-              ''chromecast'' in media_players |          string | lower }}'
-          sequence:
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
           - target:
-              entity_id: '{{media_players}}'
+              entity_id: '{{chromecast}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
-                | float + 0.02}}'
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
+                + 0.02}}'
             action: media_player.volume_set
             enabled: true
-          alias: Speaker playing and unmuted
+            alias: Modify Chromecast Sound
+          else:
+          - target:
+              entity_id: '{{speaker}}'
+            data_template:
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') + 0.02}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Speaker sound
+        enabled: true
       action_click_short:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.media_play_pause
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_play_pause
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_play_pause
+        enabled: true
       action_click_triple:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.turn_off
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.turn_off
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.turn_off
+        enabled: true
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       helper_debounce_delay: 0
       action_click_double:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.media_next_track
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_next_track
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_next_track
+        enabled: true
 - id: '1723214966525'
   alias: Front door automation on unlock for main codes
   description: ''
@@ -6903,10 +7001,11 @@
     from: idle
     trigger: state
   conditions:
-  - condition: template
-    value_template: '{{ (now() - trigger.from_state.last_changed) > timedelta(seconds=120)}}'
-    enabled: false
-    alias: Only continue if non-playing for over 120 seconds
+  - alias: Only continue if non-playing for over 120 seconds
+    condition: template
+    value_template: '{{  ((as_timestamp((now()) )   - (as_timestamp(trigger.from_state.last_changed))))
+      | float > 300}}'
+    enabled: true
   actions:
   - variables:
       trigger_speaker: '{{ trigger.entity_id }}
@@ -6983,138 +7082,181 @@
       integration: Zigbee2MQTT
       controller_entity: sensor.remote_hotbox_down_dial_action
       action_rotate_left:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list | default([])}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - choose:
-        - conditions:
-          - alias: Test if chromecast or speaker present
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
             condition: template
-            value_template: '{{ ''speaker'' in media_players | string | lower  or
-              ''chromecast'' in media_players |          string | lower }}'
-            enabled: true
-          sequence:
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
           - target:
-              entity_id: '{{media_players}}'
+              entity_id: '{{chromecast}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
                 - 0.03}}'
             action: media_player.volume_set
             enabled: true
-          alias: Speaker playing and unmuted
+            alias: Modify Chromecast Sound
+          else:
+          - target:
+              entity_id: '{{speaker}}'
+            data_template:
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') - 0.03}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Speaker sound
+        enabled: true
       helper_last_controller_event: input_text.dial_hotbox_down_helper
       rotate_left_loop: true
       rotate_right_loop: true
       action_rotate_right:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - choose:
-        - conditions:
-          - alias: Test if chromecast or speaker present
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
             condition: template
-            value_template: "     {{ 'speaker' in media_players | string | lower  or
-              'chromecast' in media_players |\n          string | lower }}"
-            enabled: false
-          sequence:
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
           - target:
-              entity_id: '{{media_players}}'
+              entity_id: '{{chromecast}}'
             data_template:
-              volume_level: '{{ state_attr((media_players | first),''volume_level'')
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
                 + 0.02}}'
             action: media_player.volume_set
             enabled: true
-          alias: Speaker playing and unmuted
+            alias: Modify Chromecast Sound
+          else:
+          - target:
+              entity_id: '{{speaker}}'
+            data_template:
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') + 0.02}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Speaker sound
+        enabled: true
       action_click_short:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.media_play_pause
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_play_pause
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_play_pause
+        enabled: true
       action_click_triple:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.turn_off
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.turn_off
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.turn_off
+        enabled: true
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       helper_debounce_delay: 0
       action_click_double:
-      - variables:
-          speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''airplay'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
 
-            '
-          chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-            sum(start=[]) |    select(''search'', ''chromecast'') |  expand   | selectattr(''attributes.is_volume_muted'',
-            ''false'') |map(attribute=''entity_id'') | list}}
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
 
-            '
-          media_players: '{{ speaker + chromecast }}
-
-            '
-        alias: Find unmuted media players
-      - metadata: {}
-        data: {}
-        target:
-          entity_id: '{{media_players}}'
-        action: media_player.media_next_track
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_next_track
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_next_track
+        enabled: true
 - id: '1738094823714'
   alias: Mute bathroom speaker when no motion and door open
   description: ''
@@ -7597,6 +7739,7 @@
     data: {}
     target:
       entity_id: cover.cover_hotbox_blinds
+    enabled: true
   - action: light.turn_off
     metadata: {}
     data:
@@ -8803,6 +8946,24 @@
     action: camera.snapshot
     target:
       entity_id: camera.back_door_camera
+  - if:
+    - condition: state
+      entity_id: person.myriam
+      state: home
+    then:
+    - metadata: {}
+      data:
+        message: Back horn started
+        data:
+          image: /media/local/back_horn_check.png
+          actions:
+          - action: stop_horn
+            title: Stop the horn?
+          channel: security_alerts_notifications
+          ttl: 0
+          priority: high
+        title: Security breach
+      action: notify.mobile_app_phone_myriam
   - metadata: {}
     data:
       message: Back horn started
@@ -8812,6 +8973,8 @@
         - action: stop_horn
           title: Stop the horn?
         channel: security_alerts_notifications
+        ttl: 0
+        priority: high
       title: Security breach
     action: notify.mobile_app_phone_maxi
   - wait_for_trigger:
@@ -8952,54 +9115,6 @@
     target:
       entity_id: switch.plug_parking_lamp
   mode: single
-- id: '1743895395707'
-  alias: Alert when someone is near felix door
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - binary_sensor.felix_back_camera_person_occupancy
-    from:
-    to: 'on'
-  conditions: []
-  actions:
-  - metadata: {}
-    data:
-      filename: /media/felix_movement.png
-    action: camera.snapshot
-    target:
-      entity_id: camera.felix_back_camera
-  - metadata: {}
-    data:
-      message: Someone is at felix door
-      title: Someone is at felix door
-      data:
-        ttl: 0
-        priority: high
-        image: /media/local/felix_movement.png
-        actions:
-        - action: blow_horn_back
-          title: Blow the horn for 2 minutes?
-        channel: security_alerts_notifications
-    action: notify.mobile_app_phone_maxi
-  - wait_for_trigger:
-    - event_type: mobile_app_notification_action
-      context: {}
-      event_data:
-        action: blow_horn_back
-      trigger: event
-    continue_on_timeout: false
-    timeout:
-      hours: 0
-      minutes: 5
-      seconds: 0
-      milliseconds: 0
-  - metadata: {}
-    data: {}
-    target:
-      entity_id: switch.plug_back_door_horn
-    action: switch.turn_on
-  mode: restart
 - id: '1743954245142'
   alias: Turn on back door light when door opens
   description: ''
@@ -9564,3 +9679,306 @@
       zones:
       - front_door_loitering
       zone_filter: true
+- id: '1747066080524'
+  alias: Turn off Back camera siren when back horn goes off
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - switch.plug_back_door_horn
+    from: 'on'
+    to: 'off'
+  conditions: []
+  actions:
+  - action: siren.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: siren.reolink_back_door_camera_siren
+  mode: single
+- id: '1747074693573'
+  alias: Disable Automatic Back Horn when myriam arrives
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - person.myriam
+    from: not_home
+    to: home
+    id: myriam_arrives
+  conditions:
+  - alias: Myriam has been not_home for over 600 seconds
+    condition: template
+    value_template: '{{  ((as_timestamp((now()) )   - (as_timestamp(trigger.from_state.last_changed))))
+      | float > 600 and trigger.from_state.state == ''not_home'' }}'
+  actions:
+  - sequence:
+    - alias: Wait For someone to come up the back stairs for 10 minutes
+      wait_for_trigger:
+      - trigger: state
+        entity_id:
+        - binary_sensor.back_door_camera_person_occupancy
+        from: 'off'
+        to: 'on'
+      timeout:
+        hours: 0
+        minutes: 0
+        seconds: 10
+        milliseconds: 0
+      continue_on_timeout: false
+    - action: input_boolean.turn_off
+      metadata: {}
+      data: {}
+      target:
+        entity_id: input_boolean.maxi_is_scared
+      alias: Turn off Automatic Back Horn condition
+    - alias: Turn back door light to green
+      action: light.turn_on
+      metadata: {}
+      data:
+        rgb_color:
+        - 44
+        - 255
+        - 13
+        brightness_pct: 100
+      target:
+        entity_id: light.back_door_light
+    - delay:
+        hours: 0
+        minutes: 0
+        seconds: 2
+        milliseconds: 0
+      alias: wait 2 seconds
+    - alias: Turn back door to white
+      action: light.turn_on
+      metadata: {}
+      data:
+        color_temp_kelvin: 3726
+        brightness_pct: 100
+      target:
+        entity_id: light.back_door_light
+  mode: single
+- id: '1747075531283'
+  alias: Alert Maxi when the automatic back horn is disabled
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.maxi_is_scared
+    from: 'on'
+    to: 'off'
+  conditions: []
+  actions:
+  - metadata: {}
+    data:
+      message: Automatic Back Horn Disabled
+      title: Automatic Back Horn Disabled
+      data:
+        ttl: 0
+        priority: high
+        channel: security_alerts_notifications
+        actions:
+        - action: turn_automatic_back_horn_on
+          title: Turn it back on
+    action: notify.mobile_app_phone_maxi
+  mode: single
+- id: '1747075906852'
+  alias: Turn on Automatic back Horn upon receiving notification answer
+  description: ''
+  triggers:
+  - event_type: mobile_app_notification_action
+    context: {}
+    event_data:
+      action: turn_automatic_back_horn_on
+    trigger: event
+  conditions: []
+  actions:
+  - action: input_boolean.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.maxi_is_scared
+  mode: single
+- id: '1747198279629'
+  alias: Open Hotbox Blind in relation to AC
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - cover.cover_hotbox_blinds
+    attribute: current_position
+  - trigger: state
+    entity_id:
+    - switch.zooz_hotbox_ac
+    from:
+    to: 'on'
+  conditions:
+  - condition: state
+    entity_id: switch.zooz_hotbox_ac
+    state: 'on'
+  - condition: numeric_state
+    entity_id: cover.cover_hotbox_blinds
+    attribute: current_position
+    below: 22
+  actions:
+  - action: cover.set_cover_position
+    metadata: {}
+    data:
+      position: 22
+    target:
+      entity_id: cover.cover_hotbox_blinds
+  mode: single
+- id: '1747198365926'
+  alias: Close hotbox blind in relationship to hotbox ac
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - cover.cover_hotbox_blinds
+    attribute: current_position
+  - trigger: state
+    entity_id:
+    - switch.zooz_hotbox_ac
+    from:
+    to: 'off'
+  conditions:
+  - condition: state
+    entity_id: switch.zooz_hotbox_ac
+    state: 'off'
+  - condition: numeric_state
+    entity_id: cover.cover_hotbox_blinds
+    attribute: current_position
+    below: 23
+  actions:
+  - action: cover.set_cover_position
+    metadata: {}
+    data:
+      position: 0
+    target:
+      entity_id: cover.cover_hotbox_blinds
+  mode: single
+- id: '1747367207590'
+  alias: Turn off back horn when maxi is scared is disabled
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.maxi_is_scared
+    from: 'on'
+    to: 'off'
+  conditions:
+  - condition: state
+    entity_id: switch.plug_back_door_horn
+    state: 'on'
+  actions:
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_back_door_horn
+  mode: single
+- id: '1747423390465'
+  alias: Open Salon Blind in relation to AC
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - cover.cover_salon_blinds
+    attribute: current_position
+  - trigger: state
+    entity_id:
+    - switch.zooz_hotbox_ac
+    from:
+    to: 'on'
+  - trigger: state
+    entity_id:
+    - climate.salon_ac
+    attribute: hvac_action
+    to: cooling
+  conditions:
+  - condition: numeric_state
+    entity_id: cover.cover_salon_blinds
+    attribute: current_position
+    below: 29
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: switch.zooz_salon_ac
+      state: 'off'
+  actions:
+  - action: cover.set_cover_position
+    metadata: {}
+    data:
+      position: 29
+    target:
+      entity_id: cover.cover_hotbox_blinds
+  mode: single
+- id: '1747423540817'
+  alias: Close salon blind in relationship to ac
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - cover.cover_salon_blinds
+    attribute: current_position
+  - trigger: state
+    entity_id:
+    - switch.zooz_salon_ac
+    from:
+    to: 'off'
+  conditions:
+  - condition: state
+    entity_id: switch.zooz_salon_ac
+    state: 'off'
+  - condition: numeric_state
+    entity_id: cover.cover_salon_blinds
+    attribute: current_position
+    below: 30
+  actions:
+  - action: cover.set_cover_position
+    metadata: {}
+    data:
+      position: 0
+    target:
+      entity_id: cover.cover_salon_blinds
+  mode: single
+- id: '1747558481492'
+  alias: Replace Spotify with Muzak playlist after 3.5 minutes
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.group_bathroom_motion_occupancy
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 3
+      seconds: 30
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.sensor_bathroom_door_contact
+    state: 'on'
+  - condition: state
+    entity_id: media_player.bathroom_speaker
+    attribute: is_volume_muted
+    state: 'true'
+  - condition: state
+    entity_id: media_player.bathroom_speaker
+    attribute: app_name
+    state: Spotify
+  actions:
+  - metadata: {}
+    data:
+      media_content_id: 'plex://{ "library_name": "Muzak", "shuffle": 1, "allow_multiple":
+        1}'
+      media_content_type: music
+    target:
+      entity_id: media_player.bathroom_speaker
+    action: media_player.play_media
+  - action: media_player.volume_mute
+    metadata: {}
+    data:
+      is_volume_muted: true
+    target:
+      entity_id: media_player.bathroom_speaker
+  mode: restart

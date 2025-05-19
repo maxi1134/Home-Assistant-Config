@@ -1195,7 +1195,8 @@ speaker_automatic_volume_adjustment_script:
       speaker_id: '{{ received_speaker }}
 
         '
-  - sequence:
+  - alias: Set volume then mute if empty
+    sequence:
     - choose:
       - conditions:
         - condition: time
@@ -1374,21 +1375,23 @@ speaker_automatic_volume_adjustment_script:
           entity_id: '{{speaker_id}}'
         alias: Unmute speaker
         action: media_player.volume_mute
-    - if:
+    - alias: Mute if empty
+      if:
       - alias: Is the speaker room occupied?
         condition: template
         value_template: '{{ area_id(speaker_id) | lower not in states(''sensor.active_motion_rooms'')
           | string | lower }}
 
           '
+      - condition: state
+        entity_id: input_boolean.following_music
+        state: 'on'
       then:
       - data:
           is_volume_muted: true
         target:
           entity_id: '{{speaker_id}}'
         action: media_player.volume_mute
-      alias: Mute if empty
-    alias: Set volume then mute if empty
   alias: Speaker Automatic Volume Adjustment script
   description: This script will set the volume of the speaker to a standard volume
     in relation to the time of the day
@@ -1488,6 +1491,7 @@ set_whole_house_tonsexy_ambiance:
       entity_id:
       - light.salon_wall_light
       - light.livingroom_wall_light
+      - light.office_ceiling_light
   - action: light.turn_on
     metadata: {}
     data:
