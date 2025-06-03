@@ -11,6 +11,22 @@
           {% endif %}
 
 
+      - name: "All residents Sleeping"
+        unique_id: all_residents_sleeping
+        delay_off:
+          minutes: 0
+        state: >
+          {% if states('sensor.amount_residents_at_home') | string != '0' %}
+          {% if ( states('sensor.active_sleeper_amount') | int  >= states('sensor.amount_residents_at_home') | int - 1) and ( states('person.maximiliano') == 'home' and states('person.myriam') == 'home'  )  %}
+            on
+          {% elif ( states('sensor.active_sleeper_amount') | int >= states('sensor.amount_residents_at_home')| int  )   %}
+            on
+          {% else %}
+            off
+          {% endif %}
+          {% endif %}
+
+
           
       - name: "Sensor Patio Occupancy"
         state: >
@@ -221,22 +237,6 @@
            {% else %}
               1
           {% endif %}
-      - name: "Office Lights color"
-        unique_id: "office_lights_color" 
-        state: >-
-          {% if state_attr('light.group_office_lights', 'rgb_color')  %}
-            {{ state_attr('light.group_office_lights', 'rgb_color') }}
-           {% else %}
-              0
-          {% endif %}
-      - name: "Hotbox Lights color"
-        unique_id: "hotbox_lights_color" 
-        state: >-
-          {% if state_attr('light.group_hotbox_lights', 'rgb_color')  %}
-            {{ state_attr('light.group_hotbox_lights', 'rgb_color') }}
-           {% else %}
-              0
-          {% endif %}
       - name: "Playing on Bedroom Speaker"
         unique_id: "playing_on_bedroom_speaker" 
         state: >-
@@ -331,6 +331,19 @@
             {% endfor %}            
             {{ ns.crashers }}{# output crashers at home #}      
         unit_of_measurement: "crashers"
+
+        
+      - name: "amount residents at home"
+        unique_id: "amount_residents_home"
+        state: >-
+            {% set ns = namespace(crashers = 0) %} {# set namespace user amount at 0 #}
+            {% for person in states.person %} {# iterate over existing persons #}
+            {% if "residents" in person.entity_id | labels() and person.state == "home"  %}
+              {% set ns.crashers = ns.crashers + 1 %}
+            {% endif %}
+            {% endfor %}            
+            {{ ns.crashers }}{# output residents at home #}      
+        unit_of_measurement: "residents"
 
       - name: "amount friends home"
         unique_id: "amount_friends_home"
@@ -950,7 +963,7 @@
             {% set ns = namespace(rooms=[], results=[]) %}
             {% for name, room, sensor in info if name != 'watch' or (name == 'watch' and is_state('binary_sensor.galaxy_watch_4_on_body_sensor', 'on')) %}
               {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
-              {% if room != 'not_home' and room != 'main floor'and room  != 'unknown' %}
+              {% if room != 'not_home' and room != 'main floor'and room  != 'unknown' and room  != 'home' %}
                 {% set ns.rooms = ns.rooms + [(name, room)] %}
               {% endif %}
               {% set ns.rooms = ns.rooms + [(name, sensor)] %}
@@ -969,4 +982,31 @@
               At {{gpslocation}}
             {% else %}
               not_home
+            {% endif %}       
+        attributes:
+          rooms: >
+            {% set info = [
+              ('bracelet', 'device_tracker.maxi_bracelet_espresense', 'sensor.b7bracelet1'),
+              ('watch', 'device_tracker.maxi_watch_4_espresense', 'sensor.watch_galaxy4'),
+              ('phone', 'device_tracker.maxi_phone_s24_espresense', 'sensor.phone_s24'),
+              
+            ] %}       
+            {% set gpslocation = states('device_tracker.phone_maxi') | lower %}     
+            {% set ns = namespace(rooms=[], results=[]) %}
+            {% for name, room, sensor in info if name != 'watch' or (name == 'watch' and is_state('binary_sensor.galaxy_watch_4_on_body_sensor', 'on')) %}
+              {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
+              {% if room != 'not_home' and room != 'main floor'and room  != 'unknown' and room  != 'Home' %}
+                {% set ns.rooms = ns.rooms + [(name, room)] %}
+              {% endif %}
+              {% set ns.rooms = ns.rooms + [(name, sensor)] %}
+            {% endfor %}
+            
+            {% if is_state('binary_sensor.maxi_alone', 'on') %}
+              {% set ns.rooms = ns.rooms + [('last',states('sensor.last_active_room')|lower)] %}
             {% endif %}
+            {% for room, items in ns.rooms | groupby(attribute='1') %}
+               {% set ns.results = ns.results + [(room, items | map(attribute='0') | list )] %}
+            {% endfor %}
+            {%- for result in ns.results -%}
+            {{result }}
+            {%- endfor -%}

@@ -1,37 +1,3 @@
-- id: '1691007313405'
-  alias: Assist play specific artist
-  description: ''
-  triggers:
-  - command:
-    - play the artist {artist}
-    - play some  [of] {artist}
-    trigger: conversation
-  conditions: []
-  actions:
-  - data:
-      media_type: artist
-      enqueue: replace
-      media_id: '{{ trigger.slots.artist  }}'
-    target:
-      entity_id: media_player.group_mass_home_group_speakers
-    action: music_assistant.play_media
-  mode: single
-- id: '1691088980213'
-  alias: Assist Play Playlist
-  description: ''
-  triggers:
-  - command:
-    - (start|play) [the] {playlist} playlist
-    trigger: conversation
-  conditions: []
-  actions:
-  - data:
-      media_content_type: playlist
-      media_content_id: '{{ trigger.slots.playlist }}'
-    target:
-      entity_id: media_player.group_mass_home_group_speakers
-    action: media_player.play_media
-  mode: single
 - id: '1691094215164'
   alias: Assist Set Thermostats
   description: ''
@@ -77,7 +43,7 @@
     entity_id: media_player.group_mass_home_group_speakers
     state: 'off'
   - condition: state
-    entity_id: binary_sensor.all_present_sleeping
+    entity_id: binary_sensor.all_residents_sleeping
     state: 'off'
   actions:
   - data:
@@ -432,12 +398,12 @@
     action: light.turn_on
   mode: single
 - id: '1713451307697'
-  alias: Sleep actions when "maxi is sleeping" is turned on and maxi is home
+  alias: Sleep actions when "all resident sleeping" is turned on and maxi is home
   description: Close the blinds, turn off the lights and turn on the sleep mode of
     Adaptative lighting
   triggers:
   - entity_id:
-    - binary_sensor.maxi_sleeping
+    - binary_sensor.all_residents_sleeping
     to: 'on'
     for:
       hours: 0
@@ -454,9 +420,6 @@
   - condition: state
     entity_id: input_boolean.party_mode
     state: 'off'
-  - condition: state
-    entity_id: person.maximiliano
-    state: home
   actions:
   - metadata: {}
     data: {}
@@ -469,16 +432,15 @@
       entity_id:
       - cover.cover_livingroom_blinds
       - cover.cover_salon_blinds
-      - cover.cover_bedroom_blinds
     action: cover.close_cover
   mode: single
 - id: '1713451780517'
-  alias: Turn off Sleeping mode for Adaptative lighting on "MAxi is sleeping" turns
-    on off
+  alias: Turn off Sleeping mode for Adaptative lighting on "all resident sleeping"
+    turns off
   description: Turn off sleep mode for adaptative lighting
   triggers:
   - entity_id:
-    - binary_sensor.maxi_sleeping
+    - binary_sensor.all_residents_sleeping
     to: 'off'
     trigger: state
   conditions: []
@@ -491,23 +453,23 @@
 - id: '1713451981404'
   alias: Turn on party mode when over 5 guests are over
   description: Also check that no psychedelic or kink event is going on
-  trigger:
-  - platform: numeric_state
-    entity_id:
-    - sensor.amount_friends_home
+  triggers:
+  - entity_id:
+    - sensor.chilling_hotspot
     above: 5
-  condition:
+    trigger: numeric_state
+  conditions:
   - condition: state
     entity_id: input_boolean.kink_party
     state: 'off'
   - condition: state
     entity_id: input_boolean.acid_time
     state: 'off'
-  action:
-  - service: input_boolean.turn_on
-    target:
+  actions:
+  - target:
       entity_id: input_boolean.party_mode
     data: {}
+    action: input_boolean.turn_on
   mode: single
 - id: '1713452550061'
   alias: Close blinds when the house is empty
@@ -1130,6 +1092,16 @@
   - condition: template
     value_template: '{{ area_id(trigger.entity_id) | replace(''_top'','''') | replace(''_down'','''')
       not in states(''sensor.active_sleeper_rooms'') | string  }}'
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: alarm_control_panel.home_alarm
+      state: triggered
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: alarm_control_panel.home_alarm
+      state: armed_away
   actions:
   - variables:
       off_lights_in_room: "{% set ns = namespace(f = [] ) %} {% for i in ( [area_id(trigger.entity_id)]
@@ -1368,52 +1340,47 @@
 - id: '1714150045572'
   alias: Mute chromecasts when they start visuals
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - media_player.universal_office_chromecast
     - media_player.universal_livingroom_chromecast
     - media_player.universal_hotbox_top_chromecast
     - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
     to: playing
-  condition:
+    trigger: state
+  conditions:
   - alias: Check if the chromecast already muted
     condition: template
     value_template: '{{trigger.to_state.attributes.is_volume_muted == false}}'
   - condition: template
-    value_template: "                  {% set ns = namespace( cast_entity = trigger.entity_id,
-      template_entity = \"\" ) %}\n                  {% set ns.final_entity = ns.cast_entity
-      %}   {# Declare Variables#}                    \n                  {% for media_player
-      in states.media_player %}                   \n                    {% if \"plex\"
-      in media_player.entity_id and media_player.state != \"unavailable\" %}\n                      {%
-      set entity = media_player.entity_id %}\n                      {% set media_title
-      = state_attr( entity, 'media_title') %}\n                      {% set media_series_title
-      = state_attr( entity, 'media_series_title') %}\n                      {% set
-      media_series_episode = state_attr( entity, 'media_espisode') %}\n                      {%
-      set media_series_season = state_attr( entity, 'media_season') %}                      \n
-      \                       {% if state_attr( ns.final_entity, 'media_title') %}\n
-      \                         {% if  state_attr( ns.cast_entity, 'media_title')
-      in ( media_title | string )%}\n                          {% set ns.template_entity
-      = entity %}\n                          {% endif %}                    \n                        {%
-      elif state_attr( ns.final_entity, 'media_series_title') %}\n                          {%
-      if  state_attr( ns.cast_entity, 'media_series_title') in ( media_series_title
-      | string )%}\n                          {% set ns.template_entity = entity %}\n
-      \                         {% endif %}\n                        {% endif %}                      \n
-      \                   {% endif %}                         \n                  {%
-      endfor %}                   \n                  {% if ns.template_entity ==
-      \"\" %}\n                      {% set ns.template_entity = ns.cast_entity %}\n
-      \                 {% endif %}\n                  {% if ns.template_entity !=
-      ns.cast_entity %}                  \n                    {{ state_attr(ns.template_entity,
-      'media_library_title') == 'Visuals'}}\n                  {% endif %} "
-  action:
-  - service: media_player.volume_mute
-    metadata: {}
+    value_template: "{% set ns = namespace( cast_entity = trigger.entity_id, template_entity
+      = \"\" ) %}\n{% set ns.final_entity = ns.cast_entity %}   {# Declare Variables#}
+      \                   \n{% for media_player in states.media_player %}                   \n
+      \ {% if \"plex\" in media_player.entity_id and media_player.state != \"unavailable\"
+      %}\n    {% set entity = media_player.entity_id %}\n    {% set media_title =
+      state_attr( entity, 'media_title') %}\n    {% set media_series_title = state_attr(
+      entity, 'media_series_title') %}\n    {% set media_series_episode = state_attr(
+      entity, 'media_espisode') %}\n    {% set media_series_season = state_attr( entity,
+      'media_season') %}                      \n      {% if state_attr( ns.final_entity,
+      'media_title') %}\n        {% if  state_attr( ns.cast_entity, 'media_title')
+      in ( media_title | string )%}\n        {% set ns.template_entity = entity %}\n
+      \       {% endif %}                    \n      {% elif state_attr( ns.final_entity,
+      'media_series_title') %}\n        {% if  state_attr( ns.cast_entity, 'media_series_title')
+      in ( media_series_title | string )%}\n        {% set ns.template_entity = entity
+      %}\n        {% endif %}\n      {% endif %}                      \n  {% endif
+      %}                         \n{% endfor %}                   \n{% if ns.template_entity
+      == \"\" %}\n    {% set ns.template_entity = ns.cast_entity %}\n{% endif %}\n{%
+      if ns.template_entity != ns.cast_entity %}                  \n  {{ state_attr(ns.template_entity,
+      'media_library_title') == 'Visuals'}}\n{% endif %} "
+  actions:
+  - metadata: {}
     data:
       is_volume_muted: true
     target:
       entity_id: '{{trigger.entity_id}}'
     alias: Mute the chromecast
+    action: media_player.volume_mute
   mode: restart
 - id: '1714151063007'
   alias: Turn off speakers after 15 minutes of pause
@@ -1494,7 +1461,7 @@
   mode: parallel
   max: 10
 - id: '1714403972538'
-  alias: Mute speakers when chromecast start playing in the same room
+  alias: Mute speakers when unmuted chromecast plays in the same room
   description: ''
   triggers:
   - entity_id:
@@ -1503,123 +1470,43 @@
     - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
     - media_player.universal_salon_chromecast
+    - media_player.universal_bedroom_chromecast
     to: playing
     trigger: state
-  conditions:
-  - alias: Check that the chromecast is not muted
-    condition: template
-    value_template: '{{trigger.to_state.attributes.is_volume_muted == false}}'
-  - condition: template
-    value_template: "{% set ns = namespace( cast_entity = trigger.entity_id, template_entity
-      = \"\" ) %}\n{% set ns.final_entity = ns.cast_entity %}   {# Declare Variables#}
-      \                   \n{% for media_player in states.media_player %}                   \n
-      \ {% if \"plex\" in media_player.entity_id and media_player.state != \"unavailable\"
-      %}\n    {% set entity = media_player.entity_id %}\n    {% set media_title =
-      state_attr( entity, 'media_title') %}\n    {% set media_series_title = state_attr(
-      entity, 'media_series_title') %}\n    {% set media_series_episode = state_attr(
-      entity, 'media_espisode') %}\n    {% set media_series_season = state_attr( entity,
-      'media_season') %}                      \n      {% if state_attr( ns.final_entity,
-      'media_title') %}\n        {% if  state_attr( ns.cast_entity, 'media_title')
-      in ( media_title | string )%}\n        {% set ns.template_entity = entity %}\n
-      \       {% endif %}                    \n      {% elif state_attr( ns.final_entity,
-      'media_series_title') %}\n        {% if  state_attr( ns.cast_entity, 'media_series_title')
-      in ( media_series_title | string )%}\n        {% set ns.template_entity = entity
-      %}\n        {% endif %}\n      {% endif %}                      \n  {% endif
-      %}                         \n{% endfor %}                   \n{% if ns.template_entity
-      == \"\" %}\n    {% set ns.template_entity = ns.cast_entity %}\n{% endif %}\n{%
-      if ns.template_entity != ns.cast_entity %}                  \n  {{ state_attr(ns.template_entity,
-      'media_library_title') != 'Visuals'}}\n{% endif %} \n"
-    enabled: false
+    alias: Chromecasts
+  - alias: Speakers
+    entity_id:
+    - media_player.universal_livingroom_speakers
+    - media_player.universal_hotbox_top_speakers
+    - media_player.universal_hotbox_down_speakers
+    - media_player.universal_salon_speakers
+    - media_player.universal_bedroom_speakers
+    to: playing
+    trigger: state
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
+  conditions: []
   actions:
   - variables:
-      playing_speakers: '{{ [area_id(trigger.entity_id)]   | map(''area_entities'')
-        | sum(start=[]) |    select(''search'', ''speakers'') | select(''is_state'',''playing'')
-        | unique | list }}
-
-        '
-  - metadata: {}
-    data:
-      is_volume_muted: true
-    target:
-      entity_id: '{{ playing_speakers }}
-
-        '
-    action: media_player.volume_mute
-  mode: restart
-- id: '1714404201504'
-  alias: Unmute speakers when TV stops
-  description: ''
-  triggers:
-  - entity_id:
-    - media_player.universal_salon_chromecast
-    - media_player.universal_livingroom_chromecast
-    - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
-    - media_player.universal_patio_chromecast
-    to: paused
-    from: playing
-    trigger: state
-  - entity_id:
-    - media_player.universal_salon_chromecast
-    - media_player.universal_livingroom_chromecast
-    - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
-    - media_player.universal_patio_chromecast
-    to: 'off'
-    from: paused
-    trigger: state
-  - entity_id:
-    - media_player.universal_salon_chromecast
-    - media_player.universal_livingroom_chromecast
-    - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
-    - media_player.universal_patio_chromecast
-    to: 'off'
-    from: playing
-    trigger: state
-  conditions:
-  - alias: Check that the chromecast is not muted
-    condition: template
-    value_template: '{{trigger.to_state.attributes.is_volume_muted == false}}'
-  - condition: template
-    value_template: "                  {% set ns = namespace( cast_entity = trigger.entity_id,
-      template_entity = \"\" ) %}\n                  {% set ns.final_entity = ns.cast_entity
-      %}   {# Declare Variables#}                    \n                  {% for media_player
-      in states.media_player %}                   \n                    {% if \"plex\"
-      in media_player.entity_id and media_player.state != \"unavailable\" %}\n                      {%
-      set entity = media_player.entity_id %}\n                      {% set media_title
-      = state_attr( entity, 'media_title') %}\n                      {% set media_series_title
-      = state_attr( entity, 'media_series_title') %}\n                      {% set
-      media_series_episode = state_attr( entity, 'media_espisode') %}\n                      {%
-      set media_series_season = state_attr( entity, 'media_season') %}                      \n
-      \                       {% if state_attr( ns.final_entity, 'media_title') %}\n
-      \                         {% if  state_attr( ns.cast_entity, 'media_title')
-      in ( media_title | string )%}\n                          {% set ns.template_entity
-      = entity %}\n                          {% endif %}                    \n                        {%
-      elif state_attr( ns.final_entity, 'media_series_title') %}\n                          {%
-      if  state_attr( ns.cast_entity, 'media_series_title') in ( media_series_title
-      | string )%}\n                          {% set ns.template_entity = entity %}\n
-      \                         {% endif %}\n                        {% endif %}                      \n
-      \                   {% endif %}                         \n                  {%
-      endfor %}                   \n                  {% if ns.template_entity ==
-      \"\" %}\n                      {% set ns.template_entity = ns.cast_entity %}\n
-      \                 {% endif %}\n                  {% if ns.template_entity !=
-      ns.cast_entity %}                  \n                    {{ state_attr(ns.template_entity,
-      'media_library_title') != 'Visuals'}}\n                  {% endif %} "
-  actions:
-  - variables:
-      playing_speakers: '{{ [area_id(trigger.entity_id)]   | map(''area_entities'')
-        | sum(start=[]) |    select(''search'', ''speakers'') | select(''is_state'',''playing'')
-        | unique | list }}
-
-        '
-  - metadata: {}
-    data:
-      is_volume_muted: false
-    target:
-      entity_id: '{{playing_speakers}}'
-    alias: Unmute the speakers
-    action: media_player.volume_mute
+      playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
+        \ | sum(start=[])\n  | select('search', 'speakers')\n  | select('is_state','playing')\n
+        \ | unique\n  | list \n}}\n"
+      unmuted_player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
+        \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
+        'universal')\n  | expand\n  | selectattr('attributes.is_volume_muted', 'eq',
+        false)\n  | map(attribute='entity_id')\n  | unique\n  | list \n}}\n"
+  - if:
+    - condition: template
+      value_template: '{{ unmuted_player_chromecasts != empty }}'
+    then:
+    - action: media_player.volume_mute
+      metadata: {}
+      data:
+        is_volume_muted: true
+      target:
+        entity_id: '{{playing_speakers | list}}'
   mode: restart
 - id: '1714404505080'
   alias: Close covers in the room when chromecasts start movie
@@ -1756,9 +1643,6 @@
     - binary_sensor.group_livingroom_motion_occupancy
     - binary_sensor.group_workstation_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
-    - binary_sensor.group_hotbox_top_motion_occupancy
-    - binary_sensor.group_hotbox_down_motion_occupancy
-    - binary_sensor.group_hotbox_motion_occupancy
     for:
       hours: 0
       minutes: 6
@@ -2744,12 +2628,6 @@
     action: notify.mobile_app_phone_maxi
   - metadata: {}
     data:
-      stop_actions: true
-    action: automation.turn_off
-    target:
-      entity_id: automation.mute_speakers_when_the_room_is_empty
-  - metadata: {}
-    data:
       color_temp_kelvin: 4805
       brightness_pct: 100
     action: light.turn_on
@@ -2757,37 +2635,22 @@
       entity_id: light.group_all_lights
   - action: tts.speak
     data:
-      media_player_entity_id: ' {{ [states(''sensor.where_is_maxi_sleeping'') | capitalize
-        ]  | map(''area_entities'') | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]'')
-        | unique | list }}'
       message: Someone has entered, '{{trigger.id}}' has been opened
       cache: true
+      media_player_entity_id: media_player.universal_bedroom_speakers
     target:
       entity_id: tts.piper
-  - metadata: {}
+  - action: media_player.volume_set
+    metadata: {}
     data:
-      is_volume_muted: false
+      volume_level: 0.56
     target:
-      entity_id: ' {{ [states(''sensor.where_is_maxi_sleeping'') | capitalize ]  |
-        map(''area_entities'') | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]'')
-        | unique | list }}'
-    action: media_player.volume_mute
-  - action: tts.speak
-    data:
-      media_player_entity_id: ' {{ [states(''sensor.where_is_maxi_sleeping'') | capitalize
-        ]  | map(''area_entities'') | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]'')
-        | unique | list }}'
-      message: Someone has entered, '{{trigger.id}}' has been opened
-      cache: true
+      entity_id: media_player.universal_bedroom_speakers
+  - action: media_player.volume_up
+    metadata: {}
+    data: {}
     target:
-      entity_id: tts.piper
-  - action: tts.speak
-    data:
-      media_player_entity_id: media_player.universal_hotbox_speakers
-      message: Someone has entered,'{{trigger.id}}' has been opened
-      cache: true
-    target:
-      entity_id: tts.piper
+      entity_id: media_player.universal_bedroom_speakers
   mode: single
 - id: '1717038729859'
   alias: Set front door screen text
@@ -2841,29 +2704,29 @@
 - id: '1717284487763'
   alias: Arm night alarm when everyone is sleeping
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - binary_sensor.all_present_sleeping
+  triggers:
+  - entity_id:
+    - binary_sensor.all_residents_sleeping
     to: 'on'
     for:
       hours: 0
       minutes: 5
       seconds: 0
-  condition: []
-  action:
-  - service: alarm_control_panel.alarm_arm_night
-    metadata: {}
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
     target:
       entity_id: alarm_control_panel.home_alarm
+    action: alarm_control_panel.alarm_arm_night
   mode: single
 - id: '1717284510591'
   alias: Disarm alarm night when someone awakes
   description: ''
   triggers:
   - entity_id:
-    - binary_sensor.all_present_sleeping
+    - binary_sensor.all_residents_sleeping
     to: 'off'
     for:
       hours: 0
@@ -2930,6 +2793,11 @@
   - condition: state
     entity_id: person.maximiliano
     state: home
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: sensor.where_is_maxi_sleeping
+      state: hotbox
   actions:
   - variables:
       sleeper_speaker: '{{ [states(''sensor.where_is_maxi_sleeping'') ]  | map(''area_entities'')
@@ -3082,12 +2950,11 @@
       entity_id: alarm_control_panel.home_alarm
       state: triggered
   actions:
-  - metadata: {}
-    data:
-      stop_actions: true
-    action: automation.turn_off
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
     target:
-      entity_id: automation.mute_speakers_when_the_room_is_empty
+      entity_id: input_boolean.following_music
   - metadata: {}
     data: {}
     target:
@@ -3178,7 +3045,7 @@
       entity_id: media_player.universal_home_speakers
   mode: single
 - id: '1717358289455'
-  alias: Trigger in-home defense script after the alarm is triggered for 6 continious
+  alias: Trigger in-home defense script after the alarm is triggered for 3 continious
     minutes
   description: ''
   triggers:
@@ -3220,14 +3087,9 @@
         - action: trigger_inside_alert
           title: Blare inside alert?
     action: notify.mobile_app_phone_maxi
-  - data:
-      stop_actions: true
-    action: automation.turn_off
+  - action: input_boolean.turn_off
     target:
-      entity_id:
-      - automation.mute_speakers_when_the_room_is_empty
-      - automation.turn_on_lighs_automatically
-      - automation.speaker_automatic_volume_v4
+      entity_id: input_boolean.following_music
   - metadata: {}
     data: {}
     target:
@@ -3280,7 +3142,7 @@
     enabled: false
   - metadata: {}
     data:
-      announce_volume: 44
+      announce_volume: 100
       url: http://192.168.0.15:8123/local/deescalation.mp3
       use_pre_announce: true
     action: music_assistant.play_announcement
@@ -3464,6 +3326,7 @@
     context:
       user_id:
       - 7f1de31122574f6fa2215e519d6083ea
+      - b067d88de69e4b05ae24e264807ad4b6
     event_data:
       action: trigger_inside_alert
     trigger: event
@@ -3548,57 +3411,6 @@
       url: http://192.168.0.15:8123/lovelace-hub/salon-hub?kiosk=1
       force: true
   mode: single
-- id: '1720489259503'
-  alias: Assist Start Media on TV
-  description: ''
-  triggers:
-  - command:
-    - '[let''s] watch {query} [on the] [in the] {room} [TV]'
-    - '[let''s] play {query} [on the] [in the] {room} TV'
-    - '[let''s] watch {query}'
-    trigger: conversation
-  conditions: []
-  actions:
-  - metadata: {}
-    action: conversation.process
-    data:
-      text: Is "{{trigger.slots.query}}" a movie or a tv show? Just answer with one
-        or two words
-      agent_id: conversation.maxi_mistral
-    response_variable: return
-  - variables:
-      room: '{% if trigger.slots.room %} {{trigger.slots.room}} {% else %} {{ area_name(trigger.device_id)}}
-        {% endif %}
-
-        '
-      media_type: "{% if \"show\" in  return.response.speech.plain.speech or \"Show\"
-        in\n return.response.speech.plain.speech or \"serie\" in\n return.response.speech.plain.speech
-        or \"Serie\" in\n return.response.speech.plain.speech %}\n tvshow\n{% else
-        %}\n  movie\n{% endif %}\n"
-      library_name: "{% if \"show\" in  return.response.speech.plain.speech or \"Show\"
-        in\n return.response.speech.plain.speech or \"serie\" in\n return.response.speech.plain.speech
-        or \"Serie\" in\n return.response.speech.plain.speech %}\n TV Shows\n{% else
-        %}\n  Movies\n{% endif %}\n"
-      media_content: '{{trigger.slots.query}}'
-      target: '{{ [area_id(room)]    | map(''area_entities'')  | sum(start=[]) | select(''search'',
-        (''media_player.universal.*chromecast'')) | unique  | list }}
-
-        '
-  - data:
-      media_content_type: '{{media_type}}
-
-        '
-      media_content_id: 'plex://{ "library_name": "{{library_name}}", "title": "{{media_content}}","shuffle":
-        1 }
-
-        '
-    target:
-      entity_id: '{{target}}
-
-        '
-    action: media_player.play_media
-  mode: parallel
-  max: 10
 - id: '1721278758149'
   alias: 'Bedroom hue tap remote automation '
   description: ''
@@ -4118,7 +3930,7 @@
       - sequence:
         - variables:
             speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              sum(start=[]) |    select(''search'', ''universal'') |  expand    |map(attribute=''entity_id'')
               | list}}
 
               '
@@ -4158,7 +3970,7 @@
       - sequence:
         - variables:
             speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              sum(start=[]) |    select(''search'', ''universal'') |  expand    |map(attribute=''entity_id'')
               | list}}
 
               '
@@ -4195,7 +4007,7 @@
       - sequence:
         - variables:
             speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              sum(start=[]) |    select(''search'', ''universal'') |  expand    |map(attribute=''entity_id'')
               | list}}
 
               '
@@ -4227,7 +4039,7 @@
       - sequence:
         - variables:
             speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              sum(start=[]) |    select(''search'', ''universal'') |  expand    |map(attribute=''entity_id'')
               | list}}
 
               '
@@ -4262,7 +4074,7 @@
       - sequence:
         - variables:
             speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
-              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              sum(start=[]) |    select(''search'', ''universal'') |  expand    |map(attribute=''entity_id'')
               | list}}
 
               '
@@ -5054,6 +4866,12 @@
     from:
     to: '9'
     id: Re
+  - trigger: state
+    entity_id:
+    - sensor.lock_front_door_action_user
+    from:
+    to: '5'
+    id: Lylou
   conditions: []
   actions:
   - action: alarm_control_panel.alarm_disarm
@@ -5392,11 +5210,19 @@
       entity_id:
       - light.group_livingroom_lights
       - light.lv_assistant_lcd_backlight
+  - action: number.set_value
+    metadata: {}
+    data:
+      value: '1'
+    target:
+      entity_id: number.livingroom_tablet_screen_brightness
   - action: switch.turn_off
     metadata: {}
     data: {}
     target:
-      entity_id: switch.livingroom_tablet_screen
+      entity_id:
+      - switch.livingroom_tablet_screen
+      - switch.livingroom_tablet_motion_detection
   mode: single
 - id: '1728310438747'
   alias: Undo Sleep actions when "sleeper in livingroom" is turned off
@@ -5708,14 +5534,10 @@
   description: ''
   triggers:
   - entity_id:
-    - lock.lock_front_door
+    - sensor.lock_front_door_action
     trigger: state
-    attribute: action
     to: manual_unlock
-  conditions:
-  - alias: Was the door unlocked?
-    condition: template
-    value_template: '{{ trigger.to_state.attributes.action == ''manual_unlock''  }}'
+  conditions: []
   actions:
   - action: script.non_important_broadcast_alert_in_the_house
     metadata: {}
@@ -6233,7 +6055,7 @@
     to: 'off'
     for:
       hours: 0
-      minutes: 15
+      minutes: 10
       seconds: 0
     trigger: state
   conditions: []
@@ -6532,20 +6354,25 @@
   triggers:
   - trigger: state
     entity_id:
-    - sensor.hotbox_lights_color
+    - light.group_salon_lights
+    attribute: rgb_color
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
   conditions: []
   actions:
   - variables:
-      red: '{{ (((states(''sensor.hotbox_lights_color'') | string).split('','').0.replace("(","")
-        | int / 255 )| string)[:4] }}
+      red: '{{ ((state_attr(trigger.entity_id,''rgb_color'').0 | int / 255 )| string)[:4]
+        }}
 
         '
-      green: '{{ (((states(''sensor.hotbox_lights_color'') | string).split('','').1
-        | int / 255 )| string)[:4] }}
+      green: '{{ ((state_attr(trigger.entity_id,''rgb_color'').1 | int /    255 )|
+        string)[:4] }}
 
         '
-      blue: '{{ (((states(''sensor.hotbox_lights_color'') | string).split('','').2.replace(")","")
-        | int / 255 )| string)[:4] }}
+      blue: '{{ ((state_attr(trigger.entity_id,''rgb_color'').2 | int /    255 )|
+        string)[:4] }}
 
         '
   - action: mqtt.publish
@@ -6931,12 +6758,10 @@
       seconds: 0
   conditions: []
   actions:
-  - action: media_player.volume_set
+  - action: script.speaker_automatic_volume_adjustment_script
     metadata: {}
     data:
-      volume_level: 0.4
-    target:
-      entity_id: media_player.universal_bathroom_speakers
+      received_speaker: media_player.universal_bathroom_speakers
   mode: restart
 - id: '1736017695181'
   alias: Lower hotbox down light when maxi open his webcam
@@ -7000,12 +6825,27 @@
     to:
     from: idle
     trigger: state
+  - entity_id:
+    - media_player.universal_bedroom_speakers
+    - media_player.universal_salon_speakers
+    - media_player.universal_closet_speaker
+    - media_player.universal_hallway_speakers
+    - media_player.universal_kitchen_speakers
+    - media_player.universal_office_speakers
+    - media_player.universal_livingroom_speakers
+    - media_player.universal_hotbox_speakers
+    to:
+    from: 'off'
+    trigger: state
   conditions:
-  - alias: Only continue if non-playing for over 120 seconds
+  - alias: Only continue if non-playing for over 300 seconds
     condition: template
     value_template: '{{  ((as_timestamp((now()) )   - (as_timestamp(trigger.from_state.last_changed))))
       | float > 300}}'
     enabled: true
+  - condition: state
+    entity_id: input_boolean.following_music
+    state: 'on'
   actions:
   - variables:
       trigger_speaker: '{{ trigger.entity_id }}
@@ -7281,282 +7121,6 @@
     target:
       entity_id: media_player.universal_bathroom_speakers
   mode: restart
-- id: '1738165564001'
-  alias: Music Assistant LLM Automation MAXI FIX
-  description: ''
-  triggers:
-  - alias: Trigger to request for music
-    trigger: conversation
-    command:
-    - (play|listen to) {query}
-  actions:
-  - alias: Store input from blueprint in variables so they can be used in the prompt
-    variables:
-      expose_areas: true
-      expose_players: true
-      play_continuously: Use player settings
-      area_names: '{{ integration_entities(''music_assistant'')  | map(''area_name'')
-        | join('', '') }}'
-      player_names: '{{ integration_entities(''music_assistant'') | map(''state_attr'',
-        ''friendly_name'') | join('', '') }}'
-  - alias: Send the request to the LLM
-    action: conversation.process
-    data:
-      text: 'You are an AI process that transforms a music search query into a structured
-        JSON.
-
-
-        This is the voice command query provided by the user: "{{ trigger.sentence
-        }}"
-
-
-        Here is the structured JSON that I expect in response {"action_data": {"media_id":"name",
-        "media_type":"type", "artist":"name", "album":"name"}, "media_description":
-        "description of media", "target_data", {"areas": ["area name"], "players":
-        ["player name"]}}
-
-
-        The argument "media_type" is mandatory and must always be provided no matter
-        what!
-
-        "media_type" can only be one of 5 different values:
-
-        - "track" if the search is about a specific track or a list of tracks.
-
-        - "album" if the search is about an album or a list of albums.
-
-        - "artist" if the search is about an artist.
-
-        - "playlist" if the search specifically requests a playlist.
-
-        - "radio" in case the search is a radio channel.
-
-        media_type is mandatory and must always be provided. In case a request does
-        not match any of these types, for example when music from a specific genre
-        is requested, then use "track" and provide a list of matching songs for the
-        "media_id" parameter.
-
-
-        The argument "media_id" is also mandatory and must always be provided no matter
-        what!
-
-        media_id is the most specific from track, album, and artist.
-
-        "track" and "artist" can be a single value or multiple values.
-
-        - If the search is about a track: Then media_id is the track name or a json
-        formatted list of track names. In case there are multiple artists in the result,
-        use both the artist name and song name separated by a dash as track name (example:
-        "Artist name - Song name"). In case all songs are from the same artist, use
-        the artist for the "artist" parameter, and only use the song names as track
-        name.
-
-        - If the search is about an album: Then media_id is the album name or a json
-        formatted list of album names.
-
-        - If the search is about an artist: Then media_id is the artist name.
-
-        - If the search is a specific playlist: Then media_id is the requested playlist.
-
-        - If the search is a radio channel: Then media_id is the requested channel.
-
-        "media_id" is a mandatory argument and must always be provided.
-
-
-        If case it is needed, the fields "artist" and "album" can be used to further
-        restrict the search.
-
-        For example, if the input is "Hells Bells by ACDC", then the output should
-        be {"media_id":"Hells Bells", "media_type":"track", "artist":"AC/DC"}
-
-        "artist" and "album" are optional and never used in the case of a playlist
-        search.
-
-
-        There can be several types of answers for the "action_data" dictionary. Here
-        are some examples:
-
-        Just an artist >> {"media_id": "artist name", "media_type":"artist"}.
-
-        An album by an artist >> {"media_id": "album name", "media_type": "album",
-        "artist": "artist name"}.
-
-        A track by an artist >> {"media_id": "track name", "media_type": "track",
-        "artist": "artist name"}.
-
-        Just a track if the artist is not known >> {"media_id": "track name", "media_type":
-        "track"}.
-
-        Just a playlist if the request is a specific playlist >> {"media_id":"playlist
-        name", "media_type":"playlist"}.
-
-        Multiple tracks of different artists >> {"media_id": ["Artist name - Song
-        name", "Another artist name - Another song name", "Another artist name - Another
-        song name"], "media_type":"track"}.
-
-        Multiple tracks of the same artist >> {"media_id": ["Song name", "Another
-        song name"], "artist": "artist name", "media_type":"track"}
-
-
-        The "media_description" key is used to describe the media which will be played.
-        This can be taken from the voice command query, but it should be only the
-        part which is relevant for the media. So if the voice request is "Play the
-        best Queen songs on the living room player" the value for "media_description"
-        should be "the best Queen songs"
-
-
-        The "target_data" key is used to define the information on which the request
-        should be played.
-
-        {% if expose_areas %}These are the area names which have a Music Assantant
-        player: {{ area_names }}. Only use these area names for the "target_data".
-        In case another area description is used in the request, try to map it to
-        one of these area names." {% endif %}
-
-        In case the query requests the music to be played in one or more areas {%
-        if expose_areas %}in which a Music Assistant player is located{% endif %},
-        use {"areas": ["area name"]} for "target_data". Always use a list with area
-        names, even when there is only one. {% if expose_areas %}Try to match the
-        areas mentioned in the request to the provided area names. Only use area names
-        from the list provided. {% else %}Do not include articles like "the" at the
-        start of the area name. So if the request is "Play music from Queen in the
-        kitchen" use "kitchen" as area name. Besides removing the first article, use
-        exactly what was provided in the request.{% endif %}When no area is mentioned
-        in the voice request{% if expose_areas %} or no area could be matched{% endif
-        %}, use {"areas":[]}
-
-        {% if expose_players %}These are the Music Assistant players in the system:
-        {{ player_names }}. Only use these names for the "target_data". In case another
-        player name is mentioned in the request, try to map it to one of these player
-        names.{% endif %}
-
-        In case the query requests the music to be played on one or more media players,
-        use {"players": ["player name"]} for "target_data". Always use a list with
-        player names, even when there is only one. {% if expose_players %}Try to match
-        the players mentioned in the request to the provided player names. Only use
-        player names from the list provided. {% else %}Do not include articles like
-        "the" at the start of the player name. So if the request is "Play music from
-        Queen on the bedroom Sonos" use "bedroom Sonos" as area name. Besides removing
-        the first article, use exactly what was provided in the request.{% endif %}When
-        no player is mentioned in the voice  request{% if expose_players %} or no
-        player could be matched {% endif %}, use {"players":[]}
-
-
-        Note that the input query can be in a different language. For the "media_type"
-        the untranslated English terms should be used, in case of a playlist search
-        use the language used in the input.
-
-
-        IMPORTANT: You must reply with only the JSON model, nothing before nor after
-        because your response will be processed by a search component of a media player
-        service. So also no code tags. Only the JSON! AND DO NOT PREPEND THE JSON
-        CODE WITH json, just output from "{" to "}".'
-      agent_id: conversation.maxi_mistral
-    response_variable: result
-  - alias: Store relevant part of LLM result in variable and define target
-    variables:
-      llm_result_temp: '{{ result.response.speech.plain.speech | replace(''json'','''')
-        | replace(''```'','''') }}'
-      llm_result: '{{ llm_result_temp | string | from_json}}'
-      llm_action_data:
-        media_id: '{{ llm_result.action_data.media_id }}'
-        media_type: '{{ llm_result.action_data.media_type }}'
-        artist: '{{ llm_result.action_data.artist | default(''NA'', true) }}'
-        album: '{{ llm_result.action_data.album | default(''NA'', true) }}'
-        radio_mode: '{{ false if play_continuously == ''Never'' else play_continuously
-          == ''Always'' and llm_result.action_data.media_type != ''radio'' or ''NA''
-          }}'
-      llm_target_data:
-        entity_id: '{% set players = llm_result.get(''target_data'', {}).get(''players'',
-          []) %} {% set players = players | join(''|'') if players is list else players
-          %} {{ integration_entities(''music_assistant'') | expand | selectattr(''name'',
-          ''in'', player_names.split('', '') | select(''search'', players, ignorecase=true)
-          | list) | map(attribute=''entity_id'') | list if players else [] }}'
-        area_id: '{% set areas = llm_result.get(''target_data'', {}).get(''areas'',
-          []) %} {% set areas = areas | join(''|'') if areas is list else areas %}
-          {{ area_names.split('', '') | select(''search'', areas, ignorecase=true)
-          | map(''area_id'') | list if areas else [] }}'
-      llm_target: '{{ iif(llm_result.get(''target_data'', {}).get(''players'') or
-        llm_result.get(''target_data'', {}).get(''areas'')) }}'
-      device_area: '{{ area_id(trigger.device_id) if area_name(trigger.device_id)
-        in area_names.split('', '') }}'
-      default_player: media_player.group_mass_home_group_speakers
-      backup_target: '{{ (dict(area_id=[device_area]) if device_area) or (dict(entity_id=[default_player])
-        if default_player) }}'
-      target_data: '{{ (llm_target_data if llm_target else backup_target) | default({},
-        true) }}'
-      target: '{{ dict(target_data.items() | selectattr(''1'')) }}'
-  - alias: Store relevant part of LLM result in variable and define target
-    variables:
-      llm_result_temp: '{{ result.response.speech.plain.speech | replace(''json'','''')    }}'
-      llm_result: '{{ llm_result_temp | string | from_json}}'
-      llm_action_data:
-        media_id: '{{ llm_result.action_data.media_id }}'
-        media_type: '{{ llm_result.action_data.media_type }}'
-        artist: '{{ llm_result.action_data.artist | default(''NA'', true) }}'
-        album: '{{ llm_result.action_data.album | default(''NA'', true) }}'
-        radio_mode: '{{ false if play_continuously == ''Never'' else play_continuously
-          == ''Always'' and llm_result.action_data.media_type != ''radio'' or ''NA''
-          }}'
-      llm_target_data:
-        entity_id: '{% set players = llm_result.get(''target_data'', {}).get(''players'',
-          []) %} {% set players = players | join(''|'') if players is list else players
-          %} {{ integration_entities(''music_assistant'') | expand | selectattr(''name'',
-          ''in'', player_names.split('', '') | select(''search'', players, ignorecase=true)
-          | list) | map(attribute=''entity_id'') | list if players else [] }}'
-        area_id: '{% set areas = llm_result.get(''target_data'', {}).get(''areas'',
-          []) %} {% set areas = areas | join(''|'') if areas is list else areas %}
-          {{ area_names.split('', '') | select(''search'', areas, ignorecase=true)
-          | map(''area_id'') | list if areas else [] }}'
-      llm_target: '{{ iif(llm_result.get(''target_data'', {}).get(''players'') or
-        llm_result.get(''target_data'', {}).get(''areas'')) }}'
-      device_area: '{{ area_id(trigger.device_id) if area_name(trigger.device_id)
-        in area_names.split('', '') }}'
-      default_player: media_player.group_mass_home_group_speakers
-      backup_target: '{{ (dict(area_id=[device_area]) if device_area) or (dict(entity_id=[default_player])
-        if default_player) }}'
-      target_data: '{{ (llm_target_data if llm_target else backup_target) | default({},
-        true) }}'
-      target: '{{ dict(target_data.items() | selectattr(''1'')) }}'
-    enabled: false
-  - alias: Only try to play music when target was determined
-    if:
-    - alias: Check if it was possible to determine a target
-      condition: template
-      value_template: '{{ iif(target) }}'
-    then:
-    - alias: Play Music based on LLM result
-      action: music_assistant.play_media
-      data: '{{ dict(llm_action_data.items() | rejectattr(''1'', ''eq'', ''NA''))
-        }}'
-      target: '{{ target }}'
-  - alias: Set variables for responses
-    variables:
-      combine: and
-      responses:
-        no_target: No target could be determined and no default player is set
-        only_area: Now playing <media_info> in <area_info>
-        only_player: Now playing <media_info> on <player_info>
-        area_player: Now playing <media_info> in <area_info> and on <player_info>
-      response: '{% if iif(target.get(''area_id'') and target.get(''entity_id''))
-        %} area_player {% elif iif(target.get(''area_id'')) %} only_area {% elif iif(target.get(''entity_id''))
-        %} only_player {% else %} no_target {% endif %}'
-      only_device_area: '{{ target.get(''area_id'', []) == [device_area] }}'
-      area_list: '{{ [] if only_device_area else target.get(''area_id'', []) | map(''area_name'')
-        | list }}'
-      area_info: '{{ area_list[:-1] | join('', '') ~ '' '' ~ combine ~ '' '' ~ area_list[-1]
-        if area_list | count > 2 else area_list | join('' '' ~ combine ~ '' '') }}'
-      player_list: '{{ target.get(''entity_id'') | map(''state_attr'', ''friendly_name'')
-        | list }}'
-      player_info: '{{ player_list[:-1] | join('', '') ~ '' '' ~ combine ~ '' '' ~
-        player_list[-1] if player_list | count > 2 else player_list | join('' '' ~
-        combine ~ '' '') }}'
-      media_info: '{{ llm_result.media_description }}'
-  - alias: Set response for Assist
-    set_conversation_response: '{{ responses[response] | replace(''<media_info>'',
-      media_info) | replace(''<area_info>'', area_info) | replace(''<player_info>'',
-      player_info) }}'
-  mode: parallel
 - id: '1738198899369'
   alias: Assist identify the device
   description: ''
@@ -7756,6 +7320,11 @@
       entity_id:
       - switch.hotbox_tablet_screen
       - switch.hotbox_tablet_motion_detection
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_lylou_galaxy_lamp
   mode: single
 - id: '1739631790415'
   alias: Undo Sleep actions when "sleeper in hotbox" is turned off
@@ -7768,25 +7337,14 @@
     trigger: state
   conditions: []
   actions:
-  - wait_for_trigger:
-    - trigger: state
-      entity_id:
-      - binary_sensor.group_hotbox_down_motion_occupancy
-      from: 'off'
-      to: 'on'
-    continue_on_timeout: true
-    timeout:
-      hours: 0
-      minutes: 5
-      seconds: 0
-      milliseconds: 0
   - action: light.turn_on
     data:
       brightness_pct: 100
-      transition: 30
-      color_name: warm_white
+      transition: 300
+      effect: solid
+      color_temp_kelvin: 4208
     target:
-      entity_id: light.group_hotbox_down_lights
+      entity_id: light.group_hotbox_top_lights
   - action: switch.turn_on
     metadata: {}
     data: {}
@@ -7794,6 +7352,7 @@
       entity_id:
       - switch.hotbox_tablet_screen
       - switch.hotbox_tablet_motion_detection
+    enabled: false
   - if:
     - condition: state
       entity_id: sun.sun
@@ -7804,6 +7363,11 @@
       data: {}
       target:
         entity_id: cover.cover_hotbox_blinds
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_lylou_galaxy_lamp
   mode: single
 - id: '1740413822383'
   alias: Hotbox Top Black hue Dial Automation
@@ -8126,25 +7690,6 @@
     target:
       entity_id: switch.front_door_phone_screen
   mode: single
-- id: '1740900314884'
-  alias: Turn on media automations when alarm is disarmed
-  description: ''
-  triggers:
-  - entity_id:
-    - alarm_control_panel.home_alarm
-    from: triggered
-    to: disarmed
-    trigger: state
-  conditions: []
-  actions:
-  - data:
-      stop_actions: true
-    action: automation.turn_on
-    target:
-      entity_id:
-      - automation.mute_speakers_when_the_room_is_empty
-      - automation.speaker_automatic_volume_v4
-  mode: single
 - id: '1740934084849'
   alias: Turn off acid time when everyone goes to bed
   description: ''
@@ -8384,7 +7929,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - sensor.closet_lights_brightness
+    - light.group_closet_lights
     for:
       hours: 0
       minutes: 0
@@ -8457,23 +8002,6 @@
     target:
       entity_id: switch.samsung_galaxy_tab_e_8_0_screen
   mode: single
-- id: '1740935997156'
-  alias: Toggle sleeper in hotbox boolean input  on double press
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - sensor.remote_hotbox_sleeper_button_action
-    from:
-    to:
-  conditions: []
-  actions:
-  - action: input_boolean.toggle
-    metadata: {}
-    data: {}
-    target:
-      entity_id: input_boolean.sleeper_in_hotbox
-  mode: single
 - id: '1740953881544'
   alias: Alert maxi in the room where he is when his phone rings
   description: ''
@@ -8534,31 +8062,6 @@
       value: '{{brightness}}'
     target:
       entity_id: number.hallway_tablet_screen_brightness
-  mode: restart
-- id: '1741317700233'
-  alias: Adjust livingroom main tablet screen brigthess to match the lights
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - light.group_livingroom_lights
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 1
-    attribute: brightness
-  conditions: []
-  actions:
-  - variables:
-      brightness: '{{ trigger.to_state.attributes.brightness }}
-
-        '
-  - action: number.set_value
-    metadata: {}
-    data:
-      value: '{{brightness}}'
-    target:
-      entity_id: number.livingroom_tablet_screen_brightness
   mode: restart
 - id: '1741877702709'
   alias: Start music when maxi returns home
@@ -8977,6 +8480,9 @@
         priority: high
       title: Security breach
     action: notify.mobile_app_phone_maxi
+  - action: script.find_phone
+    metadata: {}
+    data: {}
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
       context: {}
@@ -9025,6 +8531,10 @@
       is_volume_muted: false
     target:
       entity_id: media_player.universal_bathroom_speakers
+  - action: script.speaker_automatic_volume_adjustment_script
+    metadata: {}
+    data:
+      received_speaker: media_player.universal_bathroom_speakers
   mode: restart
 - id: '1743747879302'
   alias: Ring horn in the back if someone tries to approach while maxi is scared
@@ -9249,26 +8759,6 @@
     target:
       entity_id:
       - switch.parking_exit_camera_audio_detection
-  mode: single
-- id: '1744578292338'
-  alias: Alert maxi if Felix back camera hears a fire alarm
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - binary_sensor.felix_back_camera_fire_alarm_sound
-    to: 'on'
-    from: 'off'
-  conditions: []
-  actions:
-  - action: notify.mobile_app_phone_maxi
-    data:
-      message: Fire alarm detected near felix exit
-      title: Fire Alert
-      data:
-        ttl: 0
-        priority: high
-        channel: security_alerts_notifications
   mode: single
 - id: '1744744086412'
   alias: 'Frigate back Doors Notifications '
@@ -9697,17 +9187,19 @@
       entity_id: siren.reolink_back_door_camera_siren
   mode: single
 - id: '1747074693573'
-  alias: Disable Automatic Back Horn when myriam arrives
+  alias: Disable Automatic Back Horn when resident arrives
   description: ''
   triggers:
   - trigger: state
     entity_id:
     - person.myriam
+    - person.maximiliano
+    - person.lylou
     from: not_home
     to: home
     id: myriam_arrives
   conditions:
-  - alias: Myriam has been not_home for over 600 seconds
+  - alias: The user has been not_home for over 600 seconds
     condition: template
     value_template: '{{  ((as_timestamp((now()) )   - (as_timestamp(trigger.from_state.last_changed))))
       | float > 600 and trigger.from_state.state == ''not_home'' }}'
@@ -9722,8 +9214,8 @@
         to: 'on'
       timeout:
         hours: 0
-        minutes: 0
-        seconds: 10
+        minutes: 10
+        seconds: 0
         milliseconds: 0
       continue_on_timeout: false
     - action: input_boolean.turn_off
@@ -9757,7 +9249,7 @@
         brightness_pct: 100
       target:
         entity_id: light.back_door_light
-  mode: single
+  mode: restart
 - id: '1747075531283'
   alias: Alert Maxi when the automatic back horn is disabled
   description: ''
@@ -9836,6 +9328,10 @@
     entity_id:
     - cover.cover_hotbox_blinds
     attribute: current_position
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
   - trigger: state
     entity_id:
     - switch.zooz_hotbox_ac
@@ -9887,7 +9383,7 @@
     attribute: current_position
   - trigger: state
     entity_id:
-    - switch.zooz_hotbox_ac
+    - switch.zooz_salon_ac
     from:
     to: 'on'
   - trigger: state
@@ -9895,6 +9391,16 @@
     - climate.salon_ac
     attribute: hvac_action
     to: cooling
+  - trigger: state
+    entity_id:
+    - cover.cover_salon_blinds
+    to: closed
+    from:
+  - trigger: state
+    entity_id:
+    - cover.cover_salon_blinds
+    to: closing
+    from:
   conditions:
   - condition: numeric_state
     entity_id: cover.cover_salon_blinds
@@ -9911,7 +9417,7 @@
     data:
       position: 29
     target:
-      entity_id: cover.cover_hotbox_blinds
+      entity_id: cover.cover_salon_blinds
   mode: single
 - id: '1747423540817'
   alias: Close salon blind in relationship to ac
@@ -9921,6 +9427,10 @@
     entity_id:
     - cover.cover_salon_blinds
     attribute: current_position
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
   - trigger: state
     entity_id:
     - switch.zooz_salon_ac
@@ -9948,12 +9458,13 @@
   triggers:
   - trigger: state
     entity_id:
-    - binary_sensor.group_bathroom_motion_occupancy
-    to: 'off'
+    - media_player.bathroom_speaker
+    attribute: is_volume_muted
+    to: 'true'
     for:
       hours: 0
-      minutes: 3
-      seconds: 30
+      minutes: 4
+      seconds: 0
   conditions:
   - condition: state
     entity_id: binary_sensor.sensor_bathroom_door_contact
@@ -9973,7 +9484,7 @@
         1}'
       media_content_type: music
     target:
-      entity_id: media_player.bathroom_speaker
+      entity_id: media_player.universal_bathroom_speakers
     action: media_player.play_media
   - action: media_player.volume_mute
     metadata: {}
@@ -9981,4 +9492,691 @@
       is_volume_muted: true
     target:
       entity_id: media_player.bathroom_speaker
+  mode: restart
+- id: '1747632525749'
+  alias: Close salon blind sometimes after sun closes
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sun.sun
+    from: above_horizon
+    to: below_horizon
+    for:
+      hours: 0
+      minutes: 45
+      seconds: 0
+  conditions: []
+  actions:
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - binary_sensor.group_salon_motion_occupancy
+      to: 'off'
+      for:
+        hours: 0
+        minutes: 10
+        seconds: 0
+  - action: cover.close_cover
+    metadata: {}
+    data: {}
+    target:
+      entity_id: cover.cover_salon_blinds
+  mode: single
+- id: '1747633994244'
+  alias: Turn on Maxi is scared when All Residents are sleeping
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.all_residents_sleeping
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+  conditions: []
+  actions:
+  - action: input_boolean.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.maxi_is_scared
+  mode: single
+- id: '1747634049446'
+  alias: Turn off Maxi is Scared when all residents sleeping turns off
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.all_residents_sleeping
+    from: 'on'
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  conditions: []
+  actions:
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.maxi_is_scared
+  mode: single
+- id: '1747642993124'
+  alias: Turn on Sleeper in Hotbox on button press
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.remote_hotbox_sleeper_button_action
+    to: 'off'
+  conditions: []
+  actions:
+  - action: input_boolean.toggle
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.sleeper_in_hotbox
+  mode: single
+- id: '1747682528206'
+  alias: Open Livingroom blind in relation to AC
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - cover.cover_livingroom_blinds
+    attribute: current_position
+  - trigger: state
+    entity_id:
+    - switch.zooz_livingroom_ac
+    from:
+    to: 'on'
+  conditions:
+  - condition: state
+    entity_id: switch.zooz_livingroom_ac
+    state: 'on'
+  - condition: numeric_state
+    entity_id: cover.cover_livingroom_blinds
+    attribute: current_position
+    below: 26
+  actions:
+  - action: cover.set_cover_position
+    metadata: {}
+    data:
+      position: 26
+    target:
+      entity_id:
+      - cover.cover_livingroom_blinds
+  mode: single
+- id: '1747682690257'
+  alias: Close Livingroom Blind in relation to AC
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - cover.cover_livingroom_blinds
+    attribute: current_position
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
+  - trigger: state
+    entity_id:
+    - switch.zooz_livingroom_ac
+    from:
+    to: 'off'
+  conditions:
+  - condition: state
+    entity_id: switch.zooz_livingroom_ac
+    state: 'off'
+  - condition: numeric_state
+    entity_id: cover.cover_livingroom_blinds
+    attribute: current_position
+    below: 27
+  actions:
+  - action: cover.set_cover_position
+    metadata: {}
+    data:
+      position: 0
+    target:
+      entity_id:
+      - cover.cover_livingroom_blinds
+  mode: single
+- id: '1747705240902'
+  alias: Turn on Maxi is scared upon alarm arming away
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - alarm_control_panel.home_alarm
+    to: armed_away
+  conditions:
+  - condition: state
+    entity_id: zone.home
+    state: '0'
+  actions:
+  - action: input_boolean.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.maxi_is_scared
+  mode: single
+- id: '1747973281617'
+  alias: Adjust livingroom tablet screen brigthess to match the lights
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - light.group_livingroom_lights
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 1
+    attribute: brightness
+  conditions:
+  - condition: numeric_state
+    entity_id: sensor.livingroom_tablet_battery
+    above: 15
+  - condition: state
+    entity_id: input_boolean.sleeper_in_livingroom
+    state: 'off'
+  actions:
+  - variables:
+      brightness: '{{ trigger.to_state.attributes.brightness }}
+
+        '
+  - action: number.set_value
+    metadata: {}
+    data:
+      value: '{{brightness}}'
+    target:
+      entity_id: number.livingroom_tablet_screen_brightness
+  mode: restart
+- id: '1747973723106'
+  alias: Turn off lights when a room is empty V2
+  description: This one uses motion groups and area calls
+  triggers:
+  - entity_id:
+    - binary_sensor.group_patio_motion_occupancy
+    - binary_sensor.group_closet_motion_occupancy
+    - binary_sensor.group_office_motion_occupancy
+    - binary_sensor.group_server_motion_occupancy
+    - binary_sensor.group_hallway_motion_occupancy
+    - binary_sensor.group_kitchen_motion_occupancy
+    - binary_sensor.group_bathroom_motion_occupancy
+    - binary_sensor.group_entrance_motion_occupancy
+    - binary_sensor.group_livingroom_motion_occupancy
+    - binary_sensor.group_workstation_motion_occupancy
+    - binary_sensor.group_salon_motion_occupancy
+    for:
+      hours: 0
+      minutes: 6
+      seconds: 0
+    to: 'off'
+    trigger: state
+  conditions:
+  - condition: template
+    value_template: '{{ states(''sensor.maxi_location_by_petro'') | lower not in [area_id(trigger.entity_id)]
+      | lower }}'
+  - condition: state
+    entity_id: input_boolean.kink_party
+    state: 'off'
+  - condition: state
+    entity_id: input_boolean.party_mode
+    state: 'off'
+  - condition: state
+    entity_id: input_boolean.acid_time
+    state: 'off'
+  actions:
+  - metadata: {}
+    data:
+      transition: 60
+    action: light.turn_off
+    target:
+      area_id: '{{ area_id(trigger.entity_id) }}'
+  mode: parallel
+  max: 10
+- id: '1748032160039'
+  alias: Trigger initial Speaker volume script when Following Music turns on
+  description: This will set the volume of unmuted speaker to their default level
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.following_music
+    from: 'off'
+    to: 'on'
+  conditions: []
+  actions:
+  - variables:
+      trigger_speaker: "{{integration_entities('universal') \n | expand\n | selectattr('entity_id',
+        'search', 'speakers')\n | rejectattr('entity_id', 'search', 'home')\n | selectattr('state',
+        'eq', 'playing' )\n | selectattr('attributes.is_volume_muted', 'eq', false
+        )\n | map(attribute='entity_id') | list }}    \n"
+  - action: script.speaker_automatic_volume_adjustment_script
+    metadata: {}
+    data:
+      received_speaker: '{{trigger_speaker}}
+
+        '
+  mode: single
+- id: '1748225209386'
+  alias: Turn on volume control automations when Following speakers goes to on
+  description: This will enable all related automations needed for Following speaker
+    to function properly
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.following_music
+    from: 'off'
+    to: 'on'
+  conditions: []
+  actions:
+  - action: automation.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - automation.speaker_automatic_volume_v4
+      - automation.mute_speakers_when_the_room_is_empty
+  mode: single
+- id: '1748225477514'
+  alias: Enable Following Music When all residents sleeping goes to ON after being
+    OFF for over 1hour
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.all_residents_sleeping
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  conditions:
+  - condition: template
+    value_template: '{{  ((as_timestamp((now()) )   -  (as_timestamp(trigger.from_state.last_changed))))
+      | float > 3600}}'
+  - condition: template
+    value_template: '{{  (trigger.from_state.state | string | lower == ''off'') }}'
+  actions:
+  - action: input_boolean.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.following_music
+  mode: single
+- id: '1748287626823'
+  alias: Enable automatic Back Door Horn when Lylou is alone
+  description: This will enable `Maxi is scared` when lylou is home alone for ovr
+    10 minutes
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.lylou_alone
+    to: 'on'
+    from: 'off'
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+  conditions: []
+  actions:
+  - action: input_boolean.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.maxi_is_scared
+  mode: single
+- id: '1748329710904'
+  alias: 'Disable automatic back horn when Alarm system is disarmed '
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - alarm_control_panel.home_alarm
+    to: disarmed
+  conditions: []
+  actions:
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.maxi_is_scared
+    alias: Turn off Automatic Back Horn condition
+  mode: restart
+- id: '1748703259809'
+  alias: Reload Hallway tablet start URL when occupancy of hallway goes to off for
+    5  minutes
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.group_hallway_motion_occupancy
+    from: 'on'
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+  conditions:
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: sensor.maxi_location_by_petro
+      state: hallway
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: sensor.hallway_tablet_current_page
+      attribute: full_url
+      state: http://192.168.0.15:8123/tablet-entrance-dashboard/main-view?kiosk
+  actions:
+  - action: button.press
+    metadata: {}
+    data: {}
+    target:
+      entity_id: button.hallway_tablet_load_start_url
+  mode: single
+- id: '1748703480244'
+  alias: Reload livingroom tablet start URL when occupancy of livingroom goes to off
+    for 5 minutes
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.group_livingroom_motion_occupancy
+    from: 'on'
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+  conditions:
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: sensor.maxi_location_by_petro
+      state: livingroom
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: sensor.hallway_tablet_current_page
+      attribute: full_url
+      state: http://192.168.0.15:8123/tablet-livingroom-dashboard/main-view?kiosk=1
+  actions:
+  - action: button.press
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - button.livingroom_tablet_load_start_url
+  mode: single
+- id: '1748750771802'
+  alias: Open bedroom blind in relation to bedroom ac
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - cover.cover_bedroom_blinds
+    attribute: current_position
+  - trigger: state
+    entity_id:
+    - switch.zooz_bedroom_plug
+    from:
+    to: 'on'
+  conditions:
+  - condition: state
+    entity_id: switch.zooz_bedroom_plug
+    state: 'on'
+  - condition: numeric_state
+    entity_id: cover.cover_bedroom_blinds
+    attribute: current_position
+    below: 19
+  actions:
+  - action: cover.set_cover_position
+    metadata: {}
+    data:
+      position: 19
+    target:
+      entity_id: cover.cover_bedroom_blinds
+  mode: single
+- id: '1748838408630'
+  alias: close bedroom blind in relation to bedroom ac
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - cover.cover_bedroom_blinds
+    attribute: current_position
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
+  - trigger: state
+    entity_id:
+    - switch.zooz_bedroom_plug
+    from:
+    to: 'off'
+  conditions:
+  - condition: state
+    entity_id: switch.zooz_bedroom_plug
+    state: 'off'
+  - condition: numeric_state
+    entity_id: cover.cover_bedroom_blinds
+    attribute: current_position
+    below: 20
+  actions:
+  - action: cover.set_cover_position
+    metadata: {}
+    data:
+      position: 0
+    target:
+      entity_id: cover.cover_bedroom_blinds
+  mode: single
+- id: '1748845212701'
+  alias: Undo Sleep actions when "sleeper in bedroom" is turned off
+  description: ''
+  triggers:
+  - entity_id:
+    - input_boolean.sleeper_in_bedroom
+    to: 'off'
+    from: 'on'
+    trigger: state
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 5
+  conditions: []
+  actions:
+  - action: light.turn_on
+    metadata: {}
+    data:
+      transition: 45
+    target:
+      entity_id: light.group_bedroom_lights
+  mode: single
+- id: '1748845278340'
+  alias: execute Sleep actions when "sleeper in bedroom" is turned on
+  description: ''
+  triggers:
+  - entity_id:
+    - input_boolean.sleeper_in_bedroom
+    to: 'on'
+    from: 'off'
+    trigger: state
+  conditions: []
+  actions:
+  - action: light.turn_off
+    metadata: {}
+    data:
+      transition: 10
+    target:
+      area_id: bedroom
+  mode: single
+- id: '1748845695784'
+  alias: Control volume of kitchen to prevent noise in children room while she sleeps
+  description: ''
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - media_player.wiim_kitchen_linkplay
+    attribute: volume_level
+    above: 29
+  - trigger: state
+    entity_id:
+    - input_boolean.sleeper_in_hotbox
+    from: 'off'
+    to: 'on'
+  - trigger: state
+    entity_id:
+    - media_player.wiim_kitchen_linkplay
+    attribute: volume_level
+  conditions:
+  - condition: state
+    entity_id: input_boolean.sleeper_in_hotbox
+    state: 'on'
+  actions:
+  - action: media_player.volume_set
+    metadata: {}
+    data:
+      volume_level: 0.29
+    target:
+      entity_id: media_player.universal_kitchen_speakers
+  mode: single
+- id: '1748898158918'
+  alias: Disable Sleeper in children room when children leaves
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - person.lylou
+    from: home
+    to: not_home
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+  conditions: []
+  actions:
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.sleeper_in_hotbox
+  mode: single
+- id: '1748927820689'
+  alias: UnMute chromecasts when no unmuted speakers in the same room
+  description: ''
+  triggers:
+  - entity_id:
+    - media_player.universal_livingroom_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_hotbox_down_chromecast
+    - media_player.universal_patio_chromecast
+    - media_player.universal_salon_chromecast
+    - media_player.universal_bedroom_chromecast
+    to: playing
+    trigger: state
+    alias: Chromecasts
+  - alias: Speakers
+    entity_id:
+    - media_player.universal_livingroom_speakers
+    - media_player.universal_hotbox_top_speakers
+    - media_player.universal_hotbox_down_speakers
+    - media_player.universal_salon_speakers
+    - media_player.universal_bedroom_speakers
+    to:
+    trigger: state
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
+    from: playing
+  conditions: []
+  actions:
+  - variables:
+      unmuted_playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
+        \ | sum(start=[])\n  | select('search', 'speakers')\n  | select('search',
+        'universal')\n  | select('is_state','playing')\n  | selectattr('attributes.is_volume_muted',
+        'eq', false)\n  | unique\n  | list \n}}\n"
+      player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
+        \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
+        'universal')\n  | expand\n  | map(attribute='entity_id')\n  | unique\n  |
+        list \n}}\n"
+  - if:
+    - condition: template
+      value_template: '{{ unmuted_playing_speakers != empty }}'
+    then:
+    - action: media_player.volume_mute
+      metadata: {}
+      data:
+        is_volume_muted: false
+      target:
+        entity_id: '{{player_chromecasts | list}}'
+    - action: script.speaker_automatic_volume_adjustment_script
+      metadata: {}
+      data:
+        received_speaker: '{{player_chromecasts | list}}'
+  mode: restart
+- id: '1748928181744'
+  alias: UnMute speakers when no unmuted chromecast in the same room
+  description: ''
+  triggers:
+  - alias: Chromecasts
+    entity_id:
+    - media_player.universal_livingroom_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_hotbox_down_chromecast
+    - media_player.universal_patio_chromecast
+    - media_player.universal_salon_chromecast
+    - media_player.universal_bedroom_chromecast
+    to:
+    trigger: state
+    from: playing
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
+  - alias: Speakers
+    entity_id:
+    - media_player.universal_livingroom_speakers
+    - media_player.universal_hotbox_top_speakers
+    - media_player.universal_hotbox_down_speakers
+    - media_player.universal_salon_speakers
+    - media_player.universal_bedroom_speakers
+    to: playing
+    trigger: state
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
+    from:
+  conditions: []
+  actions:
+  - variables:
+      playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
+        \ | sum(start=[])\n  | select('search', 'speakers')\n  | select('search',
+        'universal')\n  | select('is_state','playing')\n  | unique\n  | list \n}}\n"
+      unmuted_player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
+        \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
+        'universal')\n  | expand\n  | selectattr('attributes.is_volume_muted', 'eq',
+        false)\n  | map(attribute='entity_id')\n  | unique\n  | list \n}}\n"
+  - if:
+    - condition: template
+      value_template: '{{ unmuted_player_chromecasts != empty }}'
+    then:
+    - action: media_player.volume_mute
+      metadata: {}
+      data:
+        is_volume_muted: false
+      target:
+        entity_id: '{{playing_speakers | list}}'
+    - action: script.speaker_automatic_volume_adjustment_script
+      metadata: {}
+      data:
+        received_speaker: '{{playing_speakers | list}}'
   mode: restart

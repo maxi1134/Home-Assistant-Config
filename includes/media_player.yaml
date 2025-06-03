@@ -5,103 +5,9 @@
   - platform: universal
     name: Universal Home Speakers
     unique_id: universal_home_speakers
-    children:
-      - media_player.group_mass_home_group_speakers      
-      - media_player.group_mass_home_group_speakers                  
-    active_child_template: >-
-                  {% if not is_state('media_player.group_mass_home_group_speakers','off') %}
-                    media_player.group_mass_home_group_speakers
-                  {%else%}
-                    off  
-                  {% endif %}   
-    commands:
-      turn_on:
-        service: media_player.turn_on
-        target:
-          entity_id: 
-            - media_player.group_mass_home_group_speakers   
-      volume_mute:
-        service: media_player.volume_mute
-        target:
-          entity_id: 
-            - media_player.group_mass_home_group_speakers
-        data:
-          is_volume_muted: "{{ is_volume_muted }}"
-      volume_set:
-        service: media_player.volume_set
-        target:
-          entity_id: 
-            - media_player.group_mass_home_group_speakers
-        data:
-          volume_level: "{{ volume_level }}"
-      volume_up:
-        service: media_player.volume_up
-        target:
-          entity_id:
-            - media_player.group_mass_home_group_speakers
-      volume_down:
-        service: media_player.volume_down
-        target:
-          entity_id: 
-            - media_player.group_mass_home_group_speakers
-    attributes:
-      is_volume_muted: media_player.group_mass_home_group_speakers|is_volume_muted
-      volume_level: media_player.group_mass_home_group_speakers|volume_level
-
-
-  ##########################  salon  ##########################
-  - platform: universal
-    name: Universal salon Speakers
-    unique_id: universal_salon_speakers
-    children:
-      - media_player.mass_salon_airplay_wiim_speaker
-      - media_player.wiim_salon_linkplay
-    active_child_template: media_player.mass_salon_airplay_wiim_speaker 
-    state_template: >-
-                  {% if not is_state('media_player.mass_salon_airplay_wiim_speaker','off')  %}
-                      {{ states('media_player.mass_salon_airplay_wiim_speaker') }}
-                  {% else %}
-                    off
-                  {% endif %} 
-    commands:
-      turn_on:
-        service: media_player.turn_on
-        target:
-          entity_id: 
-            - media_player.mass_salon_airplay_wiim_speaker   
-      turn_off:
-        service: media_player.turn_off
-        target:
-          entity_id: 
-            - media_player.mass_salon_airplay_wiim_speaker   
-      volume_mute:
-        service: media_player.volume_mute
-        target:
-          entity_id: 
-            - media_player.wiim_salon_linkplay
-        data:
-          is_volume_muted: "{{ is_volume_muted }}"
-      volume_set:
-        service: media_player.volume_set
-        target:
-          entity_id: 
-            - media_player.wiim_salon_linkplay
-        data:
-          volume_level: "{{ volume_level }}"
-      volume_up:
-        service: media_player.volume_up
-        target:
-          entity_id:
-            - media_player.wiim_salon_linkplay
-      volume_down:
-        service: media_player.volume_down
-        target:
-          entity_id: 
-            - media_player.wiim_salon_linkplay
-    attributes:
-      is_volume_muted: media_player.wiim_salon_linkplay|is_volume_muted
-      volume_level: media_player.wiim_salon_linkplay|volume_level
-
+    children:     
+      - media_player.group_mass_home_group_speakers               
+    active_child_template: media_player.group_mass_home_group_speakers
 
   ##########################  bedroom  ##########################
   - platform: universal
@@ -110,24 +16,38 @@
     children:
       - media_player.mass_bedroom_airplay_wiim_speaker
       - media_player.wiim_bedroom_linkplay
-    active_child_template: media_player.mass_bedroom_airplay_wiim_speaker 
+      - media_player.group_mass_home_group_speakers
+    active_child_template: >-
+                  {% if not is_state('media_player.mass_bedroom_airplay_wiim_speaker','off') and not is_state('media_player.mass_bedroom_airplay_wiim_speaker','idle') and not is_state('media_player.group_mass_home_group_speakers','off')  %}
+                      media_player.group_mass_home_group_speakers
+                  {% elif not is_state('media_player.mass_bedroom_airplay_wiim_speaker','off') and not is_state('media_player.mass_bedroom_airplay_wiim_speaker','idle')  %}
+                      media_player.mass_bedroom_airplay_wiim_speaker
+                  {% elif not is_state('media_player.wiim_bedroom_linkplay','idle')  %}
+                      media_player.wiim_bedroom_linkplay
+                  {% else %}
+                      media_player.mass_bedroom_airplay_wiim_speaker
+                  {% endif %} 
     state_template: >-
-                  {% if not is_state('media_player.mass_bedroom_airplay_wiim_speaker','off')  %}
+                  {% if not is_state('media_player.mass_bedroom_airplay_wiim_speaker','off')  and not is_state('media_player.mass_bedroom_airplay_wiim_speaker','idle') and not is_state('media_player.group_mass_home_group_speakers','off')  %}
+                  {{ states('media_player.group_mass_home_group_speakers') }}
+                  {% elif not is_state('media_player.mass_bedroom_airplay_wiim_speaker','off') and not is_state('media_player.mass_bedroom_airplay_wiim_speaker','idle')  %}
                       {{ states('media_player.mass_bedroom_airplay_wiim_speaker') }}
+                  {% elif not is_state('media_player.wiim_bedroom_linkplay','idle')  %}
+                      {{ states('media_player.wiim_bedroom_linkplay') }}
                   {% else %}
                     off
                   {% endif %} 
     commands:
-      turn_on:
-        service: media_player.turn_on
+      volume_up:
+        service: media_player.volume_up
         target:
           entity_id: 
-            - media_player.mass_bedroom_airplay_wiim_speaker   
-      turn_off:
-        service: media_player.turn_off
+            - media_player.wiim_bedroom_linkplay
+      volume_down:
+        service: media_player.volume_down
         target:
           entity_id: 
-            - media_player.mass_bedroom_airplay_wiim_speaker   
+            - media_player.wiim_bedroom_linkplay
       volume_mute:
         service: media_player.volume_mute
         target:
@@ -142,19 +62,13 @@
             - media_player.wiim_bedroom_linkplay
         data:
           volume_level: "{{ volume_level }}"
-      volume_up:
-        service: media_player.volume_up
-        target:
-          entity_id:
-            - media_player.wiim_bedroom_linkplay
-      volume_down:
-        service: media_player.volume_down
-        target:
-          entity_id: 
-            - media_player.wiim_bedroom_linkplay
     attributes:
       is_volume_muted: media_player.wiim_bedroom_linkplay|is_volume_muted
       volume_level: media_player.wiim_bedroom_linkplay|volume_level
+      
+ 
+
+
   ##########################  livingroom  ##########################
   - platform: universal
     name: Universal livingroom Speakers
@@ -162,18 +76,38 @@
     children:
       - media_player.mass_livingroom_airplay_wiim_speaker
       - media_player.wiim_livingroom_linkplay
-    active_child_template: media_player.mass_livingroom_airplay_wiim_speaker 
+      - media_player.group_mass_home_group_speakers
+    active_child_template: >-
+                  {% if not is_state('media_player.mass_livingroom_airplay_wiim_speaker','off') and not is_state('media_player.mass_livingroom_airplay_wiim_speaker','idle') and not is_state('media_player.group_mass_home_group_speakers','off')  %}
+                      media_player.group_mass_home_group_speakers
+                  {% elif not is_state('media_player.mass_livingroom_airplay_wiim_speaker','off') and not is_state('media_player.mass_livingroom_airplay_wiim_speaker','idle')  %}
+                      media_player.mass_livingroom_airplay_wiim_speaker
+                  {% elif not is_state('media_player.wiim_livingroom_linkplay','idle')  %}
+                      media_player.wiim_livingroom_linkplay
+                  {% else %}
+                    media_player.mass_livingroom_airplay_wiim_speaker
+                  {% endif %} 
+    state_template: >-
+                  {% if not is_state('media_player.mass_livingroom_airplay_wiim_speaker','off') and not is_state('media_player.mass_livingroom_airplay_wiim_speaker','idle') and not is_state('media_player.group_mass_home_group_speakers','off')  %}
+                  {{ states('media_player.group_mass_home_group_speakers') }}
+                  {% elif not is_state('media_player.mass_livingroom_airplay_wiim_speaker','off') and not is_state('media_player.mass_livingroom_airplay_wiim_speaker','idle')  %}
+                      {{ states('media_player.mass_livingroom_airplay_wiim_speaker') }}
+                  {% elif not is_state('media_player.wiim_livingroom_linkplay','idle')  %}
+                      {{ states('media_player.wiim_livingroom_linkplay') }}
+                  {% else %}
+                    off
+                  {% endif %} 
     commands:
-      turn_on:
-        service: media_player.turn_on
+      volume_up:
+        service: media_player.volume_up
         target:
           entity_id: 
-            - media_player.mass_livingroom_airplay_wiim_speaker   
-      turn_off:
-        service: media_player.turn_off
+            - media_player.wiim_livingroom_linkplay
+      volume_down:
+        service: media_player.volume_down
         target:
           entity_id: 
-            - media_player.mass_livingroom_airplay_wiim_speaker   
+            - media_player.wiim_livingroom_linkplay
       volume_mute:
         service: media_player.volume_mute
         target:
@@ -188,44 +122,52 @@
             - media_player.wiim_livingroom_linkplay
         data:
           volume_level: "{{ volume_level }}"
-      volume_up:
-        service: media_player.volume_up
-        target:
-          entity_id:
-            - media_player.wiim_livingroom_linkplay
-      volume_down:
-        service: media_player.volume_down
-        target:
-          entity_id: 
-            - media_player.wiim_livingroom_linkplay
     attributes:
       is_volume_muted: media_player.wiim_livingroom_linkplay|is_volume_muted
       volume_level: media_player.wiim_livingroom_linkplay|volume_level
-   ##########################  kitchen  ##########################
+      
+ 
+
+ 
+  ##########################  kitchen  ##########################
   - platform: universal
     name: Universal kitchen Speakers
     unique_id: universal_kitchen_speakers
     children:
       - media_player.mass_kitchen_airplay_wiim_speaker
       - media_player.wiim_kitchen_linkplay
-    active_child_template: media_player.mass_kitchen_airplay_wiim_speaker 
+      - media_player.group_mass_home_group_speakers
+    active_child_template: >-
+                  {% if not is_state('media_player.mass_kitchen_airplay_wiim_speaker','off') and not is_state('media_player.mass_kitchen_airplay_wiim_speaker','idle') and not is_state('media_player.group_mass_home_group_speakers','off')  %}
+                      media_player.group_mass_home_group_speakers
+                  {% elif not is_state('media_player.mass_kitchen_airplay_wiim_speaker','off') and not is_state('media_player.mass_kitchen_airplay_wiim_speaker','idle')  %}
+                      media_player.mass_kitchen_airplay_wiim_speaker
+                  {% elif not is_state('media_player.wiim_kitchen_linkplay','idle')  %}
+                      media_player.wiim_kitchen_linkplay
+                  {% else %}
+                    media_player.mass_kitchen_airplay_wiim_speaker
+                  {% endif %} 
     state_template: >-
-                  {% if not is_state('media_player.mass_kitchen_airplay_wiim_speaker','off')  %}
+                  {% if not is_state('media_player.mass_kitchen_airplay_wiim_speaker','off') and not is_state('media_player.group_mass_home_group_speakers','off')  %}
+                  {{ states('media_player.group_mass_home_group_speakers') }}
+                  {% elif not is_state('media_player.mass_kitchen_airplay_wiim_speaker','off') and not is_state('media_player.mass_kitchen_airplay_wiim_speaker','idle')  and not is_state('media_player.mass_kitchen_airplay_wiim_speaker','idle')  %}
                       {{ states('media_player.mass_kitchen_airplay_wiim_speaker') }}
+                  {% elif not is_state('media_player.wiim_kitchen_linkplay','idle')  %}
+                      {{ states('media_player.wiim_kitchen_linkplay') }}
                   {% else %}
                     off
                   {% endif %} 
     commands:
-      turn_on:
-        service: media_player.turn_on
+      volume_up:
+        service: media_player.volume_up
         target:
           entity_id: 
-            - media_player.mass_kitchen_airplay_wiim_speaker   
-      turn_off:
-        service: media_player.turn_off
+            - media_player.wiim_kitchen_linkplay
+      volume_down:
+        service: media_player.volume_down
         target:
           entity_id: 
-            - media_player.mass_kitchen_airplay_wiim_speaker   
+            - media_player.wiim_kitchen_linkplay
       volume_mute:
         service: media_player.volume_mute
         target:
@@ -240,46 +182,23 @@
             - media_player.wiim_kitchen_linkplay
         data:
           volume_level: "{{ volume_level }}"
-      volume_up:
-        service: media_player.volume_up
-        target:
-          entity_id:
-            - media_player.wiim_kitchen_linkplay
-      volume_down:
-        service: media_player.volume_down
-        target:
-          entity_id: 
-            - media_player.wiim_kitchen_linkplay
     attributes:
       is_volume_muted: media_player.wiim_kitchen_linkplay|is_volume_muted
       volume_level: media_player.wiim_kitchen_linkplay|volume_level
+      
+ 
 
-  ##########################  bathroom  ########################## 
-
+  ##########################  bathroom  ##########################
   - platform: universal
     name: Universal bathroom Speakers
     unique_id: universal_bathroom_speakers
     children:
       - media_player.bathroom_speaker
-    active_child_template: >-
-                  media_player.bathroom_speaker  
+    active_child_template: >-    
+                  media_player.bathroom_speaker
     state_template: >-
-                  {% if not is_state('media_player.bathroom_speaker','off')  %}
                       {{ states('media_player.bathroom_speaker') }}
-                  {% else %}
-                    off
-                  {% endif %} 
-    commands: 
-      turn_on:
-        service: media_player.turn_on
-        target:
-          entity_id: 
-            - media_player.bathroom_speaker 
-      turn_off:
-        service: media_player.turn_off
-        target:
-          entity_id: 
-            - media_player.bathroom_speaker 
+    commands:
       volume_mute:
         service: media_player.volume_mute
         target:
@@ -287,54 +206,26 @@
             - media_player.bathroom_speaker
         data:
           is_volume_muted: "{{ is_volume_muted }}"
+      volume_set:
+        service: media_player.volume_set
+        target:
+          entity_id: 
+            - media_player.bathroom_speaker
+        data:
+          volume_level: "{{ volume_level }}"
+      turn_off:
+        service: media_player.media_stop
+        target:
+          entity_id: 
+            - media_player.bathroom_speaker
+      turn_on:
+        service: media_player.media_stop
+        target:
+          entity_id: 
+            - media_player.bathroom_speaker
     attributes:
       is_volume_muted: media_player.bathroom_speaker|is_volume_muted
-
-
-
-  ##########################  closet  ##########################
-  - platform: universal
-    name: Universal closet Speakers
-    unique_id: universal_closet_speakers
-    children:
-      - media_player.wiim_closet_linkplay
-      - media_player.mass_closet_airplay_wiim_speaker
-    active_child_template: >-
-                  {% if not is_state('media_player.mass_closet_airplay_wiim_speaker','off')  %}
-                    media_player.mass_closet_airplay_wiim_speaker
-                  {% elif is_state('media_player.mass_closet_airplay_wiim_speaker','unavailable')  %}
-                    media_player.wiim_closet_linkplay
-                  {% else %}
-                    media_player.mass_closet_airplay_wiim_speaker
-                  {% endif %}    
-    state_template: >-
-                  {% if not is_state('media_player.mass_closet_airplay_wiim_speaker','off')  %}
-                      {{ states('media_player.mass_closet_airplay_wiim_speaker') }}
-                  {% else %}
-                    off
-                  {% endif %} 
-    commands: 
-      turn_on:
-        service: media_player.turn_on
-        target:
-          entity_id: 
-            - media_player.mass_closet_airplay_wiim_speaker 
-      turn_off:
-        service: media_player.turn_off
-        target:
-          entity_id: 
-            - media_player.mass_closet_airplay_wiim_speaker 
-      volume_mute:
-        service: media_player.volume_mute
-        target:
-          entity_id: 
-            - media_player.wiim_closet_linkplay
-        data:
-          is_volume_muted: "{{ is_volume_muted }}"
-    attributes:
-      is_volume_muted: media_player.wiim_closet_linkplay|is_volume_muted
-
-
+      volume_level: media_player.bathroom_speaker|volume_level
 
 
  
@@ -345,24 +236,38 @@
     children:
       - media_player.mass_office_airplay_wiim_speaker
       - media_player.wiim_office_linkplay
-    active_child_template: media_player.mass_office_airplay_wiim_speaker
+      - media_player.group_mass_home_group_speakers
+    active_child_template: >-
+                  {% if not is_state('media_player.mass_office_airplay_wiim_speaker','off') and not is_state('media_player.mass_office_airplay_wiim_speaker','idle') and not is_state('media_player.group_mass_home_group_speakers','off')  %}
+                      media_player.group_mass_home_group_speakers
+                  {% elif not is_state('media_player.mass_office_airplay_wiim_speaker','off') and not is_state('media_player.mass_office_airplay_wiim_speaker','idle')  %}
+                      media_player.mass_office_airplay_wiim_speaker
+                  {% elif not is_state('media_player.wiim_office_linkplay','idle')  %}
+                      media_player.wiim_office_linkplay
+                  {% else %}
+                    media_player.mass_office_airplay_wiim_speaker
+                  {% endif %} 
     state_template: >-
-                  {% if not is_state('media_player.mass_office_airplay_wiim_speaker','off')  %}
+                  {% if not is_state('media_player.mass_office_airplay_wiim_speaker','off') and not is_state('media_player.mass_office_airplay_wiim_speaker','idle') and not is_state('media_player.group_mass_home_group_speakers','off')  %}
+                  {{ states('media_player.group_mass_home_group_speakers') }}
+                  {% elif not is_state('media_player.mass_office_airplay_wiim_speaker','off') and not is_state('media_player.mass_office_airplay_wiim_speaker','idle')  %}
                       {{ states('media_player.mass_office_airplay_wiim_speaker') }}
+                  {% elif not is_state('media_player.wiim_office_linkplay','idle')  %}
+                      {{ states('media_player.wiim_office_linkplay') }}
                   {% else %}
                     off
                   {% endif %} 
     commands:
-      turn_on:
-        service: media_player.turn_on
+      volume_up:
+        service: media_player.volume_up
         target:
           entity_id: 
-            - media_player.mass_office_airplay_wiim_speaker   
-      turn_off:
-        service: media_player.turn_off
+            - media_player.wiim_office_linkplay
+      volume_down:
+        service: media_player.volume_down
         target:
           entity_id: 
-            - media_player.mass_office_airplay_wiim_speaker   
+            - media_player.wiim_office_linkplay
       volume_mute:
         service: media_player.volume_mute
         target:
@@ -377,46 +282,52 @@
             - media_player.wiim_office_linkplay
         data:
           volume_level: "{{ volume_level }}"
-      volume_up:
-        service: media_player.volume_up
-        target:
-          entity_id:
-            - media_player.wiim_office_linkplay
-      volume_down:
-        service: media_player.volume_down
-        target:
-          entity_id: 
-            - media_player.wiim_office_linkplay
     attributes:
       is_volume_muted: media_player.wiim_office_linkplay|is_volume_muted
       volume_level: media_player.wiim_office_linkplay|volume_level
+      
+ 
+
 
   ##########################  hallway  ##########################
-
   - platform: universal
     name: Universal hallway Speakers
     unique_id: universal_hallway_speakers
     children:
       - media_player.mass_hallway_airplay_wiim_speaker
       - media_player.wiim_hallway_linkplay
-    active_child_template: media_player.mass_hallway_airplay_wiim_speaker 
+      - media_player.group_mass_home_group_speakers
+    active_child_template: >-
+                  {% if not is_state('media_player.mass_hallway_airplay_wiim_speaker','off') and not is_state('media_player.mass_hallway_airplay_wiim_speaker','idle') and not is_state('media_player.group_mass_home_group_speakers','off')  %}
+                      media_player.group_mass_home_group_speakers
+                  {% elif not is_state('media_player.mass_hallway_airplay_wiim_speaker','off') and not is_state('media_player.mass_hallway_airplay_wiim_speaker','idle')  %}
+                      media_player.mass_hallway_airplay_wiim_speaker
+                  {% elif not is_state('media_player.wiim_hallway_linkplay','idle')  %}
+                      media_player.wiim_hallway_linkplay
+                  {% else %}
+                    media_player.mass_hallway_airplay_wiim_speaker
+                  {% endif %} 
     state_template: >-
-                  {% if not is_state('media_player.mass_hallway_airplay_wiim_speaker','off')  %}
+                  {% if not is_state('media_player.mass_hallway_airplay_wiim_speaker','off') and not is_state('media_player.mass_hallway_airplay_wiim_speaker','idle')  and not is_state('media_player.group_mass_home_group_speakers','off')  %}
+                  {{ states('media_player.group_mass_home_group_speakers') }}
+                  {% elif not is_state('media_player.mass_hallway_airplay_wiim_speaker','off') and not is_state('media_player.mass_hallway_airplay_wiim_speaker','idle')  %}
                       {{ states('media_player.mass_hallway_airplay_wiim_speaker') }}
+                  {% elif not is_state('media_player.wiim_hallway_linkplay','idle')  %}
+                      {{ states('media_player.wiim_hallway_linkplay') }}
                   {% else %}
                     off
                   {% endif %} 
     commands:
-      turn_on:
-        service: media_player.turn_on
+      volume_up:
+        service: media_player.volume_up
         target:
           entity_id: 
-            - media_player.mass_hallway_airplay_wiim_speaker   
-      turn_off:
-        service: media_player.turn_off
+            - media_player.wiim_hallway_linkplay
+      volume_down:
+        service: media_player.volume_down
         target:
           entity_id: 
-            - media_player.mass_hallway_airplay_wiim_speaker   
+            - media_player.wiim_hallway_linkplay
       volume_mute:
         service: media_player.volume_mute
         target:
@@ -431,47 +342,110 @@
             - media_player.wiim_hallway_linkplay
         data:
           volume_level: "{{ volume_level }}"
+    attributes:
+      is_volume_muted: media_player.wiim_hallway_linkplay|is_volume_muted
+      volume_level: media_player.wiim_hallway_linkplay|volume_level
+      
+ 
+
+  ##########################  salon  ##########################
+  - platform: universal
+    name: Universal salon Speakers
+    unique_id: universal_salon_speakers
+    children:
+      - media_player.mass_salon_airplay_wiim_speaker
+      - media_player.wiim_salon_linkplay
+      - media_player.group_mass_home_group_speakers
+    active_child_template: >-
+                  {% if not is_state('media_player.mass_salon_airplay_wiim_speaker','off') and not is_state('media_player.mass_salon_airplay_wiim_speaker','idle') and not is_state('media_player.group_mass_home_group_speakers','off')  %}
+                      media_player.group_mass_home_group_speakers
+                  {% elif not is_state('media_player.mass_salon_airplay_wiim_speaker','off') and not is_state('media_player.mass_salon_airplay_wiim_speaker','idle')  %}
+                      media_player.mass_salon_airplay_wiim_speaker
+                  {% elif not is_state('media_player.wiim_salon_linkplay','idle')  %}
+                      media_player.wiim_salon_linkplay
+                  {% else %}
+                    media_player.mass_salon_airplay_wiim_speaker
+                  {% endif %} 
+    state_template: >-
+                  {% if not is_state('media_player.mass_salon_airplay_wiim_speaker','off') and not is_state('media_player.mass_salon_airplay_wiim_speaker','idle') and not is_state('media_player.group_mass_home_group_speakers','off')  %}
+                  {{ states('media_player.group_mass_home_group_speakers') }}
+                  {% elif not is_state('media_player.mass_salon_airplay_wiim_speaker','off') and not is_state('media_player.mass_salon_airplay_wiim_speaker','idle')  %}
+                      {{ states('media_player.mass_salon_airplay_wiim_speaker') }}
+                  {% elif not is_state('media_player.wiim_salon_linkplay','idle')  %}
+                      {{ states('media_player.wiim_salon_linkplay') }}
+                  {% else %}
+                    off
+                  {% endif %} 
+    commands:
       volume_up:
         service: media_player.volume_up
         target:
-          entity_id:
-            - media_player.wiim_hallway_linkplay
+          entity_id: 
+            - media_player.wiim_salon_linkplay
       volume_down:
         service: media_player.volume_down
         target:
           entity_id: 
-            - media_player.wiim_hallway_linkplay
+            - media_player.wiim_salon_linkplay
+      volume_mute:
+        service: media_player.volume_mute
+        target:
+          entity_id: 
+            - media_player.wiim_salon_linkplay
+        data:
+          is_volume_muted: "{{ is_volume_muted }}"
+      volume_set:
+        service: media_player.volume_set
+        target:
+          entity_id: 
+            - media_player.wiim_salon_linkplay
+        data:
+          volume_level: "{{ volume_level }}"
     attributes:
-      is_volume_muted: media_player.wiim_hallway_linkplay|is_volume_muted
-      volume_level: media_player.wiim_hallway_linkplay|volume_level
-
+      is_volume_muted: media_player.wiim_salon_linkplay|is_volume_muted
+      volume_level: media_player.wiim_salon_linkplay|volume_level
+      
  
 
-  ##########################  salon  ##########################
+  ##########################  hotbox  ##########################
   - platform: universal
     name: Universal hotbox Speakers
     unique_id: universal_hotbox_speakers
     children:
       - media_player.mass_hotbox_airplay_wiim_speaker
       - media_player.wiim_hotbox_linkplay
-    active_child_template: media_player.mass_hotbox_airplay_wiim_speaker 
+      - media_player.group_mass_home_group_speakers
+    active_child_template: >-
+                  {% if not is_state('media_player.mass_hotbox_airplay_wiim_speaker','off') and not is_state('media_player.mass_hotbox_airplay_wiim_speaker','idle') and not is_state('media_player.group_mass_home_group_speakers','off')  %}
+                      media_player.group_mass_home_group_speakers
+                  {% elif not is_state('media_player.mass_hotbox_airplay_wiim_speaker','off') and not is_state('media_player.mass_hotbox_airplay_wiim_speaker','idle')  %}
+                      media_player.mass_hotbox_airplay_wiim_speaker
+                  {% elif not is_state('media_player.wiim_hotbox_linkplay','idle')  %}
+                      media_player.wiim_hotbox_linkplay
+                  {% else %}
+                    media_player.mass_hotbox_airplay_wiim_speaker
+                  {% endif %} 
     state_template: >-
-                  {% if not is_state('media_player.mass_hotbox_airplay_wiim_speaker','off')  %}
+                  {% if not is_state('media_player.mass_hotbox_airplay_wiim_speaker','off') and not is_state('media_player.mass_hotbox_airplay_wiim_speaker','idle') and not is_state('media_player.group_mass_home_group_speakers','off')  %}
+                  {{ states('media_player.group_mass_home_group_speakers') }}
+                  {% elif not is_state('media_player.mass_hotbox_airplay_wiim_speaker','off') and not is_state('media_player.mass_hotbox_airplay_wiim_speaker','idle')  %}
                       {{ states('media_player.mass_hotbox_airplay_wiim_speaker') }}
+                  {% elif not is_state('media_player.wiim_hotbox_linkplay','idle')  %}
+                      {{ states('media_player.wiim_hotbox_linkplay') }}
                   {% else %}
                     off
                   {% endif %} 
     commands:
-      turn_on:
-        service: media_player.turn_on
+      volume_up:
+        service: media_player.volume_up
         target:
           entity_id: 
-            - media_player.mass_hotbox_airplay_wiim_speaker   
-      turn_off:
-        service: media_player.turn_off
+            - media_player.wiim_hotbox_linkplay
+      volume_down:
+        service: media_player.volume_down
         target:
           entity_id: 
-            - media_player.mass_hotbox_airplay_wiim_speaker   
+            - media_player.wiim_hotbox_linkplay
       volume_mute:
         service: media_player.volume_mute
         target:
@@ -486,20 +460,11 @@
             - media_player.wiim_hotbox_linkplay
         data:
           volume_level: "{{ volume_level }}"
-      volume_up:
-        service: media_player.volume_up
-        target:
-          entity_id:
-            - media_player.wiim_hotbox_linkplay
-      volume_down:
-        service: media_player.volume_down
-        target:
-          entity_id: 
-            - media_player.wiim_hotbox_linkplay
     attributes:
       is_volume_muted: media_player.wiim_hotbox_linkplay|is_volume_muted
       volume_level: media_player.wiim_hotbox_linkplay|volume_level
-
+      
+ 
   ##########################  CHROMECASTS  ##########################   
   
 
@@ -719,16 +684,16 @@
       state: media_player.salon_chromecast
 
       
-  ########################## Universal hotbox_down Chromecast  ########################## 
+  ########################## Universal kitchen Chromecast  ########################## 
 
 
   - platform: universal
-    unique_id: universal_hotbox_down_chromecast
-    name: Universal hotbox down chromecast
+    unique_id: universal_kitchen_chromecast
+    name: Universal kitchen chromecast
     children:
-      - media_player.hotbox_down_chromecast
+      - mmedia_player.kitchen_google_hub
     active_child_template: >-
-                  {% set ns = namespace( cast_entity = "media_player.hotbox_down_chromecast", template_entity = "" ) %}
+                  {% set ns = namespace( cast_entity = "media_player.kitchen_google_hub", template_entity = "" ) %}
                   {% set ns.final_entity = ns.cast_entity %}   {# Declare Variables#}                    
                   {% for media_player in states.media_player %}                   
                     {% if "plex" in media_player.entity_id and media_player.state != "unavailable" %}
@@ -754,65 +719,65 @@
                   {% if ns.template_entity != ns.cast_entity %}                  
                     {{ns.template_entity}}
                   {% elif state_attr( ns.cast_entity, 'media_title')  %} 
-                    media_player.hotbox_down_chromecast
+                    media_player.kitchen_google_hub
                   {% else %}
-                    media_player.hotbox_down_chromecast
+                    media_player.kitchen_google_hub
                   {% endif %}          
     commands:
       volume_mute:
         service: media_player.volume_mute
         target:
           entity_id: 
-            - media_player.hotbox_down_chromecast            
+            - media_player.kitchen_google_hub            
         data:
           is_volume_muted: "{{ is_volume_muted }}"
       volume_set:
         service: media_player.volume_set
         target:
           entity_id: 
-            - media_player.hotbox_down_chromecast            
+            - media_player.kitchen_google_hub            
         data:
           volume_level: "{{ volume_level }}"
       volume_up:
         service: media_player.volume_up
         target:
           entity_id: 
-            - media_player.hotbox_down_chromecast            
+            - media_player.kitchen_google_hub            
       volume_down:
         service: media_player.volume_down
         target:
           entity_id: 
-            - media_player.hotbox_down_chromecast              
+            - media_player.kitchen_google_hub              
       media_pause:
         service: media_player.media_pause
         target:
           entity_id: 
-            - media_player.hotbox_down_chromecast             
+            - media_player.kitchen_google_hub             
       media_play_pause:
         service: media_player.media_play_pause
         target:
           entity_id: 
-            - media_player.hotbox_down_chromecast            
+            - media_player.kitchen_google_hub            
       turn_on:
         service: media_player.turn_on
         target:
           entity_id: 
-            - media_player.hotbox_down_chromecast            
+            - media_player.kitchen_google_hub            
       turn_off:
         service: media_player.turn_off
         target:
           entity_id: 
-            - media_player.hotbox_down_chromecast         
+            - media_player.kitchen_google_hub         
       media_stop:
         service: media_player.media_stop
         target:
           entity_id: 
-            - media_player.hotbox_down_chromecast     
+            - media_player.kitchen_google_hub     
       media_play:
         service: media_player.media_play
         target:
           entity_id: 
-            - media_player.hotbox_down_chromecast          
+            - media_player.kitchen_google_hub          
       play_media :
         service: media_player.play_media
         data:
@@ -820,11 +785,11 @@
           media_content_id: '{{media_content_id}}'
         target:
           entity_id: 
-            - media_player.hotbox_down_chromecast       
+            - media_player.kitchen_google_hub       
     attributes:
-      is_volume_muted: media_player.hotbox_down_chromecast|is_volume_muted
-      volume_level: media_player.hotbox_down_chromecast|volume_level
-      state: media_player.hotbox_down_chromecast
+      is_volume_muted: media_player.kitchen_google_hub|is_volume_muted
+      volume_level: media_player.kitchen_google_hub|volume_level
+      state: media_player.kitchen_google_hub
 
   ########################## Universal hotbox_top Chromecast  ########################## 
 
@@ -1151,9 +1116,26 @@
   ##########################  following speaker ########################## 
 
   - platform: universal
-    name: Universal following speaker
+    name: Universal following media
+    unique_id: universal_following_media
+    children:     
+      - media_player.universal_home_speakers
+      - media_player.universal_salon_speakers
+      - media_player.universal_bedroom_speakers
+      - media_player.universal_livingroom_speakers
+      - media_player.universal_kitchen_speakers
+      - media_player.universal_bathroom_speakers
+      - media_player.universal_office_speakers
+      - media_player.universal_hallway_speakers
+      - media_player.universal_hotbox_speakers
+      - media_player.universal_bedroom_chromecast
+      - media_player.universal_salon_chromecast
+      - media_player.universal_hotbox_down_chromecast
+      - media_player.universal_hotbox_top_chromecast
+      - media_player.universal_patio_chromecast
+      - media_player.universal_livingroom_chromecast
     active_child_template: >-      
-                  {% set location = states('sensor.maxi_location_v3') %}  
+                  {% set location = states('sensor.maxi_location_by_petro') %}  
                   {% set ns = namespace( entities = [], final_entities = []  )%}
                   {% for media_player in states.media_player %} 
                     {% if location in media_player.entity_id  and "universal" in media_player.entity_id and media_player.state != "unavailable" and media_player.state != "off" %}
@@ -1164,12 +1146,51 @@
                   {% endfor %}                  
                   {% for entity in ns.entities %}  
                       {% set state = states( entity ) %}
-                      {% if "speaker" in entity and state != none %}
+                      {% if "chromecast" in entity and state != none and state_attr(entity,'is_volume_muted') == false %}
                         {% set ns.final_entities = ns.final_entities + [entity] %}
                       {% endif %}
                   {% endfor %}
+                  {% if ns.final_entities | length == 0 %}
+                  {% for entity in ns.entities %}
+                      {% set state = states( entity ) %}
+                      {% if "speaker" in entity and state != none  %}
+                        {% set ns.final_entities = ns.final_entities + [entity] %}
+                      {% endif %}
+                  {% endfor %}
+                  {% endif %}
                   {% if ns.final_entities | length > 0 %}
                   {{ ns.final_entities.0 }}
                   {% else %}
-                    none
+                    media_player.group_mass_home_group_speakers
                   {% endif %}
+    state_template: >-      
+                  {% set location = states('sensor.maxi_location_by_petro') %}  
+                  {% set ns = namespace( entities = [], final_entities = []  )%}
+                  {% for media_player in states.media_player %} 
+                    {% if location in media_player.entity_id  and "universal" in media_player.entity_id and media_player.state != "unavailable" and media_player.state != "off" %}
+                      {% set entity = media_player.entity_id %}
+                      {% set state = media_player.state %}
+                      {% set ns.entities = ns.entities + [entity] %}
+                    {% endif %}                  
+                  {% endfor %}                  
+                  {% for entity in ns.entities %}  
+                      {% set state = states( entity ) %}
+                      {% if "chromecast" in entity and state != none and state_attr(entity,'is_volume_muted') == false %}
+                        {% set ns.final_entities = ns.final_entities + [entity] %}
+                      {% endif %}
+                  {% endfor %}
+                  {% if ns.final_entities | length == 0 %}
+                  {% for entity in ns.entities %}
+                      {% set state = states( entity ) %}
+                      {% if "speaker" in entity and state != none  %}
+                        {% set ns.final_entities = ns.final_entities + [entity] %}
+                      {% endif %}
+                  {% endfor %}
+                  {% endif %}
+                  {% if ns.final_entities | length > 0 %}
+                  {{ states(ns.final_entities.0)}}
+                  {% else %}
+                    off
+                  {% endif %}
+    attributes:
+      position: ENTITY_ID|ATTRIBUTE
