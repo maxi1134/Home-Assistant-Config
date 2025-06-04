@@ -189,33 +189,6 @@
     target:
       entity_id: media_player.universal_hotbox_speakers
   mode: single
-- id: '1713377704036'
-  alias: Unmute Speakers in the hotbox when computer mic goes off
-  description: ''
-  triggers:
-  - type: turned_off
-    device_id: 0cc46b896079dbc299255330f9ea856e
-    entity_id: 470a4142c11434774d1b570a456f145b
-    domain: binary_sensor
-    trigger: device
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 2
-  conditions:
-  - condition: not
-    conditions:
-    - condition: state
-      entity_id: media_player.universal_hotbox_speakers
-      state: 'off'
-  actions:
-  - metadata: {}
-    data:
-      is_volume_muted: false
-    action: media_player.volume_mute
-    target:
-      entity_id: media_player.universal_hotbox_speakers
-  mode: single
 - id: '1713378517441'
   alias: Lock front door when it is closed for 5 seconds
   description: ''
@@ -398,7 +371,7 @@
     action: light.turn_on
   mode: single
 - id: '1713451307697'
-  alias: Sleep actions when "all resident sleeping" is turned on and maxi is home
+  alias: Sleep actions when "all resident sleeping" is turned on
   description: Close the blinds, turn off the lights and turn on the sleep mode of
     Adaptative lighting
   triggers:
@@ -993,8 +966,8 @@
   actions:
   - variables:
       playing_speakers: '{{ [area_id(trigger.entity_id)]   | map(''area_entities'')
-        | sum(start=[]) |    select(''search'', ''universal'') | select(''is_state'',''playing'')
-        | unique | list }}
+        | sum(start=[]) |    select(''search'', ''universal'') |    select(''search'',
+        ''speakers'') | select(''is_state'',''playing'') | unique | list }}
 
         '
       average_volume: '{{ states(''sensor.average_unmuted_speakers_volume'')}}
@@ -1077,12 +1050,12 @@
     - binary_sensor.group_patio_motion_occupancy
     - binary_sensor.group_closet_motion_occupancy
     - binary_sensor.group_server_motion_occupancy
-    - binary_sensor.group_bathroom_motion_occupancy
     - binary_sensor.group_bedroom_motion_occupancy
     - binary_sensor.group_entrance_motion_occupancy
     - binary_sensor.group_workstation_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
     - binary_sensor.group_hotbox_motion_occupancy
+    - binary_sensor.group_bathroom_motion_occupancy
     for:
       hours: 0
       minutes: 0
@@ -1338,7 +1311,7 @@
       for_each: '{{ lights }}'
   mode: single
 - id: '1714150045572'
-  alias: Mute chromecasts when they start visuals
+  alias: Mute chromecasts when they play PLEX visuals
   description: ''
   triggers:
   - entity_id:
@@ -1349,10 +1322,16 @@
     - media_player.universal_patio_chromecast
     to: playing
     trigger: state
+  - entity_id:
+    - media_player.universal_office_chromecast
+    - media_player.universal_livingroom_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_hotbox_down_chromecast
+    - media_player.universal_patio_chromecast
+    trigger: state
+    attribute: is_volume_muted
+    alias: Chromecasts Muted Status
   conditions:
-  - alias: Check if the chromecast already muted
-    condition: template
-    value_template: '{{trigger.to_state.attributes.is_volume_muted == false}}'
   - condition: template
     value_template: "{% set ns = namespace( cast_entity = trigger.entity_id, template_entity
       = \"\" ) %}\n{% set ns.final_entity = ns.cast_entity %}   {# Declare Variables#}
@@ -1373,6 +1352,9 @@
       == \"\" %}\n    {% set ns.template_entity = ns.cast_entity %}\n{% endif %}\n{%
       if ns.template_entity != ns.cast_entity %}                  \n  {{ state_attr(ns.template_entity,
       'media_library_title') == 'Visuals'}}\n{% endif %} "
+  - alias: Check if the chromecast already muted
+    condition: template
+    value_template: '{{trigger.to_state.attributes.is_volume_muted == false }}'
   actions:
   - metadata: {}
     data:
@@ -1405,6 +1387,11 @@
     trigger: state
   conditions: []
   actions:
+  - action: media_player.clear_playlist
+    target:
+      entity_id: '{{ trigger.entity_id }}'
+    metadata: {}
+    data: {}
   - metadata: {}
     data: {}
     target:
@@ -1487,6 +1474,16 @@
       hours: 0
       minutes: 0
       seconds: 2
+  - alias: Chromecasts Muted status
+    entity_id:
+    - media_player.universal_livingroom_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_hotbox_down_chromecast
+    - media_player.universal_patio_chromecast
+    - media_player.universal_salon_chromecast
+    - media_player.universal_bedroom_chromecast
+    trigger: state
+    attribute: is_volume_muted
   conditions: []
   actions:
   - variables:
@@ -1499,7 +1496,7 @@
         false)\n  | map(attribute='entity_id')\n  | unique\n  | list \n}}\n"
   - if:
     - condition: template
-      value_template: '{{ unmuted_player_chromecasts != empty }}'
+      value_template: '{{ unmuted_player_chromecasts != [] }}'
     then:
     - action: media_player.volume_mute
       metadata: {}
@@ -2176,11 +2173,11 @@
       max_tokens: 30
       temperature: 0.2
       provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
-      model: minicpm-v:latest
       message: Answer with yes or no, is there a package or a delivery man on this
         picture? Do not use an other word than  yes or no
       image_entity:
       - camera.front_door_camera
+      model: qwen2.5vl:3b-q8_0
     response_variable: answer
   - if:
     - condition: template
@@ -2787,8 +2784,7 @@
   - entity_id:
     - sensor.where_is_maxi_sleeping
     trigger: state
-    from:
-    to:
+    from: ''
   conditions:
   - condition: state
     entity_id: person.maximiliano
@@ -2818,47 +2814,60 @@
 
         '
     enabled: true
-  - condition: template
-    value_template: '{{ state_attr(sleeper_speaker,''media_title'') != ''thunderstorm''
-      }} '
-    enabled: false
-  - action: media_player.unjoin
-    metadata: {}
-    data: {}
-    target:
-      entity_id: "{{ sleeper_speaker_mass }}\n  \n"
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 5
-      milliseconds: 0
-  - metadata: {}
-    data:
-      media_content_id: http://192.168.0.15:8123/local/thunderstorm.mp4
-      media_content_type: music
-    target:
-      entity_id: '{{ sleeper_speaker }}'
-    action: media_player.play_media
-  - metadata: {}
-    data:
-      is_volume_muted: false
-    target:
-      entity_id: '{{ sleeper_speaker }}'
-    action: media_player.volume_mute
-  - metadata: {}
-    target:
-      entity_id: '{{ sleeper_speaker }}'
-    action: media_player.volume_up
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 3
-  - action: media_player.volume_set
-    metadata: {}
-    data:
-      volume_level: 0.34
-    target:
-      entity_id: '{{ sleeper_speaker }}'
+  - if:
+    - condition: template
+      value_template: '{{ state_attr(sleeper_speaker,''media_title'') != ''thunderstorm''
+        }} '
+    then:
+    - action: media_player.unjoin
+      metadata: {}
+      data: {}
+      target:
+        entity_id: "{{ sleeper_speaker_mass }}\n  \n"
+    - delay:
+        hours: 0
+        minutes: 0
+        seconds: 5
+        milliseconds: 0
+    - metadata: {}
+      data:
+        media_content_id: http://192.168.0.15:8123/local/thunderstorm.mp4
+        media_content_type: music
+      target:
+        entity_id: '{{ sleeper_speaker }}'
+      action: media_player.play_media
+    - metadata: {}
+      data:
+        is_volume_muted: false
+      target:
+        entity_id: '{{ sleeper_speaker }}'
+      action: media_player.volume_mute
+    - metadata: {}
+      target:
+        entity_id: '{{ sleeper_speaker }}'
+      action: media_player.volume_up
+    - delay:
+        hours: 0
+        minutes: 0
+        seconds: 0
+        milliseconds: 750
+    - action: media_player.volume_set
+      metadata: {}
+      data:
+        volume_level: 0.42
+      target:
+        entity_id: '{{ sleeper_speaker }}'
+    else:
+    - metadata: {}
+      target:
+        entity_id: '{{ sleeper_speaker }}'
+      action: media_player.volume_up
+    - action: media_player.volume_set
+      metadata: {}
+      data:
+        volume_level: 0.42
+      target:
+        entity_id: '{{ sleeper_speaker }}'
   mode: single
 - id: '1717287475672'
   alias: Raise volume when the AC starts in a room
@@ -2890,11 +2899,6 @@
     to: 'off'
     from: 'on'
     trigger: state
-  - trigger: state
-    entity_id:
-    - climate.salon_ac
-    attribute: hvac_action
-    to: cooling
   conditions: []
   actions:
   - metadata: {}
@@ -3445,57 +3449,35 @@
     - conditions:
       - condition: trigger
         id:
-        - press_4
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness_step_pct: 10
-        target:
-          entity_id: light.group_hotbox_top_lights
-    - conditions:
-      - condition: trigger
-        id:
         - press_1
       sequence:
       - choose:
         - conditions:
           - condition: state
-            entity_id: input_boolean.sleeper_in_hotbox
+            entity_id: input_boolean.sleeper_in_bedroom
             state: 'on'
-          - condition: state
-            entity_id: light.group_hotbox_top_lights
-            state: 'off'
           sequence:
-          - action: light.turn_on
+          - action: light.toggle
             metadata: {}
             data:
               kelvin: 3167
-              brightness_pct: 15
+              brightness_pct: 20
+              transition: 10
             target:
-              entity_id: light.group_hotbox_top_lights
+              entity_id: light.group_bedroom_lights
         - conditions:
           - condition: state
             state: 'off'
-            entity_id: input_boolean.sleeper_in_hotbox
-          - condition: state
-            state: 'off'
-            entity_id: light.group_hotbox_top_lights
+            entity_id: input_boolean.sleeper_in_bedroom
           sequence:
-          - action: light.turn_on
+          - action: light.toggle
             metadata: {}
             data:
-              kelvin: 5300
+              kelvin: 3167
               brightness_pct: 100
-              transition: 3
+              transition: 10
             target:
-              entity_id: light.group_hotbox_top_lights
-        default:
-        - action: light.toggle
-          metadata: {}
-          data: {}
-          target:
-            entity_id: light.group_hotbox_top_lights
+              entity_id: light.group_bedroom_lights
     - conditions:
       - condition: trigger
         id:
@@ -3506,18 +3488,29 @@
         data:
           brightness_step_pct: -10
         target:
-          entity_id: light.group_hotbox_top_lights
+          entity_id: light.group_bedroom_lights
     - conditions:
       - condition: trigger
         id:
         - press_3
       sequence:
-      - action: light.toggle
+      - action: light.turn_on
         metadata: {}
         data:
-          brightness_pct: 2
+          brightness_pct: 1
         target:
-          entity_id: light.group_hotbox_top_lights
+          entity_id: light.group_bedroom_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - press_4
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_step_pct: 10
+        target:
+          entity_id: light.group_bedroom_lights
   mode: single
 - id: '1722263369374'
   alias: assist Stop home group music
@@ -6631,7 +6624,10 @@
       hours: 0
       minutes: 0
       seconds: 5
-  conditions: []
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.all_residents_sleeping
+    state: 'off'
   actions:
   - choose:
     - conditions:
@@ -7277,22 +7273,6 @@
     trigger: state
   conditions: []
   actions:
-  - if:
-    - condition: state
-      entity_id: sensor.maxis_current_game
-      state: idle
-    - condition: state
-      entity_id: binary_sensor.computer_maxi_pc_computer_maxi_pc_microphoneactive
-      state: 'off'
-    - condition: state
-      entity_id: binary_sensor.desktop_maxi_webcamactive
-      state: 'off'
-    then:
-    - action: button.press
-      metadata: {}
-      data: {}
-      target:
-        entity_id: button.desktop_maxi_hibernate
   - action: remote.turn_off
     metadata: {}
     data: {}
@@ -7907,19 +7887,23 @@
     - binary_sensor.group_bathroom_motion_occupancy
     from: 'on'
     to: 'off'
+    for:
+      hours: 0
+      minutes: 7
+      seconds: 0
   conditions:
   - condition: state
-    entity_id: binary_sensor.shower_in_use
+    entity_id: binary_sensor.shower_in_usage
     state: 'off'
     enabled: true
   - condition: state
     entity_id: binary_sensor.sensor_bathroom_door_contact
     state: 'on'
-    enabled: true
   actions:
   - action: light.turn_off
     metadata: {}
-    data: {}
+    data:
+      transition: 30
     target:
       entity_id: light.group_bathroom_lights
   mode: single
@@ -9706,7 +9690,6 @@
     - binary_sensor.group_server_motion_occupancy
     - binary_sensor.group_hallway_motion_occupancy
     - binary_sensor.group_kitchen_motion_occupancy
-    - binary_sensor.group_bathroom_motion_occupancy
     - binary_sensor.group_entrance_motion_occupancy
     - binary_sensor.group_livingroom_motion_occupancy
     - binary_sensor.group_workstation_motion_occupancy
@@ -9995,9 +9978,19 @@
   - action: light.turn_on
     metadata: {}
     data:
-      transition: 45
+      transition: 900
+      color_temp_kelvin: 5126
+      brightness_pct: 100
     target:
-      entity_id: light.group_bedroom_lights
+      entity_id: light.bedroom_chandelier_light
+  - action: light.turn_on
+    metadata: {}
+    data:
+      transition: 300
+      color_temp_kelvin: 5075
+      brightness_pct: 100
+    target:
+      entity_id: light.bedroom_headboard_lamp_light
   mode: single
 - id: '1748845278340'
   alias: execute Sleep actions when "sleeper in bedroom" is turned on
@@ -10016,6 +10009,15 @@
       transition: 10
     target:
       area_id: bedroom
+  - action: light.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: light.bedroom_assistant_lcd_backlight
+  - action: google_assistant_sdk.send_text_command
+    metadata: {}
+    data:
+      command: Power off bedroom TV
   mode: single
 - id: '1748845695784'
   alias: Control volume of kitchen to prevent noise in children room while she sleeps
@@ -10082,6 +10084,15 @@
     to: playing
     trigger: state
     alias: Chromecasts
+  - alias: Speakers muted status
+    entity_id:
+    - media_player.universal_livingroom_speakers
+    - media_player.universal_hotbox_top_speakers
+    - media_player.universal_hotbox_down_speakers
+    - media_player.universal_salon_speakers
+    - media_player.universal_bedroom_speakers
+    trigger: state
+    attribute: is_volume_muted
   - alias: Speakers
     entity_id:
     - media_player.universal_livingroom_speakers
@@ -10101,15 +10112,15 @@
   - variables:
       unmuted_playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
         \ | sum(start=[])\n  | select('search', 'speakers')\n  | select('search',
-        'universal')\n  | select('is_state','playing')\n  | selectattr('attributes.is_volume_muted',
-        'eq', false)\n  | unique\n  | list \n}}\n"
+        'universal')\n  | select('is_state','playing')\n  | expand\n  | selectattr('attributes.is_volume_muted',
+        'eq', false)\n  | map(attribute='entity_id')\n  | unique\n  | list \n}}\n"
       player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
         \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
-        'universal')\n  | expand\n  | map(attribute='entity_id')\n  | unique\n  |
-        list \n}}\n"
+        'universal')\n  | select('is_state','playing')\n  | expand\n  | map(attribute='entity_id')\n
+        \ | unique\n  | list \n}}\n"
   - if:
     - condition: template
-      value_template: '{{ unmuted_playing_speakers != empty }}'
+      value_template: '{{ unmuted_playing_speakers == [] }}'
     then:
     - action: media_player.volume_mute
       metadata: {}
@@ -10155,6 +10166,16 @@
       minutes: 0
       seconds: 2
     from:
+  - alias: Chromecasts mute status
+    entity_id:
+    - media_player.universal_livingroom_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_hotbox_down_chromecast
+    - media_player.universal_patio_chromecast
+    - media_player.universal_salon_chromecast
+    - media_player.universal_bedroom_chromecast
+    trigger: state
+    attribute: is_volume_muted
   conditions: []
   actions:
   - variables:
@@ -10163,11 +10184,11 @@
         'universal')\n  | select('is_state','playing')\n  | unique\n  | list \n}}\n"
       unmuted_player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
         \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
-        'universal')\n  | expand\n  | selectattr('attributes.is_volume_muted', 'eq',
-        false)\n  | map(attribute='entity_id')\n  | unique\n  | list \n}}\n"
+        'universal')\n  | select('is_state','playing')\n  | expand\n  | selectattr('attributes.is_volume_muted',
+        'eq', false)\n  | map(attribute='entity_id')\n  | unique\n  | list \n}}\n"
   - if:
     - condition: template
-      value_template: '{{ unmuted_player_chromecasts != empty }}'
+      value_template: '{{ unmuted_player_chromecasts == [] }}'
     then:
     - action: media_player.volume_mute
       metadata: {}
@@ -10175,8 +10196,182 @@
         is_volume_muted: false
       target:
         entity_id: '{{playing_speakers | list}}'
-    - action: script.speaker_automatic_volume_adjustment_script
+  mode: restart
+- id: '1748932635965'
+  alias: Mute chromecats when unmuted speakers plays in the same room
+  description: ''
+  triggers:
+  - entity_id:
+    - media_player.universal_livingroom_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_hotbox_down_chromecast
+    - media_player.universal_patio_chromecast
+    - media_player.universal_salon_chromecast
+    - media_player.universal_bedroom_chromecast
+    to: playing
+    trigger: state
+    alias: Chromecasts
+  - alias: Speakers mute states
+    entity_id:
+    - media_player.universal_livingroom_speakers
+    - media_player.universal_hotbox_top_speakers
+    - media_player.universal_hotbox_down_speakers
+    - media_player.universal_salon_speakers
+    - media_player.universal_bedroom_speakers
+    trigger: state
+    enabled: true
+    attribute: is_volume_muted
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 1
+  - alias: Speakers
+    entity_id:
+    - media_player.universal_livingroom_speakers
+    - media_player.universal_hotbox_top_speakers
+    - media_player.universal_hotbox_down_speakers
+    - media_player.universal_salon_speakers
+    - media_player.universal_bedroom_speakers
+    to: playing
+    trigger: state
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
+    enabled: true
+  conditions: []
+  actions:
+  - variables:
+      unmuted_playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
+        \ | sum(start=[])\n  | select('search', 'speakers')\n  | select('is_state','playing')\n
+        \ | expand\n  | selectattr('attributes.is_volume_muted', 'eq', false)\n  |
+        map(attribute='entity_id')\n  | unique\n  | list \n}}\n"
+      player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
+        \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
+        'universal')\n  | unique\n  | list \n}}\n"
+  - if:
+    - condition: template
+      value_template: '{{ unmuted_playing_speakers != [] }}'
+    then:
+    - action: media_player.volume_mute
       metadata: {}
       data:
-        received_speaker: '{{playing_speakers | list}}'
+        is_volume_muted: true
+      target:
+        entity_id: '{{player_chromecasts | list}}'
   mode: restart
+- id: '1748938722404'
+  alias: Hibernate Maxi Desktop when he sleeps for over 5 minutes
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.maxi_sleeping
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+    to: 'on'
+    from: 'off'
+  conditions: []
+  actions:
+  - action: button.press
+    metadata: {}
+    data: {}
+    target:
+      entity_id: button.desktop_maxi_hibernate
+  mode: single
+- id: '1748938888873'
+  alias: Hibernate Maxi Desktop when he leaves the Salon for more than 20 minutes
+  description: also checks for an active game as condition
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.maxi_location_by_petro
+    from: salon
+    for:
+      hours: 0
+      minutes: 20
+      seconds: 0
+  conditions:
+  - condition: state
+    entity_id: sensor.maxis_current_game
+    state: idle
+  actions:
+  - action: button.press
+    metadata: {}
+    data: {}
+    target:
+      entity_id: button.desktop_maxi_hibernate
+  mode: single
+- id: '1748939696079'
+  alias: Immediately mute bathroom speaker when door open if all residents are sleeping
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.sensor_bathroom_door_contact
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+    from: 'off'
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.all_residents_sleeping
+    state: 'on'
+  actions:
+  - action: media_player.volume_mute
+    metadata: {}
+    data:
+      is_volume_muted: true
+    target:
+      entity_id: media_player.universal_bathroom_speakers
+  mode: restart
+- id: '1749001900174'
+  alias: Adjust Chromecast volume when unmuted after a long moment
+  description: ''
+  triggers:
+  - alias: Chromecasts mute status
+    entity_id:
+    - media_player.universal_livingroom_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_hotbox_down_chromecast
+    - media_player.universal_patio_chromecast
+    - media_player.universal_salon_chromecast
+    - media_player.universal_bedroom_chromecast
+    trigger: state
+    attribute: is_volume_muted
+  conditions:
+  - condition: template
+    value_template: '{{ trigger.from_state.state == trigger.to_state.state }}'
+    enabled: true
+    alias: Unchanged state
+  - condition: template
+    value_template: '{{ trigger.from_state.attributes.is_volume_muted == true and
+      trigger.to_state.attributes.is_volume_muted == false }}'
+    alias: If volume went from muted to unmuted
+  actions:
+  - action: script.speaker_automatic_volume_adjustment_script
+    metadata: {}
+    data:
+      received_speaker: '{{trigger.entity_id}}'
+  mode: restart
+- id: '1749014947859'
+  alias: Toggle sleeper in bedroom on button press
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.remote_patio_quiet_button_action
+    to: 'off'
+  conditions: []
+  actions:
+  - action: input_boolean.toggle
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.sleeper_in_bedroom
+    enabled: true
+  mode: single

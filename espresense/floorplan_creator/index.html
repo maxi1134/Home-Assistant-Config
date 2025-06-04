@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles/all.min.css">
+    <link rel="stylesheet" href="styles/style.css">
+    <title>Document</title>
+</head>
+
+<body>
+    <div class="inner-container">
+        <div class="tools-menu">
+            <div class="top">
+                <button onclick="devicesSettings()" class="tool tooltip">
+                    <i class="fas fa-cog"></i>
+                    <span class="tooltiptext">
+                        <i class="fas fa-caret-left"></i>
+                        <span>MQTT Settings</span>
+                    </span>
+                </button>
+                <button disabled onclick="toggleDevices()" class="tool tooltip hide-show-devices">
+                    <i class="fas fa-mobile-button"></i>
+                    <span class="tooltiptext">
+                        <i class="fas fa-caret-left"></i>
+                        <span>Show/Hide Devices</span>
+                    </span>
+                </button>
+                <button onclick="toggleProbeRadiuses()" class="tool tooltip esp-coverage">
+                    <i class="fas fa-satellite-dish"></i>
+                    <span class="tooltiptext">
+                        <i class="fas fa-caret-left"></i>
+                        <span>Show esp32 coverage</span>
+                    </span>
+                </button>
+                <button onclick="exportToYaml()" class="tool tooltip">
+                    <i class="fas fa-file-export"></i>
+                    <span class="tooltiptext">
+                        <i class="fas fa-caret-left"></i>
+                        <span>Convert to YAML Code</span>
+                    </span>
+                </button>
+                <button onclick="toggleLabels()" class="tool tooltip labels active">
+                    <i class="fas fa-tags"></i>
+                    <span class="tooltiptext">
+                        <i class="fas fa-caret-left"></i>
+                        <span>Hide/Show Labels</span>
+                    </span>
+                </button>
+                <div class="separator"><span></span></div>
+                <button onclick="toggleUnit()" class="tool tooltip unit-btn">
+                    <i class="txt-icn">m</i>
+                    <span class="tooltiptext">
+                        <i class="fas fa-caret-left"></i>
+                        <span>Toggle units (meters/feet)</span>
+                    </span>
+                </button>
+            </div>
+            <div class="bottom">
+                <button onclick="yamlToJsonEXP()" class="tool tooltip experimental">
+                    <i class="fas fa-helmet-safety"></i>
+                    <span class="tooltiptext">
+                        <i class="fas fa-caret-left"></i>
+                        <span>Yaml to JSON Recovery</span>
+                    </span>
+                </button>
+                <button onclick="reset()" class="tool tooltip danger">
+                    <i class="fas fa-ban"></i>
+                    <span class="tooltiptext">
+                        <i class="fas fa-caret-left"></i>
+                        <span>Reset (This will erase floorplan and esp32 data)</span>
+                    </span>
+                </button>
+            </div>
+        </div>
+        <div id="canvasWrapper">
+            <canvas id="overlay" width="100%" height="100%"></canvas>
+            <canvas tabindex="2" id="canvas" width="100%" height="100%"></canvas>
+            <div class="indicator left"><i class="fas fa-chevron-left"></i></div>
+            <div class="indicator rightt"><i class="fas fa-chevron-right"></i></div>
+            <div class="indicator top"><i class="fas fa-chevron-up"></i></div>
+            <div class="indicator bottom"><i class="fas fa-chevron-down"></i></div>
+        </div>
+        <div class="interfaces">
+            <div class="rooms">
+                <!-- Rooms go here, generated in javascript -->
+                <div class="placeholder">Put your cursor on the drawing zone, click and drag to create a room.</div>
+            </div>
+        </div>
+    </div>
+    <!-- The Stock Div contains element that are cloned in javascript and inserted into the app -->
+    <div id="stock" hidden>
+        <div class="room" id="room0">
+            <div class="left">
+                <button id="delete"><i class="fas fa-trash-alt danger-txt"></i></button>
+                <div class="center">
+                    <div class="label"></div>
+                    <div class="mesures">
+                        <div class="width"></div>
+                        <div class="height"></div>
+                    </div>
+                    <div class="positions">
+                        <div class="x"></div>
+                        <div class="y"></div>
+                    </div>
+                </div>
+                <button id="more" class="more-info" title="Change room name and add esp32 devices on floorplan"><span><i class="fas fa-chevron-right info-txt"></i></span></button>
+            </div>
+            <div class="right">
+                <div class="content">
+                    <div class="cont">
+                        <input type="text" id="room_name" placeholder="Room name" />
+                        <div class="probe-list">
+
+                        </div>
+                    </div>
+                    <button id="probe" class="add-probe-btn" title="Add an ESPresense device"><i class="fas fa-plus info-txt"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal mqtt-settings">
+        <div class="modal-backdrop"></div>
+        <div class="modal-window">
+            <div class="text">
+                <div class="container">
+                    <div class="left">
+                        <div class="input-elem">
+                            <label>Host:</label> <input placeholder="192.168.1.13" class="host" type="text">
+                        </div>
+                        <div class="input-elem">
+                            <label>Port:</label> <input placeholder="1884" class="port" type="number">
+                        </div>
+                        <div class="input-elem">
+                            <label>Topic:</label> <input placeholder="espresense/ips" class="topic" type="text"><span>/#</span>
+                        </div>
+                        <div class="input-elem">
+                            <label>username:</label> <input class="username" type="text">
+                        </div>
+                        <div class="input-elem">
+                            <label>password:</label> <input class="password" type="password">
+                        </div>
+                        <div class="input-elem">
+                            <label>SSL:</label> <input class="SSL" type="checkbox">
+                        </div>
+
+                        <button class="mqtt-connect" onclick="connectMQTT()">Connect and Save</button>
+                    </div>
+                    <div class="right">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Device name</th>
+                                    <th>Color</th>
+                                    <th>x</th>
+                                    <th>y</th>
+                                    <th>z</th>
+                                    <th>hide</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="buttons">
+                <button onclick="closeModal('.mqtt-settings')" class="close">Close</button>
+                <!-- <button onclick="saveMqtt()">Save</button> -->
+            </div>
+        </div>
+    </div>
+
+    <div class="modal yaml-export">
+        <div class="modal-backdrop"></div>
+        <div class="modal-window">
+            <span class="info-ft" hidden>You have selected the feet unit, all values you have generated have been converted to meters in this export (ft = m*3.2808). For this reason, values in this export will not match values displayed in your rooms</span>
+            <div class="text">
+
+            </div>
+            <div class="buttons">
+                <button onclick="closeModal('.yaml-export')" class="close">Cancel</button>
+                <button onclick="copyYaml()">Copy to Clipboard</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal probe-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-window">
+            <div class="text">
+                <div class="container">
+                    <div class="left">
+                        <div class="input-elem">
+                            <label>name:</label> <input class="probe-name" type="string">
+                        </div>
+                        <div class="input-elem">
+                            <label>x:</label> <input disabled class="probe-x" type="number"><span>cm</span>
+                        </div>
+                        <div class="input-elem">
+                            <label>y:</label> <input disabled class="probe-y" type="number"><span>cm</span>
+                        </div>
+                        <div class="input-elem">
+                            <label>z:</label> <input class="probe-z" type="number"><span>cm</span>
+                        </div>
+                        <div class="input-elem">
+                            <label>coverage:</label> <input class="coverage" type="number"><span>cm</span>
+                        </div>
+                        <div class="input-elem">
+                            <label>coverage color:</label> <input class="coverage-color" type="color">
+                        </div>
+
+                        <button class="delete-probe" onclick="deleteProbe()">Delete</button>
+                    </div>
+                    <div class="right">
+                        <div class="code-area">
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="buttons">
+                <button onclick="closeModal('.probe-modal')" class="close">Cancel</button>
+                <button onclick="saveProbe()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal yaml-to-json-modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-window">
+            <div class="title">Past your yaml code here (ether yaml code exported by this app or yaml code you created yourself)</div>
+            <div class="title">This will generate corresponding json code. clicking the save button will OVERWRITE the floorplan in the local storage</div>
+            <div class="title">This tool will not recalculate labels so floor plan will not display room name or mesures.</div>
+            <div class="title">a bundle of labels will float at position 0,0 as well</div>
+            <div class="title">please follow the syntax from the readme file or the placeholder</div>
+            <div class="title last">If anyone wishes to extend/rewrite this feature, Pull Requests are welcome</div>
+            <div class="text">
+                <div class="container yaml-conv">
+                    <div class="left yaml-conv">
+                        <span class="title">yaml</span>
+                        <textarea class="yaml-data"></textarea>
+                    </div>
+                    <div class="right">
+                        <span class="title" style="color:white;">json</span>
+                        <textarea class="json-data"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="buttons">
+                <button onclick="closeModal('.yaml-to-json-modal')" class="close">Cancel</button>
+                <button onclick="saveConvertedData()">Save</button>
+            </div>
+        </div>
+    </div>
+    <script src="scripts/yaml-parser.js"></script>
+    <script src="scripts/phao-mqtt.min.js" type="text/javascript"></script>
+    <script src="scripts/script.js"></script>
+</body>
+
+</html>

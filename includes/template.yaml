@@ -1,4 +1,11 @@
   - binary_sensor:
+      - name: "Shower in Usage"
+        unique_id: shower_in_usagfe
+        delay_off:
+          minutes: 2
+        state: >
+          {{( states('binary_sensor.sensor_bathroom_door_contact') == 'off' and states('switch.bathroom_fan') == 'on' ) }}
+
       - name: "All Present Sleeping"
         unique_id: all_present_sleeping
         delay_off:
@@ -518,7 +525,7 @@
               | list 
               | expand   
               | rejectattr('entity_id', 'search', 'home') 
-              | map(attribute='entity_id') 
+              | map(attribute='entity_id')
               | unique 
               | map('regex_replace', 'media_player.universal_', '') 
               | map('regex_replace', '_speakers', '')
@@ -646,7 +653,7 @@
       - name: "Where is maxi sleeping?"
         unique_id: where_is_maxi_sleeping
         state: >-
-          {{ state_attr('sensor.is_maxi_asleep', "location") }}
+          {{ state_attr('sensor.is_maxi_asleep', "location") | default('nowhere') }}
 
       - name: "Is the computer active?"
         unique_id: is_computer_active
@@ -966,7 +973,7 @@
               {% if room != 'not_home' and room != 'main floor'and room  != 'unknown' and room  != 'home' %}
                 {% set ns.rooms = ns.rooms + [(name, room)] %}
               {% endif %}
-              {% set ns.rooms = ns.rooms + [(name, sensor)] %}
+              {% set ns.rooms = ns.rooms + [(name, (sensor).split('_')|first)] %}
             {% endfor %}
             
             {% if is_state('binary_sensor.maxi_alone', 'on') %}
@@ -982,7 +989,7 @@
               At {{gpslocation}}
             {% else %}
               not_home
-            {% endif %}       
+            {% endif %}     
         attributes:
           rooms: >
             {% set info = [
@@ -998,7 +1005,7 @@
               {% if room != 'not_home' and room != 'main floor'and room  != 'unknown' and room  != 'Home' %}
                 {% set ns.rooms = ns.rooms + [(name, room)] %}
               {% endif %}
-              {% set ns.rooms = ns.rooms + [(name, sensor)] %}
+              {% set ns.rooms = ns.rooms + [(name, (sensor).split('_')|first)] %}
             {% endfor %}
             
             {% if is_state('binary_sensor.maxi_alone', 'on') %}
