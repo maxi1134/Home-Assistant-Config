@@ -1,0 +1,271 @@
+substitutions:
+  name: esp32-s3-box-3-05a8d4
+  
+#####################################################################
+##### DO NOT CHANGE SUBSTITUTIONS BELOW THIS LINE ######
+#####      UNLESS YOU KNOW WHAT YOU ARE DOING     ######
+  font_glyphs: '&@!"''%()+=,-_.:°/$€£¥?0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyzÀàÁáÂâÃãÄäĀāĂăÅåǺǻẠạĄąÆæǼǽĆćĈĉČčĊċÇçĎďĐđÐðÈèÉéÊêẼẽĚěËëĒēĔĕĖėẸẹĘęĜĝǦǧĞğĠġĢģĤĥĦħıÌìÍíÎîĨĩÏïĪīĬĭİỊịĮįȷĴĵĶķĸĹĺĽľĻļŁłĿŀŃńÑñŇňŅņƝɲŊŋŉÒòÓóÔôÕõÖöŌōŎŏŐőỌọǪǫØøǾǿŒœŔŕŘřŖŗŚśŜŝŠšŞşȘșẞßŤťŢţȚțŦŧÞþÙùÚúÛûŨũÜüŪūŬŭŮůŰűỤụŲųẀẁẂẃŴŵẄẅỲỳÝýŶŷỸỹŸÿȲȳŹźŽžŻżĲĳƏə'
+  font_file: https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/fonts/consola.ttf
+  icon_font_file: https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/fonts/materialdesignicons-webfont.ttf
+############# END OF SUBSTITUTIONS #################
+####################################################
+  friendly_name: ESP32 S3 Box 3 05a8d4
+packages:
+  esphome.voice-assistant: github://esphome/wake-word-voice-assistants/esp32-s3-box-3/esp32-s3-box-3.yaml@main
+esphome:
+  name: ${name}
+  name_add_mac_suffix: false
+  friendly_name: ${friendly_name}
+api:
+  encryption:
+    key: xWsjw8RARR/YKq9d/sgO6NEUJqpsS0WmCPkZISMnv/0=
+
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+i2c:
+  - id: bus_a
+    sda: GPIO08
+    scl: GPIO18
+    scan: true
+    sda_pullup_enabled: true
+    scl_pullup_enabled: true
+    frequency: 100kHz
+
+
+sensor:       
+  - platform: homeassistant
+    id: outside_temp
+    entity_id: sensor.sensor_outside_temperature_temperature
+    internal: true
+touchscreen:
+  - platform: gt911
+    i2c_id: bus_a
+    address: 0x5D
+    id: gt911_touchscreen
+    interrupt_pin:
+      number: GPIO3
+      ignore_strapping_warning: true
+binary_sensor:
+  - platform: touchscreen
+    page_id: saver_page
+    id: ss_wake
+    internal: true
+    x_min: 0
+    x_max: 320
+    y_min: 0
+    y_max: 240
+    on_click:
+      min_length: 10ms
+      max_length: 500ms
+      then:
+        - display.page.show: saver_page
+        - component.update: s3_box_lcd
+  - platform: gt911
+    id: home_button
+    index: 0
+    on_press:
+      - if:
+          condition:
+            - voice_assistant.is_running
+          then:
+            - voice_assistant.stop
+            - display.page.show: saver_page
+            - component.update: s3_box_lcd
+
+time:
+  - platform: homeassistant
+    id: ha_time   
+
+display:
+  - platform: ili9xxx
+    id: s3_box_lcd
+    model: S3BOX
+    invert_colors: false
+    data_rate: 40MHz
+    cs_pin: 5
+    dc_pin: 4
+    reset_pin:
+      number: 48
+      inverted: true
+    update_interval: never
+    pages:
+      - id: saver_page ##### screen saver display page #####
+        lambda: |-
+          it.fill(id(black));
+           
+          const char *days[] {"${sunday}","${monday}","${tuesday}","${wednesday}","${thursday}","${friday}","${saturday}"};
+          const char *months[] {"${jan}","${feb}","${mar}","${apr}","${may}","${jun}","${jul}","${aug}","${sept}","${oct}","${nov}","${dec}"};
+          it.printf(160, 28, id(my_font5), light_blue, TextAlign::CENTER, "%s %d %s", days[id(ha_time).now().day_of_week - 1], id(ha_time).now().day_of_month, months[id(ha_time).now().month - 1]);
+          if(id(time_display_format).state == "24 Hr") {
+            it.strftime(160, 88, id(my_font82), TextAlign::CENTER, "%H:%M", id(ha_time).now());
+          } else {
+            it.strftime(160, 88, id(my_font2), TextAlign::CENTER, "%l:%M%p", id(ha_time).now());
+          }
+          it.printf(160, 181, id(my_font2), light_blue, TextAlign::CENTER, "%.f°C", id(outside_temp).state); 
+
+font:
+  - file: ${font_file}
+    id: my_font
+    size: 14
+    glyphs:
+      '${font_glyphs}'
+
+  - file: ${font_file}
+    id: my_font16
+    size: 16
+    glyphs:
+      '${font_glyphs}'
+
+  - file: ${font_file}
+    id: my_font2
+    size: 72
+    glyphs:
+      '${font_glyphs}'
+
+  - file: ${font_file}
+    id: my_font3
+    size: 28
+    glyphs:
+      '${font_glyphs}'
+
+  - file: ${font_file}
+    id: my_font4
+    size: 40
+    glyphs:
+      '${font_glyphs}'
+
+  - file: ${font_file}
+    id: my_font18
+    size: 18
+    glyphs:
+      '${font_glyphs}'
+  - file: ${font_file}
+    id: my_font5
+    size: 22
+    glyphs:
+      '${font_glyphs}'
+  - file: ${font_file}
+    id: my_font6
+    size: 50
+    glyphs:
+      '${font_glyphs}'
+
+  - file: ${font_file}
+    id: my_font82
+    size: 82
+    glyphs:
+      '${font_glyphs}'
+ 
+  - file: ${font_file}
+    id: font_timer
+    size: 30
+    glyphs:
+      '${font_glyphs}'
+
+  - file: ${icon_font_file}
+    id: icon_font_55
+    size: 45
+    glyphs: &icon_glyphs
+      - "\U000F0079"#battery 100%
+      - "\U000F007A"#battery 10%
+      - "\U000F007B"#battery 20%
+      - "\U000F007C"#battery 30%
+      - "\U000F007D"#battery 40%
+      - "\U000F007E"#battery 50%
+      - "\U000F007F"#battery 60%
+      - "\U000F0080"#battery 70%
+      - "\U000F0081"#battery 80%
+      - "\U000F0082"#battery 90%
+      - "\U000F009E"#bell
+      - "\U000F0150"#clock
+      - "\U000F01AE"#gbp pound symbol
+      - "\U000F0210"#fan
+      - "\U000F0238"#heating
+      - "\U000F024A"#garden/flower
+      - "\U000F0335"#light bulb off
+      - "\U000F036C"#microphone on
+      - "\U000F036D"#microphone off
+      - "\U000F036F"#voice settings
+      - "\U000F03E4"#pause
+      - "\U000F040A"#play
+      - "\U000F040E"#play/pause
+      - "\U000F0493"#settings cog
+      - "\U000F04AD"#next track
+      - "\U000F04AE"#previous track
+      - "\U000F04B9"#living room
+      - "\U000F04C8"#spots
+      - "\U000F04DB"#stop
+      - "\U000F0502"#screen settings
+      - "\U000F050F"#temp sensor
+      - "\U000F0521"#toggle on
+      - "\U000F0565"#arming
+      - "\U000F057E"#speaker on
+      - "\U000F0581"#speaker off
+      - "\U000F05CB"#voice
+      - "\U000F068A"#alarm home
+      - "\U000F06E8"#light bulb illuminated
+      - "\U000F075A"#music
+      - "\U000F075D"#vol plus
+      - "\U000F075E"#vol minus
+      - "\U000F0769"#ceiling
+      - "\U000F07D0"#api connected
+      - "\U000F07F4"#tv
+      - "\U000F0873"#car miles non
+      - "\U000F0874"#car miles full
+      - "\U000F0875"#car miles low
+      - "\U000F087B"#api disconnected
+      - "\U000F08D6"#settings
+      - "\U000F097E"#light switch
+      - "\U000F099D"#alarm away
+      - "\U000F099E"#disarmed
+      - "\U000F0A19"#toggle off
+      - "\U000F0B26"#down
+      - "\U000F0B28"#left
+      - "\U000F0B2A"#right
+      - "\U000F0B2C"#up
+      - "\U000F0B6C"#car battery
+      - "\U000F0D90"#screen off
+      - "\U000F0EBA"#stats
+      - "\U000F0ED4"#voice off
+      - "\U000F0FCE"#scene
+      - "\U000F1061"#dining
+      - "\U000F10CD"#battery warning
+      - "\U000F1160"#kitchen
+      - "\U000F12A8"#touch button
+      - "\U000F12D3"#garage closed
+      - "\U000F12D4"#garage open
+      - "\U000F1322"#tools
+      - "\U000F16BC"#wifidisconnected
+      - "\U000F16BD"#wifi connected
+      - "\U000F1722"#fire off
+      - "\U000F1747"#tall lamp
+      - "\U000F1828"#armed night
+      - "\U000F192D"#electricity
+      - "\U000F1987"#floods
+      - "\U000F1A12"#home button
+      - "\U000F1A1B"#gas
+      - "\U000F1C3B"#battery charging/usb powered
+      - "\U000F1C6F"#info
+      - "\U000F05FA"#kettle
+      - "\U000F070D"#vacuum
+      - "\U000F0AAC"#dishwasher
+      - "\U000F11B8"#dishwasheralert
+      - "\U000F083B"#televisionoff
+
+  - file: ${icon_font_file}
+    id: icon_font_180
+    size: 180
+    glyphs: *icon_glyphs
+
+
+  - file: ${icon_font_file}
+    id: icon_font_80
+    size: 75
+    glyphs: *icon_glyphs
+
+  - file: ${icon_font_file}
+    id: icon_font_60
+    size: 60
+    glyphs: *icon_glyphs

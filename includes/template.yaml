@@ -1,10 +1,10 @@
   - binary_sensor:
       - name: "Shower in Usage"
-        unique_id: shower_in_usagfe
+        unique_id: shower_in_usage
         delay_off:
           minutes: 2
         state: >
-          {{( states('binary_sensor.sensor_bathroom_door_contact') == 'off' and states('switch.bathroom_fan') == 'on' ) }}
+          {{( states('binary_sensor.sensor_bathroom_door_contact') == 'off' and (states('sensor.sensor_bathroom_temperature_humidity') | float  ) > (states('sensor.average_house_humidity') | float + 15 )) }}
 
       - name: "All Present Sleeping"
         unique_id: all_present_sleeping
@@ -24,13 +24,26 @@
           minutes: 0
         state: >
           {% if states('sensor.amount_residents_at_home') | string != '0' %}
-          {% if ( states('sensor.active_sleeper_amount') | int  >= states('sensor.amount_residents_at_home') | int - 1) and ( states('person.maximiliano') == 'home' and states('person.myriam') == 'home'  )  %}
-            on
-          {% elif ( states('sensor.active_sleeper_amount') | int >= states('sensor.amount_residents_at_home')| int  )   %}
-            on
-          {% else %}
-            off
-          {% endif %}
+            {% set maxi_and_myriam_asleep =  ( states('sensor.is_myriam_asleep') == 'asleep' and states('sensor.is_maxi_asleep') == 'asleep' ) %}
+              {% if maxi_and_myriam_asleep == true %}
+                {% if ( states('sensor.active_sleeper_amount') | int  >= states('sensor.amount_residents_at_home') | int - 1) %}
+                  on
+                {% elif ( states('sensor.active_sleeper_amount') | int >= states('sensor.amount_residents_at_home')| int  )   %}
+                  on
+                {% else %}
+                  off
+                {% endif %}
+              {% elif maxi_and_myriam_asleep == false %}
+                {% if ( states('sensor.active_sleeper_amount') | int >= states('sensor.amount_residents_at_home')| int  )   %}
+                  on
+                {% else %}
+                  off
+                {% endif %}
+              {% else %}
+                off
+              {% endif %}
+            {% else %}
+              off
           {% endif %}
 
 
@@ -59,6 +72,26 @@
               or not is_state('sensor.phone_maxi_phone_state', "idle")
               or states('sensor.phone_maxi_audio_mode') != 'normal'and states('person.maximiliano') == 'home' ) }}
   - sensor:
+
+      - name: "Average House Humidity"
+        unique_id: "average_house_humidity"
+        state: >-
+             {{ integration_entities('mqtt')     
+             |    select('search', '_temperature_humidity') 
+             |    select('search', 'sensor_') 
+             |    reject('search', 'calibration') 
+             |    reject('search', 'calibration') 
+             | expand
+             | rejectattr('state', 'search', 'unavailable') 
+             | list 
+             | expand 
+             | map(attribute='state')   
+             | map('float')
+             | list
+             | average
+             | round(2)}}
+        unit_of_measurement: percents
+
       - name: "Playing on Hotbox TV"
         state: >-
           {% if state_attr('media_player.hotbox_top_chromecast', 'media_series_title') %}
@@ -177,7 +210,7 @@
 
       - name: 'Bathroom Usage' 
         state: >-
-          {% if states('binary_sensor.shower_in_use') == "on" %}
+          {% if states('binary_sensor.shower_in_usage') == "on" %}
             Showering
           {% elif  states('binary_sensor.sensor_bathroom_door_contact') == "off" %}
             Occupied
@@ -187,7 +220,7 @@
             Clear
           {% endif %}
         icon: >-
-          {% if states('binary_sensor.shower_in_use') == "on" %}
+          {% if states('binary_sensor.shower_in_usage') == "on" %}
             mdi:shower-head
           {% elif  states('binary_sensor.sensor_bathroom_door_contact') == "off" %}
             mdi:paper-roll-outline
@@ -214,6 +247,7 @@
           {% set array = states.media_player 
           | selectattr('entity_id', 'search', 'speakers') 
           | selectattr('entity_id', 'search', 'universal') 
+          | rejectattr('attributes.volume_level', 'eq', null) 
           | rejectattr('entity_id', 'search', 'following|home|group') 
           | rejectattr('attributes.is_volume_muted', 'eq', True) 
           | selectattr('state', 'eq', 'playing') 
@@ -574,6 +608,19 @@
               |list
               }}      
 
+      - name: Is myriam asleep?
+        unique_id: "is_myriam_asleep"
+        state: >            
+            {% set phone_lux = states('sensor.phone_myriam_light_sensor') | float %} 
+            {% set phone_sleep_confidence = states('sensor.phone_myriam_sleep_confidence') | float %}
+            {% set sleepingstate = "awake" %}
+            {% if phone_sleep_confidence > 90 %}
+              {% set sleepingstate = "asleep" %}
+            {% elif phone_sleep_confidence > 80 and phone_lux < 15 %}            
+              {% set sleepingstate = "asleep" %}
+            {% endif %}
+            {{ sleepingstate }}
+
 
 
 
@@ -664,7 +711,7 @@
         state: >-  
             {% set ns = namespace( activityname="unsure", mediaactiverooms=[],lasttvactiveroom = states("sensor.last_active_room"), active_sleepers_amount=0, allowed_ids=[],active_sleeper_rooms=[], motion_sensors=[], room = states.sensor.maxi_location.state, active_motion_sensors = [] ) %}  {# create a namespace object to store variables #}
             {% set room = states("sensor.maxi_location_by_petro") | lower  %}
-            {% set shower_in_use = states("binary_sensor.shower_in_use") %}
+            {% set shower_in_usage = states("binary_sensor.shower_in_usage") %}
             {% set is_computer_active = states("sensor.is_computer_active") %}
             {% set is_maxi_home = states("person.maximiliano") == "home" %}
             {% set is_maxi_alone = states("binary_sensor.maxi_alone") %}
@@ -697,7 +744,7 @@
                   {% endif %}              
               {% elif ns.active_chromecasts_room | length > 0 and room in ns.active_chromecasts_room%}    
                 {% set ns.activityname = "Watching TV"  %}                    
-              {% elif shower_in_use == "on" %}                                               
+              {% elif shower_in_usage == "on" %}                                               
                 {% set ns.activityname = "Showering" %}
               {% elif ns.active_speakers_room | length > 0 and room in ns.active_speakers_room%}    
                 {% set ns.activityname = "Listening to Music"  %}             
@@ -727,7 +774,7 @@
                   {% else %}                    
                     {%set ns.activityname = "Using the Computer"%}
                   {% endif %}
-              {% elif shower_in_use == "on" and room == "bathroom" %}                                               
+              {% elif shower_in_usage == "on" and room == "bathroom" %}                                               
                 {% set ns.activityname = "Showering" %}
               {% elif ns.active_speakers_room | length > 0 and room in ns.active_speakers_room%}    
                 {% set ns.activityname = "Listening to Music"  %}     
@@ -747,7 +794,7 @@
                   {% endif %}  
               {% elif ns.active_chromecasts_room | length > 0 and room in ns.active_chromecasts_room%}    
                 {% set ns.activityname = "Watching TV"  %}     
-              {% elif shower_in_use == "on" and room == "bathroom" %}                                               
+              {% elif shower_in_usage == "on" and room == "bathroom" %}                                               
                 {% set ns.activityname = "Showering" %} 
               {% elif ns.active_speakers_room | length > 0 and room in ns.active_speakers_room%}    
                 {% set ns.activityname = "Listening to Music"  %}
@@ -966,9 +1013,9 @@
               ('phone', 'device_tracker.maxi_phone_s24_espresense', 'sensor.phone_s24'),
               
             ] %}       
-            {% set gpslocation = states('device_tracker.phone_maxi') | lower %}     
+            {% set gpslocation = states('device_tracker.phone_maxi') | lower %}         
             {% set ns = namespace(rooms=[], results=[]) %}
-            {% for name, room, sensor in info if name != 'watch' or (name == 'watch' and is_state('binary_sensor.galaxy_watch_4_on_body_sensor', 'on')) %}
+            {% for name, room, sensor in info if ( name != 'watch' or (name == 'watch' and is_state('binary_sensor.galaxy_watch_4_on_body_sensor', 'on') and is_state('sensor.galaxy_watch4_2n0f_charger_type', 'none') )) and (name != 'phone' or (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none'))) %}
               {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
               {% if room != 'not_home' and room != 'main floor'and room  != 'unknown' and room  != 'home' %}
                 {% set ns.rooms = ns.rooms + [(name, room)] %}
@@ -989,7 +1036,7 @@
               At {{gpslocation}}
             {% else %}
               not_home
-            {% endif %}     
+            {% endif %}    
         attributes:
           rooms: >
             {% set info = [
@@ -1000,7 +1047,7 @@
             ] %}       
             {% set gpslocation = states('device_tracker.phone_maxi') | lower %}     
             {% set ns = namespace(rooms=[], results=[]) %}
-            {% for name, room, sensor in info if name != 'watch' or (name == 'watch' and is_state('binary_sensor.galaxy_watch_4_on_body_sensor', 'on')) %}
+             {% for name, room, sensor in info if ( name != 'watch' or (name == 'watch' and is_state('binary_sensor.galaxy_watch_4_on_body_sensor', 'on') and is_state('sensor.galaxy_watch4_2n0f_charger_type', 'none') )) and (name != 'phone' or (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none'))) %}
               {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
               {% if room != 'not_home' and room != 'main floor'and room  != 'unknown' and room  != 'Home' %}
                 {% set ns.rooms = ns.rooms + [(name, room)] %}

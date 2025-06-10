@@ -14,6 +14,82 @@ broadcast_alert_in_the_house:
         '
     alias: Store Chromecasts in variables
   - parallel:
+    - if:
+      - condition: state
+        entity_id: binary_sensor.lylou_alone
+        state: 'on'
+      then:
+      - alias: Lights Lylou
+        sequence:
+        - variables:
+            light_entity_ids: "{% set light_group = state_attr('light.group_hotbox_lights','entity_id')%}
+              \  {% set ns = namespace( rgb_dict= [] ) %} {% for entity_id in light_group
+              %}\n    {% set light_state = states(entity_id)  %}\n    {% set light_rgb_color
+              = state_attr(entity_id, \"rgb_color\") %}\n    {% if light_state !=
+              'unavailable' and light_rgb_color %}\n        {%- set rgb_values = light_rgb_color
+              | replace('(','') | replace(')','')| replace(' ','')| string  -%}\n
+              \       {% set rgb_dict = [(entity_id , rgb_values, states(entity_id))]
+              %}\n        {% set ns.rgb_dict = ns.rgb_dict + rgb_dict %}\n    {% elif
+              light_state != 'unavailable' %}\n        {%- set rgb_values = \"0,0,0\"
+              %}\n        {% set rgb_dict = [(entity_id , rgb_values, states(entity_id))]
+              %}\n        {% set ns.rgb_dict = ns.rgb_dict + rgb_dict %}\n    {% endif
+              %}    \n{% endfor %}  {{ ns.rgb_dict }}\n"
+          alias: 'Store Lights entity_id and current rgb values '
+        - alias: Change lights conditionally
+          if:
+          - condition: template
+            value_template: '{% if color %}
+
+              true
+
+              {% else %}
+
+              false
+
+              {% endif %}'
+            alias: ' {{color}} variable  is present'
+          then:
+          - alias: Turn all lights to selected color
+            repeat:
+              sequence:
+              - target:
+                  entity_id: '{{light_entity_ids[repeat.index].0}}'
+                data:
+                  color_name: '{{color}}'
+                enabled: true
+                action: light.turn_on
+              count: '{{ light_entity_ids | length - 1 }}'
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 2
+            milliseconds: 250
+        - alias: Restore lights to their initial state
+          repeat:
+            sequence:
+            - if:
+              - condition: template
+                value_template: '{{ light_entity_ids[repeat.index].2 | bool }}'
+              then:
+              - target:
+                  entity_id: '{{light_entity_ids[repeat.index].0}}'
+                data:
+                  rgb_color: '{{light_entity_ids[repeat.index].1}}'
+                enabled: true
+                alias: Turn back on lights to previous state
+                action: light.turn_{{ light_entity_ids[repeat.index].2 }}
+              alias: Turn on lights back to their original colors
+            - if:
+              - condition: template
+                value_template: '{{ not light_entity_ids[repeat.index].2 | bool }}'
+              then:
+              - target:
+                  entity_id: '{{light_entity_ids[repeat.index].0}}'
+                enabled: true
+                alias: Turn back off lights to previous state
+                action: light.turn_{{ light_entity_ids[repeat.index].2 }}
+              alias: Turn off lights back to off
+            count: '{{ light_entity_ids | length - 1 }}'
     - alias: Lights
       sequence:
       - variables:
@@ -85,58 +161,6 @@ broadcast_alert_in_the_house:
               action: light.turn_{{ light_entity_ids[repeat.index].2 }}
             alias: Turn off lights back to off
           count: '{{ light_entity_ids | length - 1 }}'
-    - alias: 'Announcements '
-      if:
-      - condition: template
-        value_template: '{% if message %}
-
-          true
-
-          {% else %}
-
-          false
-
-          {% endif %}'
-      then:
-      - alias: Announcements
-        parallel:
-        - metadata: {}
-          data:
-            cache: true
-            media_player_entity_id: media_player.group_mass_home_airplay_speakers
-            message: '{{ message }}'
-          target:
-            entity_id: tts.piper
-          alias: TTS in the home group
-          action: tts.speak
-        - metadata: {}
-          data:
-            cache: true
-            media_player_entity_id: media_player.kitchen_google_hub
-            message: '{{ message }}'
-          target:
-            entity_id: tts.piper
-          alias: TTS in the hotbox
-          action: tts.speak
-          continue_on_error: true
-        - metadata: {}
-          data:
-            cache: true
-            media_player_entity_id: media_player.mass_bedroom_airplay_wiim_speaker
-            message: '{{ message }}'
-          target:
-            entity_id: tts.piper
-          alias: TTS in the bedroom
-          action: tts.speak
-        - metadata: {}
-          data:
-            cache: true
-            media_player_entity_id: media_player.mass_closet_wiim_speaker
-            message: '{{ message }}'
-          target:
-            entity_id: tts.piper
-          alias: TTS in the closet
-          action: tts.speak
     - alias: 'music asssitant Announcements '
       if:
       - condition: template
@@ -162,6 +186,32 @@ broadcast_alert_in_the_house:
           alias: TTS in the home
           action: tts.speak
           enabled: true
+        - metadata: {}
+          data:
+            cache: true
+            media_player_entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+            message: '{{ message }}'
+          target:
+            entity_id: tts.piper
+          alias: TTS in the bedroom
+          action: tts.speak
+        - if:
+          - condition: state
+            entity_id: binary_sensor.lylou_alone
+            state: 'on'
+          then:
+          - alias: Announcements
+            parallel:
+            - alias: TTS in the hotbox
+              metadata: {}
+              data:
+                cache: true
+                media_player_entity_id: media_player.mass_hotbox_airplay_wiim_speaker
+                message: '{{ message }}'
+              target:
+                entity_id: tts.piper
+              action: tts.speak
+              enabled: true
     - alias: 'music asssitant Announcements '
       if:
       - condition: template
@@ -311,7 +361,8 @@ broadcast_alert_in_the_house:
   - delay:
       hours: 0
       minutes: 0
-      seconds: 10
+      seconds: 5
+      milliseconds: 0
   mode: queued
   icon: mdi:speaker-message
   max: 3
@@ -1152,7 +1203,7 @@ equalize_home_group_volume:
   alias: Equalize Home GRoup volume
   sequence:
   - variables:
-      average_volume: '{{ state_attr(''media_player.group_mass_home_group_speakers'',''volume_level'')}}'
+      average_volume: '{{ states(''sensor.average_unmuted_speakers_volume'')}}'
       speakers:
       - media_player.universal_hallway_speakers
       - media_player.universal_kitchen_speakers

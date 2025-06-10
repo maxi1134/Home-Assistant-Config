@@ -707,17 +707,17 @@
           entity_id: media_player.universal_bathroom_speakers
   mode: single
 - id: '1713536741103'
-  alias: Start/stop bathroom fan when Bathroom humidity changes
+  alias: Start bathroom fan when Shower in Usage turns on
   description: ''
   triggers:
   - entity_id:
-    - binary_sensor.shower_in_use
+    - binary_sensor.shower_in_usage
     trigger: state
     to: 'on'
     for:
       hours: 0
-      minutes: 1
-      seconds: 0
+      minutes: 0
+      seconds: 30
   conditions: []
   actions:
   - metadata: {}
@@ -725,22 +725,6 @@
     target:
       entity_id: switch.bathroom_fan
     action: switch.turn_on
-  - wait_for_trigger:
-    - entity_id:
-      - sensor.sensor_bathroom_temperature_humidity
-      below: 65
-      trigger: numeric_state
-    continue_on_timeout: true
-    timeout:
-      hours: 0
-      minutes: 45
-      seconds: 0
-      milliseconds: 0
-  - metadata: {}
-    data: {}
-    target:
-      entity_id: switch.bathroom_fan
-    action: switch.turn_off
   mode: restart
 - id: '1713538197256'
   alias: Control Hallway Tablet charging
@@ -1103,7 +1087,6 @@
     - binary_sensor.group_server_motion_occupancy
     - binary_sensor.group_hallway_motion_occupancy
     - binary_sensor.group_kitchen_motion_occupancy
-    - binary_sensor.group_bathroom_motion_occupancy
     - binary_sensor.group_entrance_motion_occupancy
     - binary_sensor.group_livingroom_motion_occupancy
     - binary_sensor.group_workstation_motion_occupancy
@@ -1190,7 +1173,7 @@
   description: ''
   triggers:
   - entity_id:
-    - sensor.power_switch_electric_consumption_w_4
+    - sensor.plug_kitchen_microwave_electric_consumption_w
     above: 100
     trigger: numeric_state
   conditions:
@@ -1206,7 +1189,7 @@
   actions:
   - wait_for_trigger:
     - entity_id:
-      - sensor.power_switch_electric_consumption_w_4
+      - sensor.plug_kitchen_microwave_electric_consumption_w
       for:
         hours: 0
         minutes: 0
@@ -2119,7 +2102,6 @@
   description: After 20 minutes
   triggers:
   - entity_id:
-    - binary_sensor.group_bedroom_motion_occupancy
     - binary_sensor.group_livingroom_motion_occupancy
     - binary_sensor.group_hotbox_top_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
@@ -2862,6 +2844,7 @@
       target:
         entity_id: '{{ sleeper_speaker }}'
       action: media_player.volume_up
+      enabled: false
     - action: media_player.volume_set
       metadata: {}
       data:
@@ -5364,9 +5347,9 @@
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
     - assist_satellite.saloon_assistant_assist_satellite
     - assist_satellite.hallway_assistant_assist_satellite
-    - assist_satellite.hotbox_assistant_assist_satellite
-    - assist_satellite.office_assistant_assist_satellite
     - assist_satellite.lv_assistant_assist_satellite
+    - assist_satellite.bedroom_assistant_assist_satellite
+    - assist_satellite.desktop_assistant_assist_satellite
     from:
     trigger: state
     to: idle
@@ -6502,7 +6485,6 @@
     - binary_sensor.group_closet_motion_occupancy
     - binary_sensor.group_server_motion_occupancy
     - binary_sensor.group_bathroom_motion_occupancy
-    - binary_sensor.group_bedroom_motion_occupancy
     - binary_sensor.group_entrance_motion_occupancy
     - binary_sensor.group_workstation_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
@@ -6684,7 +6666,7 @@
   - trigger: numeric_state
     entity_id:
     - sensor.sensor_bathroom_temperature_humidity
-    below: 50
+    below: sensor.average_house_humidity
   conditions: []
   actions:
   - action: switch.turn_off
@@ -8850,6 +8832,9 @@
     - condition: state
       entity_id: media_player.universal_livingroom_chromecast
       state: playing
+    - condition: state
+      entity_id: media_player.universal_kitchen_chromecast
+      state: playing
   actions:
   - action: media_player.volume_mute
     metadata: {}
@@ -9153,6 +9138,10 @@
       zones:
       - front_door_loitering
       zone_filter: true
+      master_condition:
+      - condition: state
+        entity_id: input_boolean.neighbours_having_a_party
+        state: 'off'
 - id: '1747066080524'
   alias: Turn off Back camera siren when back horn goes off
   description: ''
@@ -10084,6 +10073,7 @@
     to: playing
     trigger: state
     alias: Chromecasts
+    id: chromecast
   - alias: Speakers muted status
     entity_id:
     - media_player.universal_livingroom_speakers
@@ -10107,7 +10097,10 @@
       minutes: 0
       seconds: 2
     from: playing
-  conditions: []
+  conditions:
+  - condition: template
+    value_template: '{{ trigger.id == ''chromecast'' and ((now() - trigger.from_state.last_changed)
+      > timedelta(seconds=600)) or trigger.id != ''chromecast'' }}'
   actions:
   - variables:
       unmuted_playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
@@ -10166,6 +10159,7 @@
       minutes: 0
       seconds: 2
     from:
+    id: speakers
   - alias: Chromecasts mute status
     entity_id:
     - media_player.universal_livingroom_chromecast
@@ -10176,7 +10170,10 @@
     - media_player.universal_bedroom_chromecast
     trigger: state
     attribute: is_volume_muted
-  conditions: []
+  conditions:
+  - condition: template
+    value_template: '{{ trigger.id == ''speakers'' and ((now() - trigger.from_state.last_changed)
+      > timedelta(seconds=600)) or trigger.id != ''speakers'' }}'
   actions:
   - variables:
       playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
@@ -10375,3 +10372,294 @@
       entity_id: input_boolean.sleeper_in_bedroom
     enabled: true
   mode: single
+- id: '1749057091718'
+  alias: Close hotbox blinds when children leaves for 10 minutes
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - person.lylou
+    from: home
+    to: not_home
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+  conditions: []
+  actions:
+  - action: cover.close_cover
+    metadata: {}
+    data: {}
+    target:
+      entity_id: cover.cover_hotbox_blinds
+  mode: single
+- id: '1749101141819'
+  alias: Turn off neighbours party off after 8 hours
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.neighbours_having_a_party
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 8
+      minutes: 0
+      seconds: 0
+  conditions: []
+  actions:
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.neighbours_having_a_party
+  mode: single
+- id: '1749235496765'
+  alias: Skips song's myriam don't like whe she is home
+  description: ''
+  triggers:
+  - entity_id:
+    - media_player.universal_bedroom_speakers
+    - media_player.universal_salon_speakers
+    - media_player.universal_closet_speaker
+    - media_player.universal_hallway_speakers
+    - media_player.universal_kitchen_speakers
+    - media_player.universal_office_speakers
+    - media_player.universal_livingroom_speakers
+    - media_player.universal_hotbox_speakers
+    trigger: state
+    attribute: media_title
+  conditions:
+  - alias: Only continue if song is present on list
+    condition: template
+    value_template: '{% set songs = [''Mr. Blue Sky''] %}
+
+      {{  trigger.to_state.attributes.media_title in songs }}'
+    enabled: true
+  - condition: state
+    entity_id: person.myriam
+    state: home
+    enabled: false
+  actions:
+  - variables:
+      trigger_speaker: '{{ trigger.entity_id }}
+
+        '
+  - action: media_player.media_next_track
+    metadata: {}
+    data: {}
+    target:
+      entity_id: '{{trigger_speaker}}'
+  mode: single
+  trace:
+    stored_traces: 30
+- id: '1749236213811'
+  alias: Mute Speakers if Songs myriam don't like are playing
+  description: ''
+  triggers:
+  - entity_id:
+    - media_player.universal_bedroom_speakers
+    - media_player.universal_salon_speakers
+    - media_player.universal_closet_speaker
+    - media_player.universal_hallway_speakers
+    - media_player.universal_kitchen_speakers
+    - media_player.universal_office_speakers
+    - media_player.universal_livingroom_speakers
+    - media_player.universal_hotbox_speakers
+    trigger: state
+    attribute: media_title
+  conditions:
+  - alias: Only continue if song is present on list
+    condition: template
+    value_template: '{% set songs = [''Mr. Blue Sky''] %}
+
+      {{  trigger.to_state.attributes.media_title in songs }}'
+    enabled: true
+  - condition: state
+    entity_id: person.myriam
+    state: home
+    enabled: false
+  actions:
+  - variables:
+      trigger_speaker: '{{ trigger.entity_id }}
+
+        '
+      songs: '{% set songs = [''Mr. Blue Sky''] %}
+
+        {{songs}}
+
+        '
+  - action: media_player.volume_mute
+    metadata: {}
+    data:
+      is_volume_muted: true
+    target:
+      entity_id: '{{trigger_speaker}}'
+  - wait_template: ''
+    continue_on_timeout: true
+    timeout: '3'
+  - action: media_player.volume_mute
+    metadata: {}
+    data:
+      is_volume_muted: false
+    target:
+      entity_id: '{{trigger_speaker}}'
+  mode: parallel
+  trace:
+    stored_traces: 30
+  max: 8
+- id: '1749266986349'
+  alias: Stop thunderstorm sound when bedroom awakes
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.sleeper_in_bedroom
+    from: 'on'
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 0
+  conditions:
+  - condition: state
+    entity_id: media_player.universal_bedroom_speakers
+    attribute: media_title
+    state: thunderstorm
+  actions:
+  - action: media_player.clear_playlist
+    metadata: {}
+    data: {}
+    target:
+      entity_id: media_player.universal_bedroom_speakers
+  mode: single
+- id: '1749320320984'
+  alias: Turn off cooking mode after 4 hours
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.cooking_mode
+    from: 'off'
+    to: 'on'
+  conditions: []
+  actions:
+  - delay:
+      hours: 4
+      minutes: 0
+      seconds: 0
+      milliseconds: 0
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.cooking_mode
+  mode: single
+- id: '1749333714992'
+  alias: Sleeper actions when salon sleeper turns on
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.sleeper_in_salon
+    from: 'off'
+    to: 'on'
+  conditions: []
+  actions:
+  - action: light.turn_off
+    metadata: {}
+    data:
+      transition: 45
+    target:
+      entity_id: light.group_salon_lights
+  - action: cover.close_cover
+    metadata: {}
+    data: {}
+    target:
+      entity_id: cover.cover_salon_blinds
+  - if:
+    - condition: state
+      entity_id: binary_sensor.group_entrance_motion_occupancy
+      state: 'off'
+    then:
+    - action: light.turn_off
+      metadata: {}
+      data:
+        transition: 20
+      target:
+        entity_id: light.hallway_light
+  mode: single
+- id: '1749333829084'
+  alias: undo Sleeper action in salon when sleeper turns off
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.sleeper_in_salon
+    from: 'on'
+    to: 'off'
+  conditions: []
+  actions:
+  - action: light.turn_on
+    metadata: {}
+    data:
+      transition: 30
+    target:
+      entity_id: light.group_salon_lights
+  mode: single
+- id: '1749501515006'
+  alias: Back lock automation
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - lock.back_door
+    to:
+    from:
+  conditions: []
+  actions: []
+  mode: single
+- id: '1749521213239'
+  alias: Bedroom Hue Dial Automation
+  description: ''
+  triggers:
+  - domain: mqtt
+    device_id: 19def7fc56657d54fccacd364b0ec3fa
+    type: action
+    subtype: dial_rotate_right_step
+    trigger: device
+    id: rotate_right_step
+    enabled: false
+  - domain: mqtt
+    device_id: 19def7fc56657d54fccacd364b0ec3fa
+    type: action
+    subtype: brightness_step_up
+    trigger: device
+    id: brightness_step_up
+    enabled: false
+  - domain: mqtt
+    device_id: 19def7fc56657d54fccacd364b0ec3fa
+    type: action
+    subtype: dial_rotate_right_fast
+    trigger: device
+    id: rotate_right_fast
+    enabled: false
+  - domain: mqtt
+    device_id: 19def7fc56657d54fccacd364b0ec3fa
+    type: action
+    subtype: dial_rotate_right_slow
+    trigger: device
+    id: rotate_right_slow
+    enabled: false
+  - trigger: state
+    entity_id:
+    - sensor.remote_salon_hue_dial_action_step_size
+  conditions: []
+  actions:
+  - action: light.turn_on
+    metadata: {}
+    data:
+      brightness_step_pct: 10
+    target:
+      entity_id: light.group_salon_lights
+  mode: restart
