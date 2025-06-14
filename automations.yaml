@@ -45,6 +45,9 @@
   - condition: state
     entity_id: binary_sensor.all_residents_sleeping
     state: 'off'
+  - condition: template
+    value_template: '{{ (now() - trigger.from_state.last_changed) > timedelta(seconds=7200)
+      }}'
   actions:
   - data:
       media_id: All favorited tracks
@@ -2446,7 +2449,7 @@
     action: switch.turn_off
   mode: restart
 - id: '1717016815299'
-  alias: Alert when someone is in the back
+  alias: Alert when someone is in the back (old)
   description: ''
   triggers:
   - trigger: state
@@ -3509,22 +3512,6 @@
     data: {}
     target:
       entity_id: media_player.group_mass_home_group_speakers
-  mode: single
-- id: '1722712931229'
-  alias: Alert maxi when a work timer ends
-  description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - timer.work_break
-    from: active
-    to: idle
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 2
-  condition: []
-  action: []
   mode: single
 - id: '1722909291790'
   alias: Dial livingroom library control
@@ -5862,31 +5849,23 @@
     enabled: true
   mode: restart
 - id: '1731611467781'
-  alias: Alert when Cooking timer is finished
+  alias: Alert Housewide when Kitchen timer is finished
   description: ''
   triggers:
   - trigger: state
     entity_id:
-    - timer.cooking
-    from: active
-    to: idle
+    - sensor.esp32_s3_box_kitchen_assistant_timer
+    from: 0:00:01
+    to: 0:00:00
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
   conditions: []
   actions:
-  - repeat:
-      sequence:
-      - action: script.non_important_broadcast_alert_in_the_house
-        data:
-          message: Kitchen Timer Finished!
-      - delay:
-          hours: 0
-          minutes: 4
-          seconds: 0
-          milliseconds: 0
-      while:
-      - condition: state
-        entity_id: binary_sensor.group_kitchen_motion_occupancy
-        state: 'off'
-    enabled: true
+  - action: script.non_important_broadcast_alert_in_the_house
+    data:
+      message: Kitchen Timer Finished!
   mode: single
 - id: '1731636350020'
   alias: Auto vacuum the entrance
@@ -7331,170 +7310,6 @@
     target:
       entity_id: switch.plug_lylou_galaxy_lamp
   mode: single
-- id: '1740413822383'
-  alias: Hotbox Top Black hue Dial Automation
-  description: ''
-  triggers:
-  - domain: mqtt
-    device_id: 19def7fc56657d54fccacd364b0ec3fa
-    type: action
-    subtype: dial_rotate_right_step
-    trigger: device
-  conditions: []
-  actions: []
-  mode: single
-- id: '1740414023092'
-  alias: Philips hue dial automation
-  description: ''
-  use_blueprint:
-    path: freakshock88/philips_hue_tap_dial_switch_zigbee2mqtt_actions_blueprint.yaml
-    input:
-      mqtt_topic: zigbee2mqtt/remote_salon_hue dial
-      remote_button_3_single_press:
-      - action: media_player.media_play
-        metadata: {}
-        data: {}
-        target:
-          entity_id: media_player.universal_hotbox_speakers
-      - action: media_player.media_play
-        metadata: {}
-        data: {}
-        target:
-          entity_id: media_player.universal_hotbox_top_chromecast
-      remote_button_4_single_press:
-      - choose:
-        - conditions:
-          - condition: state
-            entity_id: media_player.universal_hotbox_top_chromecast
-            attribute: is_volume_muted
-            state: false
-            alias: If TV unmuted
-          - condition: or
-            conditions:
-            - condition: state
-              entity_id: media_player.universal_hotbox_speakers
-              state: 'off'
-            - condition: state
-              entity_id: media_player.universal_hotbox_speakers
-              attribute: is_volume_muted
-              state: true
-            alias: If Speaker off or muted
-          - condition: not
-            conditions:
-            - condition: state
-              entity_id: media_player.universal_hotbox_top_chromecast
-              state: 'off'
-            alias: if TV not off
-          sequence:
-          - action: media_player.turn_off
-            metadata: {}
-            data: {}
-            target:
-              entity_id: media_player.universal_hotbox_top_chromecast
-        - conditions:
-          - alias: If speaker unmuted
-            condition: or
-            conditions:
-            - condition: state
-              entity_id: media_player.universal_hotbox_speakers
-              attribute: is_volume_muted
-              state: false
-          - condition: or
-            conditions:
-            - condition: state
-              entity_id: media_player.universal_hotbox_top_chromecast
-              state: 'off'
-            - condition: state
-              entity_id: media_player.universal_hotbox_top_chromecast
-              attribute: is_volume_muted
-              state: true
-              alias: If TV unmuted
-            alias: If TV muted or OFF
-          sequence:
-          - action: media_player.turn_off
-            metadata: {}
-            data: {}
-            target:
-              entity_id: media_player.universal_hotbox_speakers
-        default:
-        - action: media_player.media_pause
-          metadata: {}
-          data: {}
-          target:
-            area_id:
-            - hotbox_top
-            - hotbox
-      remote_button_1_hold: []
-      remote_button_1_single_press:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness_pct: 1
-        target:
-          entity_id: light.hotbox_top_led_leds_bed_section
-      remote_button_4_hold:
-      - choose:
-        - conditions:
-          - condition: state
-            entity_id: media_player.universal_hotbox_top_chromecast
-            attribute: is_volume_muted
-            state: false
-            alias: If TV unmuted
-          - condition: or
-            conditions:
-            - condition: state
-              entity_id: media_player.universal_hotbox_speakers
-              state: 'off'
-            - condition: state
-              entity_id: media_player.universal_hotbox_speakers
-              attribute: is_volume_muted
-              state: true
-            alias: If Speaker off or muted
-          - condition: not
-            conditions:
-            - condition: state
-              entity_id: media_player.universal_hotbox_top_chromecast
-              state: 'off'
-            alias: if TV not off
-          sequence:
-          - action: media_player.turn_off
-            metadata: {}
-            data: {}
-            target:
-              entity_id: media_player.universal_hotbox_top_chromecast
-        - conditions:
-          - alias: If speaker unmuted
-            condition: or
-            conditions:
-            - condition: state
-              entity_id: media_player.universal_hotbox_speakers
-              attribute: is_volume_muted
-              state: false
-          - condition: or
-            conditions:
-            - condition: state
-              entity_id: media_player.universal_hotbox_top_chromecast
-              state: 'off'
-            - condition: state
-              entity_id: media_player.universal_hotbox_top_chromecast
-              attribute: is_volume_muted
-              state: true
-              alias: If TV unmuted
-            alias: If TV muted or OFF
-          sequence:
-          - action: media_player.turn_off
-            metadata: {}
-            data: {}
-            target:
-              entity_id: media_player.universal_hotbox_speakers
-        default:
-        - action: media_player.media_stop
-          metadata: {}
-          data: {}
-          target:
-            area_id:
-            - hotbox_top
-            - hotbox
 - id: '1740689782460'
   alias: Control brightness of Closet tablet to avoid discharge
   description: ''
@@ -10569,7 +10384,7 @@
   - action: light.turn_off
     metadata: {}
     data:
-      transition: 45
+      transition: 10
     target:
       entity_id: light.group_salon_lights
   - action: cover.close_cover
@@ -10588,6 +10403,22 @@
         transition: 20
       target:
         entity_id: light.hallway_light
+  - if:
+    - condition: state
+      entity_id: binary_sensor.group_office_motion_occupancy
+      state: 'off'
+    then:
+    - action: light.turn_off
+      metadata: {}
+      data:
+        transition: 15
+      target:
+        entity_id:
+        - light.group_office_lights
+  - action: google_assistant_sdk.send_text_command
+    metadata: {}
+    data:
+      command: Power off Salon TV
   mode: single
 - id: '1749333829084'
   alias: undo Sleeper action in salon when sleeper turns off
@@ -10654,12 +10485,351 @@
   - trigger: state
     entity_id:
     - sensor.remote_salon_hue_dial_action_step_size
+    enabled: false
+  - domain: mqtt
+    device_id: 19def7fc56657d54fccacd364b0ec3fa
+    type: action
+    subtype: button_1_press
+    trigger: device
+    id: button_1_press
+  - domain: mqtt
+    device_id: 19def7fc56657d54fccacd364b0ec3fa
+    type: action
+    subtype: button_2_press_release
+    trigger: device
+    id: button_2_press
+  - domain: mqtt
+    device_id: 19def7fc56657d54fccacd364b0ec3fa
+    type: action
+    subtype: button_4_hold
+    trigger: device
+    id: button_4_hold
+  - domain: mqtt
+    device_id: 19def7fc56657d54fccacd364b0ec3fa
+    type: action
+    subtype: button_3_press
+    trigger: device
+    id: button_3_press
+  - domain: mqtt
+    device_id: 19def7fc56657d54fccacd364b0ec3fa
+    type: action
+    subtype: button_4_press
+    trigger: device
+    id: button_4_press
+  - domain: mqtt
+    device_id: 19def7fc56657d54fccacd364b0ec3fa
+    type: action
+    subtype: button_2_hold
+    trigger: device
+    id: button_2_hold
   conditions: []
   actions:
-  - action: light.turn_on
-    metadata: {}
-    data:
-      brightness_step_pct: 10
-    target:
-      entity_id: light.group_salon_lights
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - button_1_press
+      sequence:
+      - choose:
+        - conditions:
+          - condition: state
+            entity_id: input_boolean.sleeper_in_bedroom
+            state: 'on'
+          sequence:
+          - action: light.toggle
+            metadata: {}
+            data:
+              kelvin: 3167
+              brightness_pct: 20
+              transition: 10
+            target:
+              entity_id: light.group_bedroom_lights
+        - conditions:
+          - condition: state
+            state: 'off'
+            entity_id: input_boolean.sleeper_in_bedroom
+          sequence:
+          - action: light.toggle
+            metadata: {}
+            data:
+              transition: 4
+            target:
+              entity_id: light.group_bedroom_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 1
+          color_temp_kelvin: 5238
+          brightness_pct: 100
+        target:
+          entity_id: light.group_bedroom_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_hold
+      sequence:
+      - if:
+        - condition: state
+          entity_id: media_player.universal_bedroom_chromecast
+          state: 'off'
+        then:
+        - action: google_assistant_sdk.send_text_command
+          metadata: {}
+          data:
+            command: power off bedroom tv
+      - action: media_player.media_stop
+        metadata: {}
+        data: {}
+        target:
+          area_id: bedroom
+      - action: media_player.clear_playlist
+        metadata: {}
+        data: {}
+        target:
+          area_id: bedroom
+      - action: media_player.turn_off
+        metadata: {}
+        data: {}
+        target:
+          area_id: bedroom
+    - conditions:
+      - condition: trigger
+        id:
+        - button_3_press
+      sequence:
+      - action: media_player.media_play_pause
+        metadata: {}
+        data: {}
+        target:
+          area_id: bedroom
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_press
+      sequence:
+      - action: media_player.media_pause
+        metadata: {}
+        data: {}
+        target:
+          area_id: bedroom
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_hold
+      sequence:
+      - action: script.change_received_lights_to_random_colors
+        metadata: {}
+        data:
+          selected_group: light.group_bedroom_lights
+          saturation: 100
   mode: restart
+- id: '1749669750052'
+  alias: Close bedroom blinds when sun sets
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sun.sun
+    from: above_horizon
+    to: below_horizon
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+  conditions: []
+  actions:
+  - action: cover.close_cover
+    metadata: {}
+    data: {}
+    target:
+      entity_id: cover.cover_bedroom_blinds
+  mode: single
+- id: '1749747271811'
+  alias: Salon Window Ikea Dial Automatioon
+  description: ''
+  use_blueprint:
+    path: EPMatt/ikea_e1744.yaml
+    input:
+      integration: Zigbee2MQTT
+      controller_entity: sensor.remote_salon_window_dial_action
+      action_rotate_left:
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
+
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list | default([])}}
+
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - target:
+              entity_id: '{{chromecast}}'
+            data_template:
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
+                - 0.03}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Chromecast Sound
+          else:
+          - target:
+              entity_id: '{{speaker}}'
+            data_template:
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') - 0.03}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Speaker sound
+        enabled: true
+      helper_last_controller_event: input_text.dial_salon_helper
+      rotate_left_loop: true
+      rotate_right_loop: true
+      action_rotate_right:
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
+
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
+
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - target:
+              entity_id: '{{chromecast}}'
+            data_template:
+              volume_level: '{{ state_attr((chromecast | first),''volume_level'')
+                + 0.02}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Chromecast Sound
+          else:
+          - target:
+              entity_id: '{{speaker}}'
+            data_template:
+              volume_level: '{{ state_attr((speaker | first),''volume_level'') + 0.02}}'
+            action: media_player.volume_set
+            enabled: true
+            alias: Modify Speaker sound
+        enabled: true
+      action_click_short:
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
+
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
+
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_play_pause
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_play_pause
+        enabled: true
+      action_click_triple:
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
+
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
+
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.turn_off
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.turn_off
+        enabled: true
+      rotate_left_max_loop_repeats: 60
+      rotate_right_max_loop_repeats: 60
+      helper_debounce_delay: 0
+      action_click_double:
+      - sequence:
+        - variables:
+            speaker: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''airplay'') |  expand    |map(attribute=''entity_id'')
+              | list}}
+
+              '
+            chromecast: '{{ [area_id(trigger.event.data.entity_id)]     | map(''area_entities'')   |
+              sum(start=[]) |    select(''search'', ''chromecast'')|    select(''search'',
+              ''universal'') |  expand   | selectattr(''attributes.is_volume_muted'',
+              ''false'') |map(attribute=''entity_id'') | list| default(''[]'')}}
+
+              '
+          alias: Find media players
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{{ chromecast | string != ''[]'' }}'
+          then:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{chromecast}}'
+            action: media_player.media_next_track
+          else:
+          - metadata: {}
+            data: {}
+            target:
+              entity_id: '{{speaker}}'
+            action: media_player.media_next_track
+        enabled: true
