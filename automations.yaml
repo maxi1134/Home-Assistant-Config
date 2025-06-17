@@ -3431,7 +3431,8 @@
           brightness_step_pct: 10
         target:
           entity_id: light.group_bedroom_lights
-  mode: single
+  mode: queued
+  max: 10
 - id: '1722263369374'
   alias: assist Stop home group music
   description: ''
@@ -9174,12 +9175,12 @@
   triggers:
   - trigger: state
     entity_id:
-    - media_player.bathroom_speaker
-    attribute: is_volume_muted
-    to: 'true'
+    - binary_sensor.sensor_bathroom_door_contact
+    from: 'off'
+    to: 'on'
     for:
       hours: 0
-      minutes: 4
+      minutes: 5
       seconds: 0
   conditions:
   - condition: state
@@ -9193,7 +9194,24 @@
     entity_id: media_player.bathroom_speaker
     attribute: app_name
     state: Spotify
+  - condition: state
+    entity_id: binary_sensor.group_bathroom_motion_occupancy
+    state: 'off'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
   actions:
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - binary_sensor.group_bathroom_motion_occupancy
+      to: 'off'
+      for:
+        hours: 0
+        minutes: 10
+        seconds: 0
+    continue_on_timeout: false
   - metadata: {}
     data:
       media_content_id: 'plex://{ "library_name": "Muzak", "shuffle": 1, "allow_multiple":
@@ -9658,7 +9676,7 @@
       position: 19
     target:
       entity_id: cover.cover_bedroom_blinds
-  mode: single
+  mode: restart
 - id: '1748838408630'
   alias: close bedroom blind in relation to bedroom ac
   description: ''
@@ -9691,7 +9709,7 @@
       position: 0
     target:
       entity_id: cover.cover_bedroom_blinds
-  mode: single
+  mode: restart
 - id: '1748845212701'
   alias: Undo Sleep actions when "sleeper in bedroom" is turned off
   description: ''
@@ -10439,7 +10457,7 @@
     subtype: dial_rotate_right_step
     trigger: device
     id: rotate_right_step
-    enabled: false
+    enabled: true
   - domain: mqtt
     device_id: 19def7fc56657d54fccacd364b0ec3fa
     type: action
@@ -10461,10 +10479,43 @@
     trigger: device
     id: rotate_right_slow
     enabled: false
+  - domain: mqtt
+    device_id: 19def7fc56657d54fccacd364b0ec3fa
+    type: action
+    subtype: brightness_step_down
+    trigger: device
+    id: brightness_step_down
+    enabled: false
+  - domain: mqtt
+    device_id: 19def7fc56657d54fccacd364b0ec3fa
+    type: action
+    subtype: dial_rotate_left_step
+    trigger: device
+    id: rotate_left_step
+    enabled: true
+  - domain: mqtt
+    device_id: 19def7fc56657d54fccacd364b0ec3fa
+    type: action
+    subtype: dial_rotate_left_fast
+    trigger: device
+    id: rotate_left_fast
+    enabled: false
+  - domain: mqtt
+    device_id: 19def7fc56657d54fccacd364b0ec3fa
+    type: action
+    subtype: dial_rotate_left_slow
+    trigger: device
+    id: rotate_left_slow
+    enabled: false
   - trigger: state
     entity_id:
-    - sensor.remote_salon_hue_dial_action_step_size
+    - sensor.remote_salon_hue_dial_brightness
     enabled: false
+    id: dial_brightness_change
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
   - domain: mqtt
     device_id: 19def7fc56657d54fccacd364b0ec3fa
     type: action
@@ -10606,6 +10657,67 @@
         data:
           selected_group: light.group_bedroom_lights
           saturation: 100
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_right_step
+        - brightness_step_up
+        - rotate_right_slow
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_step_pct: 3
+        target:
+          entity_id: light.group_bedroom_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_right_fast
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_step_pct: 7
+        target:
+          entity_id: light.group_bedroom_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_left_fast
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_step_pct: -10
+        target:
+          entity_id: light.group_bedroom_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_left_step
+        - rotate_left_slow
+        - brightness_step_down
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_step_pct: -3
+        target:
+          entity_id: light.group_bedroom_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - dial_brightness_change
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness: '{{ states(trigger.entity_id) }}
+
+            '
+        target:
+          entity_id: light.group_bedroom_lights
   mode: restart
 - id: '1749669750052'
   alias: Close bedroom blinds when sun sets
