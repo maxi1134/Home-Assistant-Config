@@ -1019,18 +1019,22 @@
       - name: "Maxi Location by petro"
         unique_id: maxi_location_by_petro
         state: >-            
+   
             {% set info = [
               ('watch', 'device_tracker.maxi_watch_4_espresense', 'sensor.watch_galaxy4'),
               ('bracelet', 'device_tracker.maxi_bracelet_espresense', 'sensor.b7bracelet1'),
               ('phone', 'device_tracker.maxi_phone_s24_espresense', 'sensor.phone_s24'),
               
-            ] %}       
+            ] %}          
             {% set gpslocation = states('device_tracker.phone_maxi') | lower %}         
             {% set ns = namespace(rooms=[], results=[]) %}
-            {% for name, room, sensor in info if ( name != 'watch' or (name == 'watch' and is_state('binary_sensor.galaxy_watch_4_on_body_sensor', 'on') and is_state('sensor.galaxy_watch4_2n0f_charger_type', 'none') )) and (name != 'phone' or (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on') )) %}
+            {% for name, room, sensor in info if (name == 'watch' and is_state('binary_sensor.galaxy_watch_4_on_body_sensor', 'on') and is_state('sensor.galaxy_watch4_2n0f_charger_type', 'none') ) or 
+                                                 (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on')) or
+                                                 (name == 'bracelet' )                                                     
+            %}
               {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
                 {% if room != 'not_home' and room != 'main floor' and room  != 'unknown' and room  != 'home' and room!= 'unavailable' %}
-                  {% set ns.rooms = ns.rooms + [(name, room)] %}
+                  {% set ns.rooms = ns.rooms + [(name, room.split('_').0)] %}
                 {% endif %}                
                 {% if sensor != 'not_home' and sensor != 'main floor' and sensor  != 'unknown' and sensor  != 'home' and sensor != 'unavailable' %}
                   {% set ns.rooms = ns.rooms + [(name, sensor.split('_').0)] %}
@@ -1062,7 +1066,7 @@
             ] %}       
             {% set gpslocation = states('device_tracker.phone_maxi') | lower %}         
             {% set ns = namespace(rooms=[], results=[]) %}
-            {% for name, room, sensor in info if ( name != 'watch' or (name == 'watch' and is_state('binary_sensor.galaxy_watch_4_on_body_sensor', 'on') and is_state('sensor.galaxy_watch4_2n0f_charger_type', 'none') )) and (name != 'phone' or (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none'))) %}
+            {% for name, room, sensor in info if ( name != 'watch' or (name == 'watch' and is_state('binary_sensor.galaxy_watch_4_on_body_sensor', 'on') and is_state('sensor.galaxy_watch4_2n0f_charger_type', 'none') )) and (name != 'phone' or (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on') )) %}
               {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
                 {% if room != 'not_home' and room != 'main floor' and room  != 'unknown' and room  != 'home' and room!= 'unavailable' %}
                   {% set ns.rooms = ns.rooms + [(name, room)] %}
