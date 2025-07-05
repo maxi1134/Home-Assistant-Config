@@ -176,24 +176,25 @@ broadcast_alert_in_the_house:
       then:
       - alias: Announcements
         parallel:
-        - metadata: {}
+        - alias: TTS in the home
+          metadata: {}
           data:
             cache: true
             media_player_entity_id: media_player.group_mass_home_group_speakers
             message: '{{ message }}'
-          target:
-            entity_id: tts.piper
-          alias: TTS in the home
           action: tts.speak
           enabled: true
-        - metadata: {}
+          target:
+            entity_id: tts.piper_2
+        - alias: TTS in the bedroom
+          metadata: {}
           data:
             cache: true
             media_player_entity_id: media_player.mass_bedroom_airplay_wiim_speaker
             message: '{{ message }}'
           target:
-            entity_id: tts.piper
-          alias: TTS in the bedroom
+            entity_id:
+            - tts.piper_2
           action: tts.speak
         - if:
           - condition: state
@@ -208,10 +209,10 @@ broadcast_alert_in_the_house:
                 cache: true
                 media_player_entity_id: media_player.mass_hotbox_airplay_wiim_speaker
                 message: '{{ message }}'
-              target:
-                entity_id: tts.piper
               action: tts.speak
               enabled: true
+              target:
+                entity_id: tts.piper_2
     - alias: 'music asssitant Announcements '
       if:
       - condition: template
@@ -246,7 +247,7 @@ broadcast_alert_in_the_house:
             media_player_entity_id: media_player.mass_closet_wiim_speaker
             message: '{{ message }}'
           target:
-            entity_id: tts.piper
+            entity_id: tts.piper_2
           alias: TTS in the closet
           action: tts.speak
           enabled: false
@@ -522,22 +523,28 @@ non_important_broadcast_alert_in_the_house:
       then:
       - alias: Announcements
         parallel:
-        - metadata: {}
+        - alias: TTS in the home group
+          metadata: {}
           data:
             media_player_entity_id: media_player.group_mass_home_group_speakers
             message: '{{ message }}'
-          target:
-            entity_id: tts.piper
-          alias: TTS in the home group
           action: tts.speak
-        - alias: TTS in the bedroom
-          metadata: {}
-          data:
-            media_player_entity_id: media_player.mass_bedroom_airplay_wiim_speaker
-            message: '{{ message }}'
           target:
-            entity_id: tts.piper
-          action: tts.speak
+            entity_id: tts.piper_2
+        - if:
+          - condition: state
+            entity_id: input_boolean.sleeper_in_bedroom
+            state: 'off'
+          then:
+          - alias: TTS in the bedroom
+            metadata: {}
+            data:
+              media_player_entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+              message: '{{ message }}'
+            target:
+              entity_id:
+              - tts.piper_2
+            action: tts.speak
     - alias: TVs
       parallel:
       - alias: Broadcast image to paused TVs if image is present
@@ -1220,18 +1227,6 @@ equalize_home_group_volume:
   description: This script can be used by an LLM in order to equalize the volume in
     the house. This can also be called 'normalization'
   icon: mdi:approximately-equal
-ml_ma_script:
-  use_blueprint:
-    path: Music Assistant/llm_voice_script.yaml
-    input:
-      default_player: media_player.group_mass_home_group_speakers
-      play_continuously: Never
-  alias: ML MA Script
-  description: 'This script is used to play music based on a voice request. The tool
-    takes the following arguments: media_type, artist, album, media_id, radio_mode,
-    area. media_id, media_type, and area are always required and must always be supplied
-    as arguments to this tool. Use the parameters as described in the description
-    of each parameter. Use this tool whenever the user requests to play music.'
 speaker_automatic_volume_adjustment_script:
   sequence:
   - variables:
@@ -1482,19 +1477,21 @@ llm_script_for_music_assitant_voice_requests:
       required: true
     media_player:
       selector:
-        entity:
-          filter:
-            integration: cast
-          multiple: false
+        entity: {}
       name: Media Player
       required: true
-      description: This fieds allows the LLM to select the right CHROMECAST to use.
-        A speaker should NEVER be used. And an entity ending with "Speakers" is INCORRECT
-      default: media_player.salon_chromecast
+      description: This argument allows the LLM to select the right CHROMECAST  TV
+        to use. A speaker should NEVER be used. An entity containing "Speaker" is
+        INCORRECT
+    area:
+      selector:
+        area: {}
+      name: area
+      description: This argument allows the LLM to select the right area to use
   sequence:
   - variables:
       player_data: "{% if media_player | first %} \n{% set media_player_no_space =
-        (media_player | lower ).replace('universal_','').replace('universal ','').replace('media_player.','').replace('chromecast','').replace('_chromecast','').split('
+        (media_player | lower).replace('universal_','').replace('universal ','').replace('media_player.','').replace('chromecast','').replace('_chromecast','').replace('tv','').replace('_tv','').split('
         ') | first%}  \n{{integration_entities('universal') \n | expand\n | selectattr('entity_id',
         'search', 'chromecast')\n | selectattr('entity_id', 'search', media_player_no_space
         | lower)\n | map(attribute='entity_id') | list }}\n\n \n{% elif area | first
@@ -1515,8 +1512,8 @@ llm_script_for_music_assitant_voice_requests:
     data: '{{ dict(action_data.items() | rejectattr(''1'', ''eq'', ''NA'')) }}'
     target: '{{ dict(target_data.items() | rejectattr(''1'', ''eq'', ''NA'')) }}'
   - stop: Playback started!
-    response_variable: target
-    enabled: false
+    response_variable: target_data
+    enabled: true
   alias: LLM Script to start TV SHOWS and MOVIES on TVs
 set_whole_house_tonsexy_ambiance:
   sequence:
@@ -1727,6 +1724,16 @@ set_whole_house_to_a_normal_ambiance:
       target:
         entity_id: light.group_all_inside_lights
       alias: Slowly set all inside lights to warm white
+    - alias: Slowly set all inside lights to warm white
+      action: light.turn_on
+      metadata: {}
+      data:
+        kelvin: 4282
+        transition: 12
+        brightness_pct: 100
+        effect: effect_stop
+      target:
+        entity_id: light.group_all_inside_lights
     - if:
       - condition: state
         entity_id: media_player.universal_home_speakers
@@ -1847,48 +1854,6 @@ reset_tablet_endpoint_interface:
         area is provided, use the area the request comes from.
       required: true
   alias: 'Reset Tablet Endpoint interface '
-llm_math_script:
-  sequence:
-  - variables:
-      math_result: "{% if \"Multi\" | lower in operator | lower %}\n  {{ first_number
-        * second_number }}\n{% elif \"Add\" | lower in operator | lower%}\n  {{ first_number
-        + second_number }}\n{% elif \"Divi\" | lower in operator | lower%}\n  {{ first_number
-        / second_number }}\n{% elif \"Sub\" | lower in operator | lower%}\n  {{ first_number
-        - second_number }}\n{% endif %}\n"
-  - stop: Results computed
-    response_variable: math_result
-  mode: parallel
-  max_exceeded: silent
-  description: 'This Script can be used by the LLM to do mathematic.
-
-
-    This script should ALWAYS AND ABSOLUTELY POSITIVELY SOLELY USED FOR MATHEMATIC.
-    The LLM should NEVER attempt to solve the problem itself'
-  fields:
-    first_number:
-      selector:
-        number:
-          min: 0
-          max: 999999
-      name: First number
-      description: The first number of the equations given by the user.
-      required: true
-    second_number:
-      selector:
-        number:
-          min: 0
-          max: 999999
-      name: second number
-      description: The second number of the equations given by the user.
-      required: true
-    operator:
-      selector:
-        text: {}
-      name: operator
-      description: The oeprator of the equations given by the user. It can either
-        be "Multiplication", "Addition", "Division", or "Substraction".
-      required: true
-  alias: LLM Math Script
 changes_all_on_lights_to_white:
   sequence:
   - variables:
@@ -2032,3 +1997,211 @@ changes_all_existing_lights_to_white:
 
 
     Take note that it excludes the Hotbox And the Bedroom lights'
+chromecast_automatic_volume_adjustment_script:
+  sequence:
+  - variables:
+      chromecast_id: '{{ received_chromecast }}
+
+        '
+  - alias: Set volume then mute if empty
+    sequence:
+    - choose:
+      - conditions:
+        - condition: time
+          after: 08:45:00
+          before: '11:30:00'
+          weekday:
+          - fri
+          - thu
+          - wed
+          - tue
+          - mon
+          - sat
+          - sun
+        sequence:
+        - metadata: {}
+          data:
+            volume_level: 0.6
+          target:
+            entity_id: '{{chromecast_id}}'
+          enabled: true
+          action: media_player.volume_set
+        - metadata: {}
+          data:
+            is_volume_muted: false
+          target:
+            entity_id: '{{chromecast_id}}'
+          alias: Unmute speaker
+          action: media_player.volume_mute
+      - conditions:
+        - condition: time
+          after: '11:30:00'
+          before: '21:30:00'
+          weekday:
+          - fri
+          - thu
+          - wed
+          - tue
+          - mon
+          - sun
+          - sat
+        sequence:
+        - metadata: {}
+          data:
+            volume_level: 0.9
+          target:
+            entity_id: '{{chromecast_id}}'
+          enabled: true
+          action: media_player.volume_set
+        - metadata: {}
+          data:
+            is_volume_muted: false
+          target:
+            entity_id: '{{chromecast_id}}'
+          alias: Unmute speaker
+          action: media_player.volume_mute
+      - conditions:
+        - condition: time
+          after: '21:30:00'
+          before: '23:30:00'
+          weekday:
+          - fri
+          - thu
+          - wed
+          - tue
+          - mon
+          - sun
+          - sat
+        sequence:
+        - metadata: {}
+          data:
+            volume_level: 0.65
+          target:
+            entity_id: '{{chromecast_id}}'
+          enabled: true
+          action: media_player.volume_set
+        - metadata: {}
+          data:
+            is_volume_muted: false
+          target:
+            entity_id: '{{chromecast_id}}'
+          alias: Unmute speaker
+          action: media_player.volume_mute
+      - conditions:
+        - condition: time
+          after: '23:30:00'
+          before: 01:00:00
+          weekday:
+          - fri
+          - thu
+          - wed
+          - tue
+          - mon
+          - sun
+          - sat
+        sequence:
+        - metadata: {}
+          data:
+            volume_level: 0.55
+          target:
+            entity_id: '{{chromecast_id}}'
+          enabled: true
+          action: media_player.volume_set
+        - metadata: {}
+          data:
+            is_volume_muted: false
+          target:
+            entity_id: '{{chromecast_id}}'
+          alias: Unmute speaker
+          action: media_player.volume_mute
+      - conditions:
+        - condition: time
+          after: 01:00:00
+          before: 03:00:00
+          weekday:
+          - fri
+          - thu
+          - wed
+          - tue
+          - mon
+          - sun
+          - sat
+        sequence:
+        - metadata: {}
+          data:
+            volume_level: 0.45
+          target:
+            entity_id: '{{chromecast_id}}'
+          enabled: true
+          action: media_player.volume_set
+        - metadata: {}
+          data:
+            is_volume_muted: false
+          target:
+            entity_id: '{{chromecast_id}}'
+          alias: Unmute speaker
+          action: media_player.volume_mute
+      - conditions:
+        - condition: time
+          after: 03:00:00
+          before: 08:45:00
+          weekday:
+          - fri
+          - thu
+          - wed
+          - tue
+          - mon
+          - sun
+          - sat
+        sequence:
+        - metadata: {}
+          data:
+            volume_level: 0.35
+          target:
+            entity_id: '{{chromecast_id}}'
+          enabled: true
+          action: media_player.volume_set
+        - metadata: {}
+          data:
+            is_volume_muted: false
+          target:
+            entity_id: '{{chromecast_id}}'
+          alias: Unmute speaker
+          action: media_player.volume_mute
+      default:
+      - metadata: {}
+        data:
+          volume_level: 0.5
+        target:
+          entity_id: '{{chromecast_id}}'
+        enabled: true
+        action: media_player.volume_set
+      - metadata: {}
+        data:
+          is_volume_muted: false
+        target:
+          entity_id: '{{chromecast_id}}'
+        alias: Unmute speaker
+        action: media_player.volume_mute
+    - alias: Mute if empty
+      if:
+      - alias: Is the speaker room occupied?
+        condition: template
+        value_template: '{{ area_id(chromecast_id) | lower not in states(''sensor.active_motion_rooms'')
+          | string | lower }}
+
+          '
+      - condition: state
+        entity_id: input_boolean.following_music
+        state: 'on'
+      then:
+      - data:
+          is_volume_muted: true
+        target:
+          entity_id: '{{chromecast_id}}'
+        action: media_player.volume_mute
+  alias: Chromecast Automatic Volume Adjustment script
+  description: This script will set the volume of the chromecast to a standard volume
+    in relation to the time of the day
+  mode: parallel
+  max: 10

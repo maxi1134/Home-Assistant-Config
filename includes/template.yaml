@@ -24,7 +24,7 @@
           minutes: 0
         state: >
           {% if states('sensor.amount_residents_at_home') | string != '0' %}
-            {% set maxi_and_myriam_asleep =  ( states('sensor.is_myriam_asleep') == 'asleep' and states('sensor.is_maxi_asleep') == 'asleep' ) %}
+            {% set maxi_and_myriam_asleep =  ( states('sensor.myriam_is_sleeping_at_home') == 'asleep' and states('sensor.is_maxi_asleep') == 'asleep' ) %}
               {% if maxi_and_myriam_asleep == true %}
                 {% if ( states('sensor.active_sleeper_amount') | int  >= states('sensor.amount_residents_at_home') | int - 1) %}
                   on
@@ -509,7 +509,7 @@
             {{ states('sensor.active_sleeper_rooms') | wordcount }}
 
 
-      - name: "active_microphones_rooms"
+      - name: "active microphones rooms"
         unique_id: "active_microphones_rooms"
         state: >-
             {% set ns = namespace(active_micro_room = []) %}  {# create a namespace object to store variables #}
@@ -630,6 +630,23 @@
               {% set sleepingstate = "asleep" %}
             {% elif phone_sleep_confidence > 80 and phone_lux < 15 %}            
               {% set sleepingstate = "asleep" %}
+            {% endif %}
+            {{ sleepingstate }}
+
+
+      - name: Myriam is sleeping at home?
+        unique_id: "myriam_is_sleeping_at_home"
+        state: >            
+            {% set phone_lux = states('sensor.phone_myriam_light_sensor') | float %} 
+            {% set myriam_home = states('person.myriam')  %} 
+            {% set phone_sleep_confidence = states('sensor.phone_myriam_sleep_confidence') | float %}
+            {% set sleepingstate = "awake" %}
+            {% if myriam_home == 'home' %}
+              {% if phone_sleep_confidence > 90 %}
+                {% set sleepingstate = "asleep" %}
+              {% elif phone_sleep_confidence > 80 and phone_lux < 15 %}            
+                {% set sleepingstate = "asleep" %}
+              {% endif %}
             {% endif %}
             {{ sleepingstate }}
 
@@ -1016,6 +1033,26 @@
             {% endif %}
             
             {{ns.most_seen_room }}
+      - name: "Myriam Tablet Location Compounded"
+        unique_id: myriam_talet_location_compounded
+        state: >-
+            {% set info = [('tablet', 'device_tracker.myriam_tablet_s8_espresense', 'sensor.tablet_myriam_location')] %}               
+            {% set ns = namespace(rooms=[], results=[]) %}
+            {% for name, room, sensor in info                                           
+            %}
+              {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
+                {% if room != 'not_home' and room != 'main floor' and room  != 'unknown' and room  != 'home' and room!= 'unavailable' %}
+                  {% set ns.rooms = ns.rooms + [(name, room.split('_').0)] %}
+                {% endif %}                
+                {% if sensor != 'not_home' and sensor != 'main floor' and sensor  != 'unknown' and sensor  != 'home' and sensor != 'unavailable' %}
+                  {% set ns.rooms = ns.rooms + [(name, sensor.split('_').0)] %}
+                {% endif %}              
+            {% endfor %}           
+            {% for room, items in ns.rooms | groupby(attribute='1') %}
+               {% set ns.results = ns.results + [(room, items | map(attribute='0') | list | length)] %}
+            {% endfor %}            
+              {{ ns.results | sort(attribute='1', reverse=True) | map(attribute='0') | first | default }}
+
       - name: "Maxi Location by petro"
         unique_id: maxi_location_by_petro
         state: >-            

@@ -17,7 +17,7 @@
     to: awake
     for:
       hours: 0
-      minutes: 6
+      minutes: 4
       seconds: 0
     trigger: state
   conditions:
@@ -56,6 +56,11 @@
     trigger: state
   conditions: []
   actions:
+  - action: media_player.clear_playlist
+    metadata: {}
+    data: {}
+    target:
+      entity_id: media_player.universal_bedroom_speakers
   - metadata: {}
     data: {}
     action: media_player.turn_off
@@ -103,24 +108,6 @@
     metadata: {}
     data:
       addon: d5369777_music_assistant_beta
-  mode: single
-- id: '1711576326986'
-  alias: Assist play music (default)
-  description: ''
-  triggers:
-  - command:
-    - play music
-    - play some music
-    trigger: conversation
-  conditions: []
-  actions:
-  - data:
-      media_type: playlist
-      enqueue: replace
-      media_id: local maxi playlist
-    action: music_assistant.play_media
-    target:
-      entity_id: media_player.group_mass_home_group_speakers
   mode: single
 - id: '1713378517441'
   alias: Lock front door when it is closed for 5 seconds
@@ -361,7 +348,7 @@
   description: Also check that no psychedelic or kink event is going on
   triggers:
   - entity_id:
-    - sensor.chilling_hotspot
+    - sensor.chilling_hotspot_client_count
     above: 5
     trigger: numeric_state
   conditions:
@@ -897,7 +884,8 @@
       entity_id: '{{playing_speakers}}'
     alias: Unmute the speaker
     action: media_player.volume_mute
-  - alias: Set Speaker volume to median volume  if the room is  empty for a long time
+  - alias: Set Speaker volume to default volume  if the room is  empty for a long
+      time
     if:
     - alias: Is it beene empty  over 1000 seconds?
       condition: template
@@ -905,15 +893,12 @@
         }}'
       enabled: true
     then:
-    - metadata: {}
+    - action: script.speaker_automatic_volume_adjustment_script
+      metadata: {}
       data:
-        volume_level: "{% if average_volume | float > \".55\" | float %}\n .55    \n{%
-          elif average_volume | float < \".20\" | float %}\n .20\n{% else %} {{ average_volume
-          }} {% endif%}\n"
-      target:
-        entity_id: '{{playing_speakers}}'
-      alias: Set volume to the average of the house (maximum 55%)
-      action: media_player.volume_set
+        received_speaker: '{{playing_speakers}}
+
+          '
   mode: parallel
   max: 10
 - id: '1713723493265'
@@ -946,7 +931,6 @@
     data: {}
     target:
       entity_id:
-      - button.hotbox_tablet_load_start_url
       - button.hallway_tablet_load_start_url
       - button.kitchen_tablet_load_start_url
       - button.livingroom_tablet_load_start_url
@@ -979,9 +963,11 @@
       seconds: 0
     trigger: state
   conditions:
-  - condition: template
-    value_template: '{{ area_id(trigger.entity_id) | replace(''_top'','''') | replace(''_down'','''')
-      not in states(''sensor.active_sleeper_rooms'') | string  }}'
+  - alias: Make sure no sleeper is present
+    condition: template
+    value_template: '{{ area_id(trigger.entity_id) | lower | replace(''_top'','''')|
+      replace(''_down'','''') not in states(''sensor.active_sleeper_rooms'') | string
+      | lower }}'
   - condition: not
     conditions:
     - condition: state
@@ -1136,9 +1122,14 @@
       seconds: 0
       milliseconds: 0
     enabled: true
-  - action: script.non_important_broadcast_alert_in_the_house
-    data:
-      message: Microwave finished
+  - if:
+    - condition: state
+      entity_id: binary_sensor.group_kitchen_motion_occupancy
+      state: 'off'
+    then:
+    - action: script.non_important_broadcast_alert_in_the_house
+      data:
+        message: Microwave finished
   mode: restart
 - id: '1714058675432'
   alias: Alert when Washer finishes
@@ -1294,7 +1285,6 @@
     - media_player.universal_bedroom_speakers
     - media_player.universal_bathroom_speakers
     - media_player.universal_hotbox_speakers
-    - media_player.universal_home_speakers
     to: idle
     for:
       hours: 0
@@ -1359,16 +1349,18 @@
   alias: Mute speakers when unmuted chromecast plays in the same room
   description: ''
   triggers:
-  - entity_id:
+  - alias: Chromecasts
+    entity_id:
     - media_player.universal_livingroom_chromecast
     - media_player.universal_hotbox_top_chromecast
     - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
     - media_player.universal_salon_chromecast
     - media_player.universal_bedroom_chromecast
+    - media_player.universal_kitchen_chromecast
+    - media_player.universal_tablet_myriam_s8
     to: playing
     trigger: state
-    alias: Chromecasts
   - alias: Speakers
     entity_id:
     - media_player.universal_livingroom_speakers
@@ -1376,6 +1368,7 @@
     - media_player.universal_hotbox_down_speakers
     - media_player.universal_salon_speakers
     - media_player.universal_bedroom_speakers
+    - media_player.universal_kitchen_speakers
     to: playing
     trigger: state
     for:
@@ -1390,6 +1383,7 @@
     - media_player.universal_patio_chromecast
     - media_player.universal_salon_chromecast
     - media_player.universal_bedroom_chromecast
+    - media_player.universal_kitchen_chromecast
     trigger: state
     attribute: is_volume_muted
   conditions: []
@@ -1725,31 +1719,6 @@
         action: light.turn_off
       alias: If the front door light is off
   mode: restart
-- id: '1715102391801'
-  alias: Alert when there is noise on the terasse
-  description: ''
-  triggers:
-  - entity_id:
-    - binary_sensor.noise_ffmpeg_5
-    to: 'on'
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 0
-    trigger: state
-  conditions:
-  - condition: state
-    entity_id: input_boolean.party_mode
-    state: 'on'
-  - condition: state
-    entity_id: binary_sensor.group_patio_motion_occupancy
-    state: 'on'
-  actions:
-  - metadata: {}
-    data:
-      message: Loud noises on the terasse
-    action: notify.mobile_app_phone_maxi
-  mode: single
 - id: '1715103309573'
   alias: Control LivingRoomTablet charging
   description: ''
@@ -2551,7 +2520,8 @@
       cache: true
       media_player_entity_id: media_player.universal_bedroom_speakers
     target:
-      entity_id: tts.piper
+      entity_id:
+      - tts.piper_2
   - action: media_player.volume_set
     metadata: {}
     data:
@@ -3200,47 +3170,45 @@
 - id: '1717360188815'
   alias: Lock tablets on triggered alarm
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - alarm_control_panel.home_alarm
     to: triggered
-  condition: []
-  action:
-  - service: switch.turn_on
-    metadata: {}
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
     target:
       entity_id:
-      - switch.hotbox_tablet_maintenance_mode
       - switch.samsung_galaxy_tab_e_8_0_maintenance_mode
       - switch.hallway_tablet_maintenance_mode
       - switch.kitchen_tablet_maintenance_mode
       - switch.livingroom_tablet_maintenance_mode
+    action: switch.turn_on
   mode: single
 - id: '1717360231281'
   alias: Unlock tablets on disarmed alarm
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - alarm_control_panel.home_alarm
     to: disarmed
     for:
       hours: 0
       minutes: 0
       seconds: 0
-  condition: []
-  action:
-  - service: switch.turn_off
-    target:
+    trigger: state
+  conditions: []
+  actions:
+  - target:
       entity_id:
-      - switch.hotbox_tablet_maintenance_mode
       - switch.samsung_galaxy_tab_e_8_0_maintenance_mode
       - switch.hallway_tablet_maintenance_mode
       - switch.kitchen_tablet_maintenance_mode
       - switch.livingroom_tablet_maintenance_mode
     data: {}
+    action: switch.turn_off
   mode: single
 - id: '1717797397935'
   alias: Trigger In home defense script through phone notification
@@ -4910,8 +4878,6 @@
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
     - assist_satellite.saloon_assistant_assist_satellite
     - assist_satellite.hallway_assistant_assist_satellite
-    - assist_satellite.hotbox_assistant_assist_satellite
-    - assist_satellite.office_assistant_assist_satellite
     - assist_satellite.lv_assistant_assist_satellite
     from:
     trigger: state
@@ -5036,15 +5002,15 @@
   description: ''
   triggers:
   - entity_id:
-    - binary_sensor.user_home
+    - sensor.amount_residents_at_home
     trigger: state
   conditions: []
   actions:
   - choose:
     - conditions:
-      - condition: state
-        entity_id: binary_sensor.user_home
-        state: 'on'
+      - condition: numeric_state
+        entity_id: sensor.amount_residents_at_home
+        above: 0
       sequence:
       - metadata: {}
         data:
@@ -5054,11 +5020,12 @@
           - climate.hotbox_ac
           - climate.livingroom_ac
           - climate.office_ac
+          - climate.salon_ac
         action: climate.set_preset_mode
     - conditions:
-      - condition: state
-        entity_id: binary_sensor.user_home
-        state: 'off'
+      - condition: numeric_state
+        entity_id: sensor.amount_residents_at_home
+        below: 1
       sequence:
       - metadata: {}
         data:
@@ -5068,6 +5035,7 @@
           - climate.hotbox_ac
           - climate.livingroom_ac
           - climate.office_ac
+          - climate.salon_ac
         action: climate.set_preset_mode
   mode: single
 - id: '1728309825943'
@@ -5246,8 +5214,6 @@
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
     - assist_satellite.saloon_assistant_assist_satellite
     - assist_satellite.hallway_assistant_assist_satellite
-    - assist_satellite.hotbox_assistant_assist_satellite
-    - assist_satellite.office_assistant_assist_satellite
     - assist_satellite.lv_assistant_assist_satellite
     from:
     trigger: state
@@ -5272,19 +5238,29 @@
     - assist_satellite.lv_assistant_assist_satellite
     - assist_satellite.bedroom_assistant_assist_satellite
     - assist_satellite.desktop_assistant_assist_satellite
-    from:
+    from: processing
+    trigger: state
+  - entity_id:
+    - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
+    - assist_satellite.saloon_assistant_assist_satellite
+    - assist_satellite.hallway_assistant_assist_satellite
+    - assist_satellite.lv_assistant_assist_satellite
+    - assist_satellite.bedroom_assistant_assist_satellite
+    - assist_satellite.desktop_assistant_assist_satellite
     trigger: state
     to: idle
+    from:
   conditions:
   - condition: template
     value_template: '{{ area_id(trigger.entity_id) | replace(''_top'','''') | replace(''_down'','''')
-      in states(''sensor.active_sleeper_rooms'') | string  }}'
+      | lower in states(''sensor.active_sleeper_rooms'') | string | lower }}'
   actions:
   - delay:
       hours: 0
       minutes: 0
-      seconds: 2
+      seconds: 0
       milliseconds: 0
+    enabled: false
   - action: light.turn_off
     metadata: {}
     data: {}
@@ -5481,7 +5457,8 @@
       media_player_entity_id: media_player.universal_bedroom_speakers
       message: Please leave this room immediately.
     target:
-      entity_id: tts.piper
+      entity_id:
+      - tts.piper_2
   - wait_for_trigger:
     - trigger: state
       entity_id:
@@ -5594,13 +5571,14 @@
   triggers:
   - trigger: state
     entity_id:
-    - binary_sensor.noise_ffmpeg_5
+    - binary_sensor.parking_exit_camera_yell_sound
+    - binary_sensor.parking_exit_camera_scream_sound
     to: 'on'
     from: 'off'
     for:
       hours: 0
       minutes: 0
-      seconds: 30
+      seconds: 20
   conditions:
   - condition: state
     entity_id: binary_sensor.group_patio_motion_occupancy
@@ -5776,8 +5754,7 @@
   - trigger: state
     entity_id:
     - sensor.esp32_s3_box_kitchen_assistant_timer
-    from: 0:00:01
-    to: 0:00:00
+    to: 0:00:01
     for:
       hours: 0
       minutes: 0
@@ -6475,7 +6452,10 @@
     - binary_sensor.group_salon_motion_occupancy
     trigger: state
     to: 'on'
-  conditions: []
+  conditions:
+  - condition: template
+    value_template: '{{ area_id(trigger.entity_id) | replace(''_top'','''') | replace(''_down'','''')
+      not in states(''sensor.active_sleeper_rooms'') | string  }}'
   actions:
   - variables:
       esp32_screens_entities: '{{([area_id(trigger.entity_id)]  | map(''area_entities'')
@@ -6510,6 +6490,7 @@
   - condition: state
     entity_id: binary_sensor.all_residents_sleeping
     state: 'off'
+    enabled: false
   actions:
   - choose:
     - conditions:
@@ -6668,25 +6649,6 @@
     target:
       entity_id: light.hotbox_down_light
   mode: single
-- id: '1736355787833'
-  alias: Restart FFMPEG noise detection if it crashes
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - binary_sensor.noise_ffmpeg_5
-    from:
-    to: unavailable
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 10
-  conditions: []
-  actions:
-  - action: ffmpeg.restart
-    metadata: {}
-    data: {}
-  mode: single
 - id: '1737729890470'
   alias: Speaker Automatic Volume v4
   description: Uses the script 'Speaker Automatic Volume Adjustment script'
@@ -6716,14 +6678,19 @@
     from: 'off'
     trigger: state
   conditions:
+  - condition: template
+    value_template: '{{ ''thunderstorm'' not in state_attr(trigger.entity_id,''media_title'')
+      | string }}
+
+      '
+  - condition: state
+    entity_id: input_boolean.following_music
+    state: 'on'
   - alias: Only continue if non-playing for over 300 seconds
     condition: template
     value_template: '{{  ((as_timestamp((now()) )   - (as_timestamp(trigger.from_state.last_changed))))
       | float > 300}}'
     enabled: true
-  - condition: state
-    entity_id: input_boolean.following_music
-    state: 'on'
   actions:
   - variables:
       trigger_speaker: '{{ trigger.entity_id }}
@@ -6773,7 +6740,7 @@
       media_player_entity_id: media_player.universal_hotbox_speakers
       message: Please leave this room immediately.
     target:
-      entity_id: tts.piper
+      entity_id: tts.piper_2
   - wait_for_trigger:
     - trigger: state
       entity_id:
@@ -7081,7 +7048,8 @@
 
             '
         target:
-          entity_id: tts.piper
+          entity_id:
+          - tts.piper_2
         enabled: true
         action: tts.speak
     - conditions:
@@ -7174,14 +7142,6 @@
       area_id: hotbox
       entity_id:
       - light.group_hotbox_lights
-      - light.hotbox_assistant_lcd_backlight
-  - action: switch.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id:
-      - switch.hotbox_tablet_screen
-      - switch.hotbox_tablet_motion_detection
   - action: switch.turn_on
     metadata: {}
     data: {}
@@ -7207,14 +7167,6 @@
       color_temp_kelvin: 4208
     target:
       entity_id: light.group_hotbox_top_lights
-  - action: switch.turn_on
-    metadata: {}
-    data: {}
-    target:
-      entity_id:
-      - switch.hotbox_tablet_screen
-      - switch.hotbox_tablet_motion_detection
-    enabled: false
   - if:
     - condition: state
       entity_id: sun.sun
@@ -7729,7 +7681,9 @@
       cache: true
       media_player_entity_id: "{{ speaker }} \n"
       message: Phone ringing near the "{{states('device_tracker.maxi_phone_s24_espresense')}}
-    entity_id: tts.piper
+    target:
+      entity_id:
+      - tts.piper_2
   - action: media_player.join
     metadata: {}
     data:
@@ -8307,30 +8261,6 @@
   - action: cloudflare.update_records
     metadata: {}
     data: {}
-  mode: single
-- id: '1743895167890'
-  alias: Turn on outside lights when someone is in Felix back camera
-  description: ''
-  triggers:
-  - entity_id:
-    - binary_sensor.felix_back_camera_person_occupancy
-    to: 'on'
-    trigger: state
-  conditions: []
-  actions:
-  - metadata: {}
-    data:
-      color_temp: 254
-      brightness: 255
-    target:
-      entity_id: light.back_door_light
-    action: light.turn_on
-    enabled: false
-  - action: switch.turn_on
-    metadata: {}
-    data: {}
-    target:
-      entity_id: switch.plug_parking_lamp
   mode: single
 - id: '1743954245142'
   alias: Turn on back door light when door opens
@@ -9842,6 +9772,9 @@
   - condition: state
     entity_id: input_boolean.sleeper_in_hotbox
     state: 'on'
+  - condition: time
+    after: '21:00:00'
+    before: 09:00:00
   actions:
   - action: media_player.volume_set
     metadata: {}
@@ -9875,17 +9808,18 @@
   alias: UnMute chromecasts when no unmuted speakers in the same room
   description: ''
   triggers:
-  - entity_id:
+  - alias: Chromecasts
+    entity_id:
     - media_player.universal_livingroom_chromecast
     - media_player.universal_hotbox_top_chromecast
     - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
     - media_player.universal_salon_chromecast
     - media_player.universal_bedroom_chromecast
-    to: playing
+    to:
     trigger: state
-    alias: Chromecasts
-    id: chromecast
+    id: chromecast_from_off
+    from: 'off'
   - alias: Speakers muted status
     entity_id:
     - media_player.universal_livingroom_speakers
@@ -9909,19 +9843,66 @@
       minutes: 0
       seconds: 2
     from: playing
+  - alias: Chromecasts
+    entity_id:
+    - media_player.universal_livingroom_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_hotbox_down_chromecast
+    - media_player.universal_patio_chromecast
+    - media_player.universal_salon_chromecast
+    - media_player.universal_bedroom_chromecast
+    to: playing
+    trigger: state
+    id: chromecast_to_play
+    from:
+  - alias: Chromecasts
+    entity_id:
+    - media_player.universal_livingroom_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_hotbox_down_chromecast
+    - media_player.universal_patio_chromecast
+    - media_player.universal_salon_chromecast
+    - media_player.universal_bedroom_chromecast
+    to: idle
+    trigger: state
+    id: chromecast_to_idle
+    from:
   conditions:
-  - condition: template
-    value_template: '{{ trigger.id == ''chromecast'' and ((now() - trigger.from_state.last_changed)
-      > timedelta(seconds=600)) or trigger.id != ''chromecast'' }}'
+  - alias: Make sure no sleeper is present
+    condition: template
+    value_template: '{{ area_id(trigger.entity_id) | replace(''_top'','''') | replace(''_down'','''')
+      not  in states(''sensor.active_sleeper_rooms'') | string  }}'
+  - alias: Make sure motion is present
+    condition: template
+    value_template: '{{ area_id(trigger.entity_id) | replace(''_top'','''') | replace(''_down'','''')
+      | lower in  states(''sensor.active_motion_rooms'') | string | lower  }}'
+  - condition: or
+    conditions:
+    - condition: template
+      value_template: '{{  trigger.id != ''chromecast_to_play'' }}'
+    - condition: and
+      conditions:
+      - condition: template
+        value_template: '{{ trigger.id == ''chromecast_to_play'' }}    '
+      - condition: template
+        value_template: '{{ ((now() - trigger.from_state.last_changed) > timedelta(seconds=60))
+          }}  '
+    - condition: and
+      conditions:
+      - condition: template
+        value_template: '{{ trigger.id == ''chromecast_to_idle'' }}    '
+      - condition: template
+        value_template: '{{ ((now() - trigger.from_state.last_changed) > timedelta(seconds=60))
+          }}  '
   actions:
   - variables:
       unmuted_playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
         \ | sum(start=[])\n  | select('search', 'speakers')\n  | select('search',
         'universal')\n  | select('is_state','playing')\n  | expand\n  | selectattr('attributes.is_volume_muted',
         'eq', false)\n  | map(attribute='entity_id')\n  | unique\n  | list \n}}\n"
-      player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
+      playing_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
         \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
-        'universal')\n  | select('is_state','playing')\n  | expand\n  | map(attribute='entity_id')\n
+        'universal')\n  | reject('is_state','off')\n  | expand\n  | map(attribute='entity_id')\n
         \ | unique\n  | list \n}}\n"
   - if:
     - condition: template
@@ -9932,11 +9913,12 @@
       data:
         is_volume_muted: false
       target:
-        entity_id: '{{player_chromecasts | list}}'
-    - action: script.speaker_automatic_volume_adjustment_script
+        entity_id: '{{playing_chromecasts | list}}'
+    - action: script.chromecast_automatic_volume_adjustment_script
       metadata: {}
       data:
-        received_speaker: '{{player_chromecasts | list}}'
+        received_chromecast: '{{playing_chromecasts | list}}'
+      enabled: true
   mode: restart
 - id: '1748928181744'
   alias: UnMute speakers when no unmuted chromecast in the same room
@@ -9950,7 +9932,7 @@
     - media_player.universal_patio_chromecast
     - media_player.universal_salon_chromecast
     - media_player.universal_bedroom_chromecast
-    to:
+    - media_player.universal_tablet_myriam_s8
     trigger: state
     from: playing
     for:
@@ -9986,6 +9968,14 @@
   - condition: template
     value_template: '{{ trigger.id == ''speakers'' and ((now() - trigger.from_state.last_changed)
       > timedelta(seconds=600)) or trigger.id != ''speakers'' }}'
+  - alias: Make sure no sleeper is present
+    condition: template
+    value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_sleeper_rooms'')
+      | string | lower }}'
+  - alias: Make sure motion is present
+    condition: template
+    value_template: '{{ area_id(trigger.entity_id) | replace(''_top'','''') | replace(''_down'','''')
+      | lower in  states(''sensor.active_motion_rooms'') | string | lower   }}'
   actions:
   - variables:
       playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
@@ -10240,28 +10230,49 @@
     - media_player.universal_livingroom_speakers
     - media_player.universal_hotbox_speakers
     trigger: state
+    to: playing
+    enabled: false
+  - entity_id:
+    - media_player.universal_bedroom_speakers
+    - media_player.universal_salon_speakers
+    - media_player.universal_closet_speaker
+    - media_player.universal_hallway_speakers
+    - media_player.universal_kitchen_speakers
+    - media_player.universal_office_speakers
+    - media_player.universal_livingroom_speakers
+    - media_player.universal_hotbox_speakers
+    trigger: state
     attribute: media_title
   conditions:
-  - alias: Only continue if song is present on list
-    condition: template
-    value_template: '{% set songs = [''Mr. Blue Sky''] %}
-
-      {{  trigger.to_state.attributes.media_title in songs }}'
-    enabled: true
   - condition: state
     entity_id: person.myriam
     state: home
-    enabled: false
+    enabled: true
   actions:
   - variables:
       trigger_speaker: '{{ trigger.entity_id }}
 
         '
-  - action: media_player.media_next_track
-    metadata: {}
-    data: {}
-    target:
-      entity_id: '{{trigger_speaker}}'
+      disliked_songs: '{% set output = [''Mr. Blue Sky'',''Mr Blue Sky''] %}
+
+        {{ output }}
+
+        '
+      playing_song: '{% if trigger %} {% set output = (  (trigger.to_state.attributes.media_title).split(''('').0
+        ) | default(''none'')  %} {{ output }} {% endif %}
+
+        '
+  - if:
+    - condition: template
+      value_template: '
+
+        {{ playing_song in disliked_songs }}'
+    then:
+    - action: media_player.media_next_track
+      metadata: {}
+      data: {}
+      target:
+        entity_id: '{{trigger_speaker}}'
   mode: single
   trace:
     stored_traces: 30
@@ -10290,7 +10301,7 @@
   - condition: state
     entity_id: person.myriam
     state: home
-    enabled: false
+    enabled: true
   actions:
   - variables:
       trigger_speaker: '{{ trigger.entity_id }}
@@ -11048,3 +11059,313 @@
     action: media_player.volume_mute
   mode: parallel
   max: 10
+- id: '1750437590850'
+  alias: Turn on Bedroom mirror smart plug when myriam awakes
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.is_myriam_asleep
+    from: 'on'
+    to: 'Off'
+  - trigger: template
+    value_template: '{{ ((state_attr(''sensor.phone_myriam_next_alarm'',''Time in
+      Milliseconds'') / 1000 ) | int - now().timestamp() | int ) < 60 }} '
+    alias: 10  minutes before myriam's next alarm is due
+  conditions:
+  - condition: template
+    value_template: '{{  ((as_timestamp((now()) )   - (as_timestamp(trigger.from_state.last_changed))))
+      | float > 1800}}'
+    alias: If `Myriam is asleep' was on for over 1800 seconds
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_bedroom_mirror_lamp
+  mode: single
+- id: '1750443660133'
+  alias: Turn off sleep mode for adaptative lighting when myriam awakes
+  description: Turn off sleep mode for adaptative lighting when myriam awakes
+  triggers:
+  - entity_id:
+    - sensor.is_myriam_asleep
+    to: 'off'
+    trigger: state
+    from: 'on'
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+  conditions: []
+  actions:
+  - target:
+      entity_id: switch.adaptive_lighting_sleep_mode_adaptive_lighting
+    data: {}
+    action: switch.turn_off
+  mode: single
+- id: '1750445065859'
+  alias: Control Bedroom Thermostat in relation to Bedroom sleeper
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.sleeper_in_bedroom
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+  conditions: []
+  actions:
+  - action: climate.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: climate.bedroom_ac
+  - parallel:
+    - sequence:
+      - wait_for_trigger:
+        - trigger: sun
+          event: sunrise
+          offset: '600'
+        continue_on_timeout: false
+        alias: Wait for sun to rise
+      - action: switch.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: switch.zooz_bedroom_plug
+    - sequence:
+      - wait_for_trigger:
+        - trigger: state
+          entity_id:
+          - input_boolean.sleeper_in_bedroom
+          from: 'on'
+          to: 'off'
+          for:
+            hours: 0
+            minutes: 10
+            seconds: 0
+        alias: Wait for bedroom sleeper to awake for 10 minutes
+      - action: climate.turn_on
+        metadata: {}
+        data: {}
+        target:
+          entity_id: climate.bedroom_ac
+    enabled: false
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 2
+      milliseconds: 0
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.zooz_bedroom_plug
+  mode: single
+- id: '1750445618240'
+  alias: Adjust all player speakers volume when myriam arrives
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - person.myriam
+    from: not_home
+    to: home
+    id: myriam_arrives
+  conditions:
+  - alias: The user has been not_home for over 600 seconds
+    condition: template
+    value_template: '{{  ((as_timestamp((now()) )   - (as_timestamp(trigger.from_state.last_changed))))
+      | float > 600 and trigger.from_state.state == ''not_home'' }}'
+  actions:
+  - variables:
+      playing_speakers: '{{ integration_entities(''universal'')|select(''contains'',
+
+        ''speakers'') | reject(''contains'',
+
+        ''home'')  | select(''is_state'',''playing'')| list }}
+
+        '
+  - repeat:
+      sequence:
+      - action: script.speaker_automatic_volume_adjustment_script
+        metadata: {}
+        data:
+          received_speaker: '{{repeat.item}}
+
+            '
+      for_each: '{{ playing_speakers }}'
+  mode: restart
+- id: '1750625732180'
+  alias: Disable automatic back horn when myriam awakes
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.myriam_is_sleeping_at_home
+    from: asleep
+    to: awake
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  conditions:
+  - condition: time
+    after: 07:00:00
+    before: '20:00:00'
+  actions:
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.maxi_is_scared
+  mode: single
+- id: '1751133520036'
+  alias: AI Event Summary (v1.4.3) (Front and Back Door)
+  description: ''
+  use_blueprint:
+    path: valentinfrlch/event_summary.yaml
+    input:
+      run_conditions: []
+      camera_entities:
+      - camera.front_door_camera
+      - camera.back_door_camera
+      motion_sensors:
+      - binary_sensor.front_door_camera_person_occupancy
+      - binary_sensor.back_entrance_presence_person_occupancy
+      max_frames: 5
+      remember: true
+      provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
+      temperature: 0.1
+      notify_device:
+      - c05131fc3bc6fcb2ce597a5d15723962
+      - a2b26cc7447631cbaa5892a2573bfe42
+      tap_navigate: /maxi-mobile/main-view#cameras
+      delay_notification: 0
+      notification_color: '#f44336'
+      notification_channel: alarm_stream
+      tts_volume: alarm_stream_max
+      tts_notification: false
+      model: gemma3:4b
+      file_path: /media/local/snapshots/{{ camera_file_path }}/last_motion.jpg
+- id: '1751301093156'
+  alias: Mute speakers in room when Myriam's tablet starts jellyfin playback
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.myriam_tablet_location_compounded
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
+  conditions:
+  - condition: state
+    entity_id: input_boolean.following_music
+    state: 'on'
+  - condition: or
+    conditions:
+    - condition: state
+      entity_id: media_player.universal_tablet_myriam_s8
+      state: playing
+  actions:
+  - variables:
+      debug: '{{ states(''sensor.myriam_tablet_location_compounded'') }}
+
+        '
+      playing_speakers: '{{ [area_id(states(''sensor.myriam_tablet_location_compounded''))]   |
+        map(''area_entities'') | sum(start=[]) |    select(''search'', ''speakers'')
+        | select(''is_state'',''playing'') | unique | list }}
+
+        '
+  - metadata: {}
+    data:
+      is_volume_muted: true
+    target:
+      entity_id: '{{playing_speakers}}
+
+        '
+    action: media_player.volume_mute
+  mode: parallel
+  max: 10
+- id: '1751305945586'
+  alias: Update Universal Myriam's Tablet Entity area when it changes room
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.myriam_tablet_location_compounded
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
+  conditions: []
+  actions:
+  - action: homeassistant.add_entity_to_area
+    metadata: {}
+    data:
+      entity_id:
+      - media_player.universal_tablet_myriam_s8
+      area_id: '{{ states(''sensor.myriam_tablet_location_compounded'') }}
+
+        '
+  mode: single
+- id: '1751650700641'
+  alias: Return PTZ to doorway after 10 minutes
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - script.ptz_to_package
+    - script.ptz_to_crackhead
+    - script.ptz_to_drama
+    - script.ptz_to_intersection
+    - script.ptz_to_street
+    from:
+    to:
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+  conditions: []
+  actions:
+  - action: script.ptz_to_doorway
+    metadata: {}
+    data: {}
+  mode: single
+- id: '1751674442304'
+  alias: Stop home group when maxi leaves
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - person.maximiliano
+    from: home
+    to:
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+  conditions:
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: media_player.group_mass_home_group_speakers
+      state: 'off'
+  actions:
+  - action: media_player.clear_playlist
+    metadata: {}
+    data: {}
+    target:
+      entity_id: media_player.group_mass_home_group_speakers
+    continue_on_error: true
+  - action: media_player.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: media_player.group_mass_home_group_speakers
+  mode: single

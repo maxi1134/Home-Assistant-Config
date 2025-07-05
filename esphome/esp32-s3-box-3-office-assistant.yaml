@@ -30,7 +30,6 @@ substitutions:
   external_media_player: your_media_player  ##change this to your external media player enity_id: do not include media_player.
   home_assistant_host: http://homeassistant.local:8123 ##change to the full url or IP of your HA server including port
   tts_voice_speed: "24000" #options #nabu casa "24000" #piper "16000" elevenlabs "44100" must include quotes
-
 #####  Days and months #####
 ## Change the values on the right to match your locale ##
   monday: Monday
@@ -62,7 +61,6 @@ substitutions:
   icon_font_file: https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/fonts/materialdesignicons-webfont.ttf
 ############# END OF SUBSTITUTIONS #################
 ####################################################
-
 
 esphome:
   name: ${name}
@@ -117,6 +115,7 @@ psram:
   mode: octal
   speed: 80MHz
 
+
 api:
   on_client_connected:
     - lambda: id(led).turn_on().set_brightness(id(s_default_brightness).state /100).perform();
@@ -136,13 +135,15 @@ ota:
 
 logger:
   hardware_uart: USB_SERIAL_JTAG
-  logs:
-    text_sensor: WARN
-    component: ERROR
+  level: very_verbose
+  # logs:
+    # text_sensor: WARN
+    # component: ERROR
 
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
+
   ap:
     ssid: ${name}
     password: s3box123
@@ -198,7 +199,6 @@ interval:
                     wifi.connected:
                 then:
                   - lambda: "id(wifi_connection) = false;"
-                
 
 button:
   - platform: factory_reset
@@ -238,32 +238,6 @@ sensor:
     entity_id: sensor.sensor_outside_temperature_temperature
     internal: true
 
-  - platform: adc # remove for no sensor version
-    pin: GPIO10
-    id: battery_voltage
-    unit_of_measurement: "V"
-    accuracy_decimals: 1
-    device_class: "voltage"
-    entity_category: "diagnostic"
-    disabled_by_default: true
-    update_interval: 30s
-    attenuation: auto
-    filters:
-      - multiply: 4.11
-
-  - platform: copy # remove for no sensor version
-    id: battery_percent
-    source_id: battery_voltage
-    name: "Battery level"
-    unit_of_measurement: "%"
-    accuracy_decimals: 0
-    device_class: "battery"
-    entity_category: "diagnostic"
-    filters:
-      - lambda: return (x - 2.7) / (4.2 - 2.7) * 100;
-      - clamp:
-          min_value: 0
-          max_value: 100
 
   - platform: uptime
     id: up_sens
@@ -381,7 +355,7 @@ speaker:
     bits_per_sample: 16bit
     channel: left
     audio_dac: es8311_dac
-    buffer_duration: 100ms  # Increased for stability without timeout @youkorr
+    buffer_duration: 100ms
 
   # Virtual speakers to combine the announcement and media streams together into one output
   - id: mixing_speaker
@@ -425,13 +399,14 @@ media_player:
         file: https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/sounds/awake.flac
     on_state:
       then:
+        - lambda: ESP_LOGD("media_player", "on_state");
         - if:
             condition:
               media_player.is_playing:
             then:
               - lambda: |-
                   id(media_state) = true;
-              - script.execute: stop_wake_word
+              # - script.execute: stop_wake_word
             else:
               - lambda: |-
                   id(media_state) = false;
@@ -450,6 +425,7 @@ media_player:
                   decibel_reduction: 0
                   duration: 1.0s
     on_play:
+      - lambda: ESP_LOGD("media_player", "on_play");
       - wait_until:
           - lambda: return id(global_is_assisting) == false;
     on_announcement:
@@ -481,23 +457,28 @@ media_player:
             - script.execute: draw_display
     on_idle:
       # Since VA isn't running, this is the end of user-intiated media playback. Restart the wake word.
+      - lambda: ESP_LOGD("media_player", "on_idle");
       - if:
           condition:
             not:
               voice_assistant.is_running:
           then:
+            - wait_until:
+                    - not:
+                        speaker.is_playing:
+                          id: i2s_audio_speaker
             - script.execute: start_wake_word
-            - script.execute: set_idle_or_mute_phase
-            - script.execute: draw_display
+            # - script.execute: set_idle_or_mute_phase
+            # - script.execute: draw_display
 
 micro_wake_word:
   id: mww
   vad:
   models:
     - okay_nabu
-#    - hey_mycroft
-#    - hey_jarvis
-#    - alexa
+    - hey_mycroft
+    - hey_jarvis
+    - alexa
   on_wake_word_detected:
     - lambda: id(global_is_assisting) = true;
     - delay: 50ms
@@ -527,12 +508,16 @@ micro_wake_word:
                     entity_id: media_player.${external_media_player}
                     media_content_id: '${home_assistant_host}/local/sounds/awake.mp3'
                     media_content_type: music
+              - delay: 750ms  
+    - display.page.show: listening_page
+    - component.update: s3_box_lcd
     - voice_assistant.start:
         wake_word: !lambda return wake_word;
 
 voice_assistant:
   id: va
   microphone: box_mic
+  # speaker: announcement_resampling_speaker
   media_player: speaker_media_player
   micro_wake_word: mww
   noise_suppression_level: 2
@@ -567,8 +552,8 @@ voice_assistant:
                     entity_id: media_player.${external_media_player}
                     media_content_id: '${home_assistant_host}/local/sounds/awake.mp3'
                     media_content_type: music
-  on_start:
-    - script.execute: draw_display
+  # on_start:
+    # - script.execute: draw_display
   on_listening:
     - lambda: id(voice_assistant_phase) = ${voice_assist_listening_phase_id};
     - text_sensor.template.publish:
@@ -579,7 +564,9 @@ voice_assistant:
         state: "..."
     - script.execute: draw_display
     - script.execute: saver_enabled
+
   on_stt_vad_end:
+    - lambda: ESP_LOGD("voice_assistant", "on_stt_vad_end");
     - lambda: id(voice_assistant_phase) = ${voice_assist_thinking_phase_id};
     - script.execute: draw_display
   on_stt_end:
@@ -594,6 +581,7 @@ voice_assistant:
     - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
     - script.execute: draw_display
   on_tts_end:
+    - lambda: ESP_LOGD("voice_assistant", "on_tts_end");
     - if:
         condition:
           and:
@@ -618,9 +606,11 @@ voice_assistant:
     - delay: 10s
     - script.execute: draw_display
   on_idle:
+    - lambda: ESP_LOGD("voice_assistant", "on_idle");
     - script.execute: draw_display
   on_end:
     # Wait a short amount of time to see if an announcement starts
+    - lambda: ESP_LOGD("voice_assistant", "on_end"); 
     - wait_until:
         condition:
           - media_player.is_announcing:
@@ -632,6 +622,9 @@ voice_assistant:
                 media_player.is_announcing:
             - not:
                 media_player.is_playing:
+            - not:
+                speaker.is_playing:
+                  id: i2s_audio_speaker
     - mixer_speaker.apply_ducking:
         id: media_mixing_input
         decibel_reduction: 0
@@ -739,11 +732,11 @@ script:
                       condition:
                         api.connected:
                       then:
-                        - if:
-                            condition:
-                              switch.is_on: timer_ringing
-                            then:
-                              - lambda: id(voice_assistant_phase) = ${voice_assist_timer_finished_phase_id};
+                        # - if:
+                            # condition:
+                              # switch.is_on: timer_ringing
+                            # then:
+                              # - lambda: id(voice_assistant_phase) = ${voice_assist_timer_finished_phase_id};
                         - lambda: |-
                             id(api_connection) = true;
                         - lambda: |
@@ -765,11 +758,11 @@ script:
                                 id(s3_box_lcd).update();
                                 break;
                               case ${voice_assist_muted_phase_id}:
-                                id(s3_box_lcd).show_page(saver_page);
+                                id(s3_box_lcd).show_page(idle_page);
                                 id(s3_box_lcd).update();
                                 break;
                               case ${voice_assist_not_ready_phase_id}:
-                                id(s3_box_lcd).show_page(saver_page);
+                                id(s3_box_lcd).show_page(idle_page);
                                 id(s3_box_lcd).update();
                                 break;
                               case ${voice_assist_timer_finished_phase_id}:
@@ -888,40 +881,6 @@ script:
             id(s3_box_lcd).printf(120, 47, id(font_timer), Color::BLACK, "%s", display_string.c_str());
           }
 
-  - id: start_voice_assistant
-    then:
-      - if:
-          condition:
-            switch.is_off: mute_switch
-          then:
-            - if:
-                condition:
-                  lambda: return id(wake_word_engine_location).state == "In Home Assistant";
-                then:
-                  - lambda: id(va).set_use_wake_word(true);
-                  - voice_assistant.start_continuous:
-            - if:
-                condition:
-                  lambda: return id(wake_word_engine_location).state == "On device";
-                then:
-                  - lambda: id(va).set_use_wake_word(false);
-                  - micro_wake_word.start
-
-  - id: stop_voice_assistant
-    then:
-      - if:
-          condition:
-            lambda: return id(wake_word_engine_location).state == "In Home Assistant";
-          then:
-            - lambda: id(va).set_use_wake_word(false);
-            - voice_assistant.stop:
-      - if:
-          condition:
-            lambda: return id(wake_word_engine_location).state == "On device";
-          then:
-            - voice_assistant.stop:
-            - micro_wake_word.stop:
-
   - id: set_volume
     then:
       - media_player.volume_set:
@@ -966,6 +925,7 @@ script:
     # Starts either mWW or the streaming wake word, depending on the configured location
   - id: start_wake_word
     then:
+      - lambda: ESP_LOGD("script", "start_wake_word");
       - if:
           condition:
             and:
@@ -987,6 +947,7 @@ script:
   # Stops either mWW or the streaming wake word, depending on the configured location
   - id: stop_wake_word
     then:
+      - lambda: ESP_LOGD("script", "stop_wake_word");
       - if:
           condition:
             lambda: return id(wake_word_engine_location).state == "In Home Assistant";
@@ -1001,6 +962,7 @@ script:
   # Set the voice assistant phase to idle or muted, depending on if the software mute switch is activated
   - id: set_idle_or_mute_phase
     then:
+      - lambda: ESP_LOGD("script", "set_idle_or_mute_phase");
       - if:
           condition:
             switch.is_off: mute_switch
@@ -1178,13 +1140,6 @@ switch:
     restore_mode: RESTORE_DEFAULT_OFF
     entity_category: config
 
-  - platform: template # remove for no sensor version
-    id: s_saver_presc
-    name: Screen wake on motion
-    icon: 'mdi:motion-sensor'
-    entity_category: config
-    optimistic: true
-    restore_mode: RESTORE_DEFAULT_OFF
 
   - platform: template
     id: timer_ringing
@@ -1271,7 +1226,7 @@ select:
     options:
       - In Home Assistant
       - On device
-    initial_option: In Home Assistant
+    initial_option: On device
     on_value:
       - if:
           condition:
@@ -1291,10 +1246,16 @@ select:
                       then:
                         - lambda: id(va).set_use_wake_word(true);
                         - voice_assistant.start_continuous:
+                        - text_sensor.template.publish:
+                            id: wakeword_location
+                            state: !lambda 'return "Home Assistant";'
             - if:
                 condition:
                   lambda: return x == "On device";
                 then:
+                  - text_sensor.template.publish:
+                      id: wakeword_location
+                      state: !lambda 'return "On Device";'
                   - lambda: id(va).set_use_wake_word(false);
                   - voice_assistant.stop
                   - delay: 500ms
@@ -1874,7 +1835,6 @@ display:
           it.printf(250, 5, id(icon_font_55), green, "\U000F1828");
           }
           it.printf(20, 75, id(icon_font_80), blue,"\U000F050F");
-          it.printf(30, 120, id(my_font5), white, "%.1f%s", id(display_temp), (id(temp_unit).state == "Fahrenheit" ? "°F" : "°C")); // remove for no sensor version
           it.printf(120, 75, id(icon_font_80), yellow,"\U000F06E8" );
           it.printf(220, 75, id(icon_font_80), purple,"\U000F0210");
           it.printf(20, 155, id(icon_font_80), red,"\U000F075A");
@@ -1964,8 +1924,6 @@ display:
           it.printf(160, 145, id(my_font5), yellow, TextAlign::CENTER, "${name}.local");
           it.printf(160, 175, id(my_font5), light_blue, TextAlign::CENTER, "Device Uptime DDD:H:M:S");
           it.printf(160, 195, id(my_font5), yellow, TextAlign::CENTER, "%s", id(up_sens_text).state.c_str());
-          it.printf(40, 210, id(my_font5), light_blue, TextAlign::LEFT, "Battery Level"); // remove for no sensor version
-          it.printf(265, 210, id(my_font5), yellow, TextAlign::RIGHT, "%.f%%", id(battery_percent).state); // remove for no sensor version
 
 
       - id: ss_set_page ##### screen saver settings page #####
@@ -1980,12 +1938,6 @@ display:
                  it.printf(255, 135, id(icon_font_55), lime, "\U000F0521");
           } else {
                  it.printf(255, 135, id(icon_font_55), blue_drk, "\U000F0A19");
-          }
-          it.printf(250, 175, id(my_font5), light_blue, TextAlign::RIGHT, "Wake on presence :"); // remove for no sensor version 6 lines
-          if(id(s_saver_presc).state) {
-                 it.printf(255, 165, id(icon_font_55), lime, "\U000F0521");
-          } else {
-                 it.printf(255, 165, id(icon_font_55), blue_drk, "\U000F0A19");
           }
           it.printf(250, 205, id(my_font5), light_blue, TextAlign::RIGHT, "Timeout to blank :");
           if(id(s_saver_mode).state) {
@@ -2296,7 +2248,7 @@ display:
       - id: saver_page ##### screen saver display page #####
         lambda: |-
           it.fill(id(black));
-           
+
           const char *days[] {"${sunday}","${monday}","${tuesday}","${wednesday}","${thursday}","${friday}","${saturday}"};
           const char *months[] {"${jan}","${feb}","${mar}","${apr}","${may}","${jun}","${jul}","${aug}","${sept}","${oct}","${nov}","${dec}"};
           it.printf(160, 28, id(my_font5), light_blue, TextAlign::CENTER, "%s %d %s", days[id(ha_time).now().day_of_week - 1], id(ha_time).now().day_of_month, months[id(ha_time).now().month - 1]);
@@ -2482,6 +2434,7 @@ display:
           it.printf(160, 195, id(my_font5), yellow, TextAlign::CENTER, "%s", id(device_mac).state.c_str());
           it.printf(38, 210, id(my_font5), light_blue, TextAlign::LEFT, "Signal Strength");
           it.printf(283, 210, id(my_font5), yellow, TextAlign::RIGHT, "%4.f%%", id(wifi_percent).state);
+
 
       - id: alarm_page   #### alarm page #####
         lambda: |-
@@ -2675,6 +2628,27 @@ display:
           }
 
 binary_sensor:
+  - platform: touchscreen
+    pages: 
+      - replying_page
+      - listening_page
+      - saver_page
+    id: stop_response
+    internal: true
+    x_min: 0
+    x_max: 320
+    y_min: 0
+    y_max: 240
+    on_click:
+      min_length: 10ms
+      max_length: 500ms
+      then:
+        - media_player.stop
+        - voice_assistant.stop
+        - display.page.show: saver_page
+        - delay: 100ms
+        - micro_wake_word.start
+        - component.update: s3_box_lcd
 ###### top left hand physical button #######
   - platform: gpio
     pin:
@@ -2744,7 +2718,7 @@ binary_sensor:
             - script.execute: saver_enabled
           else:
             - lambda: id(led).turn_on().set_brightness(id(s_default_brightness).state /100).perform();
-            - display.page.show: idle_page
+            - display.page.show: saver_page
             - component.update: s3_box_lcd
 
 
@@ -3637,20 +3611,7 @@ binary_sensor:
         - switch.toggle: s_saver
         - component.update: s3_box_lcd
 
-  - platform: touchscreen # remove for no sensor version
-    page_id: ss_set_page
-    id: ss_wake_presc
-    internal: true
-    x_min: 250
-    x_max: 315
-    y_min: 180
-    y_max: 205
-    on_click:
-      min_length: 10ms
-      max_length: 500ms
-      then:
-        - switch.toggle: s_saver_presc
-        - component.update: s3_box_lcd
+
 
   - platform: touchscreen
     page_id: ss_set_page
@@ -3758,7 +3719,8 @@ binary_sensor:
       max_length: 500ms
       then:
         - switch.turn_off: timer_ringing
-        - script.execute: draw_display
+        - display.page.show: saver_page
+        - component.update: s3_box_lcd
 
 ##### Timeout settings buttons #####
   - id: ss_sleep_down
@@ -3938,6 +3900,8 @@ binary_sensor:
             operation: Next
             cycle: true
         - component.update: s3_box_lcd
+
+
 
 ##### alarm panel buttons #####
   - platform: touchscreen
