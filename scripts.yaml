@@ -1108,7 +1108,7 @@ set_whole_house_to_cozy_ambiance_2:
       effect: fireplace
       brightness_pct: 100
     target:
-      label_id: phlips_bulbs
+      entity_id: light.group_all_inside_lights
   - action: light.turn_on
     metadata: {}
     data:
@@ -2205,3 +2205,41 @@ chromecast_automatic_volume_adjustment_script:
     in relation to the time of the day
   mode: parallel
   max: 10
+generate_back_yard_camera_description:
+  sequence:
+  - action: llmvision.image_analyzer
+    data:
+      include_filename: false
+      target_width: 1024
+      max_tokens: 100
+      temperature: 0.1
+      provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
+      model: qwen2.5vl:3b-q8_0
+      image_entity:
+      - camera.back_yard_camera
+      message: 'Describe in one sentence the human activities in this image, if there
+        is any. '
+    response_variable: answer
+  - stop: Finished
+    response_variable: answer
+  alias: Generate back yard camera description
+  description: This script can be used by the LLM to describe the current situation
+    at the back yard
+this_script_can_be_used_to_show_the_cameras_on_all_tvs:
+  sequence:
+  - variables:
+      all_chromecasts: '{{ integration_entities(''cast'') |  select(''search'', ''chromecast'')
+        |  reject(''search'', ''hotbox'') | expand |  map(attribute=''entity_id'')|
+        list }}'
+  - alias: Broadcast Image to paused chromecasts
+    repeat:
+      sequence:
+      - action: dash_cast.load_url
+        data:
+          entity_id: '{{all_chromecasts[repeat.index - 1]}}'
+          url: http://192.168.0.11:1984/stream.html?src=front_door_camera_sub
+          force: true
+      for_each: '{{ all_chromecasts }}'
+  alias: This script can be used to show the cameras on all TVs
+  description: This security audit script allows the LLM to get all the TVs to showing
+    the camera feeds.
