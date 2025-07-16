@@ -213,8 +213,8 @@ You should be able to upload the following YAML to them through ESPhome and be a
 
 ```
 substitutions:
-  name: esp32-s3-box-office-assistant
-  friendly_name: ESP32 S3 Box 3 Office Assistant
+  name: esp32-s3-box-lounge-assistant
+  friendly_name: ESP32 S3 Box 3 lounge Assistant
   micro_wake_word_model: alexa
 packages:
   esphome.voice-assistant: github://esphome/wake-word-voice-assistants/esp32-s3-box-3/esp32-s3-box-3.yaml@main

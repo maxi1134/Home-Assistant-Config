@@ -3,8 +3,8 @@ rooms:\n\
 \tkitchen: [0.035, 2.285, 0]\n\
 \tsecond_bedroom: [0.015, 11.555, 0]\n\
 \tbedroom: [3.68, 11.045, 1.2]\n\
-\tlivingroom: [3.59, 5.805, 1.2]\n\
-\toffice: [10.48, 2.715, 0]\n\
+\tworkshop: [3.59, 5.805, 1.2]\n\
+\tlounge: [10.48, 2.715, 0]\n\
 roomplans:\n\
 \t- name: kitchen\n\
 \t\ty1: 0\n\
@@ -41,12 +41,12 @@ roomplans:\n\
 \t\tx1: 3.59\n\
 \t\ty2: 7.98\n\
 \t\tx2: 7.6\n\
-\t- name: livingroom\n\
+\t- name: workshop\n\
 \t\ty1: 1.37\n\
 \t\tx1: 3.59\n\
 \t\ty2: 6.2\n\
 \t\tx2: 7.6\n\
-\t- name: office\n\
+\t- name: lounge\n\
 \t\ty1: 0\n\
 \t\tx1: 7.6\n\
 \t\ty2: 4.92\n\

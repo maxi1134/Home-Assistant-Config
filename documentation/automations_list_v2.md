@@ -59,7 +59,7 @@
      - Acid time
      - Aerating Appartment
      - Sleeper in Hotbox
-     - Sleeper in Livingroom
+     - Sleeper in workshop
      - Sleeper in Patio
      - Sleeper in Closet
      - Waiting someone
@@ -97,7 +97,7 @@
    - Connect the dial to the dial subflow
    - Turn on thunderstorm sounds on the speaker when I go to sleep
    - Philip ecogreen tap control flow
-- [Office](/node-red/flows/Office.json):
+- [lounge](/node-red/flows/lounge.json):
   - Connect the dial to the dial subflow
   - Add artists playing on speaker to Lidarr for automatic acquisition
   - Control blinds through the blind button
@@ -140,7 +140,7 @@
    - Open the TV on the Chromecast upon entering Hotbox top
    - Adjust the hotbox top volume media when someone goes to sleep
   - Automatically recast the Lovelace interface to the nest hub when needed
-- [Living Room](/node-red/flows/Living%20Room.json):
+- [workshop](/node-red/flows/Living%20Room.json):
   - Adjust volume when the AC turns on and off
   - Slightly open the blinds when the AC turns on
   - Close the blinds when the AC turns off

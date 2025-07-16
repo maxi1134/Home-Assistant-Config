@@ -65,7 +65,7 @@ Running a homelab is not always easy, especially when comes time to route, segre
 |[Roborock S6 Pure ](https://us.roborock.com/pages/roborock-s6)| RobotVac | :small_red_triangle: | Changed my life | 1 |
 |[ESP32 ](https://www.espressif.com/en/products/modules/esp32)| Micro-Controller | :heavy_check_mark:  | Used as BLE trackers | 7 |
 |[Samsung Galaxy Tab S7 FE ](https://www.samsung.com/ca/support/model/SM-T733NZKAXAC/)| Tablet| :heavy_check_mark:  | Used as Hallway dashboard | 1 |
-|[Samsung Galaxy Tab A7 Lite ](https://www.samsung.com/us/business/support/owners/product/galaxy-tab-a-7-lite-wi-fi/)| Tablet | :heavy_check_mark:  | Used as Office desk dashboard | 1 
+|[Samsung Galaxy Tab A7 Lite ](https://www.samsung.com/us/business/support/owners/product/galaxy-tab-a-7-lite-wi-fi/)| Tablet | :heavy_check_mark:  | Used as lounge desk dashboard | 1 
 |[Samsung Galaxy Tab E](https://www.samsung.com/ca/support/model/SM-T377WZKAXAC/)| Tablet | :heavy_check_mark:  | Used as Closet and Kitchen  dashboards | 2
-|[Samsung Galaxy Tab A8](https://www.samsung.com/ca/tablets/galaxy-tab-a/galaxy-tab-a8-wifi-dark-gray-64gb-sm-x200nzaexac/)| Tablet | :heavy_check_mark:  | Used as LivingRoom dashboard | 1 
+|[Samsung Galaxy Tab A8](https://www.samsung.com/ca/tablets/galaxy-tab-a/galaxy-tab-a8-wifi-dark-gray-64gb-sm-x200nzaexac/)| Tablet | :heavy_check_mark:  | Used as workshop dashboard | 1 
 |[Aqara FP2 MMWave sensor](https://www.amazon.ca/Aqara-Positioning-Multi-Person-Detection-Assistant/dp/B0BXWZMQJ3)| Presence Sensor | :heavy_check_mark:  | Used for their zoning capacities in a room | 2

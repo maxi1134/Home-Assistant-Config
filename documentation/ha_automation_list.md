@@ -66,7 +66,7 @@
    - Conditionally Unmute Speakers when a room is occupied
      - Conditions: No Sleeper, No unmuted TV and no microphone in use
    - Unmute speakers when TV stops
-   - Dim Wall lights when livingroom TV is playing and Beige couch or matress is occupied (To avoid reflections in the TV)
+   - Dim Wall lights when workshop TV is playing and Beige couch or matress is occupied (To avoid reflections in the TV)
 - [Tablets](/automations.yaml):
    - Control brightness of Closet tablet to avoid discharge
    - Adjust closet tablet screen brigthess to match the lights

@@ -158,7 +158,7 @@ Automations:
 
           Start a random effect on the addressable leds upon each entering
 
-    - Living Room:
+    - workshop:
 
         Chromecast active and unmuted playback mutes the speakers in the room
 

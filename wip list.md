@@ -1,5 +1,5 @@
 Police Detection Alert:
-Description: Monitors an image from a camera and triggers if a police officer or security guard is detected.
+Description: Monitors an image from a camera and triggers if a police lounger or security guard is detected.
 
 Find My Phone Command:
 Description: Initiates a command to find the user's phone when specific phrases are spoken.

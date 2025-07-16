@@ -22,10 +22,10 @@ Its code is under ".storage/lovelace.tablet_entrance_dashboard"
   <img src="/assets/Tablet_S7FE/framed_climate_panel_lowres.gif" width="30%" />
 </p>
 
-## Livingroom Tablet interface
+## workshop Tablet interface
 
-Here you can find some images of the livingroom tablet interface. 
-Its code is under ".storage/lovelace.tablet_livingroom_dashboard"
+Here you can find some images of the workshop tablet interface. 
+Its code is under ".storage/lovelace.tablet_workshop_dashboard"
 
 
 <p align="middle">
@@ -33,16 +33,16 @@ Its code is under ".storage/lovelace.tablet_livingroom_dashboard"
   <img src="/assets/Tablet_A8/drhousedemo.gif" width="45%" />
 </p>
 
-## Office hub
-This is the default interface for the office Samsung A7 Lite tablet.
-It offers a view of the front door which is located beside the office, a selection of TV-shows and music to be started on the nearby media devices.
+## lounge hub
+This is the default interface for the lounge Samsung A7 Lite tablet.
+It offers a view of the front door which is located beside the lounge, a selection of TV-shows and music to be started on the nearby media devices.
 It also offers a motion sensor map and a way to control the blinds.
 
 Its code is under ".storage/lovelace.lovelace_hub"
 
 
 <p align="middle">
-  <img src="/assets/Hub_Office/framed_show_start_preview.gif" width="95%" />
+  <img src="/assets/Hub_lounge/framed_show_start_preview.gif" width="95%" />
 </p>
 
 

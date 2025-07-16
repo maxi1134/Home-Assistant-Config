@@ -1,6 +1,6 @@
 substitutions:
-  name: hallway-assistant
-  friendly_name: Hallway Assistant
+  name: lounge-assistant
+  friendly_name: lounge Assistant
   loading_illustration_file: https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/images/loading.png
   idle_illustration_file: https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/images/idle.png
   listening_illustration_file: https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/images/listening.png
@@ -70,12 +70,6 @@ esphome:
   on_boot:
     priority: 600
     then:
-      - at581x.settings:
-          id: "Radar"
-          # trigger_base: 100ms #amount of movement to sense
-          # trigger_keep: 10s #how long to remain triggered for
-          sensing_distance: 1000 #distance to sense 0-1023
-          stage_gain: 12 #gain for testing (highest) 0 - (lowest) 12
       - lambda: id(led).turn_on().set_brightness(id(s_default_brightness).state /100).perform();
       - lambda: id(time_remaining_0).publish_state ("0:00:00");
       - script.execute: draw_display
@@ -210,13 +204,6 @@ button:
     name: "Reboot"
     entity_category: diagnostic
 
-  - platform: template
-    id: restart_radar
-    name: "Radar Reset"
-    entity_category: diagnostic
-    on_press:
-      at581x.reset:
-        id: "Radar"
 
 output:
   - platform: ledc
@@ -298,9 +285,6 @@ i2c:
     frequency: 50kHz
     id: bus_b
 
-at581x:
-  id: "Radar"
-  i2c_id: bus_b
 
 touchscreen:
   - platform: gt911
@@ -1209,11 +1193,6 @@ switch:
           service: media_player.volume_mute
           data:
             entity_id: media_player.${external_media_player}
- 
-  - platform: at581x
-    at581x_id: "Radar"
-    name: "Radar Enable"
-    restore_mode: RESTORE_DEFAULT_ON
 
 select:
   - platform: template
@@ -1370,19 +1349,6 @@ number:
       - script.execute: saver_enabled
       - component.update: s3_box_lcd
 
-  - id: radar_delayed_off
-    platform: template
-    name: "Presence duration"
-    icon: mdi:account-clock
-    optimistic: true
-    restore_value: true
-    initial_value: 30
-    min_value: 10
-    step: 5
-    max_value: 300
-    unit_of_measurement: 'secs'
-    entity_category: config
-    mode: box
 
 globals:
   - id: init_in_progress
@@ -1565,7 +1531,7 @@ font:
       - "\U000F0493"#settings cog
       - "\U000F04AD"#next track
       - "\U000F04AE"#previous track
-      - "\U000F04B9"#living room
+      - "\U000F04B9"#workshop
       - "\U000F04C8"#spots
       - "\U000F04DB"#stop
       - "\U000F0502"#screen settings
@@ -2626,6 +2592,7 @@ display:
             it.printf(x, y, id(my_font4), Color::WHITE, TextAlign::BASELINE_LEFT, "%s", line.c_str());
             y += line_height;
           }
+
 binary_sensor:
   - platform: touchscreen
     pages: 
@@ -2648,6 +2615,7 @@ binary_sensor:
         - delay: 100ms
         - micro_wake_word.start
         - component.update: s3_box_lcd
+        
 ###### top left hand physical button #######
   - platform: gpio
     pin:

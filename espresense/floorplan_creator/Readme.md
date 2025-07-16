@@ -139,9 +139,9 @@ Try to have rooms: ... then roomplans: ... , for roomplans, have y1, x1, y2, x2 
 rooms:
     kitchen: [0.035, 2.285, 0]
     bedroom: [3.68, 11.045, 1.2]
-    livingroom: [3.59, 5.805, 1.2]
+    workshop: [3.59, 5.805, 1.2]
     second_bedroom: [7.275, 5.559928991794586, 0]
-    office: [10.48, 2.715, 0]
+    lounge: [10.48, 2.715, 0]
 roomplans:
     - name: kitchen
         y1: 0
@@ -178,12 +178,12 @@ roomplans:
         x1: 3.59
         y2: 7.98
         x2: 7.6
-    - name: livingroom
+    - name: workshop
         y1: 1.37
         x1: 3.59
         y2: 6.2
         x2: 7.6
-    - name: office
+    - name: lounge
         y1: 0
         x1: 7.6
         y2: 4.92
