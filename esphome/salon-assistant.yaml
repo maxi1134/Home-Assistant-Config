@@ -30,6 +30,7 @@ substitutions:
   external_media_player: your_media_player  ##change this to your external media player enity_id: do not include media_player.
   home_assistant_host: http://homeassistant.local:8123 ##change to the full url or IP of your HA server including port
   tts_voice_speed: "24000" #options #nabu casa "24000" #piper "16000" elevenlabs "44100" must include quotes
+
 #####  Days and months #####
 ## Change the values on the right to match your locale ##
   monday: Monday
@@ -84,7 +85,7 @@ esphome:
             switch.is_on: output_audio
           then:
             media_player.volume_set:
-              id: speaker_media_player
+              id: external_media_player
               volume: 0
       - delay: 30s
       - if:
@@ -115,7 +116,15 @@ psram:
   mode: octal
   speed: 80MHz
 
-
+external_components:
+  - source:
+      type: git
+      url: https://github.com/kahrendt/esphome
+      ref: i2s-duplex-dev-snapshot1
+    components: [ i2s_audio, resampler, audio ]
+    refresh: 10s
+  - source: github://pr#9543
+    components: [ api ]
 api:
   on_client_connected:
     - lambda: id(led).turn_on().set_brightness(id(s_default_brightness).state /100).perform();
@@ -135,7 +144,7 @@ ota:
 
 logger:
   hardware_uart: USB_SERIAL_JTAG
-  level: very_verbose
+  # level: very_verbose
   # logs:
     # text_sensor: WARN
     # component: ERROR
@@ -143,7 +152,6 @@ logger:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-
   ap:
     ssid: ${name}
     password: s3box123
@@ -235,9 +243,8 @@ light:
 sensor:       
   - platform: homeassistant
     id: outside_temp
-    entity_id: sensor.sensor_outside_temperature_temperature
+    entity_id: sensor.outside_temperature_with_fallback
     internal: true
-
 
   - platform: uptime
     id: up_sens
@@ -322,7 +329,8 @@ i2s_audio:
       ignore_strapping_warning: true
     i2s_bclk_pin: GPIO17
     i2s_mclk_pin: GPIO2
-
+    i2s_din_pin: GPIO16
+    i2s_dout_pin: GPIO15
 audio_adc:
   - platform: es7210
     id: es7210_adc
@@ -341,184 +349,167 @@ microphone:
   - platform: i2s_audio
     id: box_mic
     sample_rate: 16000
-    i2s_din_pin: GPIO16
     bits_per_sample: 16bit
     adc_type: external
+    channel: stereo
+
+  - platform: resampler
+    id: resampled_mic
+    sample_rate: 16000
+    microphone: 
+      microphone: box_mic
+      channels: [0,1]
 
 speaker:
-  - id: i2s_audio_speaker
-    platform: i2s_audio
-    i2s_audio_id: i2s_audio_bus
-    i2s_dout_pin: GPIO15
+  - platform: i2s_audio
+    id: box_speaker
     dac_type: external
-    sample_rate: 48000
+    sample_rate: 16000
     bits_per_sample: 16bit
     channel: left
     audio_dac: es8311_dac
     buffer_duration: 100ms
 
-  # Virtual speakers to combine the announcement and media streams together into one output
-  - id: mixing_speaker
-    platform: mixer
-    output_speaker: i2s_audio_speaker
+  - platform: mixer
+    id: mixing_speaker
+    output_speaker: box_speaker
+    num_channels: 2
     source_speakers:
       - id: announcement_mixing_input
+        timeout: never
       - id: media_mixing_input
-  # Vritual speakers to resample each pipelines' audio, if necessary, as the mixer speaker requires the same sample rate
+        timeout: never
+
   - platform: resampler
     id: announcement_resampling_speaker
     output_speaker: announcement_mixing_input
-    sample_rate: 48000  # Added explicit sample rate
+    sample_rate: 16000
+    bits_per_sample: 16
   - platform: resampler
     id: media_resampling_speaker
     output_speaker: media_mixing_input
-    sample_rate: 48000  # Added explicit sample rate
+    sample_rate: 16000
+    bits_per_sample: 16
 
 media_player:
   - platform: speaker
+    id: external_media_player
     name: Media Player
-    id: speaker_media_player
+    internal: False
     volume_increment: 0.05
-    volume_min: 0.5
-    volume_max: 0.8
-    task_stack_in_psram: true
+    volume_min: 0.4
+    volume_max: 0.80
     announcement_pipeline:
       speaker: announcement_resampling_speaker
-      format: FLAC
+      format: FLAC     # FLAC is the least processor intensive codec
+      num_channels: 1  # Stereo audio is unnecessary for announcements
       sample_rate: 48000
-      num_channels: 1  # S3 Box only has one output channel
     media_pipeline:
       speaker: media_resampling_speaker
-      format: FLAC  # FLAC is the least processor intensive codec
+      format: FLAC     # FLAC is the least processor intensive codec
       num_channels: 2
       sample_rate: 48000
+    # on_announcement:
+      # - mixer_speaker.apply_ducking:
+          # id: media_mixing_input
+          # decibel_reduction: 20
+          # duration: 1.0s
+    on_state:
+      if:
+        condition:
+          and:
+            - switch.is_off: timer_ringing
+            - not:
+                voice_assistant.is_running:
+            - not:
+                media_player.is_announcing:
+        then:
+          - mixer_speaker.apply_ducking:
+              id: media_mixing_input
+              decibel_reduction: 0
+              duration: 1.0s
     files:
       - id: timer_finished_sound
         file: https://github.com/esphome/home-assistant-voice-pe/raw/dev/sounds/timer_finished.flac
       - id: wake_sound_file
         file: https://github.com/BigBobbas/ESP32-S3-Box3-Custom-ESPHome/raw/main/sounds/awake.flac
-    on_state:
-      then:
-        - lambda: ESP_LOGD("media_player", "on_state");
-        - if:
-            condition:
-              media_player.is_playing:
-            then:
-              - lambda: |-
-                  id(media_state) = true;
-              # - script.execute: stop_wake_word
-            else:
-              - lambda: |-
-                  id(media_state) = false;
-        - component.update: s3_box_lcd
-        - if:
-            condition:
-              and:
-                - switch.is_off: timer_ringing
-                - not:
-                    voice_assistant.is_running:
-                - not:
-                    media_player.is_announcing:
-            then:
-              - mixer_speaker.apply_ducking:
-                  id: media_mixing_input
-                  decibel_reduction: 0
-                  duration: 1.0s
-    on_play:
-      - lambda: ESP_LOGD("media_player", "on_play");
-      - wait_until:
-          - lambda: return id(global_is_assisting) == false;
-    on_announcement:
-      # Stop the wake word (mWW or VA) if the mic is capturing
-      - if:
-          condition:
-            - microphone.is_capturing:
-          then:
-            - script.execute: stop_wake_word
-            # Ensure VA stops before moving on
-            - if:
-                condition:
-                  - lambda: return id(wake_word_engine_location).state == "In Home Assistant";
-                then:
-                  - wait_until:
-                      - not:
-                          voice_assistant.is_running:
-      # Since VA isn't running, this is user-intiated media playback. Draw the mute display
-      - mixer_speaker.apply_ducking:
-          id: media_mixing_input
-          decibel_reduction: 20
-          duration: 0.0s
-      - if:
-          condition:
-            not:
-              voice_assistant.is_running:
-          then:
-            - lambda: id(voice_assistant_phase) = ${voice_assist_muted_phase_id};
-            - script.execute: draw_display
-    on_idle:
-      # Since VA isn't running, this is the end of user-intiated media playback. Restart the wake word.
-      - lambda: ESP_LOGD("media_player", "on_idle");
-      - if:
-          condition:
-            not:
-              voice_assistant.is_running:
-          then:
-            - wait_until:
-                    - not:
-                        speaker.is_playing:
-                          id: i2s_audio_speaker
-            - script.execute: start_wake_word
-            # - script.execute: set_idle_or_mute_phase
-            # - script.execute: draw_display
-
 micro_wake_word:
   id: mww
-  vad:
+  microphone:
+    microphone: resampled_mic
+    channels: 1
+    gain_factor: 4
+  stop_after_detection: false
   models:
-    - okay_nabu
-    - hey_mycroft
-    - hey_jarvis
-    - alexa
+    - model: https://github.com/kahrendt/microWakeWord/releases/download/okay_nabu_20241226.3/okay_nabu.json
+      id: okay_nabu
+    - model: hey_jarvis
+      id: hey_jarvis
+    - model: hey_mycroft
+      id: hey_mycroft
+    - model: https://github.com/kahrendt/microWakeWord/releases/download/stop/stop.json
+      id: stop
+      internal: true
+  vad:
   on_wake_word_detected:
-    - lambda: id(global_is_assisting) = true;
-    - delay: 50ms
     - if:
         condition:
-          and:
-            - switch.is_off: output_audio
-            - switch.is_on: wake_sound
+          switch.is_on: timer_ringing
         then:
-          - media_player.speaker.play_on_device_media_file:
-              media_file: wake_sound_file
-              announcement: true
-          - wait_until:
-              not:
-                - media_player.is_announcing:
-          - delay: 150ms
+          - switch.turn_off: timer_ringing
+        # Stop voice assistant if running
         else:
-          if:
-            condition:
-              and:
-                - switch.is_on: output_audio
-                - switch.is_on: wake_sound
-            then:
-              - homeassistant.service:
-                  service: media_player.play_media
-                  data:
-                    entity_id: media_player.${external_media_player}
-                    media_content_id: '${home_assistant_host}/local/sounds/awake.mp3'
-                    media_content_type: music
-              - delay: 750ms  
-    - display.page.show: listening_page
-    - component.update: s3_box_lcd
-    - voice_assistant.start:
-        wake_word: !lambda return wake_word;
+          - if:
+              condition:
+                voice_assistant.is_running:
+              then:
+                voice_assistant.stop:
+              # Stop any other media player announcement
+              else:
+                - if:
+                    condition:
+                      media_player.is_announcing:
+                    then:
+                      - media_player.stop:
+                          announcement: true
+                    # Start the voice assistant and play the wake sound, if enabled
+                    else:
+                      - if:
+                          condition:
+                            and:
+                              - switch.is_off: output_audio
+                              - switch.is_on: wake_sound
+                          then:
+                            - media_player.speaker.play_on_device_media_file:
+                                media_file: wake_sound_file
+                                announcement: true
+                            - wait_until:
+                                not:
+                                  - media_player.is_announcing:
+                            - delay: 150ms
+                          else:
+                            if:
+                              condition:
+                                and:
+                                  - switch.is_on: output_audio
+                                  - switch.is_on: wake_sound
+                              then:
+                                - homeassistant.service:
+                                    service: media_player.play_media
+                                    data:
+                                      entity_id: media_player.${external_media_player}
+                                      media_content_id: '${home_assistant_host}/local/sounds/awake.mp3'
+                                      media_content_type: music
+                      - display.page.show: listening_page
+                      - component.update: s3_box_lcd
+                      - voice_assistant.start:
+                          wake_word: !lambda return wake_word;
 
 voice_assistant:
   id: va
   microphone: box_mic
   # speaker: announcement_resampling_speaker
-  media_player: speaker_media_player
+  media_player: external_media_player
   micro_wake_word: mww
   noise_suppression_level: 2
   auto_gain: 31dBFS
@@ -624,7 +615,7 @@ voice_assistant:
                 media_player.is_playing:
             - not:
                 speaker.is_playing:
-                  id: i2s_audio_speaker
+                  id: box_speaker
     - mixer_speaker.apply_ducking:
         id: media_mixing_input
         decibel_reduction: 0
@@ -1090,11 +1081,11 @@ switch:
     entity_category: config
     on_turn_on:
       media_player.volume_set:
-        id: speaker_media_player
+        id: external_media_player
         volume: 0
     on_turn_off:
       media_player.volume_set:
-        id: speaker_media_player
+        id: external_media_player
         volume: 1.0
 
   - platform: template
@@ -1106,10 +1097,12 @@ switch:
     entity_category: config
     on_turn_off:
       - microphone.unmute:
+          id: box_mic
       - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
       - script.execute: draw_display
     on_turn_on:
       - microphone.mute:
+          id: box_mic
       - lambda: id(voice_assistant_phase) = ${voice_assist_muted_phase_id};
       - script.execute: draw_display
   - platform: template
@@ -1117,11 +1110,11 @@ switch:
     optimistic: true
     on_turn_on:
       media_player.volume_set:
-        id: speaker_media_player
+        id: external_media_player
         volume: 0
     on_turn_off:
       media_player.volume_set:
-        id: speaker_media_player
+        id: external_media_player
         volume: 1.0
 
   - platform: template
@@ -1146,30 +1139,38 @@ switch:
     optimistic: true
     internal: true
     restore_mode: ALWAYS_OFF
-
     on_turn_off:
       # Turn off the repeat mode and disable the pause between playlist items
-      - lambda: id(time_remaining_0).publish_state ("0:00:00");
       - lambda: |-
-              id(speaker_media_player)
+              id(external_media_player)
                 ->make_call()
                 .set_command(media_player::MediaPlayerCommand::MEDIA_PLAYER_COMMAND_REPEAT_OFF)
                 .set_announcement(true)
                 .perform();
-              id(speaker_media_player)->set_playlist_delay_ms(speaker::AudioPipelineType::ANNOUNCEMENT, 0);
+              id(external_media_player)->set_playlist_delay_ms(speaker::AudioPipelineType::ANNOUNCEMENT, 0);
       # Stop playing the alarm
       - media_player.stop:
           announcement: true
+      - mixer_speaker.apply_ducking:
+          id: media_mixing_input
+          decibel_reduction: 0
+          duration: 1.0s
+      - display.page.show: saver_page
+      - component.update: s3_box_lcd   
     on_turn_on:
       # Turn on the repeat mode and pause for 1000 ms between playlist items/repeats
-      - lambda: id(led).turn_on().set_brightness(1.0).perform();
+      - mixer_speaker.apply_ducking:
+          id: media_mixing_input
+          decibel_reduction: 20
+          duration: 0.0s
+      - micro_wake_word.enable_model: stop
       - lambda: |-
-            id(speaker_media_player)
+            id(external_media_player)
               ->make_call()
               .set_command(media_player::MediaPlayerCommand::MEDIA_PLAYER_COMMAND_REPEAT_ONE)
               .set_announcement(true)
               .perform();
-            id(speaker_media_player)->set_playlist_delay_ms(speaker::AudioPipelineType::ANNOUNCEMENT, 1000);
+            id(external_media_player)->set_playlist_delay_ms(speaker::AudioPipelineType::ANNOUNCEMENT, 1000);
       - media_player.speaker.play_on_device_media_file:
           media_file: timer_finished_sound
           announcement: true
@@ -1216,6 +1217,35 @@ switch:
     restore_mode: RESTORE_DEFAULT_ON
 
 select:
+  - platform: template
+    name: "Wake word sensitivity"
+    optimistic: true
+    initial_option: Slightly sensitive
+    restore_value: true
+    entity_category: config
+    options:
+      - Slightly sensitive
+      - Moderately sensitive
+      - Very sensitive
+    on_value:
+      # Sets specific wake word probabilities computed for each particular model
+      # Note probability cutoffs are set as a quantized uint8 value, each comment has the corresponding floating point cutoff
+      # False Accepts per Hour values are tested against all units and channels from the Dinner Party Corpus.
+      # These cutoffs apply only to the specific models included in the firmware: okay_nabu@20241226.3, hey_jarvis@v2, hey_mycroft@v2
+      lambda: |-
+        if (x == "Slightly sensitive") {
+          id(okay_nabu).set_probability_cutoff(217);    // 0.85 -> 0.000 FAPH on DipCo (Manifest's default)
+          id(hey_jarvis).set_probability_cutoff(247);   // 0.97 -> 0.563 FAPH on DipCo (Manifest's default)
+          id(hey_mycroft).set_probability_cutoff(253);  // 0.99 -> 0.567 FAPH on DipCo
+        } else if (x == "Moderately sensitive") {
+          id(okay_nabu).set_probability_cutoff(176);    // 0.69 -> 0.376 FAPH on DipCo
+          id(hey_jarvis).set_probability_cutoff(235);   // 0.92 -> 0.939 FAPH on DipCo
+          id(hey_mycroft).set_probability_cutoff(242);  // 0.95 -> 1.502 FAPH on DipCo (Manifest's default)
+        } else if (x == "Very sensitive") {
+          id(okay_nabu).set_probability_cutoff(143);    // 0.56 -> 0.751 FAPH on DipCo
+          id(hey_jarvis).set_probability_cutoff(212);   // 0.83 -> 1.502 FAPH on DipCo
+          id(hey_mycroft).set_probability_cutoff(237);  // 0.93 -> 1.878 FAPH on DipCo
+        }
   - platform: template
     entity_category: config
     name: Wake word engine location
@@ -1565,7 +1595,7 @@ font:
       - "\U000F0493"#settings cog
       - "\U000F04AD"#next track
       - "\U000F04AE"#previous track
-      - "\U000F04B9"#workshop
+      - "\U000F04B9"#living room
       - "\U000F04C8"#spots
       - "\U000F04DB"#stop
       - "\U000F0502"#screen settings
@@ -2257,8 +2287,7 @@ display:
           } else {
             it.strftime(160, 88, id(my_font2), TextAlign::CENTER, "%l:%M%p", id(ha_time).now());
           }
-          it.printf(160, 181, id(my_font2), light_blue, TextAlign::CENTER, "%.f°C", id(outside_temp).state); 
-          
+          it.printf(160, 181, id(my_font2), light_blue, TextAlign::CENTER, "%.f°C", id(outside_temp).state);        
       - id: ota_page ##### firmware uploading page #####
         lambda: |-
           it.fill(Color::BLACK);
@@ -2649,6 +2678,7 @@ binary_sensor:
         - delay: 100ms
         - micro_wake_word.start
         - component.update: s3_box_lcd
+        
 ###### top left hand physical button #######
   - platform: gpio
     pin:
@@ -2668,7 +2698,7 @@ binary_sensor:
                 - display.is_displaying_page: saver_page
               then:
                 - lambda: id(led).turn_on().set_brightness(id(s_default_brightness).state /100).perform();
-                - display.page.show: saver_page
+                - display.page.show: idle_page
                 - script.execute: saver_enabled
                 - component.update: s3_box_lcd
               else:
@@ -2718,7 +2748,16 @@ binary_sensor:
             - script.execute: saver_enabled
           else:
             - lambda: id(led).turn_on().set_brightness(id(s_default_brightness).state /100).perform();
-            - display.page.show: saver_page
+            - display.page.show: idle_page
+            - component.update: s3_box_lcd
+      - if:
+          condition:
+            - display.is_displaying_page: idle_page
+          then:
+            - script.execute: saver_enabled
+          else:
+            - lambda: id(led).turn_on().set_brightness(id(s_default_brightness).state /100).perform();
+            - display.page.show: idle_page
             - component.update: s3_box_lcd
 
 
@@ -3612,7 +3651,6 @@ binary_sensor:
         - component.update: s3_box_lcd
 
 
-
   - platform: touchscreen
     page_id: ss_set_page
     id: ss_toggle_blank
@@ -3900,7 +3938,6 @@ binary_sensor:
             operation: Next
             cycle: true
         - component.update: s3_box_lcd
-
 
 
 ##### alarm panel buttons #####

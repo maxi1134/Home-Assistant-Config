@@ -25,8 +25,10 @@ blueprint:
 
     All sentences must:
 
-    * start with the words `Play` or `Listen to` followed by the item type `artist`/`track`/`album`/`playlist`/`radio`
-    and then the name of the item
+    * start with the words `Shuffle`, `Play` or `Listen to` followed by the item type
+    `artist`/`track`/`album`/`playlist`/`radio` and then the name of the item. If
+    the sentence starts with `Shuffle`, the player that plays the request will also
+    have the shuffle option turned on, otherwise it will be turned off.
 
     * for album and track be optionally followed by `by [the] artist` and then the
     artist name
@@ -79,6 +81,10 @@ blueprint:
 
     Play the band U2
 
+    Shuffle songs by Muse.
+
+    Shuffle the album Classical Nights on the Bedroom Sonos Speaker
+
     ```'
   input:
     default_player_entity_id_input:
@@ -99,7 +105,7 @@ blueprint:
         treated as ''or''. { query } is a wildcard value which will contain the requested
         media and optionally the area or Music Assistant player.
 
-        You can als set the responses Assist will give. It uses jinja templates which
+        You can also set the responses Assist will give. It uses jinja templates which
         will be replaced with the media information and player name of the Music Assistant
         player.'
       collapsed: true
@@ -112,7 +118,7 @@ blueprint:
               multiline: false
               multiple: true
           default:
-          - (play|listen to) [the ](album|ep|record|compilation|single) {media_name}
+          - (shuffle|play|listen to) [the ](album|ep|record|compilation|single) {media_name}
             [by [the ](artist|band|group) {artist}] [(in|on|using) [the ]{area_or_player_name}][
             (with|using) {radio_mode}]
         track_trigger:
@@ -123,7 +129,7 @@ blueprint:
               multiline: false
               multiple: true
           default:
-          - (play|listen to) [the ](track|song) {media_name} [by [the ](artist|band|group)
+          - (shuffle|play|listen to) [the ](track|song) {media_name} [by [the ](artist|band|group)
             {artist}] [(in|on|using) [the ]{area_or_player_name}][ (with|using) {radio_mode}]
         artist_trigger:
           name: Artist trigger
@@ -133,7 +139,7 @@ blueprint:
               multiline: false
               multiple: true
           default:
-          - (play|listen to) [the ](artist|band|group) {media_name} [(in|on|using)
+          - (shuffle|play|listen to) [the ](artist|band|group) {media_name} [(in|on|using)
             [the ]{area_or_player_name}][ (with|using) {radio_mode}]
         radio_trigger:
           name: Radio trigger
@@ -143,7 +149,7 @@ blueprint:
               multiline: false
               multiple: true
           default:
-          - (play|listen to) [the ]((radio station)|(radio)|(station)) {media_name}
+          - (shuffle|play|listen to) [the ]((radio station)|(radio)|(station)) {media_name}
             [(in|on|using) [the ]{area_or_player_name}]
         playlist_trigger:
           name: Playlist trigger
@@ -153,8 +159,8 @@ blueprint:
               multiline: false
               multiple: true
           default:
-          - (play|listen to) [the ]playlist {media_name} [(in|on|using) [the ]{area_or_player_name}][
-            (with|using) {radio_mode}]
+          - (shuffle|play|listen to) [the ]playlist {media_name} [(in|on|using) [the
+            ]{area_or_player_name}][ (with|using) {radio_mode}]
         response_input:
           name: Response for Assist
           description: The response which will be given by Assist.
@@ -162,8 +168,9 @@ blueprint:
             text:
               multiline: false
               multiple: false
-          default: '{{ trigger.slots.media_name }} playing on {{ mass_player_name
-            }}'
+          default: '{{ ''Shuffling'' if ''shuffle'' in trigger.sentence | lower  else
+            ''''}} {{ trigger.slots.media_name }} {{ '''' if ''shuffle'' in trigger.sentence
+            | lower else ''playing''}} on {{ mass_player_name }}'
 triggers:
 - trigger: conversation
   command: !input album_trigger
@@ -183,6 +190,8 @@ triggers:
 actions:
 - alias: Define variables to be used in the automation
   variables:
+    version: 20250404
+    shuffle: '{{ ''shuffle'' in trigger.sentence | lower }}'
     default_player_entity_id: !input default_player_entity_id_input
     trigger_id: '{{ trigger.id }}'
     area_or_player_name: '{{ trigger.slots.area_or_player_name | default }}'
@@ -193,16 +202,18 @@ actions:
         }}'
       artist: '{{ trigger.slots.artist | default }}'
       radio_mode: '{{ ''radio'' in trigger.slots.radio_mode | default | lower }}'
-    player_entity_id_by_player_name: "{{ integration_entities('music_assistant') |
-      expand \n  | selectattr('name', 'match', area_or_player_name ~ '$', ignorecase=true)\n
-      \ | map(attribute='entity_id') | list }}\n"
+    ma_players: '{{  integration_entities(''music_assistant'') | select(''match'',
+      ''media_player'') | list }}'
+    player_entity_id_by_player_name: "{{ ma_players | expand \n  | selectattr('name',
+      'match', area_or_player_name ~ '$', ignorecase=true)\n  | map(attribute='entity_id')
+      | list }}\n"
     player_entity_id_by_area_name: '{{ areas() | map(''area_name'') | select(''match'',
       area_or_player_name ~ ''$'',  ignorecase=true) | map(''area_entities'') | sum(start=[])
-      | select(''in'',  integration_entities(''music_assistant'')) | list }}
+      | select(''in'',  ma_players) | list }}
 
       '
     player_entity_id_by_assist_area: '{{ area_entities(area_id(trigger.device_id))
-      | select(''in'', integration_entities(''music_assistant'')) | list }}
+      | select(''in'', ma_players) | list }}
 
       '
     mass_player_entity_id: "{{ player_entity_id_by_player_name or player_entity_id_by_area_name
@@ -212,6 +223,12 @@ actions:
 - alias: Send media to selected Music Assistant Player
   action: music_assistant.play_media
   data: '{{ dict(action_data.items() | selectattr(''1'')) }}'
+  target:
+    entity_id: '{{ mass_player_entity_id }}'
+- alias: Enable/Disable shuffle on a Music Assistant Media Player
+  action: media_player.shuffle_set
+  data:
+    shuffle: '{{ shuffle }}'
   target:
     entity_id: '{{ mass_player_entity_id }}'
 - alias: Send back the response

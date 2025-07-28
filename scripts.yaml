@@ -428,8 +428,10 @@ start_visual_playlist_on_plex:
   alias: Start requsted Playlist on plex for all unplaying chromecasts
   sequence:
   - variables:
-      chromecasts: '{{integration_entities(''cast'')  |  select(''search'', ''chromecast'')|
-        reject(''search'', ''hotbox'')| reject(''search'', ''bedroom'') | list}}
+      chromecasts: '{{(integration_entities(''cast'')  |  select(''search'', ''chromecast'')|
+        reject(''search'', ''hotbox'')| reject(''search'', ''bedroom'') | list ) +
+        (integration_entities(''cast'')  |  select(''search'', ''hub'')| reject(''search'',
+        ''hotbox'')| reject(''search'', ''salon'') | list ) }}
 
         '
   - repeat:
@@ -1146,44 +1148,49 @@ start_plex_media_on_requested_player:
 set_whole_house_to_cozy_ambiance_2:
   alias: Set whole house to cozy ambiance
   sequence:
-  - alias: Set Fireplace effect on all hue lights
-    action: light.turn_on
-    metadata: {}
-    data:
-      effect: fireplace
-      brightness_pct: 100
-    target:
-      entity_id: light.group_all_inside_lights
-  - action: light.turn_on
-    metadata: {}
-    data:
-      effect: effect_flame
-      brightness_pct: 100
-    target:
-      entity_id:
-      - light.salon_wall_light
-      - light.workshop_wall_light
-      - light.lounge_ceiling_light
-  - action: light.turn_on
-    metadata: {}
-    data:
-      brightness_pct: 50
-      effect: breathe
-      kelvin: 2668
-    target:
-      entity_id: light.group_patio_lights
-  - action: light.turn_on
-    metadata: {}
-    data:
-      brightness_pct: 100
-      effect: breathe
-      kelvin: 2668
-    target:
-      entity_id: light.group_lounge_decorative_lamp
-  - metadata: {}
-    data:
-      requested_playlist: Fireplace Visuals
-    action: script.start_visual_playlist_on_plex
+  - parallel:
+    - alias: Set Fireplace effect on all hue lights
+      action: light.turn_on
+      metadata: {}
+      data:
+        effect: fireplace
+        brightness_pct: 100
+      target:
+        entity_id: light.group_all_inside_lights
+      continue_on_error: true
+    - action: light.turn_on
+      metadata: {}
+      data:
+        effect: effect_flame
+        brightness_pct: 100
+      target:
+        entity_id:
+        - light.salon_wall_light
+        - light.workshop_wall_light
+        - light.lounge_ceiling_light
+      continue_on_error: true
+    - action: light.turn_on
+      metadata: {}
+      data:
+        brightness_pct: 50
+        effect: breathe
+        kelvin: 2668
+      target:
+        entity_id: light.group_patio_lights
+      continue_on_error: true
+    - action: light.turn_on
+      metadata: {}
+      data:
+        brightness_pct: 100
+        effect: breathe
+        kelvin: 2668
+      target:
+        entity_id: light.group_lounge_decorative_lamp
+      continue_on_error: true
+    - metadata: {}
+      data:
+        requested_playlist: Fireplace Visuals
+      action: script.start_visual_playlist_on_plex
   description: This script can be used by an LLM to create a cozy ambiance in the
     house. It set fireplace and candle light mood. This is not to be considered to
     be the normal mode
@@ -1798,6 +1805,9 @@ set_whole_house_to_a_normal_ambiance:
       data: {}
       target:
         entity_id: light.all_uv_lamps
+  - stop: Ambiance Normalized
+    response_variable: target_data
+    enabled: true
   alias: Set whole house to a normal ambiance
   description: "This script can be used by an LLM in order to set the house to a normal
     ambiance. IT can be used if the user mention needing a normal house ambiance or
@@ -2288,3 +2298,14 @@ this_script_can_be_used_to_show_the_cameras_on_all_tvs:
   alias: This script can be used to show the cameras on all TVs
   description: This security audit script allows the LLM to get all the TVs to showing
     the camera feeds.
+llm_script_for_music_assistant_voice_requests:
+  alias: LLM Script for Music Assistant voice requests
+  use_blueprint:
+    path: music-assistant/llm_voice_script.yaml
+  description: 'This script is used to play music based on a voice request. The tool
+    takes the following arguments: media_type, artist, album, media_id, radio_mode,
+    area, shuffle. media_id, media_type, and shuffle are always required and must
+    always be supplied as arguments to this tool. An area or Music Assistant media
+    player can optionally be provided in the voice request as well. Use the parameters
+    as described in the description of each parameter. Use this tool whenever the
+    user requests to play music.'

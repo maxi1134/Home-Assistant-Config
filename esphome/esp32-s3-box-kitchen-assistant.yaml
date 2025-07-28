@@ -150,7 +150,6 @@ wifi:
     - script.execute: draw_display
 
 
-
 captive_portal:
 time:
   - platform: homeassistant
@@ -222,6 +221,8 @@ light:
     output: backlight_output
     restore_mode: ALWAYS_ON
     default_transition_length: 50ms
+
+
 sensor:       
   - platform: homeassistant
     id: outside_temp
@@ -711,11 +712,11 @@ script:
                                 id(s3_box_lcd).update();
                                 break;
                               case ${voice_assist_muted_phase_id}:
-                                id(s3_box_lcd).show_page(saver_page);
+                                id(s3_box_lcd).show_page(idle_page);
                                 id(s3_box_lcd).update();
                                 break;
                               case ${voice_assist_not_ready_phase_id}:
-                                id(s3_box_lcd).show_page(saver_page);
+                                id(s3_box_lcd).show_page(idle_page);
                                 id(s3_box_lcd).update();
                                 break;
                               case ${voice_assist_timer_finished_phase_id}:
@@ -1537,7 +1538,7 @@ font:
       - "\U000F0493"#settings cog
       - "\U000F04AD"#next track
       - "\U000F04AE"#previous track
-      - "\U000F04B9"#workshop
+      - "\U000F04B9"#living room
       - "\U000F04C8"#spots
       - "\U000F04DB"#stop
       - "\U000F0502"#screen settings
@@ -2407,6 +2408,7 @@ display:
           it.printf(283, 210, id(my_font5), yellow, TextAlign::RIGHT, "%4.f%%", id(wifi_percent).state);
 
 
+
       - id: alarm_page   #### alarm page #####
         lambda: |-
           if(id(alarm_status).state == "disarmed") {
@@ -2599,27 +2601,6 @@ display:
           }
 
 binary_sensor:
-  - platform: touchscreen
-    pages: 
-      - replying_page
-      - listening_page
-      - saver_page
-    id: stop_response
-    internal: true
-    x_min: 0
-    x_max: 320
-    y_min: 0
-    y_max: 240
-    on_click:
-      min_length: 10ms
-      max_length: 500ms
-      then:
-        - media_player.stop
-        - voice_assistant.stop
-        - display.page.show: saver_page
-        - delay: 100ms
-        - micro_wake_word.start
-        - component.update: s3_box_lcd
 ###### top left hand physical button #######
   - platform: gpio
     pin:
@@ -2639,7 +2620,7 @@ binary_sensor:
                 - display.is_displaying_page: saver_page
               then:
                 - lambda: id(led).turn_on().set_brightness(id(s_default_brightness).state /100).perform();
-                - display.page.show: saver_page
+                - display.page.show: idle_page
                 - script.execute: saver_enabled
                 - component.update: s3_box_lcd
               else:
@@ -2684,7 +2665,7 @@ binary_sensor:
             - script.execute: saver_enabled
           else:
             - lambda: id(led).turn_on().set_brightness(id(s_default_brightness).state /100).perform();
-            - display.page.show: idle_page
+            - display.page.show: saver_page
             - component.update: s3_box_lcd
 
 ##### satus bar buttons #####
@@ -3130,18 +3111,14 @@ binary_sensor:
     y_min: 90
     y_max: 170
           #### make sure that the following 4 lines are uncommented by removing the prefixed '#' ###
-    on_click:
-       min_length: 10ms
-       max_length: 500ms
-       then:
+    # on_click:
+      # min_length: 10ms
+      # max_length: 500ms
+      # then:
       #### add your action here - make sure to uncomment the following  line by removing the prefixed '#' and keep these below your action #####
 
+        # - component.update: s3_box_lcd
 
-        - homeassistant.service:
-            service: light.toggle
-            data:
-              entity_id: light.group_kitchen_lights
-        - component.update: s3_box_lcd
   - platform: touchscreen
     page_id: lights_page
     id: lights2
@@ -3669,7 +3646,7 @@ binary_sensor:
       min_length: 10ms
       max_length: 500ms
       then:
-        - display.page.show: saver_page
+        - display.page.show: idle_page
         - component.update: s3_box_lcd
 
 ##### Timer finished page #####
@@ -3866,8 +3843,6 @@ binary_sensor:
             operation: Next
             cycle: true
         - component.update: s3_box_lcd
-
-
 
 
 

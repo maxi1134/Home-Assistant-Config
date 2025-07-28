@@ -17,7 +17,7 @@
     to: awake
     for:
       hours: 0
-      minutes: 4
+      minutes: 2
       seconds: 0
     trigger: state
   conditions:
@@ -25,21 +25,35 @@
     entity_id: person.maximiliano
     state: home
   - condition: state
-    entity_id: media_player.group_mass_home_group_speakers
-    state: 'off'
-  - condition: state
     entity_id: binary_sensor.all_residents_sleeping
     state: 'off'
-  - condition: template
-    value_template: '{{ (now() - trigger.from_state.last_changed) > timedelta(seconds=7200)
-      }}'
-  actions:
-  - data:
-      media_id: All favorited tracks
-      enqueue: replace
-    action: music_assistant.play_media
-    target:
+  - condition: not
+    conditions:
+    - condition: state
       entity_id: media_player.group_mass_home_group_speakers
+      state: playing
+  actions:
+  - choose:
+    - conditions:
+      - condition: time
+        before: '11:00:00'
+        after: 02:00:00
+      sequence:
+      - data:
+          media_id: Myriam Morning Music
+          enqueue: replace
+          media_type: playlist
+        action: music_assistant.play_media
+        target:
+          entity_id: media_player.group_mass_home_group_speakers
+        alias: Start soft myriam music
+    default:
+    - data:
+        media_id: All favorited tracks
+        enqueue: replace
+      action: music_assistant.play_media
+      target:
+        entity_id: media_player.group_mass_home_group_speakers
   mode: single
 - id: '1708472370553'
   alias: Stop bedroom speaker when bedroom sleeper awake
@@ -339,7 +353,22 @@
     - binary_sensor.all_residents_sleeping
     to: 'off'
     trigger: state
-  conditions: []
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+  conditions:
+  - condition: time
+    after: '10:00:00'
+    before: '22:00:00'
+    weekday:
+    - fri
+    - thu
+    - wed
+    - tue
+    - mon
+    - sat
+    - sun
   actions:
   - target:
       entity_id: switch.adaptive_lighting_sleep_mode_adaptive_lighting
@@ -389,86 +418,6 @@
       - cover.group_all_blinds
       - cover.cover_bedroom_blinds
   mode: single
-- id: '1713469587813'
-  alias: Turn lights to purple when a movie is played
-  description: ''
-  triggers:
-  - entity_id:
-    - media_player.universal_lounge_chromecast
-    - media_player.universal_workshop_chromecast
-    - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
-    - media_player.universal_patio_chromecast
-    to: movie
-    trigger: state
-    attribute: media_content_type
-  conditions: []
-  actions:
-  - repeat:
-      sequence:
-      - variables:
-          on_lights_in_room: '{{ [area_id(trigger.entity_id)] | map(''area_id'') |
-            map(''area_entities'') | sum(start=[]) | select(''match'', ''^light.'')
-            | select(''is_state'',''on'') | unique | list }}
-
-            '
-          entity_id: '{{ trigger.entity_id }}
-
-            '
-          trigger_full: '{{ trigger.to_state.attributes }}
-
-            '
-      - if:
-        - condition: template
-          value_template: '{{ trigger.to_state.attributes.media_content_type == "movie"
-            }}'
-        - condition: template
-          value_template: '{{ not trigger.to_state.attributes.media_series_title }}'
-        then:
-        - metadata: {}
-          data:
-            rgb_color:
-            - 255
-            - 0
-            - 255
-            brightness_pct: '30'
-          target:
-            entity_id: '{{ on_lights_in_room | list }}'
-          action: light.turn_on
-      count: 1
-    enabled: true
-  - wait_for_trigger:
-    - value_template: '{{ states(trigger.entity_id) == "off" }}'
-      trigger: template
-    timeout:
-      hours: 4
-      minutes: 0
-      seconds: 0
-      milliseconds: 0
-    continue_on_timeout: false
-  - variables:
-      on_lights_in_room: '{{ [area_id(trigger.entity_id)] | map(''area_id'') | map(''area_entities'')
-        | sum(start=[]) | select(''match'', ''^light.'') | select(''is_state'',''on'')
-        | unique | list }}
-
-        '
-      entity_id: '{{ trigger.entity_id }}
-
-        '
-      trigger_full: '{{ trigger.to_state.attributes }}
-
-        '
-  - metadata: {}
-    data:
-      rgb_color:
-      - 255
-      - 255
-      - 255
-      brightness_pct: '100'
-    target:
-      entity_id: '{{ on_lights_in_room | list}}'
-    action: light.turn_on
-  mode: restart
 - id: '1713533595890'
   alias: Disarm alarm-away when "User Home" turns on
   description: ''
@@ -712,107 +661,94 @@
 - id: '1713574201448'
   alias: Turn lights to white when we stop a movie
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - media_player.universal_lounge_chromecast
+  triggers:
+  - entity_id:
+    - media_player.universal_salon_chromecast
     - media_player.universal_workshop_chromecast
-    - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
-    - media_player.universal_patio_chromecast
     to: 'off'
-  condition:
+    trigger: state
+  conditions:
   - condition: template
-    value_template: '{{ trigger.from_state.attributes.media_content_type == "movie"
-      }}'
+    value_template: '{{ state_attr(state_attr(trigger.entity_id,''active_child''),''media_library_title'')
+      == ''Movies''}}'
   - condition: template
     value_template: '{{ not trigger.from_state.attributes.media_series_title }}'
-  action:
+  actions:
+  - variables:
+      off_lights_in_room: '{{ [area_id(trigger.entity_id)] | map(''area_id'') | map(''area_entities'')
+        | sum(start=[]) | select(''match'', ''^light.'') | select(''is_state'',''on'')
+        | unique | list }}
+
+        '
+      entity_id: '{{ trigger.entity_id }}
+
+        '
+      trigger_full: '{{ trigger.to_state.attributes }}
+
+        '
   - repeat:
       sequence:
-      - variables:
-          off_lights_in_room: '{{ [area_id(trigger.entity_id)] | map(''area_id'')
-            | map(''area_entities'') | sum(start=[]) | select(''match'', ''^light.'')
-            | select(''is_state'',''on'') | unique | list }}
-
-            '
-          entity_id: '{{ trigger.entity_id }}
-
-            '
-          trigger_full: '{{ trigger.to_state.attributes }}
-
-            '
-      - repeat:
-          sequence:
-          - service: light.turn_on
-            metadata: {}
-            data:
-              rgb_color:
-              - 255
-              - 255
-              - 255
-              brightness_pct: '100'
-              transition: 150
-            target:
-              entity_id: '{{ off_lights_in_room[repeat.index - 1 ] }}'
-          for_each: '{{off_lights_in_room}}'
-        enabled: true
-      count: 1
+      - metadata: {}
+        data:
+          rgb_color:
+          - 255
+          - 255
+          - 255
+          brightness_pct: '100'
+          transition: 1
+        target:
+          entity_id: '{{ off_lights_in_room[repeat.index - 1 ] }}'
+        action: light.turn_on
+      for_each: '{{off_lights_in_room}}'
     enabled: true
   mode: restart
 - id: '1713630060902'
   alias: Raise lights to 60% brightness when a movie is paused and the brightness
     is below 30%
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - media_player.universal_lounge_chromecast
+  triggers:
+  - entity_id:
+    - media_player.universal_bedroom_chromecast
     - media_player.universal_workshop_chromecast
-    - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
-    - media_player.universal_patio_chromecast
+    - media_player.universal_salon_chromecast
     to: paused
-    from: playing
-  condition:
+    trigger: state
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  conditions:
   - condition: template
-    value_template: '{{ trigger.from_state.attributes.media_content_type == "movie"
-      }}'
+    value_template: '{{ state_attr(state_attr(trigger.entity_id,''active_child''),''media_library_title'')
+      == ''Movies''}}'
+    enabled: true
   - condition: template
     value_template: '{{ not trigger.from_state.attributes.media_series_title }}'
-  action:
+    enabled: true
+  actions:
+  - variables:
+      lights_under_60_percent: '{{ [area_id(trigger.entity_id)] | map(''area_id'')
+        | map(''area_entities'') | sum(start=[]) | select(''match'', ''^light.'')
+        | select(''is_state'',''on'')  | expand | selectattr(''attributes.brightness'',''<'',153)
+        | map(attribute=''entity_id'') | unique | list }}
+
+        '
+      entity_id: '{{ trigger.entity_id }}
+
+        '
+      trigger_full: '{{ trigger.to_state.attributes }}
+
+        '
   - repeat:
       sequence:
-      - variables:
-          off_lights_in_room: '{{ [area_id(trigger.entity_id)] | map(''area_id'')
-            | map(''area_entities'') | sum(start=[]) | select(''match'', ''^light.'')
-            | select(''is_state'',''on'') | unique | list }}
-
-            '
-          entity_id: '{{ trigger.entity_id }}
-
-            '
-          trigger_full: '{{ trigger.to_state.attributes }}
-
-            '
-      - repeat:
-          sequence:
-          - if:
-            - condition: template
-              value_template: '
-
-                {{ state_attr(off_lights_in_room[repeat.index - 1 ], "brightness")
-                < 80 }}'
-            then:
-            - service: light.turn_on
-              metadata: {}
-              data:
-                brightness_pct: '60'
-              target:
-                entity_id: '{{ off_lights_in_room[repeat.index - 1 ] }}'
-          for_each: '{{off_lights_in_room}}'
-        enabled: true
-      count: 1
+      - metadata: {}
+        data:
+          brightness: 153
+          transition: 2
+        target:
+          entity_id: '{{ lights_under_60_percent[repeat.index - 1 ] }}'
+        action: light.turn_on
+      for_each: '{{lights_under_60_percent}}'
     enabled: true
   mode: parallel
   max: 6
@@ -957,16 +893,13 @@
     - binary_sensor.group_lounge_motion_occupancy
     - binary_sensor.group_hallway_motion_occupancy
     - binary_sensor.group_kitchen_motion_occupancy
-    - binary_sensor.group_hotbox_top_motion_occupancy
     - binary_sensor.group_workshop_motion_occupancy
-    - binary_sensor.group_hotbox_down_motion_occupancy
     - binary_sensor.group_patio_motion_occupancy
     - binary_sensor.group_closet_motion_occupancy
     - binary_sensor.group_server_motion_occupancy
     - binary_sensor.group_entrance_motion_occupancy
     - binary_sensor.group_workstation_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
-    - binary_sensor.group_hotbox_motion_occupancy
     - binary_sensor.group_bathroom_motion_occupancy
     for:
       hours: 0
@@ -1233,46 +1166,42 @@
   description: ''
   triggers:
   - entity_id:
-    - media_player.universal_lounge_chromecast
     - media_player.universal_workshop_chromecast
     - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
+    - media_player.universal_bedroom_chromecast
+    - media_player.universal_salon_chromecast
+    - media_player.universal_kitchen_chromecast
     to: playing
     trigger: state
-  - entity_id:
+  - alias: Chromecasts Muted Status
+    entity_id:
     - media_player.universal_lounge_chromecast
     - media_player.universal_workshop_chromecast
     - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
+    - media_player.universal_bedroom_chromecast
+    - media_player.universal_kitchen_chromecast
+    - media_player.universal_salon_chromecast
     trigger: state
     attribute: is_volume_muted
-    alias: Chromecasts Muted Status
+  - entity_id:
+    - media_player.universal_workshop_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_patio_chromecast
+    - media_player.universal_bedroom_chromecast
+    - media_player.universal_salon_chromecast
+    - media_player.universal_kitchen_chromecast
+    trigger: state
+    attribute: media_title
   conditions:
   - condition: template
-    value_template: "{% set ns = namespace( cast_entity = trigger.entity_id, template_entity
-      = \"\" ) %}\n{% set ns.final_entity = ns.cast_entity %}   {# Declare Variables#}
-      \                   \n{% for media_player in states.media_player %}                   \n
-      \ {% if \"plex\" in media_player.entity_id and media_player.state != \"unavailable\"
-      %}\n    {% set entity = media_player.entity_id %}\n    {% set media_title =
-      state_attr( entity, 'media_title') %}\n    {% set media_series_title = state_attr(
-      entity, 'media_series_title') %}\n    {% set media_series_episode = state_attr(
-      entity, 'media_espisode') %}\n    {% set media_series_season = state_attr( entity,
-      'media_season') %}                      \n      {% if state_attr( ns.final_entity,
-      'media_title') %}\n        {% if  state_attr( ns.cast_entity, 'media_title')
-      in ( media_title | string )%}\n        {% set ns.template_entity = entity %}\n
-      \       {% endif %}                    \n      {% elif state_attr( ns.final_entity,
-      'media_series_title') %}\n        {% if  state_attr( ns.cast_entity, 'media_series_title')
-      in ( media_series_title | string )%}\n        {% set ns.template_entity = entity
-      %}\n        {% endif %}\n      {% endif %}                      \n  {% endif
-      %}                         \n{% endfor %}                   \n{% if ns.template_entity
-      == \"\" %}\n    {% set ns.template_entity = ns.cast_entity %}\n{% endif %}\n{%
-      if ns.template_entity != ns.cast_entity %}                  \n  {{ state_attr(ns.template_entity,
-      'media_library_title') == 'Visuals'}}\n{% endif %} "
+    value_template: '{{ state_attr(state_attr(trigger.entity_id,''active_child''),''media_library_title'')
+      == ''Visuals''}}'
   - alias: Check if the chromecast already muted
     condition: template
     value_template: '{{trigger.to_state.attributes.is_volume_muted == false }}'
+    enabled: true
   actions:
   - metadata: {}
     data:
@@ -1364,7 +1293,6 @@
     entity_id:
     - media_player.universal_workshop_chromecast
     - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
     - media_player.universal_salon_chromecast
     - media_player.universal_bedroom_chromecast
@@ -1375,8 +1303,6 @@
   - alias: Speakers
     entity_id:
     - media_player.universal_workshop_speakers
-    - media_player.universal_hotbox_top_speakers
-    - media_player.universal_hotbox_down_speakers
     - media_player.universal_salon_speakers
     - media_player.universal_bedroom_speakers
     - media_player.universal_kitchen_speakers
@@ -1390,7 +1316,6 @@
     entity_id:
     - media_player.universal_workshop_chromecast
     - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
     - media_player.universal_salon_chromecast
     - media_player.universal_bedroom_chromecast
@@ -1405,7 +1330,8 @@
         \ | unique\n  | list \n}}\n"
       unmuted_player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
         \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
-        'universal')\n  | expand\n  | selectattr('attributes.is_volume_muted', 'eq',
+        'universal')\n  | expand\n  | rejectattr('state', 'eq', 'off')\n  | rejectattr('state',
+        'eq', 'unavailable ')\n  | selectattr('attributes.is_volume_muted', 'eq',
         false)\n  | map(attribute='entity_id')\n  | unique\n  | list \n}}\n"
   - if:
     - condition: template
@@ -1417,82 +1343,6 @@
         is_volume_muted: true
       target:
         entity_id: '{{playing_speakers | list}}'
-  mode: restart
-- id: '1714404505080'
-  alias: Close covers in the room when chromecasts start movie
-  description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - media_player.universal_lounge_chromecast
-    - media_player.universal_workshop_chromecast
-    - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
-    - media_player.universal_patio_chromecast
-    to: playing
-  condition:
-  - alias: Check that the chromecast is not muted
-    condition: template
-    value_template: '{{trigger.to_state.attributes.is_volume_muted == false}}'
-  - condition: template
-    value_template: "                  {% set ns = namespace( cast_entity = trigger.entity_id,
-      template_entity = \"\" ) %}\n                  {% set ns.final_entity = ns.cast_entity
-      %}   {# Declare Variables#}                    \n                  {% for media_player
-      in states.media_player %}                   \n                    {% if \"plex\"
-      in media_player.entity_id and media_player.state != \"unavailable\" %}\n                      {%
-      set entity = media_player.entity_id %}\n                      {% set media_title
-      = state_attr( entity, 'media_title') %}\n                      {% set media_series_title
-      = state_attr( entity, 'media_series_title') %}\n                      {% set
-      media_series_episode = state_attr( entity, 'media_espisode') %}\n                      {%
-      set media_series_season = state_attr( entity, 'media_season') %}                      \n
-      \                       {% if state_attr( ns.final_entity, 'media_title') %}\n
-      \                         {% if  state_attr( ns.cast_entity, 'media_title')
-      in ( media_title | string )%}\n                          {% set ns.template_entity
-      = entity %}\n                          {% endif %}                    \n                        {%
-      elif state_attr( ns.final_entity, 'media_series_title') %}\n                          {%
-      if  state_attr( ns.cast_entity, 'media_series_title') in ( media_series_title
-      | string )%}\n                          {% set ns.template_entity = entity %}\n
-      \                         {% endif %}\n                        {% endif %}                      \n
-      \                   {% endif %}                         \n                  {%
-      endfor %}                   \n                  {% if ns.template_entity ==
-      \"\" %}\n                      {% set ns.template_entity = ns.cast_entity %}\n
-      \                 {% endif %}\n                  {% if ns.template_entity !=
-      ns.cast_entity %}                  \n                    {{ state_attr(ns.template_entity,
-      'media_library_title') == 'Movies'}}\n                  {% endif %} "
-  action:
-  - variables:
-      covers: '{{ [area_id(trigger.entity_id)]    | map(''area_entities'') | sum(start=[])
-        |    select(''search'', ''^cover\.'')  | unique | list }}
-
-        '
-  - service: cover.close_cover
-    metadata: {}
-    data: {}
-    target:
-      entity_id: '{{ covers }}
-
-        '
-  - wait_for_trigger:
-    - platform: template
-      value_template: '{{ states(trigger.entity_id) == "off" }}'
-    timeout:
-      hours: 4
-      minutes: 0
-      seconds: 0
-      milliseconds: 0
-    continue_on_timeout: false
-  - if:
-    - condition: state
-      entity_id: input_boolean.kink_party
-      state: 'off'
-    then:
-    - service: cover.open_cover
-      metadata: {}
-      data: {}
-      target:
-        entity_id: '{{ covers }}
-
-          '
   mode: restart
 - id: '1714405984049'
   alias: Reload tablets when frigate changes state
@@ -1537,58 +1387,6 @@
     target:
       entity_id: light.group_all_inside_lights
   mode: single
-- id: '1714666640750'
-  alias: Turn off lights when a room is empty
-  description: 'This one uses motion groups '
-  triggers:
-  - entity_id:
-    - binary_sensor.group_patio_motion_occupancy
-    - binary_sensor.group_closet_motion_occupancy
-    - binary_sensor.group_lounge_motion_occupancy
-    - binary_sensor.group_server_motion_occupancy
-    - binary_sensor.group_hallway_motion_occupancy
-    - binary_sensor.group_kitchen_motion_occupancy
-    - binary_sensor.group_bathroom_motion_occupancy
-    - binary_sensor.group_entrance_motion_occupancy
-    - binary_sensor.group_workshop_motion_occupancy
-    - binary_sensor.group_workstation_motion_occupancy
-    - binary_sensor.group_salon_motion_occupancy
-    for:
-      hours: 0
-      minutes: 6
-      seconds: 0
-    to: 'off'
-    trigger: state
-  conditions:
-  - condition: template
-    value_template: '{{ states(''sensor.maxi_location_by_petro'') | lower not in [area_id(trigger.entity_id)]
-      | lower }}'
-  - condition: state
-    entity_id: input_boolean.kink_party
-    state: 'off'
-  - condition: state
-    entity_id: input_boolean.party_mode
-    state: 'off'
-  - condition: state
-    entity_id: input_boolean.acid_time
-    state: 'off'
-  actions:
-  - variables:
-      on_lights: '{{ [area_id(trigger.entity_id)]  | map(''area_entities'') | sum(start=[])
-        | select(''match'', ''^light.'') | select(''is_state'',''on'') | unique |
-        list }}
-
-        '
-  - metadata: {}
-    data:
-      transition: 60
-    target:
-      entity_id: '{{ on_lights }}
-
-        '
-    action: light.turn_off
-  mode: parallel
-  max: 10
 - id: '1714668230697'
   alias: Turn off lights colors adaptation when an event is ongoing
   description: ''
@@ -2651,7 +2449,7 @@
     - light.bedroom_chandelier_light
     for:
       hours: 0
-      minutes: 30
+      minutes: 2
       seconds: 0
     attribute: brightness
     above: 80
@@ -3651,7 +3449,7 @@
         '
   - metadata: {}
     data:
-      message: '{{ user_opening }} has arrived
+      message: '{{ user_opening }} is in da'' place
 
         '
       phone_data:
@@ -4026,8 +3824,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - binary_sensor.sensor_workshop_beige_couch_fp2_occupancy
-    - binary_sensor.sensor_workshop_matress_fp2_occupancy
+    - binary_sensor.sensor_workshop_fp2_table_occupancy
     to: 'on'
   - trigger: state
     entity_id:
@@ -4046,10 +3843,7 @@
   - condition: or
     conditions:
     - condition: state
-      entity_id: binary_sensor.sensor_workshop_beige_couch_fp2_occupancy
-      state: 'on'
-    - condition: state
-      entity_id: binary_sensor.sensor_workshop_matress_fp2_occupancy
+      entity_id: binary_sensor.sensor_workshop_fp2_table_occupancy
       state: 'on'
   actions:
   - action: light.turn_on
@@ -4066,8 +3860,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - binary_sensor.sensor_workshop_beige_couch_fp2_occupancy
-    - binary_sensor.sensor_workshop_matress_fp2_occupancy
+    - binary_sensor.sensor_workshop_fp2_table_occupancy
     to: 'off'
   - trigger: state
     entity_id:
@@ -4083,10 +3876,7 @@
     - condition: and
       conditions:
       - condition: state
-        entity_id: binary_sensor.sensor_workshop_beige_couch_fp2_occupancy
-        state: 'off'
-      - condition: state
-        entity_id: binary_sensor.sensor_workshop_matress_fp2_occupancy
+        entity_id: binary_sensor.sensor_workshop_fp2_table_occupancy
         state: 'off'
     - condition: state
       entity_id: media_player.universal_workshop_chromecast
@@ -4333,7 +4123,7 @@
     to: 'on'
   - trigger: state
     entity_id:
-    - binary_sensor.sensor_bedroom_motion_occupancy
+    - binary_sensor.group_bedroom_motion_occupancy
     from: 'off'
     to: 'on'
   conditions:
@@ -4654,6 +4444,14 @@
       minutes: 0
       seconds: 0
     from: 0:00:06
+  - trigger: state
+    entity_id:
+    - timer.cooking
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+    from: active
   conditions: []
   actions:
   - action: script.non_important_broadcast_alert_in_the_house
@@ -5706,13 +5504,6 @@
     target:
       entity_id: media_player.kitchen_google_hub
   mode: single
-- id: '1738852306883'
-  alias: Music Assistant - Local(only) Voice Support Blueprint
-  description: ''
-  use_blueprint:
-    path: music-assistant/mass_assist_blueprint_en.yaml
-    input:
-      default_player_entity_id_input: media_player.group_mass_home_group_speakers
 - id: '1739201293361'
   alias: Alert maxi that his laptop battery is low
   description: ''
@@ -6327,6 +6118,36 @@
     data: {}
     target:
       entity_id: switch.samsung_galaxy_tab_e_8_0_screen
+  - if:
+    - condition: template
+      value_template: '{{ state_attr(''media_player.universal_bedroom_speakers'',''media_title'')
+        != ''thunderstorm'' }} e'
+      enabled: false
+    then:
+    - data:
+        media_content_id: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
+        media_content_type: audio
+      action: media_player.play_media
+      target:
+        entity_id: media_player.universal_closet_speaker
+    - metadata: {}
+      data:
+        is_volume_muted: true
+      action: media_player.volume_mute
+      target:
+        entity_id: media_player.universal_closet_speaker
+    - action: media_player.volume_set
+      metadata: {}
+      data:
+        volume_level: 0.7
+      target:
+        entity_id: media_player.universal_closet_speaker
+    - metadata: {}
+      data:
+        is_volume_muted: false
+      action: media_player.volume_mute
+      target:
+        entity_id: media_player.universal_closet_speaker
   mode: single
 - id: '1740935693012'
   alias: Undo sleeper actions when Sleeper in closet turns off
@@ -7319,6 +7140,10 @@
       zone_filter: true
       zones:
       - back_entrance_presence
+      master_condition:
+      - condition: state
+        entity_id: input_boolean.party_in_the_back_yard
+        state: 'off'
 - id: '1744750292983'
   alias: Start bathroom muzak when door closes
   description: ''
@@ -8248,8 +8073,8 @@
       entity_id: number.workshop_tablet_screen_brightness
   mode: restart
 - id: '1747973723106'
-  alias: Turn off lights when a room is empty V2
-  description: This one uses motion groups and area calls
+  alias: Turn off lights when a room is empty and sleep mode is off V2
+  description: This one uses motion groups and area calls. this one acts slower
   triggers:
   - entity_id:
     - binary_sensor.group_patio_motion_occupancy
@@ -8280,6 +8105,9 @@
     state: 'off'
   - condition: state
     entity_id: input_boolean.acid_time
+    state: 'off'
+  - condition: state
+    entity_id: switch.adaptive_lighting_sleep_mode_adaptive_lighting
     state: 'off'
   actions:
   - metadata: {}
@@ -8559,6 +8387,11 @@
       transition: 45
     target:
       entity_id: light.bedroom_headboard_lamp_light
+  - action: climate.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: climate.bedroom_ac
   mode: single
 - id: '1748845278340'
   alias: execute Sleep actions when "sleeper in bedroom" is turned on
@@ -8879,21 +8712,18 @@
   alias: Mute chromecats when unmuted speakers plays in the same room
   description: ''
   triggers:
-  - entity_id:
+  - alias: Chromecasts
+    entity_id:
     - media_player.universal_workshop_chromecast
     - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
     - media_player.universal_salon_chromecast
     - media_player.universal_bedroom_chromecast
     to: playing
     trigger: state
-    alias: Chromecasts
   - alias: Speakers mute states
     entity_id:
     - media_player.universal_workshop_speakers
-    - media_player.universal_hotbox_top_speakers
-    - media_player.universal_hotbox_down_speakers
     - media_player.universal_salon_speakers
     - media_player.universal_bedroom_speakers
     trigger: state
@@ -8906,8 +8736,6 @@
   - alias: Speakers
     entity_id:
     - media_player.universal_workshop_speakers
-    - media_player.universal_hotbox_top_speakers
-    - media_player.universal_hotbox_down_speakers
     - media_player.universal_salon_speakers
     - media_player.universal_bedroom_speakers
     to: playing
@@ -9273,7 +9101,7 @@
     subtype: dial_rotate_right_step
     trigger: device
     id: rotate_right_step
-    enabled: true
+    enabled: false
   - domain: mqtt
     device_id: 19def7fc56657d54fccacd364b0ec3fa
     type: action
@@ -9287,21 +9115,21 @@
     subtype: dial_rotate_right_fast
     trigger: device
     id: rotate_right_fast
-    enabled: false
+    enabled: true
   - domain: mqtt
     device_id: 19def7fc56657d54fccacd364b0ec3fa
     type: action
     subtype: dial_rotate_right_slow
     trigger: device
     id: rotate_right_slow
-    enabled: false
+    enabled: true
   - domain: mqtt
     device_id: 19def7fc56657d54fccacd364b0ec3fa
     type: action
     subtype: brightness_step_down
     trigger: device
     id: brightness_step_down
-    enabled: false
+    enabled: true
   - domain: mqtt
     device_id: 19def7fc56657d54fccacd364b0ec3fa
     type: action
@@ -9315,14 +9143,14 @@
     subtype: dial_rotate_left_fast
     trigger: device
     id: rotate_left_fast
-    enabled: false
+    enabled: true
   - domain: mqtt
     device_id: 19def7fc56657d54fccacd364b0ec3fa
     type: action
     subtype: dial_rotate_left_slow
     trigger: device
     id: rotate_left_slow
-    enabled: false
+    enabled: true
   - trigger: state
     entity_id:
     - sensor.remote_salon_hue_dial_brightness
@@ -9499,33 +9327,13 @@
         - rotate_right_step
         - brightness_step_up
         - rotate_right_slow
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness_step_pct: 3
-        target:
-          entity_id: light.group_bedroom_lights
-    - conditions:
-      - condition: trigger
-        id:
         - rotate_right_fast
       sequence:
       - action: light.turn_on
         metadata: {}
         data:
-          brightness_step_pct: 7
-        target:
-          entity_id: light.group_bedroom_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - rotate_left_fast
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness_step_pct: -10
+          brightness_step_pct: 10
+          transition: 1
         target:
           entity_id: light.group_bedroom_lights
     - conditions:
@@ -9534,11 +9342,13 @@
         - rotate_left_step
         - rotate_left_slow
         - brightness_step_down
+        - rotate_left_fast
       sequence:
       - action: light.turn_on
         metadata: {}
         data:
-          brightness_step_pct: -3
+          transition: 1
+          brightness_step_pct: -15
         target:
           entity_id: light.group_bedroom_lights
     - conditions:
@@ -9554,7 +9364,13 @@
             '
         target:
           entity_id: light.group_bedroom_lights
-  mode: restart
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 0
+      milliseconds: 50
+    enabled: false
+  mode: single
 - id: '1749669750052'
   alias: Close bedroom blinds when sun sets
   description: ''
@@ -10739,30 +10555,6 @@
       controller_device: 83c6d6773874bd6654223d9e400b0b86
       helper_last_controller_event: input_text.dial_hallway_helper
       action_rotate_left:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.hallway_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
-          enabled: false
-        then:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.hallway_chromecast
-          enabled: false
       - action: media_player.volume_down
         metadata: {}
         data: {}
@@ -10779,29 +10571,6 @@
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       action_rotate_right:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.hallway_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
-          enabled: false
-        then:
-        - action: media_player.volume_up
-          data: {}
-          target:
-            entity_id: media_player.hallway_chromecast
-          enabled: false
       - action: media_player.volume_up
         metadata: {}
         data: {}
@@ -10814,90 +10583,18 @@
           milliseconds: 200
       helper_debounce_delay: 0
       action_click_triple:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.hallway_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
-          enabled: false
-        then:
-        - action: media_player.turn_off
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.hallway_chromecast
-          enabled: false
       - action: media_player.turn_off
         metadata: {}
         data: {}
         target:
           entity_id: media_player.mass_hallway_airplay_wiim_speaker
       action_click_double:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.hallway_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
-          enabled: false
-        then:
-        - action: media_player.media_next_track
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.hallway_chromecast
-          enabled: false
       - action: media_player.media_next_track
         metadata: {}
         data: {}
         target:
           entity_id: media_player.mass_hallway_airplay_wiim_speaker
       action_click_short:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.hallway_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
-          enabled: false
-        then:
-        - action: media_player.media_play_pause
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.hallway_chromecast
-          enabled: false
       - action: media_player.media_play_pause
         metadata: {}
         data: {}
@@ -11103,8 +10800,9 @@
           value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
             %}
 
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
+            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused''))
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'') and not
+            is_state_attr(chromecast,''app_id'', ''A078F6B0'') %}
 
             {{ ''true''  | bool }}
 
@@ -11112,7 +10810,10 @@
 
             {{ ''false'' | bool }}
 
-            {% endif %}'
+            {% endif %}
+
+
+            '
           enabled: true
         then:
         - action: media_player.volume_down
@@ -11144,8 +10845,9 @@
           value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
             %}
 
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
+            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused''))
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'') and not
+            is_state_attr(chromecast,''app_id'', ''A078F6B0'') %}
 
             {{ ''true''  | bool }}
 
@@ -11153,7 +10855,10 @@
 
             {{ ''false'' | bool }}
 
-            {% endif %}'
+            {% endif %}
+
+
+            '
           enabled: true
         then:
         - action: media_player.volume_up
@@ -11167,6 +10872,7 @@
           data: {}
           target:
             entity_id: media_player.mass_kitchen_airplay_wiim_speaker
+        enabled: true
       - delay:
           hours: 0
           minutes: 0
@@ -11180,8 +10886,9 @@
           value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
             %}
 
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
+            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused''))
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'') and not
+            is_state_attr(chromecast,''app_id'', ''A078F6B0'') %}
 
             {{ ''true''  | bool }}
 
@@ -11189,7 +10896,10 @@
 
             {{ ''false'' | bool }}
 
-            {% endif %}'
+            {% endif %}
+
+
+            '
           enabled: true
         then:
         - action: media_player.turn_off
@@ -11211,8 +10921,9 @@
           value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
             %}
 
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
+            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused''))
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'') and not
+            is_state_attr(chromecast,''app_id'', ''A078F6B0'') %}
 
             {{ ''true''  | bool }}
 
@@ -11220,7 +10931,10 @@
 
             {{ ''false'' | bool }}
 
-            {% endif %}'
+            {% endif %}
+
+
+            '
           enabled: true
         then:
         - action: media_player.media_next_track
@@ -11242,8 +10956,9 @@
           value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
             %}
 
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
+            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused''))
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'') and not
+            is_state_attr(chromecast,''app_id'', ''A078F6B0'') %}
 
             {{ ''true''  | bool }}
 
@@ -11251,7 +10966,10 @@
 
             {{ ''false'' | bool }}
 
-            {% endif %}'
+            {% endif %}
+
+
+            '
           enabled: true
         then:
         - action: media_player.media_play_pause
@@ -11279,7 +10997,7 @@
       - if:
         - alias: 'If a chromecast is present '
           condition: template
-          value_template: '{% set chromecast = ''media_player.kitchen_chromecast''
+          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
             %}
 
             {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
@@ -11298,7 +11016,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.kitchen_chromecast
+            entity_id: media_player.universal_kitchen_chromecast
           enabled: false
         else:
         - action: media_player.volume_down
@@ -11320,7 +11038,7 @@
       - if:
         - alias: 'If a chromecast is present '
           condition: template
-          value_template: '{% set chromecast = ''media_player.kitchen_chromecast''
+          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
             %}
 
             {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
@@ -11338,7 +11056,7 @@
         - action: media_player.volume_up
           data: {}
           target:
-            entity_id: media_player.kitchen_chromecast
+            entity_id: media_player.universal_kitchen_chromecast
           enabled: false
         else:
         - action: media_player.volume_up
@@ -11356,7 +11074,7 @@
       - if:
         - alias: 'If a chromecast is present '
           condition: template
-          value_template: '{% set chromecast = ''media_player.kitchen_chromecast''
+          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
             %}
 
             {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
@@ -11375,7 +11093,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.kitchen_chromecast
+            entity_id: media_player.universal_kitchen_chromecast
           enabled: false
         else:
         - action: media_player.turn_off
@@ -11387,7 +11105,7 @@
       - if:
         - alias: 'If a chromecast is present '
           condition: template
-          value_template: '{% set chromecast = ''media_player.kitchen_chromecast''
+          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
             %}
 
             {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
@@ -11406,7 +11124,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.kitchen_chromecast
+            entity_id: media_player.universal_kitchen_chromecast
           enabled: false
         else:
         - action: media_player.media_next_track
@@ -11418,7 +11136,7 @@
       - if:
         - alias: 'If a chromecast is present '
           condition: template
-          value_template: '{% set chromecast = ''media_player.kitchen_chromecast''
+          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
             %}
 
             {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
@@ -11437,7 +11155,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.kitchen_chromecast
+            entity_id: media_player.universal_kitchen_chromecast
           enabled: false
         else:
         - action: media_player.media_play_pause
@@ -11455,36 +11173,11 @@
       controller_device: 9bcfd547e63075f4af73f86b67ccaacb
       helper_last_controller_event: input_text.dial_lounge_helper
       action_rotate_left:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.lounge_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
-          enabled: false
-        then:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.lounge_chromecast
-          enabled: false
-        else:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_lounge_airplay_wiim_speaker
+      - action: media_player.volume_down
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.mass_lounge_airplay_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -11496,35 +11189,11 @@
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       action_rotate_right:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.lounge_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
-          enabled: false
-        then:
-        - action: media_player.volume_up
-          data: {}
-          target:
-            entity_id: media_player.lounge_chromecast
-          enabled: false
-        else:
-        - action: media_player.volume_up
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_lounge_airplay_wiim_speaker
+      - action: media_player.volume_up
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.mass_lounge_airplay_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -11532,95 +11201,279 @@
           milliseconds: 200
       helper_debounce_delay: 0
       action_click_triple:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.lounge_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
-          enabled: false
-        then:
-        - action: media_player.turn_off
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.lounge_chromecast
-          enabled: false
-        else:
-        - action: media_player.turn_off
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_lounge_airplay_wiim_speaker
+      - action: media_player.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.mass_lounge_airplay_wiim_speaker
       action_click_double:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.lounge_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
-          enabled: false
-        then:
-        - action: media_player.media_next_track
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.lounge_chromecast
-          enabled: false
-        else:
-        - action: media_player.media_next_track
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_lounge_airplay_wiim_speaker
+      - action: media_player.media_next_track
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.mass_lounge_airplay_wiim_speaker
       action_click_short:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.lounge_chromecast''
-            %}
+      - action: media_player.media_play_pause
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.mass_lounge_airplay_wiim_speaker
+- id: '1752801417034'
+  alias: Lower lights to 30% when a movie is played
+  description: ''
+  triggers:
+  - entity_id:
+    - media_player.universal_bedroom_chromecast
+    - media_player.universal_workshop_chromecast
+    - media_player.universal_salon_chromecast
+    from: tvshow
+    to: movie
+    trigger: state
+    attribute: media_content_type
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 4
+  - entity_id:
+    - media_player.universal_bedroom_chromecast
+    - media_player.universal_workshop_chromecast
+    - media_player.universal_salon_chromecast
+    to: playing
+    trigger: state
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
+  conditions:
+  - condition: template
+    value_template: '{{ state_attr(state_attr(trigger.entity_id,''active_child''),''media_library_title'')
+      == ''Movies''}}'
+    enabled: true
+  - condition: template
+    value_template: '{{ not trigger.to_state.attributes.media_series_title }}'
+    enabled: true
+  actions:
+  - variables:
+      lights_over_30_percent: '{{ [area_id(trigger.entity_id)]  | map(''area_id'')
+        | map(''area_entities'') | sum(start=[]) | select(''match'', ''^light.'')
+        | select(''is_state'',''on'')  | expand | selectattr(''attributes.brightness'',''>'',80)
+        | map(attribute=''entity_id'') | unique | list }}
 
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
+        '
+      entity_id: '{{ trigger.entity_id }}
 
-            {{ ''true''  | bool }}
+        '
+      trigger_full: '{{ trigger.to_state.attributes }}
 
-            {% else %}
+        '
+  - repeat:
+      sequence:
+      - metadata: {}
+        data:
+          brightness_pct: 30
+          color_temp_kelvin: 3308
+          transition: 3
+        target:
+          entity_id: '{{ lights_over_30_percent[repeat.index - 1 ] }}'
+        action: light.turn_on
+      for_each: '{{lights_over_30_percent}}'
+    enabled: true
+  mode: parallel
+  max: 6
+- id: '1753133885395'
+  alias: Music Assistant - Local(only) Voice Support Blueprint
+  description: ''
+  use_blueprint:
+    path: music-assistant/mass_assist_blueprint_en.yaml
+    input:
+      default_player_entity_id_input: media_player.group_mass_home_group_speakers
+- id: '1753137946773'
+  alias: Remote Phillip Dimmer Automation
+  description: ''
+  triggers:
+  - domain: mqtt
+    device_id: 35f630d9a5a8349ddc4a8090a85e3418
+    type: action
+    subtype: off_press
+    trigger: device
+    id: off_press
+  - domain: mqtt
+    device_id: 35f630d9a5a8349ddc4a8090a85e3418
+    type: action
+    subtype: on_press
+    trigger: device
+    id: on_press
+  - domain: mqtt
+    device_id: 35f630d9a5a8349ddc4a8090a85e3418
+    type: action
+    subtype: down_press
+    trigger: device
+    id: down_press
+  - domain: mqtt
+    device_id: 35f630d9a5a8349ddc4a8090a85e3418
+    type: action
+    subtype: up_press
+    trigger: device
+    id: up_press
+  - domain: mqtt
+    device_id: 35f630d9a5a8349ddc4a8090a85e3418
+    type: action
+    subtype: on_hold
+    trigger: device
+    id: on_hold
+  - domain: mqtt
+    device_id: 35f630d9a5a8349ddc4a8090a85e3418
+    type: action
+    subtype: off_press
+    trigger: device
+    id: off_press
+    enabled: false
+  - domain: mqtt
+    device_id: 35f630d9a5a8349ddc4a8090a85e3418
+    type: action
+    subtype: off_press
+    trigger: device
+    id: off_press
+    enabled: false
+  - domain: mqtt
+    device_id: 35f630d9a5a8349ddc4a8090a85e3418
+    type: action
+    subtype: off_press
+    trigger: device
+    id: off_press
+    enabled: false
+  - domain: mqtt
+    device_id: 35f630d9a5a8349ddc4a8090a85e3418
+    type: action
+    subtype: off_press
+    trigger: device
+    id: off_press
+    enabled: false
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - off_press
+      sequence:
+      - action: light.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: light.group_hotbox_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - on_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data: {}
+        target:
+          entity_id: light.group_hotbox_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - down_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_step_pct: -10
+        target:
+          entity_id: light.group_hotbox_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - up_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_step_pct: 10
+        target:
+          entity_id: light.group_hotbox_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - on_hold
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_pct: 100
+          transition: 2
+        target:
+          entity_id: light.group_hotbox_lights
+  mode: single
+- id: '1753302685762'
+  alias: Adjust Kitchen Tablet brightness to mathc the lights
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - light.group_kitchen_lights
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 1
+  conditions: []
+  actions:
+  - variables:
+      brightness: '{{ trigger.to_state.attributes.brightness | default(''0'', true)  }}
 
-            {{ ''false'' | bool }}
-
-            {% endif %}'
-          enabled: false
-        then:
-        - action: media_player.media_play_pause
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.lounge_chromecast
-          enabled: false
-        else:
-        - action: media_player.media_play_pause
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_lounge_airplay_wiim_speaker
+        '
+  - action: number.set_value
+    metadata: {}
+    data:
+      value: '{{brightness}}'
+    target:
+      entity_id: number.kitchen_tablet_screen_brightness
+  mode: restart
+- id: '1753418041554'
+  alias: Turn off lights automatically when room is empty and sleep mode is on
+  description: This one uses motion groups and area calls and acts faster
+  triggers:
+  - entity_id:
+    - binary_sensor.group_patio_motion_occupancy
+    - binary_sensor.group_closet_motion_occupancy
+    - binary_sensor.group_lounge_motion_occupancy
+    - binary_sensor.group_server_motion_occupancy
+    - binary_sensor.group_hallway_motion_occupancy
+    - binary_sensor.group_kitchen_motion_occupancy
+    - binary_sensor.group_entrance_motion_occupancy
+    - binary_sensor.group_workshop_motion_occupancy
+    - binary_sensor.group_workstation_motion_occupancy
+    - binary_sensor.group_salon_motion_occupancy
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
+    to: 'off'
+    trigger: state
+  conditions:
+  - condition: template
+    value_template: '{{ states(''sensor.maxi_location_by_petro'') | lower not in [area_id(trigger.entity_id)]
+      | lower }}'
+  - condition: state
+    entity_id: input_boolean.kink_party
+    state: 'off'
+  - condition: state
+    entity_id: input_boolean.party_mode
+    state: 'off'
+  - condition: state
+    entity_id: input_boolean.acid_time
+    state: 'off'
+  - condition: state
+    entity_id: switch.adaptive_lighting_sleep_mode_adaptive_lighting
+    state: 'on'
+  actions:
+  - metadata: {}
+    data:
+      transition: 60
+    action: light.turn_off
+    target:
+      area_id: '{{ area_id(trigger.entity_id) }}'
+  mode: parallel
+  max: 10
