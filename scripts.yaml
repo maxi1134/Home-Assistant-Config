@@ -301,7 +301,7 @@ broadcast_alert_in_the_house:
 
           {% endif %}'
       then:
-      - action: notify.mobile_app_phone_maxi
+      - action: notify.users_notification_group
         metadata: {}
         data: '{{ phone_data  }}
 
@@ -900,6 +900,7 @@ in_home_defense_script:
     action: input_boolean.turn_off
     target:
       entity_id: input_boolean.following_music
+    data: {}
   - metadata: {}
     data: {}
     target:
@@ -918,7 +919,6 @@ in_home_defense_script:
       - media_player.universal_hallway_speakers
       - media_player.universal_kitchen_speakers
       - media_player.universal_workshop_speakers
-      - media_player.universal_hotbox_top_speakers
       - media_player.universal_salon_speakers
       - media_player.universal_lounge_speakers
     continue_on_error: true
@@ -960,13 +960,10 @@ in_home_defense_script:
       title: Intruder Alert
       data:
         image: https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
-        actions:
-        - action: open_phone_app_911
-          title: Call 911!
         ttl: 0
         priority: high
         channel: security_alerts_notifications
-    action: notify.mobile_app_phone_maxi
+    action: notify.users_notification_group
   - wait_for_trigger:
     - entity_id:
       - binary_sensor.home_occupancy
@@ -991,7 +988,6 @@ in_home_defense_script:
       - media_player.universal_hallway_speakers
       - media_player.universal_kitchen_speakers
       - media_player.universal_workshop_speakers
-      - media_player.universal_hotbox_top_speakers
       - media_player.universal_salon_speakers
       - media_player.universal_lounge_speakers
     continue_on_error: true
@@ -1227,18 +1223,6 @@ changes_selected_light_group_to_random_fake_white:
   icon: mdi:sale
   fields: {}
   description: ''
-vacuum_clean_the_entrance:
-  alias: Vacuum Clean the entrance
-  sequence:
-  - action: xiaomi_miio.vacuum_clean_segment
-    metadata: {}
-    data:
-      segments:
-      - 25
-    target:
-      entity_id: vacuum.xiaomi_vacuum_cleaner
-  description: ''
-  icon: mdi:robot-vacuum
 equalize_home_group_volume:
   alias: Equalize Home GRoup volume
   sequence:
@@ -2302,6 +2286,8 @@ llm_script_for_music_assistant_voice_requests:
   alias: LLM Script for Music Assistant voice requests
   use_blueprint:
     path: music-assistant/llm_voice_script.yaml
+    input:
+      default_player: media_player.group_mass_home_group_speakers
   description: 'This script is used to play music based on a voice request. The tool
     takes the following arguments: media_type, artist, album, media_id, radio_mode,
     area, shuffle. media_id, media_type, and shuffle are always required and must

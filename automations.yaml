@@ -4,7 +4,7 @@
   use_blueprint:
     path: PiotrMachowski/update_map_extractor.yaml
     input:
-      vacuum: vacuum.xiaomi_vacuum_cleaner
+      vacuum: vacuum.s6_pure
       camera: camera.xiaomi_cloud_map_extractor
       mode_to_handle: turn_off_when_docked
 - id: '1708472009602'
@@ -32,6 +32,9 @@
     - condition: state
       entity_id: media_player.group_mass_home_group_speakers
       state: playing
+  - condition: time
+    after: 07:00:00
+    before: '11:59:00'
   actions:
   - choose:
     - conditions:
@@ -210,7 +213,7 @@
   description: ''
   triggers:
   - entity_id:
-    - vacuum.xiaomi_vacuum_cleaner
+    - vacuum.s6_pure
     to: error
     trigger: state
   conditions: []
@@ -355,7 +358,7 @@
     trigger: state
     for:
       hours: 0
-      minutes: 5
+      minutes: 20
       seconds: 0
   conditions:
   - condition: time
@@ -462,41 +465,39 @@
 - id: '1713534223873'
   alias: Turn ACs on and Off  depending on house occupancy
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - binary_sensor.user_home
-  condition: []
-  action:
+    trigger: state
+  conditions: []
+  actions:
   - choose:
     - conditions:
       - condition: state
         entity_id: binary_sensor.user_home
         state: 'on'
       sequence:
-      - service: climate.set_preset_mode
-        metadata: {}
+      - metadata: {}
         data:
           preset_mode: none
         target:
           entity_id:
-          - climate.hotbox_ac
           - climate.workshop_ac
-          - climate.lounge_ac
+          - climate.salon_ac
+        action: climate.set_preset_mode
     - conditions:
       - condition: state
         entity_id: binary_sensor.user_home
         state: 'off'
       sequence:
-      - service: climate.set_preset_mode
-        metadata: {}
+      - metadata: {}
         data:
           preset_mode: away
         target:
           entity_id:
-          - climate.hotbox_ac
           - climate.workshop_ac
-          - climate.lounge_ac
+          - climate.salon_ac
+        action: climate.set_preset_mode
   mode: single
 - id: '1713535684569'
   alias: Play Muzak in the bathroom when someone enters
@@ -671,6 +672,7 @@
   - condition: template
     value_template: '{{ state_attr(state_attr(trigger.entity_id,''active_child''),''media_library_title'')
       == ''Movies''}}'
+    enabled: false
   - condition: template
     value_template: '{{ not trigger.from_state.attributes.media_series_title }}'
   actions:
@@ -880,9 +882,9 @@
     target:
       entity_id:
       - button.hallway_tablet_load_start_url
-      - button.kitchen_tablet_load_start_url
       - button.workshop_tablet_load_start_url
       - button.closet_tablet_load_start_url
+      - button.tablet_kitchen_s6_lite_load_start_url
     action: button.press
   mode: single
 - id: '1713824382107'
@@ -1176,7 +1178,6 @@
     trigger: state
   - alias: Chromecasts Muted Status
     entity_id:
-    - media_player.universal_lounge_chromecast
     - media_player.universal_workshop_chromecast
     - media_player.universal_hotbox_top_chromecast
     - media_player.universal_patio_chromecast
@@ -1630,7 +1631,7 @@
       overwrite: true
       filename: weather_image.jpg
       url: '{{return.content.data[0].url}}'
-  - service: notify.mobile_app_phone_maxi
+  - service: notify.maxi_notification_group
     metadata: {}
     data:
       title: Current Weather
@@ -1788,7 +1789,7 @@
       title: Watch Alert
       message: Your watch is charged!
       data: {}
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
   mode: single
 - id: '1715791112355'
   alias: Doorbell Show received notification answer on phone
@@ -1882,7 +1883,7 @@
           image: /local/llmvision/front_door_camera.jpg
         message: Package is being delivered
         title: Package Detected
-      action: notify.mobile_app_phone_maxi
+      action: notify.maxi_notification_group
   mode: single
 - id: '1716416273330'
   alias: Display room color  on TVs when mimiclights mode is triggered
@@ -2037,7 +2038,7 @@
           title: Restart the horn?
         channel: security_alerts_notifications
       title: Security breach
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
       context: {}
@@ -2092,7 +2093,7 @@
         ttl: 0
         priority: high
         channel: security_alerts_notifications
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
   mode: restart
 - id: '1716935540936'
   alias: Alert when the horn goes off and offer to turn it off
@@ -2124,7 +2125,7 @@
           title: Stop the horn?
         channel: security_alerts_notifications
       title: Security breach
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
       context: {}
@@ -2175,7 +2176,7 @@
         - action: blow_horn_back
           title: Blow the horn for 2 minutes?
         channel: security_alerts_notifications
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
       context: {}
@@ -2232,7 +2233,7 @@
           title: Restart the horn?
         channel: security_alerts_notifications
       title: Security breach
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
       context: {}
@@ -2301,7 +2302,7 @@
         actions:
         - action: trigger_inside_alert
           title: Blare inside alert?
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
   - metadata: {}
     data:
       color_temp_kelvin: 4805
@@ -2610,9 +2611,9 @@
   actions:
   - metadata: {}
     data: {}
-    target:
-      entity_id: button.kitchen_tablet_load_start_url
     action: button.press
+    target:
+      entity_id: button.tablet_kitchen_s6_lite_load_start_url
   mode: single
 - id: '1717354512446'
   alias: Alert when there is motion inside during arm away and trigger alarm
@@ -2669,7 +2670,7 @@
         actions:
         - action: trigger_inside_alert
           title: Blare inside alert?
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
   - if:
     - condition: not
       conditions:
@@ -2779,10 +2780,11 @@
         actions:
         - action: trigger_inside_alert
           title: Blare inside alert?
-    action: notify.mobile_app_phone_maxi
+    action: notify.users_notification_group
   - action: input_boolean.turn_off
     target:
       entity_id: input_boolean.following_music
+    data: {}
   - metadata: {}
     data: {}
     target:
@@ -2982,8 +2984,8 @@
       entity_id:
       - switch.samsung_galaxy_tab_e_8_0_maintenance_mode
       - switch.hallway_tablet_maintenance_mode
-      - switch.kitchen_tablet_maintenance_mode
       - switch.workshop_tablet_maintenance_mode
+      - switch.tablet_kitchen_s6_lite_maintenance_mode
     action: switch.turn_on
   mode: single
 - id: '1717360231281'
@@ -3004,8 +3006,8 @@
       entity_id:
       - switch.samsung_galaxy_tab_e_8_0_maintenance_mode
       - switch.hallway_tablet_maintenance_mode
-      - switch.kitchen_tablet_maintenance_mode
       - switch.workshop_tablet_maintenance_mode
+      - switch.tablet_kitchen_s6_lite_maintenance_mode
     data: {}
     action: switch.turn_off
   mode: single
@@ -3449,7 +3451,7 @@
         '
   - metadata: {}
     data:
-      message: '{{ user_opening }} is in da'' place
+      message: '{{ user_opening }} is in the place
 
         '
       phone_data:
@@ -3514,7 +3516,7 @@
         - action: URI
           title: Open Cameras
           uri: /maxi-mobile/main-view#cameras
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
   - repeat:
       sequence:
       - sequence:
@@ -3572,7 +3574,6 @@
   - entity_id:
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
     - assist_satellite.saloon_assistant_assist_satellite
-    - assist_satellite.hallway_assistant_assist_satellite
     - assist_satellite.lv_assistant_assist_satellite
     from:
     trigger: state
@@ -3692,47 +3693,6 @@
       media_content_id: 500 Random tracks
       media_content_type: playlist
   mode: single
-- id: '1728086665319'
-  alias: Manage bedroom AC through maxi occupancy
-  description: ''
-  triggers:
-  - entity_id:
-    - sensor.amount_residents_at_home
-    trigger: state
-  conditions: []
-  actions:
-  - choose:
-    - conditions:
-      - condition: numeric_state
-        entity_id: sensor.amount_residents_at_home
-        above: 0
-      sequence:
-      - metadata: {}
-        data:
-          preset_mode: none
-        target:
-          entity_id:
-          - climate.hotbox_ac
-          - climate.workshop_ac
-          - climate.lounge_ac
-          - climate.salon_ac
-        action: climate.set_preset_mode
-    - conditions:
-      - condition: numeric_state
-        entity_id: sensor.amount_residents_at_home
-        below: 1
-      sequence:
-      - metadata: {}
-        data:
-          preset_mode: away
-        target:
-          entity_id:
-          - climate.hotbox_ac
-          - climate.workshop_ac
-          - climate.lounge_ac
-          - climate.salon_ac
-        action: climate.set_preset_mode
-  mode: single
 - id: '1728309825943'
   alias: Sleep actions when "sleeper in workshop" is turned on
   description: ''
@@ -3824,7 +3784,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - binary_sensor.sensor_workshop_fp2_table_occupancy
+    - binary_sensor.everything_presence_lite_ef3b6c_beige_couch_occupancy
     to: 'on'
   - trigger: state
     entity_id:
@@ -3843,8 +3803,8 @@
   - condition: or
     conditions:
     - condition: state
-      entity_id: binary_sensor.sensor_workshop_fp2_table_occupancy
       state: 'on'
+      entity_id: binary_sensor.everything_presence_lite_ef3b6c_beige_couch_occupancy
   actions:
   - action: light.turn_on
     metadata: {}
@@ -3860,7 +3820,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - binary_sensor.sensor_workshop_fp2_table_occupancy
+    - binary_sensor.everything_presence_lite_ef3b6c_beige_couch_occupancy
     to: 'off'
   - trigger: state
     entity_id:
@@ -3876,7 +3836,7 @@
     - condition: and
       conditions:
       - condition: state
-        entity_id: binary_sensor.sensor_workshop_fp2_table_occupancy
+        entity_id: binary_sensor.everything_presence_lite_ef3b6c_beige_couch_occupancy
         state: 'off'
     - condition: state
       entity_id: media_player.universal_workshop_chromecast
@@ -3900,7 +3860,6 @@
   - entity_id:
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
     - assist_satellite.saloon_assistant_assist_satellite
-    - assist_satellite.hallway_assistant_assist_satellite
     - assist_satellite.lv_assistant_assist_satellite
     - assist_satellite.bedroom_assistant_assist_satellite
     - assist_satellite.desktop_assistant_assist_satellite
@@ -3929,7 +3888,6 @@
   - entity_id:
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
     - assist_satellite.saloon_assistant_assist_satellite
-    - assist_satellite.hallway_assistant_assist_satellite
     - assist_satellite.lv_assistant_assist_satellite
     - assist_satellite.bedroom_assistant_assist_satellite
     - assist_satellite.desktop_assistant_assist_satellite
@@ -3938,7 +3896,6 @@
   - entity_id:
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
     - assist_satellite.saloon_assistant_assist_satellite
-    - assist_satellite.hallway_assistant_assist_satellite
     - assist_satellite.lv_assistant_assist_satellite
     - assist_satellite.bedroom_assistant_assist_satellite
     - assist_satellite.desktop_assistant_assist_satellite
@@ -4131,7 +4088,7 @@
     entity_id: alarm_control_panel.home_alarm
     state: armed_home
   actions:
-  - action: notify.mobile_app_phone_maxi
+  - action: notify.maxi_notification_group
     data:
       message: Someone has entered the bedroom
       title: Security Alert
@@ -4243,7 +4200,7 @@
             priority: high
             channel: security_alerts_notifications
           message: Front door is currently unlocked
-        action: notify.mobile_app_phone_maxi
+        action: notify.maxi_notification_group
       - delay:
           hours: 0
           minutes: 3
@@ -4283,7 +4240,7 @@
         entity_id: input_boolean.party_mode
         state: 'on'
       sequence:
-      - action: notify.mobile_app_phone_maxi
+      - action: notify.maxi_notification_group
         metadata: {}
         data:
           message: People are being too noisy on the patio
@@ -4419,7 +4376,7 @@
             priority: high
             channel: security_alerts_notifications
           message: Smoke detected in the kitchen
-        action: notify.mobile_app_phone_maxi
+        action: notify.maxi_notification_group
       - delay:
           hours: 0
           minutes: 4
@@ -4519,7 +4476,7 @@
         channel: security_alerts_notifications
       message: Trying to scare the loiterers away with horn
       title: Security Alert!
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
   - wait_for_trigger:
     - entity_id:
       - binary_sensor.back_door_camera_person_occupancy
@@ -4575,7 +4532,7 @@
     trigger: state
   conditions: []
   actions:
-  - action: notify.mobile_app_phone_maxi
+  - action: notify.maxi_notification_group
     metadata: {}
     data:
       message: command_dnd
@@ -4584,7 +4541,7 @@
     alias: Set maxi phone to DND Priority Only
     enabled: true
   - alias: Set maxi phone brightness to 1%
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
     metadata: {}
     data:
       message: command_screen_brightness_level
@@ -4607,14 +4564,14 @@
   conditions: []
   actions:
   - alias: Set maxi phone to DND off
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
     metadata: {}
     data:
       message: command_dnd
       data:
         command: 'off'
   - alias: Set maxi phone brightness to automatic
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
     metadata: {}
     data:
       message: command_auto_screen_brightness
@@ -4632,7 +4589,7 @@
     to: home
   conditions: []
   actions:
-  - action: notify.mobile_app_phone_maxi
+  - action: notify.maxi_notification_group
     metadata: {}
     data:
       message: command_ble_transmitter
@@ -4650,7 +4607,7 @@
     to: not_home
   conditions: []
   actions:
-  - action: notify.mobile_app_phone_maxi
+  - action: notify.maxi_notification_group
     metadata: {}
     data:
       message: command_ble_transmitter
@@ -4702,7 +4659,7 @@
             '
         message: Police detected at the front door
         title: Police Alert
-      action: notify.mobile_app_phone_maxi
+      action: notify.maxi_notification_group
     - action: media_player.volume_set
       metadata: {}
       data:
@@ -4827,6 +4784,15 @@
     for:
       hours: 0
       minutes: 3
+      seconds: 0
+  - trigger: state
+    entity_id:
+    - media_player.kitchen_google_hub
+    from: playing
+    to: paused
+    for:
+      hours: 0
+      minutes: 10
       seconds: 0
   conditions:
   - condition: or
@@ -5407,7 +5373,7 @@
     entity_id: alarm_control_panel.home_alarm
     state: armed_home
   actions:
-  - action: notify.mobile_app_phone_maxi
+  - action: notify.maxi_notification_group
     data:
       message: Someone has entered the hotbox
       title: Security Alert
@@ -5548,7 +5514,7 @@
         entity_id: person.maximiliano
         state: not_home
       sequence:
-      - action: notify.mobile_app_phone_maxi
+      - action: notify.maxi_notification_group
         metadata: {}
         data:
           title: 'Laptop Alert:'
@@ -6285,11 +6251,11 @@
     from:
   conditions: []
   actions:
-  - action: switch.turn_on
+  - action: light.turn_on
     metadata: {}
     data: {}
     target:
-      entity_id: switch.plug_parking_lamp
+      entity_id: light.plug_parking_lamp
   mode: single
 - id: '1742862955443'
   alias: Turn off Parking light on 5 minuts of no occupancy
@@ -6306,11 +6272,11 @@
       seconds: 0
   conditions: []
   actions:
-  - action: switch.turn_off
+  - action: light.turn_on
     metadata: {}
     data: {}
     target:
-      entity_id: switch.plug_parking_lamp
+      entity_id: light.plug_parking_lamp
   mode: single
 - id: '1742998769189'
   alias: Analyze person in the parking when car is present to detect burglary
@@ -6358,7 +6324,7 @@
         ttl: 0
         priority: high
         image: api/camera_proxy/camera.parking_exit_camera
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
   mode: single
 - id: '1743004781903'
   alias: Alert if someone is loitering by the car for too long
@@ -6385,7 +6351,7 @@
         ttl: 0
         priority: high
         image: api/camera_proxy/camera.parking_exit_camera
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
   mode: single
 - id: '1743014018855'
   alias: Turn on parking light when someone is detected in the back balcony
@@ -6400,8 +6366,8 @@
   actions:
   - metadata: {}
     target:
-      entity_id: switch.plug_parking_lamp
-    action: switch.turn_on
+      entity_id: light.plug_parking_lamp
+    action: light.turn_on
     data: {}
   mode: single
 - id: '1743016095414'
@@ -6417,8 +6383,8 @@
   actions:
   - metadata: {}
     target:
-      entity_id: switch.plug_parking_lamp
-    action: switch.turn_on
+      entity_id: light.plug_parking_lamp
+    action: light.turn_on
     data: {}
   mode: single
 - id: '1743179648448'
@@ -6493,7 +6459,7 @@
               uri: 'intent://scan/#Intent;scheme=reolink;package=com.mcu.reolink;action=android.intent.action.VIEW;S.UID=95270004NZ8J1BQS;S.DEVNAME=Parking
                 Exit Camera;S.ALMTYPE=Person;S.ALMCHN=<CAM_CHANNEL_HERE>;S.ALMNAME=Detection;S.ALMTIME={{now().isoformat()}};end '
             channel: security_alerts_notifications
-        action: notify.mobile_app_phone_maxi
+        action: notify.maxi_notification_group
     - conditions:
       - condition: trigger
         id:
@@ -6522,7 +6488,7 @@
               uri: 'intent://scan/#Intent;scheme=reolink;package=com.mcu.reolink;action=android.intent.action.VIEW;S.UID=95270008OTDJDYBC;S.DEVNAME=Parking
                 Camera;S.ALMTYPE=Person;S.ALMCHN=<CAM_CHANNEL_HERE>;S.ALMNAME=Detection;S.ALMTIME={{now().isoformat()}};end '
             channel: security_alerts_notifications
-        action: notify.mobile_app_phone_maxi
+        action: notify.maxi_notification_group
     - conditions:
       - condition: trigger
         id:
@@ -6550,7 +6516,7 @@
               uri: 'intent://scan/#Intent;scheme=reolink;package=com.mcu.reolink;action=android.intent.action.VIEW;S.UID=95270008OTDJDYBC;S.DEVNAME=Parking
                 Camera;S.ALMTYPE=Person;S.ALMCHN=<CAM_CHANNEL_HERE>;S.ALMNAME=Detection;S.ALMTIME={{now().isoformat()}};end '
             channel: security_alerts_notifications
-        action: notify.mobile_app_phone_maxi
+        action: notify.maxi_notification_group
     - conditions:
       - condition: trigger
         id:
@@ -6578,7 +6544,7 @@
               uri: 'intent://scan/#Intent;scheme=reolink;package=com.mcu.reolink;action=android.intent.action.VIEW;S.UID=95270004NZ8J1BQS;S.DEVNAME=Parking
                 Exit Camera;S.ALMTYPE=Person;S.ALMCHN=<CAM_CHANNEL_HERE>;S.ALMNAME=Detection;S.ALMTIME={{now().isoformat()}};end '
             channel: security_alerts_notifications
-        action: notify.mobile_app_phone_maxi
+        action: notify.maxi_notification_group
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
       context:
@@ -6650,7 +6616,7 @@
         ttl: 0
         priority: high
       title: Security breach
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
   - action: script.find_phone
     metadata: {}
     data: {}
@@ -6984,7 +6950,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - switch.plug_parking_lamp
+    - light.plug_parking_lamp
     to: 'on'
     for:
       hours: 0
@@ -7001,11 +6967,11 @@
         entity_id: binary_sensor.parking_exit_camera_person_occupancy
         state: 'off'
       sequence:
-      - action: switch.turn_off
+      - action: light.turn_off
         metadata: {}
         data: {}
         target:
-          entity_id: switch.plug_parking_lamp
+          entity_id: light.plug_parking_lamp
     - conditions:
       - condition: or
         conditions:
@@ -7025,11 +6991,11 @@
             hours: 0
             minutes: 5
             seconds: 0
-      - action: switch.turn_off
+      - action: light.turn_off
         metadata: {}
         data: {}
         target:
-          entity_id: switch.plug_parking_lamp
+          entity_id: light.plug_parking_lamp
   mode: single
 - id: '1744572056958'
   alias: Turn off parking audio detection when patio is occupied
@@ -7100,7 +7066,7 @@
       - ''
       camera:
       - camera.back_door_camera
-      notify_device: c05131fc3bc6fcb2ce597a5d15723962
+      notify_device: 76061f2c15b668e8ebc77cfaf47e5b64
       title: Back door Presence Detected
       message: '{{ label }} detected - {{ camera_name }} at {{event[''after''][''start_time'']|timestamp_custom(''%H:%M'')}}'
       update_sub_label: false
@@ -7120,9 +7086,9 @@
       url_2: '{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json[''after''][''camera'']
         | lower | replace(''-'',''_'')}}?token={{state_attr( ''camera.'' ~ camera,
         ''access_token'')}}'
-      cooldown: 2
+      cooldown: 0
       attachment: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1'
-      alert_once: true
+      alert_once: false
       labels:
       - person
       review_severity:
@@ -7140,10 +7106,15 @@
       zone_filter: true
       zones:
       - back_entrance_presence
+      - hotbox_window_presence
+      - back_door_presence
       master_condition:
       - condition: state
         entity_id: input_boolean.party_in_the_back_yard
         state: 'off'
+      notify_group: users_notification_group
+      android_auto: false
+      final_delay: 2
 - id: '1744750292983'
   alias: Start bathroom muzak when door closes
   description: ''
@@ -7335,7 +7306,7 @@
         - action: blow_horn_back
           title: Blow the horn for 2 minutes?
         channel: security_alerts_notifications
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
       context: {}
@@ -7623,7 +7594,7 @@
         actions:
         - action: turn_automatic_back_horn_on
           title: Turn it back on
-    action: notify.mobile_app_phone_maxi
+    action: notify.maxi_notification_group
   mode: single
 - id: '1747075906852'
   alias: Turn on Automatic back Horn upon receiving notification answer
@@ -8524,7 +8495,6 @@
     entity_id:
     - media_player.universal_workshop_chromecast
     - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
     - media_player.universal_salon_chromecast
     - media_player.universal_bedroom_chromecast
@@ -8535,8 +8505,6 @@
   - alias: Speakers muted status
     entity_id:
     - media_player.universal_workshop_speakers
-    - media_player.universal_hotbox_top_speakers
-    - media_player.universal_hotbox_down_speakers
     - media_player.universal_salon_speakers
     - media_player.universal_bedroom_speakers
     trigger: state
@@ -8544,8 +8512,6 @@
   - alias: Speakers
     entity_id:
     - media_player.universal_workshop_speakers
-    - media_player.universal_hotbox_top_speakers
-    - media_player.universal_hotbox_down_speakers
     - media_player.universal_salon_speakers
     - media_player.universal_bedroom_speakers
     to:
@@ -8555,11 +8521,11 @@
       minutes: 0
       seconds: 2
     from: playing
+    id: speakers_from_play
   - alias: Chromecasts
     entity_id:
     - media_player.universal_workshop_chromecast
     - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
     - media_player.universal_salon_chromecast
     - media_player.universal_bedroom_chromecast
@@ -8571,7 +8537,6 @@
     entity_id:
     - media_player.universal_workshop_chromecast
     - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
     - media_player.universal_salon_chromecast
     - media_player.universal_bedroom_chromecast
@@ -8606,6 +8571,12 @@
       - condition: template
         value_template: '{{ ((now() - trigger.from_state.last_changed) > timedelta(seconds=60))
           }}  '
+    - condition: and
+      conditions:
+      - condition: template
+        value_template: '{{ trigger.id == ''speakers_from_play'' }}    '
+      - condition: template
+        value_template: '{{ trigger.to_state.state != ''unavailable'' }}  '
   actions:
   - variables:
       unmuted_playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
@@ -8639,8 +8610,6 @@
   - alias: Chromecasts
     entity_id:
     - media_player.universal_workshop_chromecast
-    - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
     - media_player.universal_salon_chromecast
     - media_player.universal_bedroom_chromecast
@@ -8654,8 +8623,6 @@
   - alias: Speakers
     entity_id:
     - media_player.universal_workshop_speakers
-    - media_player.universal_hotbox_top_speakers
-    - media_player.universal_hotbox_down_speakers
     - media_player.universal_salon_speakers
     - media_player.universal_bedroom_speakers
     to: playing
@@ -8669,8 +8636,6 @@
   - alias: Chromecasts mute status
     entity_id:
     - media_player.universal_workshop_chromecast
-    - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
     - media_player.universal_salon_chromecast
     - media_player.universal_bedroom_chromecast
@@ -8843,7 +8808,6 @@
     entity_id:
     - media_player.universal_workshop_chromecast
     - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_hotbox_down_chromecast
     - media_player.universal_patio_chromecast
     - media_player.universal_salon_chromecast
     - media_player.universal_bedroom_chromecast
@@ -9856,7 +9820,8 @@
       entity_id: '{{ mediaplayers}}
 
         '
-  mode: single
+  mode: parallel
+  max: 10
 - id: '1752001220545'
   alias: FRigate Arriving only Notification
   description: USe order of detected zones in order to achieve it
@@ -11429,7 +11394,7 @@
     data:
       value: '{{brightness}}'
     target:
-      entity_id: number.kitchen_tablet_screen_brightness
+      entity_id: number.tablet_kitchen_s6_lite_screen_brightness
   mode: restart
 - id: '1753418041554'
   alias: Turn off lights automatically when room is empty and sleep mode is on
@@ -11477,3 +11442,35 @@
       area_id: '{{ area_id(trigger.entity_id) }}'
   mode: parallel
   max: 10
+- id: '1753986114116'
+  alias: Raise volume of speakers in a room when the vacuum is cleaning it
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.s6_pure_current_room
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.s6_pure_cleaning
+    state: 'on'
+  actions:
+  - variables:
+      media_players: "{{ area_entities(area_id(trigger.to_state.state) | lower )|select('search',\n
+        \ 'media_player.universal')|select('is_state_attr', 'is_volume_muted',\n  false)|select('is_state',
+        'playing')| list }}\n"
+  - action: media_player.volume_up
+    metadata: {}
+    data: {}
+    target:
+      entity_id: '{{ media_players}}'
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - sensor.s6_pure_current_room
+  - action: media_player.volume_down
+    metadata: {}
+    data: {}
+    target:
+      entity_id: '{{ media_players}}'
+  mode: parallel
+  max: 2
