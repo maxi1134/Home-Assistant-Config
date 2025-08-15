@@ -40,16 +40,16 @@
     - conditions:
       - condition: time
         before: '11:00:00'
-        after: 02:00:00
+        after: 03:00:00
       sequence:
-      - data:
+      - alias: Start soft myriam music
+        data:
           media_id: Myriam Morning Music
           enqueue: replace
           media_type: playlist
         action: music_assistant.play_media
         target:
           entity_id: media_player.group_mass_home_group_speakers
-        alias: Start soft myriam music
     default:
     - data:
         media_id: All favorited tracks
@@ -206,6 +206,9 @@
       - condition: state
         entity_id: binary_sensor.sensor_front_door_contact
         state: 'on'
+      - condition: state
+        entity_id: input_boolean.aerating_appartment
+        state: 'off'
     enabled: true
   mode: restart
 - id: '1713399927983'
@@ -216,6 +219,10 @@
     - vacuum.s6_pure
     to: error
     trigger: state
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
   conditions: []
   actions:
   - repeat:
@@ -1224,7 +1231,6 @@
     - media_player.universal_salon_speakers
     - media_player.universal_closet_speaker
     - media_player.universal_bedroom_speakers
-    - media_player.universal_bathroom_speakers
     - media_player.universal_hotbox_speakers
     to: idle
     for:
@@ -1323,7 +1329,9 @@
     - media_player.universal_kitchen_chromecast
     trigger: state
     attribute: is_volume_muted
-  conditions: []
+  conditions:
+  - condition: template
+    value_template: '{{trigger.to_state.state != ''unavailable''}}'
   actions:
   - variables:
       playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
@@ -1776,12 +1784,12 @@
   description: ''
   triggers:
   - entity_id:
-    - sensor.galaxy_watch4_2n0f_battery_level
+    - sensor.watch_maxi_galaxy_4_battery_level
     to: '100'
     trigger: state
   conditions:
   - condition: state
-    entity_id: sensor.galaxy_watch4_2n0f_battery_state
+    entity_id: sensor.watch_maxi_galaxy_4_battery_state
     state: charging
   actions:
   - metadata: {}
@@ -2624,7 +2632,6 @@
     - binary_sensor.group_kitchen_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
     - binary_sensor.group_bathroom_motion_occupancy
-    - binary_sensor.group_bedroom_motion_occupancy
     - binary_sensor.group_entrance_motion_occupancy
     - binary_sensor.group_hotbox_down_motion_occupancy
     for:
@@ -6149,7 +6156,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - sensor.phone_maxi_phone_state
+    - sensor.phone_maxi_fold7_phone_state
     to: ringing
   conditions: []
   actions:
@@ -6167,7 +6174,7 @@
     data:
       cache: true
       media_player_entity_id: "{{ speaker }} \n"
-      message: Phone ringing near the "{{states('device_tracker.maxi_phone_s24_espresense')}}
+      message: Phone ringing near the "{{states('sensor.bermuda_maxi_phone_area')}}
     target:
       entity_id:
       - tts.piper_2
@@ -6272,7 +6279,7 @@
       seconds: 0
   conditions: []
   actions:
-  - action: light.turn_on
+  - action: light.turn_off
     metadata: {}
     data: {}
     target:
@@ -8068,6 +8075,16 @@
   - condition: template
     value_template: '{{ states(''sensor.maxi_location_by_petro'') | lower not in [area_id(trigger.entity_id)]
       | lower }}'
+  - alias: Stop if myriam's tablet is active in the room
+    condition: template
+    value_template: '{{states(''binary_sensor.tablet_myriam_interactive'') == on and
+      states(''sensor.myriam_talet_location_compounded'') | lower not in [area_id(trigger.entity_id)]
+      | lower }}'
+  - alias: Stop if myriam's phone is active in the room
+    condition: template
+    value_template: '{{states(''binary_sensor.phone_myriam_interactive'') == on and
+      states(''sensor.bermuda_myriam_phone_area'') | lower not in [area_id(trigger.entity_id)]
+      | lower }}'
   - condition: state
     entity_id: input_boolean.kink_party
     state: 'off'
@@ -8458,6 +8475,10 @@
   - condition: time
     after: '21:00:00'
     before: 09:00:00
+  - condition: numeric_state
+    entity_id: media_player.universal_kitchen_speakers
+    attribute: volume_level
+    above: 28
   actions:
   - action: media_player.volume_set
     metadata: {}
@@ -11474,3 +11495,136 @@
       entity_id: '{{ media_players}}'
   mode: parallel
   max: 2
+- id: '1754679794287'
+  alias: Turn on Blue Light with UV Lamps in Same Area
+  description: When any UV lamp in the hallway, kitchen, lounge, patio, or workshop
+    turns on, this automation turns on the same area's lights with a bright blue color
+    (RGB 0,0,255) for a smooth transition.
+  triggers:
+  - trigger: state
+    entity_id:
+    - light.group_hallway_uv_lamps
+    - light.group_kitchen_uv_lamps
+    - light.group_lounge_uv_lamps
+    - light.group_patio_uv_lamps
+    - light.group_workshop_uv_lamps
+    to: 'on'
+    from: 'off'
+  conditions: []
+  actions:
+  - action: light.turn_on
+    metadata: {}
+    data:
+      rgb_color:
+      - 0
+      - 0
+      - 255
+      brightness_pct: 100
+      transition: 1
+    target:
+      area_id: '{{area_id(trigger.entity_id)}}'
+  mode: parallel
+  max: 10
+- id: '1754680196397'
+  alias: Turn lights back to normal when UV lamps are turned off
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - light.group_hallway_uv_lamps
+    - light.group_kitchen_uv_lamps
+    - light.group_lounge_uv_lamps
+    - light.group_patio_uv_lamps
+    - light.group_workshop_uv_lamps
+    to: 'off'
+    from: 'on'
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: or
+        conditions:
+        - condition: state
+          entity_id: input_boolean.acid_time
+          state: 'on'
+        - condition: state
+          entity_id: input_boolean.party_mode
+          state: 'on'
+        - condition: state
+          entity_id: input_boolean.kink_party
+          state: 'on'
+      sequence:
+      - variables:
+          on_lights_in_room: "{% set ns = namespace(f = [] ) %} {% for i in ( [area_id(trigger.entity_id)]
+            \ | map('area_entities') | sum(start=[]) | select('match', '^light.group')
+            | select('is_state','on')  |  unique | list )  %} {% if i not in  label_entities(\"High
+            Intensity Light\") | string %}\n  {% set ns.f = ns.f + [i] %}\n{% endif
+            %} {% endfor %} {{ ns.f }}\n"
+      - action: script.change_received_lights_to_random_colors
+        metadata: {}
+        data:
+          selected_group: '{{ on_lights_in_room | first }}
+
+            '
+          saturation: 100
+    default:
+    - variables:
+        on_lights_in_room: "{% set ns = namespace(f = [] ) %} {% for i in ( [area_id(trigger.entity_id)]
+          \ | map('area_entities') | sum(start=[]) | select('match', '^light.') |
+          select('is_state','on')  |  unique | list )  %} {% if i not in  label_entities(\"High
+          Intensity Light\") | string %}\n  {% set ns.f = ns.f + [i] %}\n{% endif
+          %} {% endfor %} {{ ns.f | first}}\n"
+    - action: adaptive_lighting.apply
+      metadata: {}
+      data:
+        lights: '{{on_lights_in_room}}'
+        transition: '1'
+  mode: parallel
+  max: 10
+- id: '1754715205053'
+  alias: revert Lounge Door Arch effect to solid color when All residents Present
+    Sleeping is on for 4 hours
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.all_present_sleeping
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 4
+      minutes: 0
+      seconds: 0
+    enabled: true
+  - trigger: state
+    entity_id:
+    - binary_sensor.all_present_sleeping
+    from: 'on'
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 20
+      seconds: 0
+    enabled: true
+  conditions:
+  - condition: state
+    entity_id: input_boolean.sleeper_in_lounge
+    state: 'off'
+  - condition: state
+    entity_id: input_boolean.sleeper_in_salon
+    state: 'off'
+  actions:
+  - action: light.turn_on
+    metadata: {}
+    data:
+      effect: Solid
+      color_temp: 324
+      brightness: 1
+    target:
+      entity_id: light.lounge_door_arch_light
+  - action: light.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: light.lounge_door_arch_light
+  mode: single

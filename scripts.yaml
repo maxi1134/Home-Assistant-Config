@@ -411,6 +411,9 @@ change_received_lights_to_random_colors:
       lights: "{%- set lights = states.light | selectattr('entity_id', 'in', state_attr(selected_group,
         'entity_id'))  | list -%}\n{%- set entity_ids = lights | map(attribute='entity_id')
         | list -%}    \n{{ entity_ids }}\n"
+      saturation: '{{ saturation }}
+
+        '
   - repeat:
       sequence:
       - metadata: {}
@@ -2295,3 +2298,72 @@ llm_script_for_music_assistant_voice_requests:
     player can optionally be provided in the voice request as well. Use the parameters
     as described in the description of each parameter. Use this tool whenever the
     user requests to play music.'
+script_to_launch_movie_from_jellyfin_on_a_tv:
+  sequence:
+  - variables:
+      request:
+        '[object Object]':
+  - action: media_player.browse_media
+    data:
+      media_content_id: media-source://jellyfin/f137a2dd21bbc1b99aa5c0f6bf02a805
+      media_content_type: movies
+    target:
+      entity_id: media_player.salon_chromecast
+    response_variable: results
+  - variables:
+      picked_movie2: '{% set t =  results | regex_findall(find="(title:.*Step.*)$\n.*\n.*\n.*(media_content_id:
+        )(.*)") %} {{ t[2] }}
+
+        '
+  alias: Script to launch Movie from Jellyfin on a TV
+  description: ''
+  fields:
+    request:
+      selector:
+        text:
+      name: Request
+      default: Step Brothers
+      required: true
+changes_selected_light_group_to_single_warm_colors:
+  sequence:
+  - variables:
+      on_lights: '{{ integration_entities(''group'')|  select(''search'',
+
+        requested_group)   | expand |
+
+        selectattr("attributes.rgb_color", "defined") |  selectattr("state", "eq",
+
+        "on") | map(attribute=''entity_id'')  | list }}
+
+        '
+  - repeat:
+      sequence:
+      - metadata: {}
+        data:
+          hs_color: "{% set hue_under_20 = range(1, 20) | random | string + ',' +
+            100 | string %} {% set hue_over_260 = range(260, 360) | random | string
+            + ',' + 100 | string %} {% set random = range(1, 3) | random %}           {%
+            if random == 1 %}\n {{hue_under_20 }}\n{% elif random > 1 %}           {{hue_over_260}}
+            {%endif%}\n"
+        target:
+          entity_id: '{{on_lights[repeat.index - 1]}}'
+        action: light.turn_on
+      for_each: '{{ on_lights }}'
+  alias: 'Changes selected light group to single warm colors '
+  mode: restart
+  icon: mdi:sale
+  fields:
+    requested_group:
+      selector:
+        entity:
+          multiple: false
+      default: light.group_all_inside_lights
+      required: true
+      name: The group of lights to change to warm colors
+      description: This field should contain a group light entity; The group will
+        be expanded and each light will be attributed a random warm color. The format
+        of the requested group should be 'light.group_REQUEST_lights'; such as 'light.group_salon_lights'
+        where the requested room is preceded by 'light.group' and followed by 'lights'
+        with an s
+  description: This script can be used by the LLM to set a specific group of lights
+    to random warm colors
