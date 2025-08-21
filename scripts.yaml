@@ -2367,3 +2367,70 @@ changes_selected_light_group_to_single_warm_colors:
         with an s
   description: This script can be used by the LLM to set a specific group of lights
     to random warm colors
+start_a_random_maxi_playlist:
+  sequence:
+  - variables:
+      maxi_playlists:
+      - local maxi
+      - New Maxi Playlist
+      - All favorited tracks
+      - Tropico 4 Soundtrack
+      - Fallout 3 - Galaxy News Radio
+      - butter_fly_senpai
+      requested_playlist: '{% if requested_playlist %}
+
+        {{ requested_playlist }}
+
+        {% else %}
+
+        none
+
+        {% endif %}
+
+        '
+  - action: media_player.shuffle_set
+    metadata: {}
+    data:
+      shuffle: true
+    target:
+      entity_id: '{{player_entity}}'
+  - target:
+      entity_id: '{{player_entity}}'
+    data:
+      media_content_id: "{% if requested_playlist != 'none' %}\n  {{ requested_playlist
+        }}\n{% else %}\n {{ maxi_playlists | random }}\n{% endif %}\n"
+      media_content_type: playlist
+    action: media_player.play_media
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 15
+      milliseconds: 0
+  - if:
+    - condition: template
+      value_template: '{{ states(player_entity) != ''playing'' }}'
+    then:
+    - target:
+        entity_id: '{{player_entity}}'
+      data:
+        media_content_id: New Maxi Playlist
+        media_content_type: playlist
+      action: media_player.play_media
+  fields:
+    player_entity:
+      selector:
+        target: {}
+      name: Player entity
+      description: This is the entity to play music on
+      default:
+        entity_id: media_player.group_mass_home_group_speakers
+      required: true
+    requested_playlist:
+      selector:
+        text:
+      name: Requested Playlist
+      description: Use this is a specific playlist is requested
+      default: none
+  alias: Start a random maxi playlist
+  description: ''
+  mode: restart

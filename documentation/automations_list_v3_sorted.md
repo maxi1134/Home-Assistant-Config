@@ -8,6 +8,10 @@
   These two automations will either mute or unmute a speaker depending on the room occupancy.
   If the room is empty for a while, the volume is set to a reasonable range upon returning.
   
+- ##### Skips song's myriam don't like whe she is home
+  (ID: `1749235496765`)
+  This automation takes care of skipping songs that my wife dislikes when she is present.
+
 - ##### Manage bathroom Muzak diffusion
   (ID: `1744750292983`/`1713535684569`/`1747558481492`/`1735682831028`/`1744750478317`/`1738094823714`/`1743452959837`/`1713536409397`/`1748939696079`)
   These automations make sure that muzak is playing and audible when visiting the bathroom.
@@ -83,6 +87,10 @@
   (ID: `1717354512446`/`1717360188815`/`1717358289455`/`1717358415139`)
   These are most of the actions taken when someone breaks in and triggers the alarm system!
   (Police broadcast to Air Horns being started)
+
+- ##### Turn on camera floodlight when someone is detected at the back door during security events.
+  (ID: `1744810927278`)
+  This will turn on an extra floodlight if someone is detected while the automatic back horn is set to on.
 
 #### Party Automations
 
