@@ -42,6 +42,12 @@
         before: '11:00:00'
         after: 03:00:00
       sequence:
+      - action: media_player.shuffle_set
+        metadata: {}
+        data:
+          shuffle: true
+        target:
+          entity_id: media_player.group_mass_home_group_speakers
       - alias: Start soft myriam music
         data:
           media_id: Myriam Morning Music
@@ -1223,7 +1229,6 @@
   - entity_id:
     - media_player.universal_lounge_speakers
     - media_player.universal_hallway_speakers
-    - media_player.universal_kitchen_speakers
     - media_player.universal_workshop_speakers
     - media_player.universal_salon_speakers
     - media_player.universal_closet_speaker
@@ -3733,7 +3738,8 @@
       area_id: workshop
       entity_id:
       - light.group_workshop_lights
-      - light.lv_assistant_lcd_backlight
+      - light.workshop_assistant_059a5c_screen
+      - light.workshop_table_assistant_04dc50_screen
   - action: number.set_value
     metadata: {}
     data:
@@ -4775,19 +4781,11 @@
   - trigger: state
     entity_id:
     - media_player.kitchen_google_hub
-    to: 'off'
     for:
       hours: 0
       minutes: 0
-      seconds: 5
-  - trigger: state
-    entity_id:
-    - binary_sensor.group_kitchen_motion_occupancy
-    to: 'off'
-    for:
-      hours: 0
-      minutes: 3
-      seconds: 0
+      seconds: 15
+    attribute: app_id
   - trigger: state
     entity_id:
     - media_player.kitchen_google_hub
@@ -4798,18 +4796,21 @@
       minutes: 10
       seconds: 0
   conditions:
-  - condition: or
+  - condition: not
     conditions:
     - condition: state
       entity_id: media_player.kitchen_google_hub
-      attribute: app_name
-      state: DashCast
-    - condition: state
-      entity_id: media_player.kitchen_google_hub
-      state: 'off'
-    - condition: state
-      entity_id: media_player.kitchen_google_hub
-      state: idle
+      attribute: app_id
+      state: A078F6B0
+    - condition: and
+      conditions:
+      - condition: state
+        entity_id: media_player.kitchen_google_hub
+        attribute: app_id
+        state: A078F6B0
+      - condition: state
+        entity_id: media_player.kitchen_google_hub
+        state: paused
   actions:
   - metadata: {}
     data: {}
@@ -4828,12 +4829,6 @@
       volume_level: 0
     target:
       entity_id: media_player.kitchen_google_hub
-  - action: dash_cast.load_url
-    data:
-      entity_id: media_player.kitchen_google_hub
-      url: http://192.168.0.15:8123/lovelace-hub/kitchen-google-hub?kiosk
-      force: true
-    enabled: false
   mode: single
 - id: '1733789430500'
   alias: Turn on the front door light in relation to the sun position
@@ -7092,11 +7087,11 @@
       update_sub_label: false
       subtitle: '{{ camera_name }}  presence triggered'
       critical: 'false'
-      tts: false
+      tts: true
       tts_helper: input_text.frigate_alerted_ids
-      video: '{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif?format=ts'
+      video: ''
       attachment_2: '{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif'
-      final_update: false
+      final_update: true
       color: '#f44336'
       icon: mdi:cctv
       sticky: true
@@ -7107,8 +7102,8 @@
         | lower | replace(''-'',''_'')}}?token={{state_attr( ''camera.'' ~ camera,
         ''access_token'')}}'
       cooldown: 0
-      attachment: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1'
-      alert_once: false
+      attachment: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?crop=1'
+      alert_once: true
       labels:
       - person
       review_severity:
@@ -7135,6 +7130,7 @@
       notify_group: users_notification_group
       android_auto: false
       final_delay: 2
+      base_url: https://hass.purgatoire.ca
 - id: '1744750292983'
   alias: Start bathroom muzak when door closes
   description: ''
@@ -8418,7 +8414,7 @@
     metadata: {}
     data: {}
     target:
-      entity_id: light.bedroom_assistant_lcd_backlight
+      entity_id: light.home_assistant_voice_09e4a7_led_ring
   - if:
     - condition: template
       value_template: '{{ state_attr(''media_player.universal_bedroom_speakers'',''media_title'')
@@ -8450,7 +8446,7 @@
     - action: media_player.volume_set
       metadata: {}
       data:
-        volume_level: 0.5
+        volume_level: 0.46
       target:
         entity_id:
         - media_player.universal_bedroom_speakers
@@ -9502,7 +9498,7 @@
     state: 'on'
   actions:
   - variables:
-      playing_speakers: '{{ [area_id(states(''device_tracker.myriam_phone_espresense''))]   |
+      playing_speakers: '{{ [area_id(states(''device_tracker.bermuda_myriam_phone_bermuda_tracker''))]   |
         map(''area_entities'') | sum(start=[]) |    select(''search'', ''speakers'')
         | select(''is_state'',''playing'') | unique | list }}
 
@@ -9573,7 +9569,7 @@
     to: 'on'
     for:
       hours: 0
-      minutes: 10
+      minutes: 2
       seconds: 0
   conditions: []
   actions:
@@ -11561,13 +11557,48 @@
       - condition: or
         conditions:
         - condition: state
-          entity_id: input_boolean.acid_time
-          state: 'on'
-        - condition: state
           entity_id: input_boolean.party_mode
           state: 'on'
+      sequence:
+      - variables:
+          on_lights_in_room: "{% set ns = namespace(f = [] ) %} {% for i in ( [area_id(trigger.entity_id)]
+            \ | map('area_entities') | sum(start=[]) | select('match', '^light.group')
+            | select('is_state','on')  |  unique | list )  %} {% if i not in  label_entities(\"High
+            Intensity Light\") | string %}\n  {% set ns.f = ns.f + [i] %}\n{% endif
+            %} {% endfor %} {{ ns.f }}\n"
+      - action: script.changes_selected_lights_to_warm_pale_colors
+        metadata: {}
+        data:
+          selected_group: '{{ on_lights_in_room | first }}
+
+            '
+          saturation: 100
+      alias: Pastel on party mode on
+    - conditions:
+      - condition: or
+        conditions:
         - condition: state
           entity_id: input_boolean.kink_party
+          state: 'on'
+      sequence:
+      - variables:
+          on_lights_in_room: "{% set ns = namespace(f = [] ) %} {% for i in ( [area_id(trigger.entity_id)]
+            \ | map('area_entities') | sum(start=[]) | select('match', '^light.group')
+            | select('is_state','on')  |  unique | list )  %} {% if i not in  label_entities(\"High
+            Intensity Light\") | string %}\n  {% set ns.f = ns.f + [i] %}\n{% endif
+            %} {% endfor %} {{ ns.f }}\n"
+      - action: script.changes_selected_light_group_to_single_warm_colors
+        metadata: {}
+        data:
+          selected_group: '{{ on_lights_in_room | first }}
+
+            '
+          saturation: 100
+    - conditions:
+      - condition: or
+        conditions:
+        - condition: state
+          entity_id: input_boolean.acid_time
           state: 'on'
       sequence:
       - variables:
@@ -11724,3 +11755,34 @@
         \ |  unique | list ) \n }}"
   mode: parallel
   max: 7
+- id: '1756344417569'
+  alias: Partial sleep actions in hotbox when Lylou falls asleep
+  description: ''
+  triggers:
+  - entity_id:
+    - sensor.is_lylou_asleep
+    to: asleep
+    from: awake
+    trigger: state
+  conditions:
+  - condition: time
+    after: '20:00:00'
+    before: 07:00:00
+  actions:
+  - action: cover.close_cover
+    metadata: {}
+    data: {}
+    target:
+      entity_id: cover.cover_hotbox_blinds
+    enabled: true
+  - action: remote.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: remote.hotbox_roku
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_lylou_galaxy_lamp
+  mode: single

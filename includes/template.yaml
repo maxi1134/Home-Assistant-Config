@@ -23,28 +23,18 @@
         delay_off:
           minutes: 0
         state: >
-          {% if states('sensor.amount_residents_at_home') | string != '0' %}
-            {% set maxi_and_myriam_asleep =  ( states('sensor.myriam_is_sleeping_at_home') == 'asleep' and states('sensor.is_maxi_asleep') == 'asleep' ) %}
-              {% if maxi_and_myriam_asleep == true %}
-                {% if ( states('sensor.active_sleeper_amount') | int  >= states('sensor.amount_residents_at_home') | int - 1) %}
-                  on
-                {% elif ( states('sensor.active_sleeper_amount') | int >= states('sensor.amount_residents_at_home')| int  )   %}
-                  on
-                {% else %}
-                  off
-                {% endif %}
-              {% elif maxi_and_myriam_asleep == false %}
-                {% if ( states('sensor.active_sleeper_amount') | int >= states('sensor.amount_residents_at_home')| int  )   %}
-                  on
-                {% else %}
-                  off
-                {% endif %}
-              {% else %}
-                off
-              {% endif %}
-            {% else %}
-              off
-          {% endif %}
+            {% set myriam_sleeping_state = states('sensor.myriam_is_sleeping_at_home') %}
+            {% set maxi_sleeping_state = states('sensor.is_maxi_asleep') %}
+            {% set lylou_sleeping_state = states('sensor.is_lylou_asleep') %}
+
+            {% set asleep_count = 
+              [myriam_sleeping_state, maxi_sleeping_state, lylou_sleeping_state]
+              | select('equalto', 'asleep') 
+              | list 
+              | length 
+            %}
+            {{ asleep_count >= 2 }}
+
 
 
           
@@ -631,6 +621,25 @@
               |list
               }}      
 
+      - name: Is lylou asleep?
+        unique_id: "is_lylou_asleep"
+        state: >
+            {% set phone_interactive = states('binary_sensor.phone_lylou_interactive') %}
+            {% set sleep_confidence = states('sensor.phone_lylou_sleep_confidence') | int %}
+            {% set computer_state = states('device_tracker.computer') %}
+            {% set light_state  = states('light.group_hotbox_lights') %}
+            {% set lylou_home = states('person.lylou') %}
+            {% set sleepingstate = "awake" %}
+            {% if  lylou_home == 'home' %}
+            {% if phone_interactive == 'off' and light_state == 'off' and sleep_confidence > 80 and computer_state == 'not_home' %}
+                {% set sleepingstate = "asleep" %}
+            {% elif phone_interactive == 'off' and light_state == 'off' and sleep_confidence > 90 %}
+                {% set sleepingstate = "asleep" %}
+            {% elif phone_interactive == 'off' and light_state == 'off' and computer_state == 'not_home'  %}
+                {% set sleepingstate = "asleep" %}
+            {% endif%}
+            {% endif%}
+            {{ sleepingstate }}
 
 
       - name: Is myriam asleep?
