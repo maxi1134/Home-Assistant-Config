@@ -7,6 +7,24 @@ esphome:
   name: ${name}
   name_add_mac_suffix: false
   friendly_name: ${friendly_name}
+  on_boot: 
+  - priority: -100
+    then:
+      - delay: 8 min
+      - if:
+          condition:
+            not:
+              wifi.connected:
+          then:
+              - logger.log: Still no wifi!
+              - button.press: restart_button
+      - if:
+          condition:
+            not:
+              api.connected:
+          then:
+              - logger.log: Still no API clients!
+              - button.press: restart_button
 api:
   encryption:
     key: !secret api_key
@@ -15,3 +33,8 @@ api:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
+
+button:
+  - platform: restart
+    name: "restart_button"
+    id: "restart_button"
