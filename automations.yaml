@@ -4,7 +4,7 @@
   use_blueprint:
     path: PiotrMachowski/update_map_extractor.yaml
     input:
-      vacuum: vacuum.s6_pure
+      vacuum: vacuum.roborock_qrevo_curv_series
       camera: camera.xiaomi_cloud_map_extractor
       mode_to_handle: turn_off_when_docked
 - id: '1708472009602'
@@ -219,7 +219,7 @@
   description: ''
   triggers:
   - entity_id:
-    - vacuum.s6_pure
+    - vacuum.roborock_qrevo_curv_series
     to: error
     trigger: state
     for:
@@ -243,7 +243,7 @@
       - condition: not
         conditions:
         - condition: state
-          entity_id: vacuum.xiaomi_vacuum_cleaner
+          entity_id: vacuum.roborock_qrevo_curv_series
           state: error
   mode: single
 - id: '1713407734344'
@@ -965,17 +965,13 @@
   description: 'This one uses motion groups '
   triggers:
   - entity_id:
-    - binary_sensor.group_patio_motion_occupancy
     - binary_sensor.group_closet_motion_occupancy
     - binary_sensor.group_lounge_motion_occupancy
-    - binary_sensor.group_server_motion_occupancy
     - binary_sensor.group_hallway_motion_occupancy
     - binary_sensor.group_kitchen_motion_occupancy
-    - binary_sensor.group_entrance_motion_occupancy
     - binary_sensor.group_workshop_motion_occupancy
     - binary_sensor.group_workstation_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
-    - binary_sensor.group_hotbox_motion_occupancy
     for:
       hours: 0
       minutes: 5
@@ -3320,7 +3316,12 @@
       minutes: 0
       seconds: 30
     trigger: state
-  conditions: []
+  conditions:
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: binary_sensor.sensor_back_outside_door_contact
+      state: 'on'
   actions:
   - metadata: {}
     data:
@@ -4132,7 +4133,12 @@
   - action: script.non_important_broadcast_alert_in_the_house
     data:
       message: The water is boiling in the Kitchen
-  mode: restart
+  - delay:
+      hours: 0
+      minutes: 15
+      seconds: 0
+      milliseconds: 0
+  mode: single
 - id: '1731610964007'
   alias: Alert when the fridge remains open
   description: ''
@@ -6443,9 +6449,23 @@
         priority: high
       title: Security breach
     action: notify.maxi_notification_group
-  - action: script.find_phone
-    metadata: {}
-    data: {}
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 3
+      milliseconds: 0
+  - action: notify.mobile_app_phone_maxi_fold7
+    data:
+      title: Back Horn Started
+      message: Back horn started
+      data:
+        ttl: 0
+        priority: high
+        channel: alarm_stream
+        actions:
+        - action: stop_horn
+          title: Stop the horn?
+        image: /media/local/back_horn_check.png
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
       context: {}
@@ -6919,7 +6939,7 @@
       tts_helper: input_text.frigate_alerted_ids
       video: ''
       attachment_2: '{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif'
-      final_update: true
+      final_update: false
       color: '#f44336'
       icon: mdi:cctv
       sticky: true
@@ -7236,7 +7256,7 @@
       camera:
       - camera.parking_camera
       - camera.parking_exit_camera
-      notify_device: c05131fc3bc6fcb2ce597a5d15723962
+      notify_device: 76061f2c15b668e8ebc77cfaf47e5b64
       title: 'Movement on {{ camera_name }} '
       message: '{{ label }} detected - {{ camera_name }} at {{event[''after''][''start_time'']|timestamp_custom(''%H:%M'')}}'
       update_sub_label: false
@@ -7362,10 +7382,10 @@
     to: home
     id: myriam_arrives
   conditions:
-  - alias: The user has been not_home for over 600 seconds
+  - alias: The user has been not_home for over 120 seconds
     condition: template
     value_template: '{{  ((as_timestamp((now()) )   - (as_timestamp(trigger.from_state.last_changed))))
-      | float > 600 and trigger.from_state.state == ''not_home'' }}'
+      | float > 120 and trigger.from_state.state == ''not_home'' }}'
   - condition: state
     entity_id: input_boolean.maxi_is_scared
     state: 'on'
@@ -7913,8 +7933,10 @@
     trigger: state
   conditions:
   - condition: template
-    value_template: '{{ states(''sensor.maxi_location_by_petro'') | lower not in [area_id(trigger.entity_id)]
-      | lower }}'
+    value_template: '
+
+      {{ states(''sensor.maxi_location_by_petro'') != '''' and states(''sensor.maxi_location_by_petro'')
+      | lower not in [area_id(trigger.entity_id)] | lower }}'
   - alias: Stop if myriam's tablet is active in the room
     condition: template
     value_template: '{% if (states(''binary_sensor.tablet_myriam_interactive'') ==
@@ -7939,8 +7961,7 @@
     state: 'off'
   actions:
   - metadata: {}
-    data:
-      transition: 60
+    data: {}
     action: light.turn_off
     target:
       area_id: '{{ area_id(trigger.entity_id) }}'
@@ -8220,6 +8241,15 @@
     data: {}
     target:
       entity_id: climate.bedroom_ac
+  - condition: state
+    entity_id: media_player.universal_bedroom_speakers
+    attribute: media_title
+    state: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
+  - action: media_player.media_stop
+    metadata: {}
+    data: {}
+    target:
+      entity_id: media_player.universal_bedroom_speakers
   mode: single
 - id: '1748845278340'
   alias: execute Sleep actions when "sleeper in bedroom" is turned on
@@ -9777,7 +9807,10 @@
     entity_id:
     - alarm_control_panel.home_alarm
     to: armed_night
-  conditions: []
+  conditions:
+  - condition: time
+    after: '21:00:00'
+    before: 08:00:00
   actions:
   - action: input_boolean.turn_on
     metadata: {}
@@ -11326,10 +11359,10 @@
   triggers:
   - trigger: state
     entity_id:
-    - sensor.s6_pure_current_room
+    - sensor.roborock_qrevo_curv_series_current_room
   conditions:
   - condition: state
-    entity_id: binary_sensor.s6_pure_cleaning
+    entity_id: binary_sensor.roborock_qrevo_curv_series_cleaning
     state: 'on'
   actions:
   - variables:
@@ -11344,7 +11377,7 @@
   - wait_for_trigger:
     - trigger: state
       entity_id:
-      - sensor.s6_pure_current_room
+      - sensor.roborock_qrevo_curv_series_current_room
   - action: media_player.volume_down
     metadata: {}
     data: {}
@@ -11806,15 +11839,17 @@
       entity_id: input_boolean.sleeper_in_hotbox
   mode: single
 - id: '1757814887686'
-  alias: Add playing artist to Lidarr
+  alias: Add playing Spotify or tidal artist to Lidarr
   description: ''
   triggers:
   - trigger: state
     entity_id:
-    - media_player.universal_salon_speakers
     - media_player.universal_home_speakers
     attribute: media_artist
-  conditions: []
+  conditions:
+  - condition: template
+    value_template: '{{ ''spotify'' in trigger.to_state.attributes.media_content_id
+      or ''tidal'' in trigger.to_state.attributes.media_content_id }}'
   actions:
   - action: rest_command.music_brainz_artist_query
     metadata: {}
@@ -11862,3 +11897,115 @@
     target:
       entity_id: input_boolean.sleeper_in_hotbox
   mode: single
+- id: '1757892274893'
+  alias: Lower loud volume when someone exits the shower
+  description: ''
+  triggers:
+  - alias: When bathroom radarr shower occupancy clears for 5 seconds
+    trigger: state
+    entity_id:
+    - binary_sensor.everything_presence_lite_e01590_zone_2_occupancy
+    from: 'on'
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 5
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.everything_presence_lite_e01590_occupancy
+    state: 'on'
+  - condition: state
+    entity_id: binary_sensor.shower_in_usage
+    state: 'on'
+  - condition: numeric_state
+    entity_id: media_player.mass_bathroom_speaker
+    attribute: volume_level
+    above: 7
+  - condition: state
+    entity_id: media_player.universal_bathroom_speakers
+    attribute: is_volume_muted
+    state: 'false'
+  actions:
+  - action: media_player.volume_set
+    metadata: {}
+    data:
+      volume_level: 0.69
+    target:
+      entity_id: media_player.mass_bathroom_speaker
+  mode: single
+- id: '1758115238753'
+  alias: Disable automatic back horn when lylou awakes between 7:45 and 8:45
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.lylou_is_asleep_bayesian
+    from: 'on'
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 3
+      seconds: 0
+  conditions:
+  - condition: time
+    after: 07:45:00
+    before: '20:45:00'
+  actions:
+  - action: input_boolean.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.maxi_is_scared
+  mode: single
+- id: '1759251745280'
+  alias: Notify maxi when myhriam arrives at home
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - person.myriam
+    from: not_home
+    to: home
+    id: myriam_arrives
+  conditions:
+  - alias: The user has been not_home for over 120 seconds
+    condition: template
+    value_template: '{{  ((as_timestamp((now()) )   - (as_timestamp(trigger.from_state.last_changed))))
+      | float > 240 and trigger.from_state.state == ''not_home'' }}'
+  actions:
+  - metadata: {}
+    data:
+      data:
+        image:
+      message: Myriam is nearing home!
+      title: Myriam is nearing home!
+    action: notify.maxi_notification_group
+  mode: restart
+- id: '1759251903732'
+  alias: Alert myriam when lylou nears home
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - person.lylou
+    from: not_home
+    to: home
+    id: lylou_arrives
+  conditions:
+  - alias: The user has been not_home for over 120 seconds
+    condition: template
+    value_template: '{{  ((as_timestamp((now()) )   - (as_timestamp(trigger.from_state.last_changed))))
+      | float > 240 and trigger.from_state.state == ''not_home'' }}'
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: person.myriam
+      state: home
+  actions:
+  - metadata: {}
+    data:
+      message: Lylou is nearing home!
+      title: Lylou is nearing home!
+    action: notify.myriam_notification_group
+  mode: restart

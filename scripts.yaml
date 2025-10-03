@@ -414,12 +414,12 @@ change_received_lights_to_random_colors:
   alias: Change received lights to random color
   sequence:
   - variables:
-      lights: "{%- set lights = states.light | selectattr('entity_id', 'in', state_attr(selected_group,
-        'entity_id'))  | list -%}\n{%- set entity_ids = lights | map(attribute='entity_id')
-        | list -%}    \n{{ entity_ids }}\n"
-      saturation: '{{ saturation }}
-
-        '
+      lights: "{% if area %}  {{ [area | first]\n  | map('area_entities')\n  | sum(start=[])\n
+        \ | select('search', 'group_')\n  | select('search', '_lights')\n  | reject('search',
+        'decorative')\n  | reject('search', 'main')\n  | list | expand | map(attribute='entity_id')
+        | list  }}   \n\n{% else %}  {{ selected_group | expand | map(attribute='entity_id')
+        | list  }}  {% endif %}\n"
+      saturation: 100
   - repeat:
       sequence:
       - metadata: {}
@@ -433,7 +433,23 @@ change_received_lights_to_random_colors:
       for_each: '{{ lights }}'
   mode: restart
   icon: mdi:sale
-  fields: {}
+  fields:
+    area:
+      selector:
+        area:
+          entity:
+            integration: group
+            domain: light
+          multiple: true
+      name: Area
+      description: 'The area or areas for which the music is requested. If the request
+        does not mention a target (either an area or a player), use the area the request
+        comes from.
+
+        If the area can not be determined from the request, or the device the request
+        comes from, do not use this parameter.
+
+        Only use both the "area" parameter'
 start_visual_playlist_on_plex:
   alias: Start requsted Playlist on plex for all unplaying chromecasts
   sequence:
@@ -1034,7 +1050,23 @@ changes_all_on_lights_to_fake_white:
       for_each: '{{ lights }}'
   mode: restart
   icon: mdi:sale
-  fields: {}
+  fields:
+    area:
+      selector:
+        area:
+          entity:
+            integration: group
+            domain: light
+          multiple: true
+      name: Area
+      description: 'The area or areas for which the music is requested. If the request
+        does not mention a target (either an area or a player), use the area the request
+        comes from.
+
+        If the area can not be determined from the request, or the device the request
+        comes from, do not use this parameter.
+
+        Only use both the "area" parameter'
   description: ''
 inside_only_home_defense_script:
   alias: Inside only home defense script
@@ -1809,9 +1841,14 @@ set_whole_house_to_a_normal_ambiance:
     workspace. \n\nIt can also be triggered if the house requires to be set to normal"
 find_phone:
   sequence:
-  - action: google_assistant_sdk.send_text_command
+  - action: notify.mobile_app_phone_maxi_fold7
     data:
-      command: where is my phone?
+      title: Phone Lost?
+      message: Phone Found!
+      data:
+        ttl: 0
+        priority: high
+        channel: alarm_stream
   alias: Find phone
   description: 'This script can be used by an LLM in order to help Maxi find his phone.
 
@@ -2474,9 +2511,12 @@ changesreceived_ights_to_random_pastel_colors:
 changes_selected_lights_to_warm_pale_colors:
   sequence:
   - variables:
-      lights: "{%- set lights = states.light | selectattr('entity_id', 'in', state_attr(selected_group,
+      lights: "{% if area %} {{ [area | first]\n  | map('area_entities')\n  | sum(start=[])\n
+        \ | select('search', 'group_')\n  | select('search', '_lights')\n  | reject('search',
+        'decorative')\n  | reject('search', 'main')\n  | list }}   \n{% else %} {%-
+        set lights = states.light | selectattr('entity_id', 'in', state_attr(selected_group,
         'entity_id'))  | list -%}\n{%- set entity_ids = lights | map(attribute='entity_id')
-        | list -%}    \n{{ entity_ids }}\n"
+        | list -%}    \n\n{{ entity_ids }} {% endif %}"
   - repeat:
       sequence:
       - metadata: {}
@@ -2491,9 +2531,130 @@ changes_selected_lights_to_warm_pale_colors:
           entity_id: '{{lights[repeat.index - 1]}}'
         action: light.turn_on
       for_each: '{{ lights }}'
-  alias: Changes selected lights to warm pale colors
+  alias: Change lights in an area to warm pale colors
   mode: parallel
-  icon: mdi:sale
-  fields: {}
-  description: ''
+  icon: mdi:heat-wave
+  fields:
+    area:
+      selector:
+        area:
+          entity:
+            integration: group
+            domain: light
+          multiple: true
+      name: Area
+      description: 'The area or areas for which the music is requested. If the request
+        does not mention a target (either an area or a player), use the area the request
+        comes from.
+
+        If the area can not be determined from the request, or the device the request
+        comes from, do not use this parameter.
+
+        Only use both the "area" parameter'
+  description: This script allows the LLM to change the lights within an area to warm
+    pale colors. Sometimes also referred to as warm pastel colors.
+  max: 10
+change_lights_in_an_area_to_a_random_fake_white:
+  sequence:
+  - variables:
+      lights: "{% set temp_light = [area]\n  | map('area_entities')\n  | sum(start=[])\n
+        \ | select('search', 'group_')\n  | select('search', '_lights')\n  | reject('search',
+        'decorative')\n  | reject('search', 'main')\n  | first | string %}\n{% set
+        selected_group = temp_light %} {%- set light_group = states.light | selectattr('entity_id',
+        'in', state_attr(selected_group, 'entity_id'))  | list -%} {%- set num_lights
+        = light_group | count -%} {%- set h_increment = (360 // num_lights) | int
+        -%} {%- set hue_values = namespace(values=[]) %} {%- for i in range(num_lights)
+        %}\n  {%- set hue_values.values = hue_values.values + [i * h_increment] %}\n{%-
+        endfor %} {%- set ns = namespace(output=[], shuffled_hues=[]) %} {%- for i
+        in range(num_lights) %}\n  {%- set rand = (range(hue_values.values | count)
+        | random) -%}\n  {%- set h = hue_values.values[rand] -%}\n  {%- set hue_values.values
+        = hue_values.values | reject('equalto', h) | list -%}\n  {%- set ns.shuffled_hues
+        = ns.shuffled_hues + [h] -%}\n{%- endfor %} {%- for i in range(num_lights)
+        %}\n  {%- set light = light_group[i] -%}\n  {%- set h = ns.shuffled_hues[i]
+        -%}\n  {%- set s = 100 -%}\n  {%- set hs_color = [h, s] -%}\n  {% set temp_output
+        = {\n    \"entity_id\": light.entity_id,\n    \"hs_color\": hs_color\n  }
+        %}\n  {% set ns.output = ns.output + [temp_output] %}\n{%- endfor %} {{ ns.output
+        }}"
+  - repeat:
+      sequence:
+      - metadata: {}
+        data:
+          hs_color: "{% set hue_under_20 = range(1, 20) | random | string + ',' +
+            55 | string %} {% set hue_over_260 = range(260, 360) | random | string
+            + ',' + 55 | string %} {% set random = range(1, 3) | random %}           {%
+            if random == 1 %}\n {{hue_under_20 }}\n{% elif random > 1 %}           {{hue_over_260}}
+            {%endif%}\n"
+          transition: 1
+        target:
+          entity_id: '{{lights[repeat.index - 1]}}'
+        action: light.turn_on
+      for_each: '{{ lights }}'
+  alias: Change lights in an area to a random fake white
+  mode: parallel
+  icon: mdi:white-balance-auto
+  fields:
+    area:
+      selector:
+        area:
+          entity:
+            integration: group
+            domain: light
+          multiple: true
+      name: Area
+      description: 'The area or areas for which the music is requested. If the request
+        does not mention a target (either an area or a player), use the area the request
+        comes from.
+
+        If the area can not be determined from the request, or the device the request
+        comes from, do not use this parameter.
+
+        Only use both the "area" parameter'
+  description: This script allows the LLM to change the lights within an area to a
+    'random fake white' where all colors somewhat equate to white not having a single
+    white bulb present
+  max: 10
+change_lights_in_an_area_to_warm_saturated_colors:
+  sequence:
+  - variables:
+      lights: "{% if area %}  {{ [area | first]\n  | map('area_entities')\n  | sum(start=[])\n
+        \ | select('search', 'group_')\n  | select('search', '_lights')\n  | reject('search',
+        'decorative')\n  | reject('search', 'main')\n  | list | expand | map(attribute='entity_id')
+        | list  }}   \n\n{% else %}  {{ selected_group | expand | map(attribute='entity_id')
+        | list  }}  {% endif %}"
+  - repeat:
+      sequence:
+      - metadata: {}
+        data:
+          hs_color: "{% set hue_under_20 = range(1, 20) | random | string + ',' +
+            100 | string %} {% set hue_over_260 = range(260, 360) | random | string
+            + ',' + 100 | string %} {% set random = range(1, 3) | random %}           {%
+            if random == 1 %}\n {{hue_under_20 }}\n{% elif random > 1 %}           {{hue_over_260}}
+            {%endif%}\n"
+          transition: 1
+        target:
+          entity_id: '{{lights[repeat.index - 1]}}'
+        action: light.turn_on
+      for_each: '{{ lights }}'
+  alias: Change lights in an area to warm saturated colors
+  mode: parallel
+  icon: mdi:invert-colors
+  fields:
+    area:
+      selector:
+        area:
+          entity:
+            integration: group
+            domain: light
+          multiple: true
+      name: Area
+      description: 'The area or areas for which the music is requested. If the request
+        does not mention a target (either an area or a player), use the area the request
+        comes from.
+
+        If the area can not be determined from the request, or the device the request
+        comes from, do not use this parameter.
+
+        Only use both the "area" parameter'
+  description: 'This script allows the LLM to change the lights within an area to
+    warm saturated colors. '
   max: 10

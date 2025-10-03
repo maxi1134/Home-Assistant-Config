@@ -31,8 +31,109 @@ captive_portal:
 
 sensor:
   - platform: hx711
-    name: "HX711 Value"
+    id: weight_top_left
+    name: "HX711 Value Top Left"
     dout_pin: GPIO4
     clk_pin: GPIO3
-    gain: 32
-    update_interval: 2s
+    gain: 128
+    update_interval: 1s
+    unit_of_measurement: lb
+    filters:
+      - calibrate_linear:
+          - 57000 -> 4
+          - 13000 -> 8
+      - lambda: |-
+          id(weigth_no_tare_top_left).publish_state(x);
+          return (x - id(weigth_tare_top_left));
+
+ 
+  - platform: hx711
+    id: weight_top_right
+    name: "HX711 Value Top Right"
+    dout_pin: GPIO2
+    clk_pin: GPIO16
+    gain: 128
+    update_interval: 1s
+    unit_of_measurement: lb
+    filters:
+      - calibrate_linear:
+          - 57000 -> 4
+          - 13000 -> 8
+      - lambda: |-
+          id(weigth_no_tare_top_right).publish_state(x);
+          return (x - id(weigth_tare_top_right));
+
+ 
+  - platform: hx711
+    id: weight_bottom_left
+    name: "HX711 Value Bottom Left"
+    dout_pin: GPIO32
+    clk_pin: GPIO33
+    gain: 128
+    update_interval: 1s
+    unit_of_measurement: lb
+    filters:
+      - calibrate_linear:
+          - 57000 -> 4
+          - 13000 -> 8
+      - lambda: |-
+          id(weigth_no_tare_bottom_left).publish_state(x);
+          return (x - id(weigth_tare_bottom_left));
+
+ 
+  - platform: hx711
+    id: weight_bottom_right
+    name: "HX711 Value Bottom Right"
+    dout_pin: GPIO25
+    clk_pin: GPIO26
+    gain: 128
+    update_interval: 1s
+    unit_of_measurement: lb
+    filters:
+      - calibrate_linear:
+          - 57000 -> 4
+          - 13000 -> 8
+      - lambda: |-
+          id(weigth_no_tare_bottom_right).publish_state(x);
+          return (x - id(weigth_tare_bottom_right));
+
+  - platform: template
+    id: weigth_no_tare_top_left
+    internal: True
+  - platform: template
+    id: weigth_no_tare_top_right
+    internal: True
+  - platform: template
+    id: weigth_no_tare_bottom_left
+    internal: True
+  - platform: template
+    id: weigth_no_tare_bottom_right
+    internal: True
+
+globals:
+  - id: weigth_tare_top_left
+    type: float
+    restore_value: False
+    initial_value: '0.0'
+  - id: weigth_tare_top_right
+    type: float
+    restore_value: False
+    initial_value: '0.0'
+  - id: weigth_tare_bottom_left
+    type: float
+    restore_value: False
+    initial_value: '0.0'
+  - id: weigth_tare_bottom_right
+    type: float
+    restore_value: False
+    initial_value: '0.0'
+
+button:
+  - platform: template
+    id: weigth_tare_set
+    name: 'Tare'
+    on_press:
+      - lambda: id(weigth_tare_top_left) = id(weigth_no_tare_top_left).state;
+      - lambda: id(weigth_tare_top_right) = id(weigth_no_tare_top_right).state;
+      - lambda: id(weigth_tare_bottom_left) = id(weigth_no_tare_bottom_left).state;
+      - lambda: id(weigth_tare_bottom_right) = id(weigth_no_tare_bottom_right).state;
