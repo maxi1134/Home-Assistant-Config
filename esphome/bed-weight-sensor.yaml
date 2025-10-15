@@ -30,7 +30,9 @@ wifi:
 captive_portal:
 
 sensor:
+  
   - platform: hx711
+    accuracy_decimals: 2
     id: weight_top_left
     name: "HX711 Value Top Left"
     dout_pin: GPIO4
@@ -45,9 +47,11 @@ sensor:
       - lambda: |-
           id(weigth_no_tare_top_left).publish_state(x);
           return (x - id(weigth_tare_top_left));
+      - delta: 0.2
 
  
   - platform: hx711
+    accuracy_decimals: 2
     id: weight_top_right
     name: "HX711 Value Top Right"
     dout_pin: GPIO2
@@ -62,11 +66,13 @@ sensor:
       - lambda: |-
           id(weigth_no_tare_top_right).publish_state(x);
           return (x - id(weigth_tare_top_right));
+      - delta: 0.2
 
  
   - platform: hx711
-    id: weight_bottom_left
-    name: "HX711 Value Bottom Left"
+    accuracy_decimals: 2
+    id: weight_bottom_right
+    name: "HX711 Value Bottom right"
     dout_pin: GPIO32
     clk_pin: GPIO33
     gain: 128
@@ -77,13 +83,15 @@ sensor:
           - 57000 -> 4
           - 13000 -> 8
       - lambda: |-
-          id(weigth_no_tare_bottom_left).publish_state(x);
-          return (x - id(weigth_tare_bottom_left));
+          id(weigth_no_tare_bottom_right).publish_state(x);
+          return (x - id(weigth_tare_bottom_right));
+      - delta: 0.2
 
  
   - platform: hx711
-    id: weight_bottom_right
-    name: "HX711 Value Bottom Right"
+    accuracy_decimals: 2
+    id: weight_bottom_left
+    name: "HX711 Value Bottom left"
     dout_pin: GPIO25
     clk_pin: GPIO26
     gain: 128
@@ -94,8 +102,9 @@ sensor:
           - 57000 -> 4
           - 13000 -> 8
       - lambda: |-
-          id(weigth_no_tare_bottom_right).publish_state(x);
-          return (x - id(weigth_tare_bottom_right));
+          id(weigth_no_tare_bottom_left).publish_state(x);
+          return (x - id(weigth_tare_bottom_left));
+      - delta: 0.2
 
   - platform: template
     id: weigth_no_tare_top_left
@@ -109,7 +118,21 @@ sensor:
   - platform: template
     id: weigth_no_tare_bottom_right
     internal: True
-
+    
+  - platform: combination
+    type: linear
+    name: "Total Weight"
+    sources:
+      - source: weight_top_left
+        coeffecient: 1.0
+      - source: weight_top_right
+        coeffecient: 1.0
+      - source: weight_bottom_left
+        coeffecient: 1.0
+      - source: weight_bottom_right
+        coeffecient: 1.0
+    filters:
+     - delta: 0.2
 globals:
   - id: weigth_tare_top_left
     type: float
