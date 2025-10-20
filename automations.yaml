@@ -1,12 +1,3 @@
-- id: '1698434157594'
-  alias: Update Map Extractor camera
-  description: ''
-  use_blueprint:
-    path: PiotrMachowski/update_map_extractor.yaml
-    input:
-      vacuum: vacuum.roborock_qrevo_curv_series
-      camera: camera.xiaomi_cloud_map_extractor
-      mode_to_handle: turn_off_when_docked
 - id: '1708472009602'
   alias: Play Random Music when maxi awakes at home
   description: This Automation will start music on the home group when maxi awakes
@@ -720,6 +711,18 @@
         target:
           entity_id: '{{ off_lights_in_room[repeat.index - 1 ] }}'
         action: light.turn_on
+        enabled: false
+      - action: adaptive_lighting.apply
+        metadata: {}
+        data:
+          lights: '{{ off_lights_in_room[repeat.index - 1 ] }}
+
+            '
+          entity_id: switch.adaptive_lighting_adaptive_lighting
+          turn_on_lights: true
+          adapt_brightness: true
+          adapt_color: true
+          transition: '2'
       for_each: '{{off_lights_in_room}}'
     enabled: true
   mode: restart
@@ -2404,7 +2407,7 @@
   description: ''
   triggers:
   - entity_id:
-    - binary_sensor.all_residents_sleeping
+    - binary_sensor.all_present_sleeping
     to: 'off'
     for:
       hours: 0
@@ -3697,7 +3700,8 @@
   actions:
   - action: light.turn_on
     metadata: {}
-    data: {}
+    data:
+      brightness_pct: 100
     target:
       entity_id: '{{device_entities(device_id(trigger.entity_id)) | select("match",
         ".*light.*") | first }}'
@@ -5981,7 +5985,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - sensor.phone_maxi_fold7_phone_state
+    - sensor.phone_maxi_phone_state
     to: ringing
   conditions: []
   actions:
@@ -6120,7 +6124,7 @@
     for:
       hours: 0
       minutes: 0
-      seconds: 30
+      seconds: 20
     to: 'on'
   conditions:
   - condition: state
@@ -6156,7 +6160,56 @@
         ttl: 0
         priority: high
         image: api/camera_proxy/camera.parking_exit_camera
+        actions:
+        - action: turn_parking_horn_on
+          title: Ring the siren!
     action: notify.maxi_notification_group
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 3
+      milliseconds: 0
+  - wait_for_trigger:
+    - event_type: mobile_app_notification_action
+      context: {}
+      event_data:
+        action: turn_parking_horn_on
+      trigger: event
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 3
+      seconds: 0
+      milliseconds: 0
+  - action: notify.mobile_app_phone_maxi_fold7
+    data:
+      title: Back Horn Started
+      message: Back horn started
+      data:
+        ttl: 0
+        priority: high
+        channel: alarm_stream
+        actions:
+        - action: stop_parking_horn
+          title: Stop the horn?
+        image: /media/local/parking_horn_check.png
+  - wait_for_trigger:
+    - event_type: mobile_app_notification_action
+      context: {}
+      event_data:
+        action: stop_parking_horn
+      trigger: event
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 3
+      seconds: 0
+      milliseconds: 0
+  - action: siren.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: siren.parking_exit_camera_siren
   mode: single
 - id: '1743004781903'
   alias: Alert if someone is loitering by the car for too long
@@ -7307,7 +7360,7 @@
       - ''
       camera:
       - camera.front_door_camera
-      notify_device: c05131fc3bc6fcb2ce597a5d15723962
+      notify_device: 76061f2c15b668e8ebc77cfaf47e5b64
       title: Front Door Presence Detected
       message: '{{ label }} detected - {{ camera_name }} at {{event[''after''][''start_time'']|timestamp_custom(''%H:%M'')}}'
       update_sub_label: false
@@ -8345,10 +8398,9 @@
   - condition: time
     after: '21:00:00'
     before: 09:00:00
-  - condition: numeric_state
-    entity_id: media_player.universal_kitchen_speakers
-    attribute: volume_level
-    above: 28
+  - condition: template
+    value_template: '{{ state_attr(''media_player.universal_kitchen_speakers'',''volume_level'')
+      > 0.28 }}'
   actions:
   - action: media_player.volume_set
     metadata: {}
@@ -9740,7 +9792,7 @@
       - ''
       camera:
       - camera.front_door_camera
-      notify_device: c05131fc3bc6fcb2ce597a5d15723962
+      notify_device: 76061f2c15b668e8ebc77cfaf47e5b64
       title: Front Door Presence Detected
       message: '{{ label }} detected - {{ camera_name }} at {{event[''after''][''start_time'']|timestamp_custom(''%H:%M'')}}'
       update_sub_label: false
@@ -9841,36 +9893,6 @@
 
         '
   - action: switch.turn_on
-    metadata: {}
-    data: {}
-    target:
-      entity_id: '{{esp32_wake_sound_entities}}
-
-        '
-  mode: single
-- id: '1752077239439'
-  alias: Turn off Wake sound on assist endpoint when screen is on
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - light.bedroom_assistant_lcd_backlight
-    - light.desktop_assistant_lcd_backlight
-    - light.esp32_s3_box_kitchen_assistant_lcd_backlight
-    - light.lv_assistant_lcd_backlight
-    - light.lounge_assistant_lcd_backlight
-    - light.saloon_assistant_lcd_backlight
-    from: 'off'
-    to: 'on'
-  conditions: []
-  actions:
-  - variables:
-      esp32_wake_sound_entities: '{{([device_id(trigger.entity_id)]  | map(''device_entities'')
-        | sum(start=[]) |select(''match'', ''.*play_wake_sound$'') |  unique | list
-        ) }}
-
-        '
-  - action: switch.turn_off
     metadata: {}
     data: {}
     target:
@@ -11102,7 +11124,6 @@
     - media_player.universal_bedroom_chromecast
     - media_player.universal_workshop_chromecast
     - media_player.universal_salon_chromecast
-    from: tvshow
     to: movie
     trigger: state
     attribute: media_content_type
@@ -11332,6 +11353,19 @@
   - condition: template
     value_template: '{{ states(''sensor.maxi_location_by_petro'') | lower not in [area_id(trigger.entity_id)]
       | lower }}'
+  - condition: template
+    value_template: '{{ states(''sensor.myriam_location_by_petro'') | lower not in
+      [area_id(trigger.entity_id)] | lower }}'
+  - alias: Stop if myriam's phone is active in the room
+    condition: template
+    value_template: '{% if (states(''binary_sensor.phone_myriam_interactive'') ==
+      on and states(''sensor.bermuda_myriam_phone_area'') | lower in [area_id(trigger.entity_id)]
+      | lower) %} false {% else %} true {%endif%}'
+  - alias: Stop if myriam's tablet is active in the room
+    condition: template
+    value_template: '{% if (states(''binary_sensor.tablet_myriam_interactive'') ==
+      on and states(''sensor.myriam_tablet_location_compounded'') | lower in [area_id(trigger.entity_id)]
+      | lower) %} false {% else %} true {%endif%}'
   - condition: state
     entity_id: input_boolean.kink_party
     state: 'off'
@@ -11398,6 +11432,7 @@
     - light.group_lounge_uv_lamps
     - light.group_patio_uv_lamps
     - light.group_workshop_uv_lamps
+    - light.group_salon_uv_lamps
     to: 'on'
     from: 'off'
   conditions: []
@@ -11426,10 +11461,17 @@
     - light.group_lounge_uv_lamps
     - light.group_patio_uv_lamps
     - light.group_workshop_uv_lamps
+    - light.group_salon_uv_lamps
     to: 'off'
     from: 'on'
   conditions: []
   actions:
+  - variables:
+      on_lights_in_room: "{% set ns = namespace(f = [] ) %} {% for i in ( [area_id(trigger.entity_id)]
+        \ | map('area_entities') | sum(start=[]) | select('match', '^light.') | select('is_state','on')
+        \ |  unique | list )  %} {% if i not in  label_entities(\"High Intensity Light\")
+        | string %}\n  {% set ns.f = ns.f + [i] %}\n{% endif %} {% endfor %} {{ ns.f
+        }}\n"
   - choose:
     - conditions:
       - condition: or
@@ -11438,12 +11480,6 @@
           entity_id: input_boolean.party_mode
           state: 'on'
       sequence:
-      - variables:
-          on_lights_in_room: "{% set ns = namespace(f = [] ) %} {% for i in ( [area_id(trigger.entity_id)]
-            \ | map('area_entities') | sum(start=[]) | select('match', '^light.group')
-            | select('is_state','on')  |  unique | list )  %} {% if i not in  label_entities(\"High
-            Intensity Light\") | string %}\n  {% set ns.f = ns.f + [i] %}\n{% endif
-            %} {% endfor %} {{ ns.f }}\n"
       - action: script.changes_selected_lights_to_warm_pale_colors
         metadata: {}
         data:
@@ -11459,12 +11495,6 @@
           entity_id: input_boolean.kink_party
           state: 'on'
       sequence:
-      - variables:
-          on_lights_in_room: "{% set ns = namespace(f = [] ) %} {% for i in ( [area_id(trigger.entity_id)]
-            \ | map('area_entities') | sum(start=[]) | select('match', '^light.group')
-            | select('is_state','on')  |  unique | list )  %} {% if i not in  label_entities(\"High
-            Intensity Light\") | string %}\n  {% set ns.f = ns.f + [i] %}\n{% endif
-            %} {% endfor %} {{ ns.f }}\n"
       - action: script.changes_selected_light_group_to_single_warm_colors
         metadata: {}
         data:
@@ -11479,12 +11509,6 @@
           entity_id: input_boolean.acid_time
           state: 'on'
       sequence:
-      - variables:
-          on_lights_in_room: "{% set ns = namespace(f = [] ) %} {% for i in ( [area_id(trigger.entity_id)]
-            \ | map('area_entities') | sum(start=[]) | select('match', '^light.group')
-            | select('is_state','on')  |  unique | list )  %} {% if i not in  label_entities(\"High
-            Intensity Light\") | string %}\n  {% set ns.f = ns.f + [i] %}\n{% endif
-            %} {% endfor %} {{ ns.f }}\n"
       - action: script.change_received_lights_to_random_colors
         metadata: {}
         data:
@@ -11493,12 +11517,6 @@
             '
           saturation: 100
     default:
-    - variables:
-        on_lights_in_room: "{% set ns = namespace(f = [] ) %} {% for i in ( [area_id(trigger.entity_id)]
-          \ | map('area_entities') | sum(start=[]) | select('match', '^light.') |
-          select('is_state','on')  |  unique | list )  %} {% if i not in  label_entities(\"High
-          Intensity Light\") | string %}\n  {% set ns.f = ns.f + [i] %}\n{% endif
-          %} {% endfor %} {{ ns.f | first}}\n"
     - action: adaptive_lighting.apply
       metadata: {}
       data:
@@ -11918,19 +11936,18 @@
   - condition: state
     entity_id: binary_sensor.shower_in_usage
     state: 'on'
-  - condition: numeric_state
-    entity_id: media_player.mass_bathroom_speaker
-    attribute: volume_level
-    above: 7
   - condition: state
     entity_id: media_player.universal_bathroom_speakers
     attribute: is_volume_muted
-    state: 'false'
+    state: false
+  - condition: template
+    value_template: '{{ state_attr(''media_player.universal_bathroom_speakers'',''volume_level'')
+      > 0.68 }}'
   actions:
   - action: media_player.volume_set
     metadata: {}
     data:
-      volume_level: 0.69
+      volume_level: 0.67
     target:
       entity_id: media_player.mass_bathroom_speaker
   mode: single
@@ -11959,7 +11976,7 @@
       entity_id: input_boolean.maxi_is_scared
   mode: single
 - id: '1759251745280'
-  alias: Notify maxi when myhriam arrives at home
+  alias: Notify maxi when myriam arrives at home
   description: ''
   triggers:
   - trigger: state
@@ -12009,3 +12026,171 @@
       title: Lylou is nearing home!
     action: notify.myriam_notification_group
   mode: restart
+- id: '1759518333967'
+  alias: Turn on Jukebox Public queue when party mode turns on
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.party_mode
+    id: party
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 2
+  conditions: []
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.music_assistant_jukebox_jukebox_allow_access
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - input_boolean.party_mode
+      from: 'on'
+      to: 'off'
+      for:
+        hours: 0
+        minutes: 5
+        seconds: 0
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.music_assistant_jukebox_jukebox_allow_access
+  mode: single
+- id: '1760286041191'
+  alias: Ring parking horn on actionnable notification from mobile
+  description: ''
+  triggers:
+  - event_type: mobile_app_notification_action
+    context: {}
+    event_data:
+      action: turn_parking_horn_on
+    trigger: event
+  conditions: []
+  actions:
+  - action: siren.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: siren.parking_exit_camera_siren
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - binary_sensor.group_parking_occupancy
+      from: 'on'
+      to: 'off'
+      for:
+        hours: 0
+        minutes: 0
+        seconds: 7
+    timeout:
+      hours: 0
+      minutes: 5
+      seconds: 0
+      milliseconds: 0
+  - action: siren.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: siren.parking_exit_camera_siren
+  mode: single
+- id: '1760287140341'
+  alias: Alert when parking siren goes on and offer to turn it off
+  description: ''
+  triggers:
+  - entity_id:
+    - siren.parking_exit_camera_siren
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
+    data:
+      filename: /media/parking_horn_check.png
+    action: camera.snapshot
+    target:
+      entity_id: camera.back_door_camera
+  - if:
+    - condition: state
+      entity_id: person.myriam
+      state: home
+    then:
+    - metadata: {}
+      data:
+        message: Back horn started
+        data:
+          image: /media/local/parking_horn_check.png
+          actions:
+          - action: stop_horn
+            title: Stop the horn?
+          channel: security_alerts_notifications
+          ttl: 0
+          priority: high
+        title: Security breach
+      action: notify.mobile_app_phone_myriam
+  - action: notify.mobile_app_phone_maxi_fold7
+    data:
+      title: Back Horn Started
+      message: Back horn started
+      data:
+        ttl: 0
+        priority: high
+        channel: alarm_stream
+        actions:
+        - action: stop_parking_horn
+          title: Stop the horn?
+        image: /media/local/parking_horn_check.png
+  - wait_for_trigger:
+    - event_type: mobile_app_notification_action
+      context: {}
+      event_data:
+        action: stop_parking_horn
+      trigger: event
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 3
+      seconds: 0
+      milliseconds: 0
+  - action: siren.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: siren.parking_exit_camera_siren
+  mode: restart
+- id: '1760963671925'
+  alias: Disasrm alarm when sun rises if everyone present is awake
+  description: ''
+  triggers:
+  - entity_id:
+    - sun.sun
+    to: above_horizon
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+    trigger: state
+    from: below_horizon
+  conditions:
+  - condition: state
+    entity_id: alarm_control_panel.home_alarm
+    state: armed_night
+  - condition: state
+    entity_id: binary_sensor.all_present_sleeping
+    state: 'off'
+  actions:
+  - target:
+      entity_id: alarm_control_panel.home_alarm
+    data: {}
+    action: alarm_control_panel.alarm_disarm
+  mode: single

@@ -29,110 +29,8 @@ wifi:
 
 captive_portal:
 
-sensor:
-  
-  - platform: hx711
-    accuracy_decimals: 2
-    id: weight_top_left
-    name: "HX711 Value Top Left"
-    dout_pin: GPIO4
-    clk_pin: GPIO3
-    gain: 128
-    update_interval: 1s
-    unit_of_measurement: lb
-    filters:
-      - calibrate_linear:
-          - 57000 -> 4
-          - 13000 -> 8
-      - lambda: |-
-          id(weigth_no_tare_top_left).publish_state(x);
-          return (x - id(weigth_tare_top_left));
-      - delta: 0.2
 
- 
-  - platform: hx711
-    accuracy_decimals: 2
-    id: weight_top_right
-    name: "HX711 Value Top Right"
-    dout_pin: GPIO2
-    clk_pin: GPIO16
-    gain: 128
-    update_interval: 1s
-    unit_of_measurement: lb
-    filters:
-      - calibrate_linear:
-          - 57000 -> 4
-          - 13000 -> 8
-      - lambda: |-
-          id(weigth_no_tare_top_right).publish_state(x);
-          return (x - id(weigth_tare_top_right));
-      - delta: 0.2
 
- 
-  - platform: hx711
-    accuracy_decimals: 2
-    id: weight_bottom_right
-    name: "HX711 Value Bottom right"
-    dout_pin: GPIO32
-    clk_pin: GPIO33
-    gain: 128
-    update_interval: 1s
-    unit_of_measurement: lb
-    filters:
-      - calibrate_linear:
-          - 57000 -> 4
-          - 13000 -> 8
-      - lambda: |-
-          id(weigth_no_tare_bottom_right).publish_state(x);
-          return (x - id(weigth_tare_bottom_right));
-      - delta: 0.2
-
- 
-  - platform: hx711
-    accuracy_decimals: 2
-    id: weight_bottom_left
-    name: "HX711 Value Bottom left"
-    dout_pin: GPIO25
-    clk_pin: GPIO26
-    gain: 128
-    update_interval: 1s
-    unit_of_measurement: lb
-    filters:
-      - calibrate_linear:
-          - 57000 -> 4
-          - 13000 -> 8
-      - lambda: |-
-          id(weigth_no_tare_bottom_left).publish_state(x);
-          return (x - id(weigth_tare_bottom_left));
-      - delta: 0.2
-
-  - platform: template
-    id: weigth_no_tare_top_left
-    internal: True
-  - platform: template
-    id: weigth_no_tare_top_right
-    internal: True
-  - platform: template
-    id: weigth_no_tare_bottom_left
-    internal: True
-  - platform: template
-    id: weigth_no_tare_bottom_right
-    internal: True
-    
-  - platform: combination
-    type: linear
-    name: "Total Weight"
-    sources:
-      - source: weight_top_left
-        coeffecient: 1.0
-      - source: weight_top_right
-        coeffecient: 1.0
-      - source: weight_bottom_left
-        coeffecient: 1.0
-      - source: weight_bottom_right
-        coeffecient: 1.0
-    filters:
-     - delta: 0.2
 globals:
   - id: weigth_tare_top_left
     type: float
@@ -150,6 +48,220 @@ globals:
     type: float
     restore_value: False
     initial_value: '0.0'
+  - id: playing_state
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: last_movement_time
+    type: unsigned long
+    restore_value: false
+    initial_value: '0'
+  - id: movement_continuous_start
+    type: unsigned long
+    restore_value: false
+    initial_value: '0'
+  - id: no_movement_start
+    type: unsigned long
+    restore_value: false
+    initial_value: '0'
+
+sensor:
+
+  - platform: hx711
+    internal: false
+    accuracy_decimals: 2
+    id: weight_top_left
+    name: "HX711 Value Top Left"
+    dout_pin: GPIO4
+    clk_pin: GPIO3
+    gain: 128
+    update_interval: 1s
+    unit_of_measurement: lb
+    filters:
+      - calibrate_linear:
+          - 57000 -> 4
+          - 13000 -> 8
+      - lambda: |-
+          id(weigth_no_tare_top_left).publish_state(x);
+          return (x - id(weigth_tare_top_left));
+    on_value:
+      then:
+        - lambda: |-
+            const float SWING_THRESHOLD = 2.0;
+            const unsigned long REQUIRED_MS = 45000;
+            static float last_val = 0.0;
+            float diff = fabs(x - last_val);
+            last_val = x;
+            unsigned long now = millis();
+
+            if (diff > SWING_THRESHOLD) {
+              id(last_movement_time) = now;
+              if (id(no_movement_start) != 0) id(no_movement_start) = 0;
+              if (id(movement_continuous_start) == 0) id(movement_continuous_start) = now;
+              if (!id(playing_state) && (now - id(movement_continuous_start) >= REQUIRED_MS)) {
+                id(playing_state) = true;
+                id(playing).publish_state(true);
+              }
+            } else {
+              if (id(movement_continuous_start) != 0) id(movement_continuous_start) = 0;
+              if (id(no_movement_start) == 0) id(no_movement_start) = now;
+            }
+
+  - platform: hx711
+    internal: false
+    accuracy_decimals: 2
+    id: weight_top_right
+    name: "HX711 Value Top Right"
+    dout_pin: GPIO2
+    clk_pin: GPIO16
+    gain: 128
+    update_interval: 1s
+    unit_of_measurement: lb
+    filters:
+      - calibrate_linear:
+          - 57000 -> 4
+          - 13000 -> 8
+      - lambda: |-
+          id(weigth_no_tare_top_right).publish_state(x);
+          return (x - id(weigth_tare_top_right));
+    on_value:
+      then:
+        - lambda: |-
+            const float SWING_THRESHOLD = 2.0;
+            const unsigned long REQUIRED_MS = 45000;
+            static float last_val = 0.0;
+            float diff = fabs(x - last_val);
+            last_val = x;
+            unsigned long now = millis();
+
+            if (diff > SWING_THRESHOLD) {
+              id(last_movement_time) = now;
+              if (id(no_movement_start) != 0) id(no_movement_start) = 0;
+              if (id(movement_continuous_start) == 0) id(movement_continuous_start) = now;
+              if (!id(playing_state) && (now - id(movement_continuous_start) >= REQUIRED_MS)) {
+                id(playing_state) = true;
+                id(playing).publish_state(true);
+              }
+            } else {
+              if (id(movement_continuous_start) != 0) id(movement_continuous_start) = 0;
+              if (id(no_movement_start) == 0) id(no_movement_start) = now;
+            }
+
+  - platform: hx711
+    internal: false
+    accuracy_decimals: 2
+    id: weight_bottom_right
+    name: "HX711 Value Bottom Right"
+    dout_pin: GPIO32
+    clk_pin: GPIO33
+    gain: 128
+    update_interval: 1s
+    unit_of_measurement: lb
+    filters:
+      - calibrate_linear:
+          - 57000 -> 4
+          - 13000 -> 8
+      - lambda: |-
+          id(weigth_no_tare_bottom_right).publish_state(x);
+          return (x - id(weigth_tare_bottom_right));
+    on_value:
+      then:
+        - lambda: |-
+            const float SWING_THRESHOLD = 2.0;
+            const unsigned long REQUIRED_MS = 45000;
+            static float last_val = 0.0;
+            float diff = fabs(x - last_val);
+            last_val = x;
+            unsigned long now = millis();
+
+            if (diff > SWING_THRESHOLD) {
+              id(last_movement_time) = now;
+              if (id(no_movement_start) != 0) id(no_movement_start) = 0;
+              if (id(movement_continuous_start) == 0) id(movement_continuous_start) = now;
+              if (!id(playing_state) && (now - id(movement_continuous_start) >= REQUIRED_MS)) {
+                id(playing_state) = true;
+                id(playing).publish_state(true);
+              }
+            } else {
+              if (id(movement_continuous_start) != 0) id(movement_continuous_start) = 0;
+              if (id(no_movement_start) == 0) id(no_movement_start) = now;
+            }
+
+  - platform: hx711
+    internal: false
+    accuracy_decimals: 2
+    id: weight_bottom_left
+    name: "HX711 Value Bottom Left"
+    dout_pin: GPIO25
+    clk_pin: GPIO26
+    gain: 128
+    update_interval: 1s
+    unit_of_measurement: lb
+    filters:
+      - calibrate_linear:
+          - 57000 -> 4
+          - 13000 -> 8
+      - lambda: |-
+          id(weigth_no_tare_bottom_left).publish_state(x);
+          return (x - id(weigth_tare_bottom_left));
+    on_value:
+      then:
+        - lambda: |-
+            const float SWING_THRESHOLD = 2.0;
+            const unsigned long REQUIRED_MS = 45000;
+            static float last_val = 0.0;
+            float diff = fabs(x - last_val);
+            last_val = x;
+            unsigned long now = millis();
+
+            if (diff > SWING_THRESHOLD) {
+              id(last_movement_time) = now;
+              if (id(no_movement_start) != 0) id(no_movement_start) = 0;
+              if (id(movement_continuous_start) == 0) id(movement_continuous_start) = now;
+              if (!id(playing_state) && (now - id(movement_continuous_start) >= REQUIRED_MS)) {
+                id(playing_state) = true;
+                id(playing).publish_state(true);
+              }
+            } else {
+              if (id(movement_continuous_start) != 0) id(movement_continuous_start) = 0;
+              if (id(no_movement_start) == 0) id(no_movement_start) = now;
+            }
+
+  - platform: template
+    id: weigth_no_tare_top_left
+    internal: True
+  - platform: template
+    id: weigth_no_tare_top_right
+    internal: True
+  - platform: template
+    id: weigth_no_tare_bottom_left
+    internal: True
+  - platform: template
+    id: weigth_no_tare_bottom_right
+    internal: True
+
+  - platform: combination
+    id: total_weight
+    type: linear
+    name: "Total Weight"
+    sources:
+      - source: weight_top_left
+        coeffecient: 1.0
+      - source: weight_top_right
+        coeffecient: 1.0
+      - source: weight_bottom_left
+        coeffecient: 1.0
+      - source: weight_bottom_right
+        coeffecient: 1.0
+    filters:
+        - delta: 0.005
+
+binary_sensor:
+  - platform: template
+    id: playing
+    name: "Playing"
+    lambda: |-
+      return id(playing_state);
 
 button:
   - platform: template
@@ -160,3 +272,24 @@ button:
       - lambda: id(weigth_tare_top_right) = id(weigth_no_tare_top_right).state;
       - lambda: id(weigth_tare_bottom_left) = id(weigth_no_tare_bottom_left).state;
       - lambda: id(weigth_tare_bottom_right) = id(weigth_no_tare_bottom_right).state;
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          const unsigned long REQUIRED_MS = 45000;
+          unsigned long now = millis();
+
+          if (id(playing_state)) {
+            if (id(no_movement_start) != 0 && (now - id(no_movement_start) >= REQUIRED_MS)) {
+              id(playing_state) = false;
+              id(playing).publish_state(false);
+              id(no_movement_start) = 0;
+            }
+          } else {
+            if (id(movement_continuous_start) != 0 && (now - id(movement_continuous_start) >= REQUIRED_MS)) {
+              id(playing_state) = true;
+              id(playing).publish_state(true);
+              id(movement_continuous_start) = 0;
+            }
+          }

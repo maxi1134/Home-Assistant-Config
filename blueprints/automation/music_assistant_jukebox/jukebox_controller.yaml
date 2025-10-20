@@ -1,0 +1,148 @@
+blueprint:
+  name: "Music Assistant Jukebox Controller"
+  description: "Controls the Music Assistant Jukebox functionality including queue management and playlist fallback"
+  domain: automation
+  source_url: https://github.com/DJS91/HAMusicAssistantJukebox
+  input:
+    media_player:
+      name: Media Player
+      description: "The Music Assistant media player to control"
+      selector:
+        entity:
+          domain: media_player
+          integration: music_assistant
+    default_playlist:
+      name: Default Playlist
+      description: "The playlist to play when queue is empty"
+      selector:
+        text:
+
+triggers:
+  - trigger: state
+    entity_id: !input media_player
+    attribute: media_position_updated_at
+    id: Position Updated
+  - trigger: state
+    entity_id: switch.music_assistant_jukebox_jukebox_allow_access
+    from: "off"
+    to: "on"
+    id: Access enabled
+  - trigger: event
+    event_type: song_queued
+    event_data: {}
+    id: Queue Event
+  - trigger: state
+    entity_id: number.music_assistant_jukebox_jukebox_queue_length
+    to: "0"
+    id: Playlist finished
+  - trigger: state
+    entity_id: switch.music_assistant_jukebox_jukebox_allow_access
+    from: "on"
+    to: "off"
+    id: Access disabled
+
+action:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: Position Updated
+        sequence:
+          - action: music_assistant.get_queue
+            data: {}
+            target:
+              entity_id: !input media_player
+            response_variable: jukeboxqueuedetail
+          - variables:
+              speaker_data: "{{ jukeboxqueuedetail[trigger.entity_id] }}"
+          - variables:
+              items_count: >-
+                {% set matches = speaker_data | regex_findall("'items': (\d+)") %}
+                {{ matches[0] if matches else 0 }}
+              current_index: >-
+                {% set matches = speaker_data | regex_findall("'current_index': (\d+)") %}
+                {{ matches[0] if matches else 0 }}
+              remaining: "{{ (items_count | int) - (current_index | int) }}"
+          - service: number.set_value
+            target:
+              entity_id: number.music_assistant_jukebox_jukebox_queue_length
+            data:
+              value: "{{ remaining }}"
+
+      - conditions:
+          - condition: trigger
+            id: Access enabled
+        sequence:
+          - service: switch.turn_off
+            target:
+              entity_id: switch.music_assistant_jukebox_jukebox_queue
+          - condition: not
+            conditions:
+              - condition: state
+                entity_id: !input media_player
+                state: "playing"
+          - service: media_player.shuffle_set
+            data:
+              shuffle: true
+            target:
+              entity_id: !input media_player
+          - if:
+              - condition: state
+                entity_id: switch.music_assistant_jukebox_jukebox_play_music_on_start
+                state: "on"
+            then:
+              - target:
+                  entity_id: !input media_player
+                data:
+                  enqueue: replace
+                  media_id: !input default_playlist
+                  media_type: playlist
+                action: music_assistant.play_media
+            alias: Play Default playlist on start
+      - conditions:
+          - condition: trigger
+            id: Queue Event
+        sequence:
+          - service: media_player.shuffle_set
+            data:
+              shuffle: false
+            target:
+              entity_id: !input media_player
+          - service: switch.turn_on
+            target:
+              entity_id: switch.music_assistant_jukebox_jukebox_queue
+
+      - conditions:
+          - condition: trigger
+            id: Playlist finished
+          - condition: state
+            entity_id: switch.music_assistant_jukebox_jukebox_allow_access
+            state: "on"
+        sequence:
+          - service: media_player.shuffle_set
+            data:
+              shuffle: true
+            target:
+              entity_id: !input media_player
+          - service: switch.turn_off
+            target:
+              entity_id: switch.music_assistant_jukebox_jukebox_queue
+          - service: music_assistant.play_media
+            target:
+              entity_id: !input media_player
+            data:
+              enqueue: replace
+              media_id: !input default_playlist
+              media_type: playlist
+
+      - conditions:
+          - condition: trigger
+            id: Access disabled
+        sequence:
+          - service: switch.turn_off
+            target:
+              entity_id:
+                - switch.music_assistant_jukebox_jukebox_allow_access
+                - switch.music_assistant_jukebox_jukebox_queue
+
+mode: queued
+max: 10

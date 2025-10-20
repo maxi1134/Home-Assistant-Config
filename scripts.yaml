@@ -1862,8 +1862,8 @@ generate_front_door_person_description:
       target_width: 720
       max_tokens: 300
       temperature: 0.2
-      provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
-      model: qwen2.5vl:3b-q8_0
+      provider: 01K7YXE8896973KEDHEY9YCMYM
+      model: Qwen/Qwen3-VL-4B-Instruct
       image_entity:
       - camera.front_door_camera
       message: Describe any potential human activity on this image. Do not comment
@@ -1882,8 +1882,8 @@ generate_patio_camera_description:
       target_width: 720
       max_tokens: 100
       temperature: 0.2
-      provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
-      model: qwen2.5vl:3b-q8_0
+      provider: 01K7YXE8896973KEDHEY9YCMYM
+      model: Qwen/Qwen3-VL-4B-Instruct
       image_entity:
       - camera.patio_camera
       message: Describe any potential human activity on this outside image. Do not
@@ -1902,8 +1902,8 @@ generate_back_door_camera_description:
       target_width: 1024
       max_tokens: 100
       temperature: 0.1
-      provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
-      model: qwen2.5vl:3b-q8_0
+      provider: 01K7YXE8896973KEDHEY9YCMYM
+      model: Qwen/Qwen3-VL-4B-Instruct
       image_entity:
       - camera.back_door_camera
       message: Describe any potential human activity on this outside image. Do not
@@ -1991,6 +1991,11 @@ changes_all_on_lights_to_white:
           entity_id: '{{all_on_lights[repeat.index - 1]}}'
         action: light.turn_on
       for_each: '{{ all_on_lights }}'
+  - action: light.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: light.all_uv_lamps
   alias: Changes all on lights to white
   mode: restart
   icon: mdi:white-balance-iridescent
@@ -2011,8 +2016,8 @@ generate_parking_camera_description:
       target_width: 1024
       max_tokens: 100
       temperature: 0.1
-      provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
-      model: qwen2.5vl:3b-q8_0
+      provider: 01K7YXE8896973KEDHEY9YCMYM
+      model: Qwen/Qwen3-VL-4B-Instruct
       image_entity:
       - camera.parking_exit_camera
       message: 'Describe in one sentence the human activities in this image, if there
@@ -2072,6 +2077,11 @@ changes_all_existing_lights_to_white:
           entity_id: '{{all_on_lights[repeat.index - 1]}}'
         action: light.turn_on
       for_each: '{{ all_on_lights }}'
+  - action: light.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: light.all_uv_lamps
   alias: Changes all existing lights to white
   mode: restart
   icon: mdi:white-balance-iridescent
@@ -2421,6 +2431,9 @@ start_a_random_maxi_playlist:
       - New Maxi Playlist
       - All favorited tracks
       - Tropico 4 Soundtrack
+      - Tropico 3 Soundtrack
+      - Tropico 5 - Soundtrack
+      - Tropico 6 - Soundtrack
       - Fallout 3 - Galaxy News Radio
       - butter_fly_senpai
       requested_playlist: '{% if requested_playlist %}
@@ -2658,3 +2671,59 @@ change_lights_in_an_area_to_warm_saturated_colors:
   description: 'This script allows the LLM to change the lights within an area to
     warm saturated colors. '
   max: 10
+stream_a_specific_security_camera_on_a_specific_tv_chromecast:
+  sequence:
+  - variables:
+      camera: '{{ camera }}
+
+        '
+      tv_chromecast: '{{ tv | lower | replace(''universal_'','''') | replace('' '',''_'')
+        | replace(''tv'',''chromecast'') | lower }}
+
+        '
+      url: 'http://192.168.0.11:1984/stream.html?{% for c in camera %}src={{ state_attr(c,''camera_name'')}}_sub&{%endfor%}
+
+        '
+  - if:
+    - condition: template
+      value_template: '{{ state_attr(tv_chromecast,''app_name'') | lower == ''dashcast''
+        }}'
+    then:
+    - action: media_player.turn_off
+      metadata: {}
+      data: {}
+      target:
+        entity_id: '{{tv_chromecast}}'
+  - action: dash_cast.load_url
+    metadata: {}
+    data:
+      force: true
+      reload_seconds: 0
+      url: '{{ url }}'
+      entity_id: '{{ tv_chromecast | replace (''universal_'','''') }}'
+  fields:
+    camera:
+      selector:
+        entity:
+          integration: frigate
+          domain: camera
+          multiple: true
+      name: camera
+      description: This field should contain the entity_id of one or multiple cameras.
+        An example of such an entity id is 'camera.back_door_camera'
+      required: true
+      default:
+      - camera.back_door_camera
+    tv:
+      selector:
+        entity:
+          integration: cast
+          domain: media_player
+      name: tv
+      description: The chromecast or TV where the stream should be sent. This should
+        be an entity id starting by 'media_player.' Furthermore, do not use the 'universal'
+        media player. This one should be ignored for this script.
+      required: true
+  alias: Stream a specific security camera on a specific TV-Chromecast
+  description: This script allows the LLM to start the stream for a security camera
+    on a specific chromecast
