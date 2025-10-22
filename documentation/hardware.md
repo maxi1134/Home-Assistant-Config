@@ -25,7 +25,8 @@
 | CPU      | Intel N100   |   
 | RAM      | 16GB   |   
 | USB1   | Coral TPU   |  Frigate NVR |
-| SSD1   | 500GB NVMe    |  Operating Systems / Storage|
+| SSD1   | 1000GB NVMe    |  Operating Systems / Storage|
+| SSD2   | 2TB Sata SSD |  Storage|
 | UPS|      950VA |
 
 ## Proxmox Host Specifications
@@ -47,8 +48,9 @@
 | ----------- | ----------- | -----------  |
 | CPU      | AMD FX-6100    |   
 | RAM      | 8Gb   |   
-| HDDs   | 3*16TB       |  Plex Storage|
+| HDDs   | 4*16TB       |  Plex Storage|
 | HDD1   | 300gb     |  TrueNAS OS |
+| HDD2   | 2000gb     |  TrueNAS Nextcloud transactional drive |
 
 
 ## Asustor AS6404T NAS

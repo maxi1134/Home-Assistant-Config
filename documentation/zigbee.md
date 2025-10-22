@@ -25,10 +25,10 @@ These items are all linked to Z2M using the Z2M EDGE addon on Home-Assistant!
 | Model | Device Type | Buy Again? | Some Notes |  Quantity In Use     |
 | ----- | ----------- | :--------: | ---------- | :---: |
 |[Sonoff Zigbee 3.0 Dongle](https://sonoff.tech/product/gateway-and-sensors/sonoff-zigbee-3-0-usb-dongle-plus-p/) | Coordinator | :heavy_check_mark: | Don't forget to update the Firmware!| 1|
-|[SONOFF LCD Zigbee Climate sensor](https://www.amazon.ca/SONOFF-Temperature-SNZB-02D-Monitoring-Automation/dp/B0C27TLFV1/) | Temperature/Humidity Sensor  | :heavy_check_mark: | The screen is very neat!| 1|
+|[SONOFF LCD Zigbee Climate sensor](https://www.amazon.ca/SONOFF-Temperature-SNZB-02D-Monitoring-Automation/dp/B0C27TLFV1/) | Temperature/Humidity Sensor  | :heavy_check_mark: | The screen is very neat!| 3|
 |[Philips Hue Tap Dial](https://www.amazon.ca/dp/B0B6LDPZ5M)| Remote | :heavy_check_mark: | Very reliable so far | 1 |
-|[Ikea Symfonisk Dial](https://www.zigbee2mqtt.io/devices/E1744.html#ikea-e1744)| Remote | :no_entry: | It sometimes spam commands until touched again. | 11 |
-|[Philips Hue Bulb](https://www.zigbee2mqtt.io/devices/9290012573A.html#philips-9290012573a)| Bulb | :heavy_check_mark: | Great color render! | 6 |
+|[Ikea Symfonisk Dial](https://www.zigbee2mqtt.io/devices/E1744.html#ikea-e1744)| Remote | :no_entry: | Used to control volume in the rooms | 10 |
+|[Philips Hue Bulb](https://www.zigbee2mqtt.io/devices/9290012573A.html#philips-9290012573a)| Bulb | :heavy_check_mark: | Great color render! | 8 |
 |[Philips Hue Bulb](https://www.zigbee2mqtt.io/devices/9290022166.html#philips-9290022166)| Bulb | :heavy_check_mark: | Great color render! | 12 |
 |[Philips Hue Bulb](https://www.zigbee2mqtt.io/devices/9290023351.html#philips-9290023351)| Bulb | :heavy_check_mark: | Warm White only | 2 |
 |[Philips Hue Bulb](https://www.zigbee2mqtt.io/devices/9290024717.html#philips-9290024717)| Bulb | :heavy_check_mark: | Great color render! | 1 |
@@ -41,9 +41,11 @@ These items are all linked to Z2M using the Z2M EDGE addon on Home-Assistant!
 |[Xiaomi Button](https://www.zigbee2mqtt.io/devices/WXKG01LM.html#xiaomi-wxkg01lm)| Button | :heavy_check_mark: | Is used as a doorbell | 1 |
 |[Ikea Single Button](https://www.zigbee2mqtt.io/devices/E1812.html#ikea-e1812)| Button | :heavy_check_mark: | This is used to enable "sleep mode" in certain rooms with a double tap | 2 |
 |[Ikea Blind Button](https://www.zigbee2mqtt.io/devices/E1766.html#ikea-e1766)| Button | :heavy_check_mark: | Used to control the blinds | 2 |
-|[Ikea Blinds](https://www.zigbee2mqtt.io/devices/E1757.html#ikea-e1757)| Blinds | :grey_question: | They are a pain to connect to Z2M but work perfectly once connected | 2 |
+|[Ikea Blinds](https://www.zigbee2mqtt.io/devices/E1757.html#ikea-e1757)| Blinds | :grey_question: | They are a pain to connect to Z2M but work perfectly once connected | 4 |
 |[Xiaomi Door Sensor](https://www.zigbee2mqtt.io/devices/MCCGQ11LM.html#xiaomi-mccgq11lm)| Door Sensor | :heavy_check_mark: | reliable door sensor | 6 |
 |[Xiaomi Magic Cube](https://www.zigbee2mqtt.io/devices/MFKZQ01LM.html#xiaomi-mfkzq01lm)| Remote | :warning: | Very cool, but very gimmicky | 1 |
-|[Sonoff Smart Plug](https://www.zigbee2mqtt.io/devices/S31ZB.html#sonoff-s31zb)| Smart Plug | :heavy_check_mark: | Reliable, but no consumption sensor | 9 |
+|[Sonoff Smart Plug](https://www.zigbee2mqtt.io/devices/S31ZB.html#sonoff-s31zb)| Smart Plug | :heavy_check_mark: | Reliable, but no consumption sensor | 15 |
+|[ThirdReality Smart Plug](https://www.zigbee2mqtt.io/devices/S31ZB.html#sonoff-s31zb)| Smart Plug | :heavy_check_mark: | Reliable, and with consumption sensor | 4 |
 |[Schlague Century Lock](https://www.zigbee2mqtt.io/devices/BE468.html#schlage-be468)| Lock | :no_entry: | Reliable at -35c since 4 winters | 1 |
+|[Mijia Honeywell smoke detector](https://www.zigbee2mqtt.io/devices/JTYJ-GD-01LM_BW.html#xiaomi-jtyj-gd-01lm%252Fbw)| Smoke Detector | :no_entry: | Reliable so far ( Rings always when the real one rings) | 1 |
 |[Quotra Circle Lamp](https://www.zigbee2mqtt.io/devices/QV-RGBCCT.html#quotra-vision-qv-rgbcct)| Smart Lamp | :no_entry: | Very neat, but has a physical button that can over-ride smart controls | 2 |
