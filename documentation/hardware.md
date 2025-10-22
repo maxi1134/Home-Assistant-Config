@@ -59,7 +59,7 @@
 | ----------- | ----------- | -----------  |
 | CPU      | 	Intel Celeron J3455 |   
 | RAM      | 8Gb   |   
-| HDDs   | 2*6TB (raid 1)  | Backups |
+| HDDs   | 4*6TB (2^raid 1)   | Backups |
 | UPS|      750VA |
 
 ## Network Hardware
