@@ -77,7 +77,9 @@
 
 | Part      | Description |  Usage | 
 | ----------- | ----------- | -- |
-| PTZ Camera      | Reolink RLC-423    |   
-| Bullet Camera      | Brillcam 4k   |   
-| Selfie Camera   |  Revotech Minicam     |  Face recognition|
-| Vandal-Proof Camera   | Geovision Camera    |  Sketchy alley camera |
+| Front door camera  | Reolink RLC-423    | With PTZ functions.  |
+| Patio Camera      | Brillcam 4k   |  | 
+| Backyard Camera   |  RLC-520A     |  |
+| Parking Camera  | RLC-520A  |  Sketchy Parking camera |
+| PArking Exit Camera   | RLC-1224A   |  Sketchy Parking exit camera |
+| Back Door Camera   | RLC-1212A   |   |
