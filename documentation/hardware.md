@@ -29,18 +29,37 @@
 | SSD2   | 2TB Sata SSD |  Storage|
 | UPS|      950VA |
 
-## Proxmox Host Specifications
+## Proxmox Main Host Specifications
 
 | Part      | Description |  Usage |
 | ----------- | ----------- | -----------  |
-| CPU      | Ryzen 3900X    |   
-| RAM      | 128Gb   |   
-| GPU1   | 1660TI     |  Plex Transcoding |
+| CPU      | Ryzen 3900X    |   |
+| RAM      | 128Gb   |   |
+| GPU1   | Nvidia P4000     | Jellyfin Transcoding |
+| GPU2   | Nvidia P4000     | Jellyfin Transcoding |
 | GPU2   | GTX 3090        |  Machine Learning |
 | HDDs   | 8*8TB       |  Plex Storage|
 | SSD1   | 2TB PCIe3 M.2      |  Operating Systems |
 | SSD2   | 500GB PCIe3 M.2        |  Incoming Download Cache |
 | UPS|      1500VA |
+
+## Proxmox Cluster Hosts Specifications
+This is a cluster containing 2 chassis with 4 nodes each
+Each node contains 2 CPUS; The shown config is per CHASSIS.
+
+#### Chassis 1
+| Part      | Description |  Usage |
+| ----------- | ----------- | -----------  |
+| CPU      | `CPU E5-2680 v2` * 8    | Total of 80 cores and 160 threads |
+| RAM      | 512GB   |  128GB per node  |
+| HDDs   | 500GB x 4     | Host Storages|
+| UPS|      1500VA | |
+#### Chassis 2
+| Part      | Description |  Usage |
+| ----------- | ----------- | -----------  |
+| CPU      | `CPU E5-2680 v2` * 8    | Total of 80 cores and 160 threads |
+| RAM      | 512GB   |  128GB per node  |
+| HDDs   | 500GB x 4     | Host Storages|
 
 ## TrueNas Host Specifications
 
@@ -59,7 +78,7 @@
 | ----------- | ----------- | -----------  |
 | CPU      | 	Intel Celeron J3455 |   
 | RAM      | 8Gb   |   
-| HDDs   | 4\*6TB (2\*raid 1)   | Backups |
+| HDDs   | `6TB`\*4 (`raid 1`\*2)   | Backups |
 | UPS|      750VA |
 
 ## Network Hardware
