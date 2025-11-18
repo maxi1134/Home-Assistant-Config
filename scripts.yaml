@@ -161,6 +161,7 @@ broadcast_alert_in_the_house:
               action: light.turn_{{ light_entity_ids[repeat.index].2 }}
             alias: Turn off lights back to off
           count: '{{ light_entity_ids | length - 1 }}'
+      enabled: true
     - alias: 'music asssitant Announcements '
       if:
       - condition: template
@@ -226,6 +227,7 @@ broadcast_alert_in_the_house:
               enabled: true
               target:
                 entity_id: tts.piper_2
+      enabled: true
     - alias: 'music asssitant Announcements '
       if:
       - condition: template
@@ -294,6 +296,7 @@ broadcast_alert_in_the_house:
               enabled: true
               target:
                 entity_id: tts.piper_2
+      enabled: true
     - alias: 'Notifications '
       if:
       - condition: template
@@ -336,11 +339,12 @@ broadcast_alert_in_the_house:
           - alias: Broadcast Image to paused chromecasts
             repeat:
               sequence:
-              - metadata: {}
-                data:
-                  media_content_id: '{{image}}'
-                  media_content_type: image
+              - data:
                   entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
+                  media:
+                    media_content_id: '{{image}}'
+                    media_content_type: image
+                    metadata: {}
                 action: media_player.play_media
               for_each: '{{ non_playing_chromecasts }}'
         - action: dash_cast.load_url
@@ -402,6 +406,7 @@ broadcast_alert_in_the_house:
             for_each: '{{ playing_chromecasts }}'
           enabled: true
           continue_on_error: true
+      enabled: true
   - delay:
       hours: 0
       minutes: 0
@@ -444,12 +449,12 @@ change_received_lights_to_random_colors:
       name: Area
       description: 'The area or areas for which the music is requested. If the request
         does not mention a target (either an area or a player), use the area the request
-        comes from.
+        cames from.
 
         If the area can not be determined from the request, or the device the request
         comes from, do not use this parameter.
 
-        Only use both the "area" parameter'
+        Only use the "area" parameter when no media player name is specified'
 start_visual_playlist_on_plex:
   alias: Start requsted Playlist on plex for all unplaying chromecasts
   sequence:
@@ -800,7 +805,7 @@ changes_all_on:
       sequence:
       - metadata: {}
         data:
-          hs_color: '{{ range(1, 360) | random | string + '','' + 30 | string }}'
+          hs_color: '{{ range(1, 360) | random | string + '','' + 55 | string }}'
         target:
           entity_id: '{{on_lights[repeat.index - 1]}}'
         action: light.turn_on
@@ -1087,20 +1092,21 @@ inside_only_home_defense_script:
     target:
       entity_id: media_player.group_mass_home_group_speakers
   - action: media_player.play_media
-    metadata:
-      title: burglar_alarm.mp3
-      thumbnail:
-      media_class: music
-      children_media_class:
-      navigateIds:
-      - {}
-      - media_content_type: app
-        media_content_id: media-source://media_source
-      - media_content_type: ''
-        media_content_id: media-source://media_source/local/sounds
     data:
-      media_content_id: media-source://media_source/local/sounds/burglar_alarm.mp3
-      media_content_type: audio/mpeg
+      media:
+        media_content_id: media-source://media_source/local/sounds/burglar_alarm.mp3
+        media_content_type: audio/mpeg
+        metadata:
+          title: burglar_alarm.mp3
+          thumbnail:
+          media_class: music
+          children_media_class:
+          navigateIds:
+          - {}
+          - media_content_type: app
+            media_content_id: media-source://media_source
+          - media_content_type: ''
+            media_content_id: media-source://media_source/local/sounds
     target:
       entity_id: media_player.group_mass_home_group_speakers
   - action: media_player.media_play
@@ -1116,7 +1122,6 @@ inside_only_home_defense_script:
       entity_id:
       - media_player.group_mass_home_group_speakers
       - media_player.mass_bedroom_airplay_wiim_speaker
-      - media_player.mass_hotbox_airplay_wiim_speaker
       - media_player.mass_kitchen_airplay_wiim_speaker
       - media_player.mass_workshop_airplay_wiim_speaker
       - media_player.mass_lounge_airplay_wiim_speaker
@@ -1657,6 +1662,24 @@ set_whole_house_to_party_ambiance:
     - action: script.1714667687332
       metadata: {}
       data: {}
+    - action: light.turn_on
+      metadata: {}
+      data:
+        brightness_pct: 100
+        effect: effect_morph
+      target:
+        entity_id:
+        - light.kitchen_ceiling
+        - light.lounge_ceiling_light
+        - light.salon_wall_light
+        - light.workshop_wall_light
+    - action: light.turn_on
+      metadata: {}
+      data:
+        brightness_pct: 100
+        effect: Pride 2015
+      target:
+        entity_id: light.lounge_door_arch_light
     - if:
       - condition: state
         entity_id: media_player.group_mass_home_group_speakers
@@ -1859,15 +1882,17 @@ generate_front_door_person_description:
   - action: llmvision.image_analyzer
     data:
       include_filename: false
-      target_width: 720
-      max_tokens: 300
-      temperature: 0.2
-      provider: 01K7YXE8896973KEDHEY9YCMYM
-      model: Qwen/Qwen3-VL-4B-Instruct
+      target_width: 1024
+      max_tokens: 100
+      temperature: 0.1
+      model: qwen3-vl:2b-instruct-q4_K_M
+      generate_title: false
+      expose_images: false
+      provider: 01K9337G97H1HC11NBFD4HF7JQ
+      message: 'Describe in one sentence the human activities in this image, if there
+        is any. '
       image_entity:
       - camera.front_door_camera
-      message: Describe any potential human activity on this image. Do not comment
-        on the scenery.
     response_variable: answer
   - stop: Finished
     response_variable: answer
@@ -1879,15 +1904,17 @@ generate_patio_camera_description:
   - action: llmvision.image_analyzer
     data:
       include_filename: false
-      target_width: 720
+      target_width: 1024
       max_tokens: 100
-      temperature: 0.2
-      provider: 01K7YXE8896973KEDHEY9YCMYM
-      model: Qwen/Qwen3-VL-4B-Instruct
+      temperature: 0.1
+      model: qwen3-vl:2b-instruct-q4_K_M
+      generate_title: false
+      expose_images: false
+      provider: 01K9337G97H1HC11NBFD4HF7JQ
+      message: 'Describe in one sentence the human activities in this image, if there
+        is any. '
       image_entity:
       - camera.patio_camera
-      message: Describe any potential human activity on this outside image. Do not
-        comment on the scenery.
     response_variable: answer
   - stop: Finished
     response_variable: answer
@@ -1902,12 +1929,14 @@ generate_back_door_camera_description:
       target_width: 1024
       max_tokens: 100
       temperature: 0.1
-      provider: 01K7YXE8896973KEDHEY9YCMYM
-      model: Qwen/Qwen3-VL-4B-Instruct
+      model: qwen3-vl:2b-instruct-q4_K_M
+      generate_title: false
+      expose_images: false
+      provider: 01K9337G97H1HC11NBFD4HF7JQ
+      message: 'Describe in one sentence the human activities in this image, if there
+        is any. '
       image_entity:
       - camera.back_door_camera
-      message: Describe any potential human activity on this outside image. Do not
-        comment on the scenery.
     response_variable: answer
   - stop: Finished
     response_variable: answer
@@ -2016,12 +2045,14 @@ generate_parking_camera_description:
       target_width: 1024
       max_tokens: 100
       temperature: 0.1
-      provider: 01K7YXE8896973KEDHEY9YCMYM
-      model: Qwen/Qwen3-VL-4B-Instruct
-      image_entity:
-      - camera.parking_exit_camera
+      model: qwen3-vl:2b-instruct-q4_K_M
+      generate_title: false
+      expose_images: false
+      provider: 01K9337G97H1HC11NBFD4HF7JQ
       message: 'Describe in one sentence the human activities in this image, if there
         is any. '
+      image_entity:
+      - camera.parking_exit_camera
     response_variable: answer
   - stop: Finished
     response_variable: answer
@@ -2310,12 +2341,14 @@ generate_back_yard_camera_description:
       target_width: 1024
       max_tokens: 100
       temperature: 0.1
-      provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
-      model: qwen2.5vl:3b-q8_0
-      image_entity:
-      - camera.back_yard_camera
+      model: qwen3-vl:2b-instruct-q4_K_M
+      generate_title: false
+      expose_images: false
+      provider: 01K9337G97H1HC11NBFD4HF7JQ
       message: 'Describe in one sentence the human activities in this image, if there
         is any. '
+      image_entity:
+      - camera.back_yard_camera
     response_variable: answer
   - stop: Finished
     response_variable: answer

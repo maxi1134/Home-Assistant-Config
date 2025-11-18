@@ -685,6 +685,18 @@
     enabled: false
   - condition: template
     value_template: '{{ not trigger.from_state.attributes.media_series_title }}'
+  - condition: state
+    entity_id: input_boolean.kink_party
+    state: 'off'
+  - condition: state
+    entity_id: input_boolean.party_mode
+    state: 'off'
+  - condition: state
+    entity_id: input_boolean.acid_time
+    state: 'off'
+  - condition: state
+    entity_id: input_boolean.live_concert
+    state: 'off'
   actions:
   - variables:
       off_lights_in_room: '{{ [area_id(trigger.entity_id)] | map(''area_id'') | map(''area_entities'')
@@ -1100,7 +1112,7 @@
   description: ''
   triggers:
   - entity_id:
-    - sensor.zooz_kitchen_washer_electric_consumption_a
+    - sensor.plug_kitchen_washer_electric_consumption_a
     above: 1
     trigger: numeric_state
   conditions:
@@ -1113,13 +1125,14 @@
   actions:
   - wait_for_trigger:
     - entity_id:
-      - sensor.zooz_kitchen_washer_electric_consumption_a
+      - sensor.plug_kitchen_washer_electric_consumption_a
       for:
         hours: 0
         minutes: 10
         seconds: 0
-      below: 0.01
+      below: 0.1
       trigger: numeric_state
+    continue_on_timeout: false
   - metadata: {}
     data:
       message: Washer finished
@@ -1590,38 +1603,33 @@
 - id: '1715664801848'
   alias: Auto close closet tablet screen when someone is sleeping
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - switch.samsung_galaxy_tab_e_8_0_screen
+  triggers:
+  - entity_id:
+    - switch.closet_tablet_screen
     to: 'on'
-  condition:
+    trigger: state
+  conditions:
   - condition: state
     entity_id: input_boolean.sleeper_in_closet
     state: 'on'
-  action:
+  actions:
   - delay:
       hours: 0
-      minutes: 0
-      seconds: 20
+      minutes: 1
+      seconds: 0
       milliseconds: 0
-  - service: switch.turn_off
-    metadata: {}
+  - metadata: {}
     data: {}
     target:
-      entity_id: switch.samsung_galaxy_tab_e_8_0_screen
-  - service: switch.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: switch.samsung_galaxy_tab_e_8_0_screen
+      entity_id:
+      - switch.closet_tablet_screen
+    action: switch.turn_off
   mode: single
 - id: '1715696933725'
   alias: Tell maxi about the weather when he awakes
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - sensor.is_maxi_asleep
     from:
     to: awake
@@ -1629,34 +1637,18 @@
       hours: 0
       minutes: 5
       seconds: 0
-  condition:
+    trigger: state
+  conditions:
   - condition: state
     entity_id: person.maximiliano
     state: home
-  action:
-  - service: rest_command.local_ai_generate_image
-    metadata: {}
-    data:
-      prompt: it is {{states('sensor.current_time')}}{% if states('sun.sun') =='below_horizon'
-        %} at night{% else %} during the day{%endif%}, View of a residential street
-        the Plateau Mont-Royal, {{ states('weather.purgatory') }} weather of {{ now().timestamp()
-        | timestamp_custom('%B') }}, humidity   perception is {{ states('sensor.sensor_outside_temperature_humidity')
-        }}, thermal perception is {{    states('sensor.sensor_outside_temperature_temperature')
-        }},  Rennaissance painting
-    response_variable: return
-  - service: downloader.download_file
-    metadata: {}
-    data:
-      overwrite: true
-      filename: weather_image.jpg
-      url: '{{return.content.data[0].url}}'
-  - service: notify.maxi_notification_group
-    metadata: {}
+  actions:
+  - metadata: {}
     data:
       title: Current Weather
-      message: It is '{{ states('weather.purgatory') }}'
-      data:
-        image: /media/local/weather_image.jpg
+      message: It is '{{ states('weather.weather_montreal_forecast') }}' and the temperature
+        is '{{ states('sensor.outside_temperature_with_fallback') }}'
+    action: notify.maxi_notification_group
   mode: single
 - id: '1715717946486'
   alias: Doorbell Main automation
@@ -1869,12 +1861,12 @@
       target_width: 720
       max_tokens: 30
       temperature: 0.2
-      provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
+      provider: 01K9337G97H1HC11NBFD4HF7JQ
       message: Answer with yes or no, is there a package or a delivery man on this
         picture? Do not use an other word than  yes or no
       image_entity:
       - camera.front_door_camera
-      model: qwen2.5vl:3b-q8_0
+      model: qwen3-vl:2b-instruct-q4_K_M
     response_variable: answer
   - if:
     - condition: template
@@ -2418,13 +2410,14 @@
   description: ''
   triggers:
   - entity_id:
-    - binary_sensor.all_present_sleeping
+    - binary_sensor.all_residents_sleeping
     to: 'off'
     for:
       hours: 0
       minutes: 0
       seconds: 0
     trigger: state
+    from: 'on'
   conditions:
   - condition: state
     entity_id: alarm_control_panel.home_alarm
@@ -2826,11 +2819,6 @@
       data: {}
       action: media_player.turn_on
       target:
-        entity_id: media_player.universal_hotbox_speakers
-    - metadata: {}
-      data: {}
-      action: media_player.turn_on
-      target:
         entity_id: media_player.universal_kitchen_speakers
     - metadata: {}
       data: {}
@@ -2880,12 +2868,6 @@
         is_volume_muted: false
       action: media_player.volume_mute
       target:
-        entity_id: media_player.universal_hotbox_speakers
-    - metadata: {}
-      data:
-        is_volume_muted: false
-      action: media_player.volume_mute
-      target:
         entity_id: media_player.universal_kitchen_speakers
     - metadata: {}
       data:
@@ -2925,12 +2907,6 @@
       action: media_player.volume_set
       target:
         entity_id: media_player.universal_hallway_speakers
-    - metadata: {}
-      data:
-        volume_level: 1
-      action: media_player.volume_set
-      target:
-        entity_id: media_player.universal_hotbox_speakers
     - metadata: {}
       data:
         volume_level: 1
@@ -2995,10 +2971,10 @@
     data: {}
     target:
       entity_id:
-      - switch.samsung_galaxy_tab_e_8_0_maintenance_mode
       - switch.hallway_tablet_maintenance_mode
       - switch.workshop_tablet_maintenance_mode
       - switch.tablet_kitchen_s6_lite_maintenance_mode
+      - switch.closet_tablet_maintenance_mode
     action: switch.turn_on
   mode: single
 - id: '1717360231281'
@@ -3017,10 +2993,10 @@
   actions:
   - target:
       entity_id:
-      - switch.samsung_galaxy_tab_e_8_0_maintenance_mode
       - switch.hallway_tablet_maintenance_mode
       - switch.workshop_tablet_maintenance_mode
       - switch.tablet_kitchen_s6_lite_maintenance_mode
+      - switch.closet_tablet_maintenance_mode
     data: {}
     action: switch.turn_off
   mode: single
@@ -3579,6 +3555,8 @@
       entity_id:
       - switch.workshop_tablet_screen
       - switch.workshop_tablet_motion_detection
+      - switch.workshop_secondary_tablet_screen
+      - switch.workshop_secondary_tablet_motion_detection
   mode: single
 - id: '1728310438747'
   alias: Undo Sleep actions when "sleeper in workshop" is turned off
@@ -3611,6 +3589,15 @@
       entity_id:
       - media_player.universal_workshop_speakers
       - media_player.universal_hallway_speakers
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - switch.workshop_tablet_screen
+      - switch.workshop_tablet_motion_detection
+      - switch.workshop_secondary_tablet_screen
+      - switch.workshop_secondary_tablet_motion_detection
   mode: single
 - id: '1728311156670'
   alias: Dim Wall lights when workshop TV is playing and Beige couch or matress is
@@ -3932,15 +3919,46 @@
         ttl: 0
         priority: high
         channel: security_alerts_notifications
-  - action: tts.speak
+  - action: media_player.volume_set
     metadata: {}
     data:
-      cache: true
-      media_player_entity_id: media_player.universal_bedroom_speakers
-      message: Please leave this room immediately.
+      volume_level: 1
     target:
-      entity_id:
-      - tts.piper_2
+      entity_id: media_player.universal_bedroom_speakers
+  - repeat:
+      while:
+      - condition: or
+        conditions:
+        - condition: state
+          entity_id: binary_sensor.sensor_bedroom_door_contact
+          state: 'on'
+        - condition: state
+          entity_id: binary_sensor.everything_presence_lite_73fc48_occupancy
+          state: 'on'
+      - condition: state
+        entity_id: alarm_control_panel.home_alarm
+        state: armed_home
+      sequence:
+      - action: tts.speak
+        metadata: {}
+        data:
+          cache: true
+          media_player_entity_id: media_player.universal_bedroom_speakers
+          message: Please leave this room immediately.
+        target:
+          entity_id:
+          - tts.piper_2
+      - action: media_player.volume_set
+        metadata: {}
+        data:
+          volume_level: 1
+        target:
+          entity_id: media_player.universal_bedroom_speakers
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 5
+          milliseconds: 0
   - wait_for_trigger:
     - trigger: state
       entity_id:
@@ -4235,20 +4253,20 @@
   triggers:
   - trigger: state
     entity_id:
-    - sensor.esp32_s3_box_kitchen_assistant_timer
-    to: 0:00:05
+    - timer.cooking
+    to: 0:00:00
     for:
       hours: 0
       minutes: 0
       seconds: 0
-    from: 0:00:06
+    attribute: remaining
   - trigger: state
     entity_id:
     - timer.cooking
     for:
       hours: 0
       minutes: 0
-      seconds: 0
+      seconds: 1
     from: active
   conditions: []
   actions:
@@ -4476,14 +4494,13 @@
     data:
       include_filename: false
       target_width: 1280
-      detail: low
       max_tokens: 100
-      temperature: 0.2
+      temperature: 0.1
       expose_images: true
-      provider: 01JDD7V3QXP1KN82V27H591YAX
-      model: qwen2.5vl:3b-q8_0
-      message: '  Answer with ''yes'' or ''no'', is there a police lounger or a security
-        guard on this image? Only use one word to answer'
+      provider: 01K9337G97H1HC11NBFD4HF7JQ
+      model: qwen3-vl:2b-instruct-q4_K_M
+      message: Answer only with 'yes' or 'no', is there a police officer or a security
+        guard on this image? Only use one word to answer
       image_entity:
       - camera.front_door_camera
     response_variable: answer
@@ -4607,9 +4624,6 @@
   alias: kitchen google display automation
   description: ''
   triggers:
-  - trigger: time_pattern
-    minutes: /45
-    enabled: false
   - trigger: state
     entity_id:
     - media_player.kitchen_google_hub
@@ -5473,37 +5487,6 @@
     target:
       entity_id: switch.plug_lylou_galaxy_lamp
   mode: single
-- id: '1740689782460'
-  alias: Control brightness of Closet tablet to avoid discharge
-  description: ''
-  triggers:
-  - entity_id:
-    - sensor.hallway_tablet_battery
-    trigger: state
-    enabled: false
-  - trigger: numeric_state
-    entity_id:
-    - sensor.hallway_tablet_battery
-    below: 15
-  conditions: []
-  actions:
-  - choose:
-    - conditions:
-      - condition: numeric_state
-        entity_id: sensor.samsung_galaxy_tab_e_8_0_battery
-        below: 15
-      - condition: state
-        entity_id: switch.samsung_galaxy_tab_e_8_0_screen
-        state: 'on'
-      sequence:
-      - action: number.set_value
-        metadata: {}
-        data:
-          value: '10'
-        target:
-          entity_id:
-          - number.samsung_galaxy_tab_e_8_0_screen_brightness
-  mode: single
 - id: '1740690697244'
   alias: Control brightness of Front door Phone to avoid discharge
   description: ''
@@ -5891,7 +5874,7 @@
     for:
       hours: 0
       minutes: 0
-      seconds: 1
+      seconds: 2
   conditions: []
   actions:
   - variables:
@@ -5903,7 +5886,7 @@
     data:
       value: '{{brightness}}'
     target:
-      entity_id: number.samsung_galaxy_tab_e_8_0_screen_brightness
+      entity_id: number.closet_tablet_screen_brightness
   mode: restart
 - id: '1740935638351'
   alias: Execute sleep actions when "Sleeper in closet" turns on
@@ -5921,7 +5904,6 @@
     data:
       transition: 2
     target:
-      area_id: closet
       entity_id:
       - light.group_closet_lights
       - light.closet_string_2
@@ -5930,37 +5912,9 @@
     metadata: {}
     data: {}
     target:
-      entity_id: switch.samsung_galaxy_tab_e_8_0_screen
-  - if:
-    - condition: template
-      value_template: '{{ state_attr(''media_player.universal_bedroom_speakers'',''media_title'')
-        != ''thunderstorm'' }} e'
-      enabled: false
-    then:
-    - data:
-        media_content_id: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
-        media_content_type: audio
-      action: media_player.play_media
-      target:
-        entity_id: media_player.universal_closet_speaker
-    - metadata: {}
-      data:
-        is_volume_muted: true
-      action: media_player.volume_mute
-      target:
-        entity_id: media_player.universal_closet_speaker
-    - action: media_player.volume_set
-      metadata: {}
-      data:
-        volume_level: 0.7
-      target:
-        entity_id: media_player.universal_closet_speaker
-    - metadata: {}
-      data:
-        is_volume_muted: false
-      action: media_player.volume_mute
-      target:
-        entity_id: media_player.universal_closet_speaker
+      entity_id:
+      - switch.closet_tablet_screen
+      - switch.closet_tablet_motion_detection
   mode: single
 - id: '1740935693012'
   alias: Undo sleeper actions when Sleeper in closet turns off
@@ -5973,22 +5927,45 @@
     trigger: state
   conditions: []
   actions:
-  - action: light.turn_on
-    metadata: {}
-    data:
-      transition: 20
-      brightness_pct: 44
-    target:
-      area_id: closet
-      entity_id:
-      - light.group_closet_lights
-      - light.closet_string_2
-      - light.closet_string_1
   - action: switch.turn_on
     metadata: {}
     data: {}
     target:
-      entity_id: switch.samsung_galaxy_tab_e_8_0_screen
+      entity_id:
+      - switch.closet_tablet_screen
+      - switch.closet_tablet_motion_detection
+  - action: light.turn_on
+    metadata: {}
+    data:
+      transition: 20
+      brightness_pct: 1
+      rgb_color:
+      - 255
+      - 0
+      - 255
+    target:
+      entity_id:
+      - light.group_closet_lights
+      - light.closet_string_2
+      - light.closet_string_1
+  - repeat:
+      count: 20
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 20
+          brightness_step_pct: 2
+        target:
+          entity_id:
+          - light.group_closet_lights
+          - light.closet_string_2
+          - light.closet_string_1
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 2
+          milliseconds: 0
   mode: single
 - id: '1740953881544'
   alias: Alert maxi in the room where he is when his phone rings
@@ -6150,8 +6127,9 @@
       include_filename: false
       target_width: 1280
       max_tokens: 100
-      provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
-      model: qwen2.5vl:3b-q8_0
+      temperature: 0.1
+      provider: 01K9337G97H1HC11NBFD4HF7JQ
+      model: qwen3-vl:2b-instruct-q4_K_M
       message: Answer only with yes or no; Is this person trying to break in into
         the car?
       image_entity:
@@ -6254,9 +6232,10 @@
   description: ''
   triggers:
   - entity_id:
-    - binary_sensor.back_door_camera_person_occupancy
+    - binary_sensor.back_entrance_presence_person_occupancy
     - binary_sensor.reolink_back_door_camera_person
-    to: 'on'
+    to:
+    - 'on'
     trigger: state
   conditions: []
   actions:
@@ -7279,26 +7258,22 @@
   triggers:
   - trigger: state
     entity_id:
-    - sensor.reolink_parking_exit_camera_day_night_state
+    - sensor.parking_exit_camera_day_night_state
     from:
     to: day
   - trigger: state
     entity_id:
-    - device_tracker.unifi_default_ec_71_db_a1_ab_77
-    to: not_home
-  - trigger: state
-    entity_id:
-    - sensor.reolink_parking_exit_camera_day_night_state
+    - sensor.parking_exit_camera_day_night_state
     from:
     to: unavailable
   - trigger: state
     entity_id:
-    - sensor.reolink_parking_exit_camera_day_night_state
+    - sensor.parking_exit_camera_day_night_state
     from:
     to: unknown
   - trigger: state
     entity_id:
-    - switch.reolink_parking_exit_camera_infrared_lights_in_night_mode
+    - switch.parking_exit_camera_infrared_lights_in_night_mode
     from: 'on'
     to: 'off'
   conditions: []
@@ -7567,39 +7542,6 @@
     metadata: {}
     data:
       position: 22
-    target:
-      entity_id: cover.cover_hotbox_blinds
-  mode: single
-- id: '1747198365926'
-  alias: Close hotbox blind in relationship to hotbox ac
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - cover.cover_hotbox_blinds
-    attribute: current_position
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 2
-  - trigger: state
-    entity_id:
-    - switch.zooz_hotbox_ac
-    from:
-    to: 'off'
-  conditions:
-  - condition: state
-    entity_id: switch.zooz_hotbox_ac
-    state: 'off'
-  - condition: numeric_state
-    entity_id: cover.cover_hotbox_blinds
-    attribute: current_position
-    below: 23
-  actions:
-  - action: cover.set_cover_position
-    metadata: {}
-    data:
-      position: 0
     target:
       entity_id: cover.cover_hotbox_blinds
   mode: single
@@ -7997,10 +7939,12 @@
     trigger: state
   conditions:
   - condition: template
-    value_template: '
+    value_template: '{% if states(''sensor.maxi_location_by_petro'') != '''' %}
 
-      {{ states(''sensor.maxi_location_by_petro'') != '''' and states(''sensor.maxi_location_by_petro'')
-      | lower not in [area_id(trigger.entity_id)] | lower }}'
+      {{ states(''sensor.maxi_location_by_petro'') | lower not in [area_id(trigger.entity_id)]
+      | lower }}
+
+      {% endif %}'
   - alias: Stop if myriam's tablet is active in the room
     condition: template
     value_template: '{% if (states(''binary_sensor.tablet_myriam_interactive'') ==
@@ -8292,14 +8236,6 @@
       transition: 45
     target:
       entity_id: light.bedroom_chandelier_light
-  - action: light.turn_on
-    metadata: {}
-    data:
-      color_temp_kelvin: 5075
-      brightness_pct: 100
-      transition: 45
-    target:
-      entity_id: light.bedroom_headboard_lamp_light
   - action: climate.turn_on
     metadata: {}
     data: {}
@@ -8314,6 +8250,13 @@
     data: {}
     target:
       entity_id: media_player.universal_bedroom_speakers
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - switch.bedroom_tablet_screen
+      - switch.bedroom_tablet_motion_detection
   mode: single
 - id: '1748845278340'
   alias: execute Sleep actions when "sleeper in bedroom" is turned on
@@ -8354,8 +8297,10 @@
         seconds: 1
         milliseconds: 0
     - data:
-        media_content_id: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
-        media_content_type: audio
+        media:
+          media_content_id: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
+          media_content_type: audio
+          metadata: {}
       target:
         entity_id: media_player.mass_bedroom_airplay_wiim_speaker
       action: media_player.play_media
@@ -8383,6 +8328,13 @@
     metadata: {}
     data:
       command: Power off bedroom TV
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - switch.bedroom_tablet_screen
+      - switch.bedroom_tablet_motion_detection
   mode: single
 - id: '1748845695784'
   alias: Control volume of kitchen to prevent noise in children room while she sleeps
@@ -8850,12 +8802,11 @@
   triggers:
   - entity_id:
     - media_player.mass_bedroom_airplay_wiim_speaker
-    - media_player.mass_hotbox_airplay_wiim_speaker
+    - media_player.mass_closet_airplay_wiim_speaker
     - media_player.mass_kitchen_airplay_wiim_speaker
     - media_player.mass_lounge_airplay_wiim_speaker
     - media_player.mass_workshop_airplay_wiim_speaker
     - media_player.mass_salon_airplay_wiim_speaker
-    - media_player.mass_closet_tablet_speaker
     - media_player.mass_hallway_airplay_wiim_speaker
     - media_player.group_mass_home_group_speakers
     trigger: state
@@ -9099,6 +9050,7 @@
     subtype: button_4_hold
     trigger: device
     id: button_4_hold
+    enabled: false
   - domain: mqtt
     device_id: 19def7fc56657d54fccacd364b0ec3fa
     type: action
@@ -9217,31 +9169,32 @@
         id:
         - button_3_press
       sequence:
-      - action: media_player.media_play_pause
-        metadata: {}
-        data: {}
-        target:
-          area_id: bedroom
-    - conditions:
-      - condition: trigger
-        id:
-        - button_4_press
-      sequence:
-      - action: media_player.media_pause
-        metadata: {}
-        data: {}
-        target:
-          area_id: bedroom
-    - conditions:
-      - condition: trigger
-        id:
-        - button_2_hold
-      sequence:
       - action: script.change_received_lights_to_random_colors
         metadata: {}
         data:
           selected_group: light.group_bedroom_lights
           saturation: 100
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_pct: 1
+        target:
+          entity_id: light.group_bedroom_lights
+      - action: light.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: light.plug_bedroom_mirror_lamp
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_hold
+      sequence: []
     - conditions:
       - condition: trigger
         id:
@@ -11446,17 +11399,20 @@
     - light.group_salon_uv_lamps
     to: 'on'
     from: 'off'
-  conditions: []
+  conditions:
+  - condition: state
+    entity_id: input_boolean.live_concert
+    state: 'off'
   actions:
   - action: light.turn_on
     metadata: {}
     data:
+      brightness_pct: 100
+      transition: 1
       rgb_color:
       - 0
       - 0
       - 255
-      brightness_pct: 100
-      transition: 1
     target:
       area_id: '{{area_id(trigger.entity_id)}}'
   mode: parallel
@@ -11478,11 +11434,17 @@
   conditions: []
   actions:
   - variables:
-      on_lights_in_room: "{% set ns = namespace(f = [] ) %} {% for i in ( [area_id(trigger.entity_id)]
-        \ | map('area_entities') | sum(start=[]) | select('match', '^light.') | select('is_state','on')
-        \ |  unique | list )  %} {% if i not in  label_entities(\"High Intensity Light\")
-        | string %}\n  {% set ns.f = ns.f + [i] %}\n{% endif %} {% endfor %} {{ ns.f
-        }}\n"
+      on_lights_in_room: "{% set ns = namespace(f = [] ) %}  {% set zero = ([area_id(trigger.entity_id)]
+        \  | map('area_entities')  | sum(start=[]) |    select('match', '^light.')
+        \ | select('is_state','on')   | expand | selectattr('attributes.rgb_color','search','0,
+        0, 255') |map(attribute='entity_id') |  unique  | list )  %}     {% set eleven
+        = ([area_id(trigger.entity_id)]   | map('area_entities')  | sum(start=[])
+        |    select('match', '^light.')  | select('is_state','on')   | expand | selectattr('attributes.rgb_color','search','11,
+        0, 255') |map(attribute='entity_id') |  unique  | list )  %} {% for i in zero
+        \ %} {% if i not in  label_entities(\"High Intensity Light\") | string %}\n
+        \ {% set ns.f = ns.f + [i] %}\n{% endif %} {% endfor %} {% for x in eleven
+        \ %} {% if x not in  label_entities(\"High Intensity Light\") | string %}\n
+        \ {% set ns.f = ns.f + [x] %}\n{% endif %} {% endfor %} {{ ns.f }}\n"
   - choose:
     - conditions:
       - condition: or
@@ -12205,3 +12167,643 @@
     data: {}
     action: alarm_control_panel.alarm_disarm
   mode: single
+- id: '1761366181983'
+  alias: Mute all voice assistants while a concert is happening
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.live_concert
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+  conditions: []
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.assistants_mute_group
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - input_boolean.live_concert
+      id: '`'
+      to: 'off'
+      from: 'off'
+      for:
+        hours: 0
+        minutes: 5
+        seconds: 0
+    timeout:
+      hours: 10
+      minutes: 0
+      seconds: 0
+      milliseconds: 0
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.assistants_mute_group
+  mode: restart
+- id: '1761366394577'
+  alias: Turns on maintenance mode for all tablets During Live Concert
+  description: Turns on maintenance mode for all tablets when a live concert is detected,
+    waits 5 minutes for the concert to begin, then turns off maintenance mode after
+    5 minutes if the concert state remains off. This ensures devices are not interfering
+    with the concert experience and prevents accidental automation triggers during
+    live events.
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.live_concert
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+  conditions: []
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.maintenance_mode_all_tablets
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - input_boolean.live_concert
+      id: '`'
+      to: 'off'
+      from: 'off'
+      for:
+        hours: 0
+        minutes: 5
+        seconds: 0
+    timeout:
+      hours: 5
+      minutes: 0
+      seconds: 0
+      milliseconds: 0
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.maintenance_mode_all_tablets
+  mode: restart
+- id: '1761366615315'
+  alias: Turn off Jukebox Access during Live Concert
+  description: During a live concert, this automation turns off Jukebox access to
+    prevent interruptions and ensures a focused listening experience. It waits for
+    the concert to end before restoring access, with a 5-minute timeout to prevent
+    long delays. If party mode is active, it re-enables Jukebox access to maintain
+    party ambiance.
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.live_concert
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+  conditions: []
+  actions:
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - switch.music_assistant_jukebox_jukebox_allow_access
+      - switch.music_assistant_jukebox_jukebox_play_music_on_start
+      - switch.music_assistant_jukebox_jukebox_queue
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - input_boolean.live_concert
+      id: '`'
+      to: 'off'
+      from: 'off'
+      for:
+        hours: 0
+        minutes: 5
+        seconds: 0
+    timeout:
+      hours: 5
+      minutes: 0
+      seconds: 0
+      milliseconds: 0
+  - if:
+    - condition: state
+      entity_id: input_boolean.party_mode
+      state: 'on'
+    then:
+    - action: switch.turn_on
+      metadata: {}
+      data: {}
+      target:
+        entity_id:
+        - switch.music_assistant_jukebox_jukebox_allow_access
+        - switch.music_assistant_jukebox_jukebox_play_music_on_start
+        - switch.music_assistant_jukebox_jukebox_queue
+  mode: restart
+- id: '1763156136004'
+  alias: Dial Bedroom automation
+  description: ''
+  use_blueprint:
+    path: EPMatt/ikea_e1744.yaml
+    input:
+      integration: Zigbee2MQTT
+      controller_device: c217fcfa7eb3f5dd20f8fe49ace44a6f
+      helper_last_controller_event: input_text.dial_bedroom_helper
+      action_rotate_left:
+      - if:
+        - alias: 'If a chromecast is present '
+          condition: template
+          value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
+            %}
+
+            {% set speaker = ''media_player.media_player.universal_bedroom_speakers''
+            %}
+
+            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
+            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
+
+            {{ ''true''  | bool }}
+
+            {% else %}
+
+            {{ ''false'' | bool }}
+
+            {% endif %}'
+        then:
+        - action: media_player.volume_down
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.bedroom_chromecast
+        else:
+        - action: media_player.volume_down
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 0
+          milliseconds: 201
+      action_rotate_left_stop: []
+      rotate_right_loop: true
+      rotate_left_loop: true
+      rotate_left_max_loop_repeats: 60
+      rotate_right_max_loop_repeats: 60
+      action_rotate_right:
+      - if:
+        - alias: 'If a chromecast is present '
+          condition: template
+          value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
+            %}
+
+            {% set speaker = ''media_player.media_player.universal_bedroom_speakers''
+            %}
+
+            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
+            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
+
+            {{ ''true''  | bool }}
+
+            {% else %}
+
+            {{ ''false'' | bool }}
+
+            {% endif %}'
+        then:
+        - action: media_player.volume_up
+          target:
+            entity_id: media_player.bedroom_chromecast
+          data: {}
+        else:
+        - action: media_player.volume_up
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 0
+          milliseconds: 200
+      helper_debounce_delay: 0
+      action_click_triple:
+      - if:
+        - alias: 'If a chromecast is present '
+          condition: template
+          value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
+            %}
+
+            {% set speaker = ''media_player.media_player.universal_bedroom_speakers''
+            %}
+
+            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
+            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
+
+            {{ ''true''  | bool }}
+
+            {% else %}
+
+            {{ ''false'' | bool }}
+
+            {% endif %}'
+        then:
+        - action: media_player.turn_off
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.bedroom_chromecast
+        else:
+        - action: media_player.turn_off
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+      action_click_double:
+      - if:
+        - alias: 'If a chromecast is present '
+          condition: template
+          value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
+            %}
+
+            {% set speaker = ''media_player.media_player.universal_bedroom_speakers''
+            %}
+
+            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
+            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
+
+            {{ ''true''  | bool }}
+
+            {% else %}
+
+            {{ ''false'' | bool }}
+
+            {% endif %}'
+        then:
+        - action: media_player.media_next_track
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.bedroom_chromecast
+        else:
+        - action: media_player.media_next_track
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+      action_click_short:
+      - if:
+        - alias: 'If a chromecast is present '
+          condition: template
+          value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
+            %}
+
+            {% set speaker = ''media_player.media_player.universal_bedroom_speakers''
+            %}
+
+            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
+            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
+
+            {{ ''true''  | bool }}
+
+            {% else %}
+
+            {{ ''false'' | bool }}
+
+            {% endif %}'
+        then:
+        - action: media_player.media_play_pause
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.bedroom_chromecast
+        else:
+        - action: media_player.media_play_pause
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+- id: '1763157128192'
+  alias: Hotbox Hue Dial Automation
+  description: ''
+  triggers:
+  - domain: mqtt
+    device_id: ea515136741c87d1e86c40f14794926e
+    type: action
+    subtype: dial_rotate_right_step
+    trigger: device
+    id: rotate_right_step
+    enabled: false
+  - domain: mqtt
+    device_id: ea515136741c87d1e86c40f14794926e
+    type: action
+    subtype: brightness_step_up
+    trigger: device
+    id: brightness_step_up
+    enabled: false
+  - domain: mqtt
+    device_id: ea515136741c87d1e86c40f14794926e
+    type: action
+    subtype: button_1_press
+    trigger: device
+    id: rotate_right_fast
+  - domain: mqtt
+    device_id: ea515136741c87d1e86c40f14794926e
+    type: action
+    subtype: dial_rotate_right_slow
+    trigger: device
+    id: rotate_right_slow
+    enabled: true
+  - domain: mqtt
+    device_id: ea515136741c87d1e86c40f14794926e
+    type: action
+    subtype: brightness_step_down
+    trigger: device
+    id: brightness_step_down
+    enabled: true
+  - domain: mqtt
+    device_id: ea515136741c87d1e86c40f14794926e
+    type: action
+    subtype: dial_rotate_left_step
+    trigger: device
+    id: rotate_left_step
+    enabled: true
+  - domain: mqtt
+    device_id: ea515136741c87d1e86c40f14794926e
+    type: action
+    subtype: dial_rotate_left_fast
+    trigger: device
+    id: rotate_left_fast
+    enabled: true
+  - domain: mqtt
+    device_id: ea515136741c87d1e86c40f14794926e
+    type: action
+    subtype: dial_rotate_left_slow
+    trigger: device
+    id: rotate_left_slow
+    enabled: true
+  - trigger: state
+    entity_id:
+    - sensor.remote_salon_hue_dial_brightness
+    enabled: false
+    id: dial_brightness_change
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  - domain: mqtt
+    device_id: ea515136741c87d1e86c40f14794926e
+    type: action
+    subtype: button_1_press
+    trigger: device
+    id: button_1_press
+  - domain: mqtt
+    device_id: ea515136741c87d1e86c40f14794926e
+    type: action
+    subtype: button_2_press_release
+    trigger: device
+    id: button_2_press
+  - domain: mqtt
+    device_id: ea515136741c87d1e86c40f14794926e
+    type: action
+    subtype: button_4_hold
+    trigger: device
+    id: button_4_hold
+    enabled: false
+  - domain: mqtt
+    device_id: ea515136741c87d1e86c40f14794926e
+    type: action
+    subtype: button_3_press
+    trigger: device
+    id: button_3_press
+  - domain: mqtt
+    device_id: ea515136741c87d1e86c40f14794926e
+    type: action
+    subtype: button_4_press
+    trigger: device
+    id: button_4_press
+  - domain: mqtt
+    device_id: ea515136741c87d1e86c40f14794926e
+    type: action
+    subtype: button_2_hold
+    trigger: device
+    id: button_2_hold
+  - domain: mqtt
+    device_id: ea515136741c87d1e86c40f14794926e
+    type: action
+    subtype: button_1_hold
+    trigger: device
+    id: button_1_hold
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - button_1_press
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          transition: 2
+        target:
+          entity_id: light.group_hotbox_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_1_hold
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          transition: 2
+          brightness_pct: 100
+          color_temp_kelvin: 4922
+        target:
+          entity_id: light.group_hotbox_lights
+      - choose:
+        - conditions: []
+          sequence: []
+        - conditions:
+          - condition: state
+            entity_id: light.group_hotbox_lights
+            attribute: brightness
+            state: ''
+          - condition: numeric_state
+            entity_id: light.group_hotbox_lights
+            attribute: brightness
+            below: 99
+          sequence:
+          - action: light.turn_on
+            metadata: {}
+            data:
+              transition: 1
+              brightness_pct: 100
+            target:
+              entity_id: light.group_hotbox_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 1
+          color_temp_kelvin: 5238
+          brightness_pct: 100
+        target:
+          entity_id: light.group_hotbox_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_hold
+      sequence:
+      - if:
+        - condition: state
+          entity_id: media_player.universal_bedroom_chromecast
+          state: 'off'
+        then:
+        - action: google_assistant_sdk.send_text_command
+          metadata: {}
+          data:
+            command: power off bedroom tv
+      - action: media_player.media_stop
+        metadata: {}
+        data: {}
+        target:
+          area_id: bedroom
+      - action: media_player.clear_playlist
+        metadata: {}
+        data: {}
+        target:
+          area_id: bedroom
+      - action: media_player.turn_off
+        metadata: {}
+        data: {}
+        target:
+          area_id: bedroom
+    - conditions:
+      - condition: trigger
+        id:
+        - button_3_press
+      sequence:
+      - action: script.change_received_lights_to_random_colors
+        metadata: {}
+        data:
+          selected_group: light.group_hotbox_lights
+          saturation: 100
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_pct: 1
+        target:
+          entity_id: light.group_hotbox_lights
+      - action: light.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: light.plug_bedroom_mirror_lamp
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_hold
+      sequence: []
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_right_step
+        - brightness_step_up
+        - rotate_right_slow
+        - rotate_right_fast
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_step_pct: 10
+          transition: 1
+        target:
+          entity_id: light.group_hotbox_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_left_step
+        - rotate_left_slow
+        - brightness_step_down
+        - rotate_left_fast
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 1
+          brightness_step_pct: -15
+        target:
+          entity_id: light.group_hotbox_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - dial_brightness_change
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness: '{{ states(trigger.entity_id) }}
+
+            '
+        target:
+          entity_id: light.group_hotbox_lights
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 0
+      milliseconds: 50
+    enabled: false
+  mode: single
+- id: '1763283441940'
+  alias: New automation
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - light.group_bedroom_lights
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 3
+  conditions: []
+  actions:
+  - variables:
+      brightness: '{{ trigger.to_state.attributes.brightness | default(''0'', true)  }}
+
+        '
+  - action: number.set_value
+    metadata: {}
+    data:
+      value: '{{brightness}}'
+    target:
+      entity_id:
+      - number.bedroom_tablet_screen_brightness
+  mode: restart
