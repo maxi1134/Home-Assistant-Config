@@ -1,0 +1,86 @@
+blueprint:
+  name: Philips Hue Tap Dial Brightness Control
+  description: Uses Zigbee2MQTT connected Tap Dial to control light brightness
+  domain: automation
+  author: Ronaldo Pace
+  input:
+    mqtt_topic:
+      name: MQTT Topic
+      description: The MQTT topic for the Philips Hue Tap Dial.<br><br> This is composed
+        by combining:<br> - the MQTT base name (defaults to 'zigbee2mqtt')<br> - the
+        slash '/' symbol <br> - the name of the device <br><br> The value can be found
+        on Zigbee2MQTT page for the device under 'MQTT' section.<br> Example 'zigbee2mqtt/Living
+        Room Lights'
+    target_light:
+      name: Light Entity
+      description: The light to control the brightness
+      selector:
+        entity:
+          domain:
+          - light
+          multiple: false
+          reorder: false
+    target_transition:
+      name: Light Transition
+      description: Adding a very small transition (something between 0.2 and 0.5)
+        might give a smoother feeling to the light changes
+      default: 0
+      selector:
+        number:
+          step: any
+          unit_of_measurement: seconds
+          mode: box
+          min: 0.0
+          max: 3.0
+    target_scaling:
+      name: Tap Dial Scaling Factor
+      description: This scales the Dial step to brightness percentual changes.<br>
+        After lots of testing, 4.23 should roughly translates 360° to 100% brightness.<br>
+        Smaller values will make it change faster, meaning a smaller rotation does
+        a bigger change.<br> Bigger values will make it change slower, meaning a bigger
+        rotation does a smaller change.
+      default: 4.23
+      selector:
+        number:
+          step: any
+          mode: box
+          min: 0.1
+          max: 15.0
+  source_url: https://raw.githubusercontent.com/budius/home-assistant-blueprints/refs/heads/main/philips_hue_tap_dial_brightness_control_z2m.yaml
+triggers:
+- trigger: mqtt
+  topic: !input mqtt_topic
+conditions:
+- condition: template
+  value_template: '{{ trigger.payload_json.action == ''brightness_step_up'' or trigger.payload_json.action
+    == ''brightness_step_down'' }}'
+actions:
+- variables:
+    scale: !input target_scaling
+    step: '{{ trigger.payload_json.action_step_size / scale }}'
+    action: '{{ trigger.payload_json.action }}'
+- choose:
+  - alias: Brightness Up
+    conditions:
+    - condition: template
+      value_template: '{{ action == ''brightness_step_up'' }}'
+    sequence:
+    - action: light.turn_on
+      data:
+        brightness_step_pct: '{{ step }}'
+        transition: !input target_transition
+      target:
+        entity_id: !input target_light
+  - alias: Brightness Down
+    conditions:
+    - condition: template
+      value_template: '{{ action == ''brightness_step_down'' }}'
+    sequence:
+    - action: light.turn_on
+      data:
+        brightness_step_pct: '{{ step * -1 }}'
+        transition: !input target_transition
+      target:
+        entity_id: !input target_light
+mode: queued
+max: 20

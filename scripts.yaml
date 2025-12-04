@@ -268,7 +268,7 @@ broadcast_alert_in_the_house:
             entity_id: tts.piper_2
           alias: TTS in the closet
           action: tts.speak
-          enabled: false
+          enabled: true
         - alias: TTS in the home
           metadata: {}
           data:
@@ -354,6 +354,30 @@ broadcast_alert_in_the_house:
             reload_seconds: 0
             entity_id: media_player.kitchen_google_hub
             url: '{{image}}'
+        - wait_for_trigger:
+          - trigger: state
+            entity_id:
+            - lock.lock_front_door
+            from:
+            - unlocked
+            - locking
+            to:
+            - locked
+            for:
+              hours: 0
+              minutes: 0
+              seconds: 0
+          continue_on_timeout: true
+          timeout:
+            hours: 0
+            minutes: 3
+            seconds: 0
+            milliseconds: 0
+        - action: media_player.turn_off
+          metadata: {}
+          data: {}
+          target:
+            entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
         enabled: true
         continue_on_error: true
       - alias: Broadcast image to paused TVs if url is present
@@ -380,6 +404,29 @@ broadcast_alert_in_the_house:
                   reload_seconds: 0
                   entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
                   url: '{{url}}'
+              - wait_for_trigger:
+                - trigger: state
+                  entity_id:
+                  - lock.lock_front_door
+                  from:
+                  - unlocked
+                  - locking
+                  to:
+                  - locked
+                  for:
+                    hours: 0
+                    minutes: 0
+                    seconds: 0
+                timeout:
+                  hours: 0
+                  minutes: 3
+                  seconds: 0
+                  milliseconds: 0
+              - action: media_player.turn_off
+                metadata: {}
+                data: {}
+                target:
+                  entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
               for_each: '{{ non_playing_chromecasts }}'
         - action: dash_cast.load_url
           metadata: {}
@@ -406,7 +453,8 @@ broadcast_alert_in_the_house:
             for_each: '{{ playing_chromecasts }}'
           enabled: true
           continue_on_error: true
-      enabled: true
+      - wait_for_trigger: []
+      enabled: false
   - delay:
       hours: 0
       minutes: 0
@@ -623,6 +671,7 @@ non_important_broadcast_alert_in_the_house:
           action: tts.speak
           target:
             entity_id: tts.piper_2
+      enabled: false
     - alias: TVs
       parallel:
       - alias: Broadcast image to paused TVs if image is present
@@ -641,11 +690,12 @@ non_important_broadcast_alert_in_the_house:
         - alias: Broadcast Image to paused chromecasts
           repeat:
             sequence:
-            - metadata: {}
-              data:
-                media_content_id: '{{image}}'
-                media_content_type: video
+            - data:
                 entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
+                media:
+                  media_content_id: '{{image}}'
+                  media_content_type: video
+                  metadata: {}
               action: media_player.play_media
             for_each: '{{ non_playing_chromecasts }}'
         - delay:
@@ -732,6 +782,7 @@ non_important_broadcast_alert_in_the_house:
             for_each: '{{ playing_chromecasts }}'
           enabled: true
           continue_on_error: true
+      enabled: false
   - alias: Restore lights to their initial state
     repeat:
       sequence:
@@ -2438,6 +2489,7 @@ changes_selected_light_group_to_single_warm_colors:
           entity_id: '{{on_lights[repeat.index - 1]}}'
         action: light.turn_on
       for_each: '{{ on_lights }}'
+  - set_conversation_response: Lights changed to warm colors!
   alias: 'Changes selected light group to single warm colors '
   mode: restart
   icon: mdi:sale
@@ -2681,6 +2733,7 @@ change_lights_in_an_area_to_warm_saturated_colors:
           entity_id: '{{lights[repeat.index - 1]}}'
         action: light.turn_on
       for_each: '{{ lights }}'
+  - set_conversation_response: Lights changed to warm saturated colors!
   alias: Change lights in an area to warm saturated colors
   mode: parallel
   icon: mdi:invert-colors
@@ -2760,3 +2813,61 @@ stream_a_specific_security_camera_on_a_specific_tv_chromecast:
   alias: Stream a specific security camera on a specific TV-Chromecast
   description: This script allows the LLM to start the stream for a security camera
     on a specific chromecast
+quickbars_display_notification:
+  alias: QuickBars - Show Front door Camera on TVs
+  use_blueprint:
+    path: Trooped/notification.yaml
+    input:
+      message: ' Someone is at the door'
+      image_url: /api/camera_proxy/camera.front_door_camera
+      transparency: 0
+      interrupt: true
+      length: 60
+      sound_url: /config/www/sounds/ding-dong.mp3
+      sound_volume_percent: 32
+      action_1_id: unlock_door
+      action_1_label: Unlock the door
+      action_1_action:
+      - sequence:
+        - action: lock.unlock
+          metadata: {}
+          data: {}
+          target:
+            entity_id: lock.lock_front_door
+        - wait_for_trigger:
+          - trigger: state
+            entity_id:
+            - lock.lock_front_door
+            from:
+            to:
+            - unlocked
+          timeout:
+            hours: 0
+            minutes: 0
+            seconds: 6
+            milliseconds: 0
+        - action: input_text.set_value
+          metadata: {}
+          data:
+            value: Come in, It's unlocked!
+          target:
+            entity_id: input_text.front_door_phone_text
+        - wait_for_trigger:
+          - trigger: state
+            entity_id:
+            - lock.lock_front_door
+            from:
+            to:
+            - locked
+          timeout:
+            hours: 0
+            minutes: 1
+            seconds: 0
+            milliseconds: 0
+        - action: input_text.set_value
+          metadata: {}
+          data:
+            value: Empty
+          target:
+            entity_id: input_text.front_door_phone_text
+  description: ''

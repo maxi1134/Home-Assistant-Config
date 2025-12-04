@@ -1,6 +1,6 @@
 substitutions:
-  name: desktop-assistant
-  friendly_name: Desktop Assistant
+  name: "kitchen-assistant-e233f8"
+  friendly_name: Kitchen Assistant
   loading_illustration_file: https://github.com/esphome/wake-word-voice-assistants/raw/main/casita/loading_320_240.png
   idle_illustration_file: https://github.com/esphome/wake-word-voice-assistants/raw/main/casita/idle_320_240.png
   listening_illustration_file: https://github.com/esphome/wake-word-voice-assistants/raw/main/casita/listening_320_240.png
@@ -67,7 +67,7 @@ psram:
   speed: 80MHz
 
 api:
-  encryption:  
+  encryption:
     key: !secret api_key_voice_assistant
   on_client_connected:
     - script.execute: draw_display
@@ -81,7 +81,14 @@ ota:
 logger:
   hardware_uart: USB_SERIAL_JTAG
 
+
 wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password  
+  manual_ip:
+    static_ip: 192.168.20.62
+    gateway: 192.168.20.1
+    subnet: 255.255.255.0
   ap:
   on_connect:
     - script.execute: draw_display
@@ -105,11 +112,14 @@ sensor:
     entity_id: sensor.outside_temperature_with_fallback
     internal: true
 
+
 touchscreen:
-  - platform: gt911
+  - platform: tt21100
     i2c_id: bus_a
-    address: 0x5D
-    id: gt911_touchscreen
+    address: 0x24
+    id: tt21100_touchscreen
+    transform:
+      mirror_x: true
     interrupt_pin:
       number: GPIO3
       ignore_strapping_warning: true
@@ -117,7 +127,7 @@ touchscreen:
 binary_sensor:
 
 #######     red circle home button   ######
-  - platform: gt911
+  - platform: tt21100
     id: home_button
     index: 0
     on_press:
@@ -147,7 +157,7 @@ binary_sensor:
 
 output:
   - platform: ledc
-    pin: GPIO47
+    pin: GPIO45
     id: backlight_output
 
 light:
@@ -165,13 +175,13 @@ i2c:
     sda: GPIO08
     scl: GPIO18
     scan: true
-    sda_pullup_enabled: true
-    scl_pullup_enabled: true
+#    sda_pullup_enabled: true
+#    scl_pullup_enabled: true
     frequency: 100kHz
 
 i2s_audio:
   - id: i2s_audio_bus
-    i2s_lrclk_pin: GPIO45
+    i2s_lrclk_pin: GPIO47
     i2s_bclk_pin: GPIO17
     i2s_mclk_pin: GPIO2
 
@@ -260,6 +270,9 @@ micro_wake_word:
     - okay_nabu
     - hey_mycroft
     - hey_jarvis
+    - "http://192.168.0.15:8123/local/mww/hey_computer.json"
+    - "http://192.168.0.15:8123/local/mww/zilox.json"
+    - "http://192.168.0.15:8123/local/mww/zylox.json"
   on_wake_word_detected:
     - voice_assistant.start:
         wake_word: !lambda return wake_word;
@@ -839,7 +852,7 @@ display:
     dc_pin: 4
     reset_pin:
       number: 48
-      inverted: true
+      inverted: false
     update_interval: 1000ms
     pages:
       - id: idle_page

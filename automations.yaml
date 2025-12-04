@@ -1725,6 +1725,9 @@
               title: Open Cameras
               uri: /maxi-mobile/main-view#cameras
       action: script.broadcast_alert_in_the_house
+    - action: script.quickbars_display_notification
+      metadata: {}
+      data: {}
   mode: restart
 - id: '1715719948033'
   alias: Reset doorbell stuff on unlock
@@ -1734,6 +1737,15 @@
     - lock.lock_front_door
     to: unlocked
     trigger: state
+  - entity_id:
+    - lock.lock_front_door
+    to:
+    - locked
+    trigger: state
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 45
   - trigger: state
     entity_id:
     - input_boolean.door_rang
@@ -7516,35 +7528,6 @@
     target:
       entity_id: input_boolean.maxi_is_scared
   mode: single
-- id: '1747198279629'
-  alias: Open Hotbox Blind in relation to AC
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - cover.cover_hotbox_blinds
-    attribute: current_position
-  - trigger: state
-    entity_id:
-    - switch.zooz_hotbox_ac
-    from:
-    to: 'on'
-  conditions:
-  - condition: state
-    entity_id: switch.zooz_hotbox_ac
-    state: 'on'
-  - condition: numeric_state
-    entity_id: cover.cover_hotbox_blinds
-    attribute: current_position
-    below: 22
-  actions:
-  - action: cover.set_cover_position
-    metadata: {}
-    data:
-      position: 22
-    target:
-      entity_id: cover.cover_hotbox_blinds
-  mode: single
 - id: '1747367207590'
   alias: Turn off back horn when maxi is scared is disabled
   description: ''
@@ -7939,10 +7922,15 @@
     trigger: state
   conditions:
   - condition: template
-    value_template: '{% if states(''sensor.maxi_location_by_petro'') != '''' %}
+    value_template: '{% if states(''sensor.maxi_location_by_petro'') != ''unknown''
+      %}
 
       {{ states(''sensor.maxi_location_by_petro'') | lower not in [area_id(trigger.entity_id)]
       | lower }}
+
+      {% else %}
+
+      false
 
       {% endif %}'
   - alias: Stop if myriam's tablet is active in the room
@@ -8025,9 +8013,11 @@
   triggers:
   - trigger: state
     entity_id:
-    - binary_sensor.all_residents_sleeping
-    from: 'off'
-    to: 'on'
+    - binary_sensor.all_present_sleeping
+    from:
+    - 'off'
+    to:
+    - 'on'
     for:
       hours: 0
       minutes: 0
@@ -8228,35 +8218,36 @@
       seconds: 5
   conditions: []
   actions:
-  - action: light.turn_on
-    metadata: {}
-    data:
-      color_temp_kelvin: 5126
-      brightness_pct: 100
-      transition: 45
-    target:
-      entity_id: light.bedroom_chandelier_light
-  - action: climate.turn_on
-    metadata: {}
-    data: {}
-    target:
-      entity_id: climate.bedroom_ac
-  - condition: state
-    entity_id: media_player.universal_bedroom_speakers
-    attribute: media_title
-    state: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
-  - action: media_player.media_stop
-    metadata: {}
-    data: {}
-    target:
+  - parallel:
+    - action: switch.turn_on
+      metadata: {}
+      data: {}
+      target:
+        entity_id:
+        - switch.bedroom_tablet_screen
+        - switch.bedroom_tablet_motion_detection
+    - action: light.turn_on
+      metadata: {}
+      data:
+        color_temp_kelvin: 5126
+        brightness_pct: 100
+        transition: 45
+      target:
+        entity_id: light.bedroom_chandelier_light
+    - action: climate.turn_on
+      metadata: {}
+      data: {}
+      target:
+        entity_id: climate.bedroom_ac
+    - action: media_player.media_stop
+      metadata: {}
+      data: {}
+      target:
+        entity_id: media_player.universal_bedroom_speakers
+    - condition: state
       entity_id: media_player.universal_bedroom_speakers
-  - action: switch.turn_on
-    metadata: {}
-    data: {}
-    target:
-      entity_id:
-      - switch.bedroom_tablet_screen
-      - switch.bedroom_tablet_motion_detection
+      attribute: media_title
+      state: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
   mode: single
 - id: '1748845278340'
   alias: execute Sleep actions when "sleeper in bedroom" is turned on
@@ -8269,72 +8260,73 @@
     trigger: state
   conditions: []
   actions:
-  - action: light.turn_off
-    metadata: {}
-    data:
-      transition: 10
-    target:
-      area_id: bedroom
-  - action: light.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: light.home_assistant_voice_09e4a7_led_ring
-  - if:
-    - condition: template
-      value_template: '{{ state_attr(''media_player.universal_bedroom_speakers'',''media_title'')
-        != ''thunderstorm'' }} e'
-      enabled: false
-    then:
-    - action: media_player.unjoin
+  - parallel:
+    - action: switch.turn_off
       metadata: {}
       data: {}
       target:
-        entity_id: media_player.mass_bedroom_airplay_wiim_speaker
-    - delay:
-        hours: 0
-        minutes: 0
-        seconds: 1
-        milliseconds: 0
-    - data:
-        media:
-          media_content_id: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
-          media_content_type: audio
-          metadata: {}
-      target:
-        entity_id: media_player.mass_bedroom_airplay_wiim_speaker
-      action: media_player.play_media
-    - metadata: {}
-      data:
-        is_volume_muted: true
-      action: media_player.volume_mute
-      target:
-        entity_id: media_player.universal_bedroom_speakers
-    - action: media_player.volume_set
+        entity_id:
+        - switch.bedroom_tablet_screen
+        - switch.bedroom_tablet_motion_detection
+    - action: light.turn_off
       metadata: {}
       data:
-        volume_level: 0.46
+        transition: 10
       target:
-        entity_id:
-        - media_player.universal_bedroom_speakers
-        - media_player.mass_bedroom_airplay_wiim_speaker
-    - metadata: {}
+        area_id: bedroom
+    - action: light.turn_off
+      metadata: {}
+      data: {}
+      target:
+        entity_id: light.home_assistant_voice_09e4a7_led_ring
+    - if:
+      - condition: template
+        value_template: '{{ state_attr(''media_player.universal_bedroom_speakers'',''media_title'')
+          != ''thunderstorm'' }} e'
+        enabled: false
+      then:
+      - action: media_player.unjoin
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 1
+          milliseconds: 0
+      - data:
+          media:
+            media_content_id: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
+            media_content_type: audio
+            metadata: {}
+        target:
+          entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+        action: media_player.play_media
+      - metadata: {}
+        data:
+          is_volume_muted: true
+        action: media_player.volume_mute
+        target:
+          entity_id: media_player.universal_bedroom_speakers
+      - action: media_player.volume_set
+        metadata: {}
+        data:
+          volume_level: 0.46
+        target:
+          entity_id:
+          - media_player.universal_bedroom_speakers
+          - media_player.mass_bedroom_airplay_wiim_speaker
+      - metadata: {}
+        data:
+          is_volume_muted: false
+        target:
+          entity_id: media_player.universal_bedroom_speakers
+        action: media_player.volume_mute
+    - action: google_assistant_sdk.send_text_command
+      metadata: {}
       data:
-        is_volume_muted: false
-      target:
-        entity_id: media_player.universal_bedroom_speakers
-      action: media_player.volume_mute
-  - action: google_assistant_sdk.send_text_command
-    metadata: {}
-    data:
-      command: Power off bedroom TV
-  - action: switch.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id:
-      - switch.bedroom_tablet_screen
-      - switch.bedroom_tablet_motion_detection
+        command: Power off bedroom TV
   mode: single
 - id: '1748845695784'
   alias: Control volume of kitchen to prevent noise in children room while she sleeps
@@ -9203,13 +9195,43 @@
         - rotate_right_slow
         - rotate_right_fast
       sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness_step_pct: 10
-          transition: 1
-        target:
-          entity_id: light.group_bedroom_lights
+      - choose:
+        - conditions:
+          - condition: numeric_state
+            entity_id: light.group_bedroom_lights
+            attribute: brightness
+            enabled: true
+            above: 254
+          sequence:
+          - variables:
+              lights_saturated: "{{ expand('light.group_bedroom_lights')    | selectattr('attributes.hs_color',
+                'defined') | map(attribute='entity_id') | list }} \n"
+          - repeat:
+              for_each: '{{lights_saturated}}'
+              sequence:
+              - action: light.turn_on
+                metadata: {}
+                data:
+                  hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
+                    - 12) %}
+
+                    {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat, 100]|sort)[1]]
+                    }}
+
+                    '
+                  transition: 1
+                target:
+                  entity_id: '{{ repeat.item }}
+
+                    '
+        default:
+        - action: light.turn_on
+          metadata: {}
+          data:
+            brightness_step_pct: 10
+            transition: 1
+          target:
+            entity_id: light.group_bedroom_lights
     - conditions:
       - condition: trigger
         id:
@@ -9281,7 +9303,11 @@
       == ''Keypad unlock operation'' }}'
   actions:
   - variables:
-      user_opening: '{{ trigger.event.data.parameters.userId | int }}
+      user_opening: '{% if trigger.event %}
+
+        {{ trigger.event.data.parameters.userId | int }}
+
+        {% endif %}
 
         '
       user_opening_name: '{% if user_opening == 1 %}
@@ -9295,6 +9321,10 @@
         {% elif user_opening == 3 %}
 
         Lylou
+
+        {% else %}
+
+        Someone
 
         {% endif %}
 
@@ -11315,21 +11345,34 @@
     trigger: state
   conditions:
   - condition: template
-    value_template: '{{ states(''sensor.maxi_location_by_petro'') | lower not in [area_id(trigger.entity_id)]
-      | lower }}'
+    value_template: '{% if states(''sensor.maxi_location_by_petro'') != ''unknown''
+      %}
+
+      {{ states(''sensor.maxi_location_by_petro'') | lower not in [area_id(trigger.entity_id)]
+      | lower }}
+
+      {% else %}
+
+      false
+
+      {% endif %}'
+    enabled: false
   - condition: template
     value_template: '{{ states(''sensor.myriam_location_by_petro'') | lower not in
       [area_id(trigger.entity_id)] | lower }}'
+    enabled: false
   - alias: Stop if myriam's phone is active in the room
     condition: template
     value_template: '{% if (states(''binary_sensor.phone_myriam_interactive'') ==
       on and states(''sensor.bermuda_myriam_phone_area'') | lower in [area_id(trigger.entity_id)]
       | lower) %} false {% else %} true {%endif%}'
+    enabled: false
   - alias: Stop if myriam's tablet is active in the room
     condition: template
     value_template: '{% if (states(''binary_sensor.tablet_myriam_interactive'') ==
       on and states(''sensor.myriam_tablet_location_compounded'') | lower in [area_id(trigger.entity_id)]
       | lower) %} false {% else %} true {%endif%}'
+    enabled: false
   - condition: state
     entity_id: input_boolean.kink_party
     state: 'off'
@@ -12740,13 +12783,43 @@
         - rotate_right_slow
         - rotate_right_fast
       sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness_step_pct: 10
-          transition: 1
-        target:
-          entity_id: light.group_hotbox_lights
+      - choose:
+        - conditions:
+          - condition: numeric_state
+            entity_id: light.group_hotbox_lights
+            attribute: brightness
+            enabled: true
+            above: 254
+          sequence:
+          - variables:
+              lights_saturated: "{{ expand('light.group_hotbox_lights')    | selectattr('attributes.hs_color',
+                'defined') | map(attribute='entity_id') | list }} \n"
+          - repeat:
+              for_each: '{{lights_saturated}}'
+              sequence:
+              - action: light.turn_on
+                metadata: {}
+                data:
+                  hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
+                    - 7) %}
+
+                    {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat, 100]|sort)[1]]
+                    }}
+
+                    '
+                  transition: 1
+                target:
+                  entity_id: '{{ repeat.item }}
+
+                    '
+        default:
+        - action: light.turn_on
+          metadata: {}
+          data:
+            brightness_step_pct: 10
+            transition: 1
+          target:
+            entity_id: light.group_hotbox_lights
     - conditions:
       - condition: trigger
         id:
@@ -12807,3 +12880,1797 @@
       entity_id:
       - number.bedroom_tablet_screen_brightness
   mode: restart
+- id: '1763653396906'
+  alias: Hue Dial lounge automation
+  description: ''
+  triggers:
+  - domain: mqtt
+    device_id: 5482eded8919384250753ef11352c878
+    type: action
+    subtype: dial_rotate_right_step
+    trigger: device
+    id: rotate_right_step
+    enabled: false
+  - domain: mqtt
+    device_id: 5482eded8919384250753ef11352c878
+    type: action
+    subtype: brightness_step_up
+    trigger: device
+    id: brightness_step_up
+    enabled: false
+  - domain: mqtt
+    device_id: 5482eded8919384250753ef11352c878
+    type: action
+    subtype: dial_rotate_right_fast
+    trigger: device
+    id: rotate_right_fast
+    enabled: true
+  - domain: mqtt
+    device_id: 5482eded8919384250753ef11352c878
+    type: action
+    subtype: dial_rotate_right_slow
+    trigger: device
+    id: rotate_right_slow
+    enabled: true
+  - domain: mqtt
+    device_id: 5482eded8919384250753ef11352c878
+    type: action
+    subtype: brightness_step_down
+    trigger: device
+    id: brightness_step_down
+    enabled: true
+  - domain: mqtt
+    device_id: 5482eded8919384250753ef11352c878
+    type: action
+    subtype: dial_rotate_left_step
+    trigger: device
+    id: rotate_left_step
+    enabled: true
+  - domain: mqtt
+    device_id: 5482eded8919384250753ef11352c878
+    type: action
+    subtype: dial_rotate_left_fast
+    trigger: device
+    id: rotate_left_fast
+    enabled: true
+  - domain: mqtt
+    device_id: 5482eded8919384250753ef11352c878
+    type: action
+    subtype: dial_rotate_left_slow
+    trigger: device
+    id: rotate_left_slow
+    enabled: true
+  - trigger: state
+    entity_id:
+    - sensor.remote_salon_hue_dial_brightness
+    enabled: false
+    id: dial_brightness_change
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  - domain: mqtt
+    device_id: 5482eded8919384250753ef11352c878
+    type: action
+    subtype: button_1_press
+    trigger: device
+    id: button_1_press
+  - domain: mqtt
+    device_id: 5482eded8919384250753ef11352c878
+    type: action
+    subtype: button_2_press_release
+    trigger: device
+    id: button_2_press
+  - domain: mqtt
+    device_id: 5482eded8919384250753ef11352c878
+    type: action
+    subtype: button_4_hold
+    trigger: device
+    id: button_4_hold
+    enabled: false
+  - domain: mqtt
+    device_id: 5482eded8919384250753ef11352c878
+    type: action
+    subtype: button_3_press
+    trigger: device
+    id: button_3_press
+  - domain: mqtt
+    device_id: 5482eded8919384250753ef11352c878
+    type: action
+    subtype: button_4_press
+    trigger: device
+    id: button_4_press
+  - domain: mqtt
+    device_id: 5482eded8919384250753ef11352c878
+    type: action
+    subtype: button_2_hold
+    trigger: device
+    id: button_2_hold
+  - domain: mqtt
+    device_id: 5482eded8919384250753ef11352c878
+    type: action
+    subtype: button_1_hold
+    trigger: device
+    id: button_1_hold
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - button_1_press
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          transition: 2
+        target:
+          entity_id: light.group_lounge_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_1_hold
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          transition: 2
+          brightness_pct: 100
+          color_temp_kelvin: 4922
+        target:
+          entity_id: light.group_lounge_lights
+      - choose:
+        - conditions: []
+          sequence: []
+        - conditions:
+          - condition: state
+            entity_id: light.group_lounge_lights
+            attribute: brightness
+            state: ''
+          - condition: numeric_state
+            entity_id: light.group_lounge_lights
+            attribute: brightness
+            below: 99
+          sequence:
+          - action: light.turn_on
+            metadata: {}
+            data:
+              transition: 1
+              brightness_pct: 100
+            target:
+              entity_id: light.group_lounge_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 1
+          color_temp_kelvin: 5238
+          brightness_pct: 100
+        target:
+          entity_id: light.group_lounge_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_hold
+      sequence:
+      - action: media_player.media_stop
+        metadata: {}
+        data: {}
+        target:
+          area_id: lounge
+      - action: media_player.clear_playlist
+        metadata: {}
+        data: {}
+        target:
+          area_id: lounge
+      - action: media_player.turn_off
+        metadata: {}
+        data: {}
+        target:
+          area_id: lounge
+    - conditions:
+      - condition: trigger
+        id:
+        - button_3_press
+      sequence:
+      - action: script.change_received_lights_to_random_colors
+        metadata: {}
+        data:
+          selected_group: light.group_lounge_lights
+          saturation: 100
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_pct: 1
+        target:
+          entity_id: light.group_lounge_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_hold
+      sequence: []
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_right_step
+        - brightness_step_up
+        - rotate_right_slow
+        - rotate_right_fast
+      sequence:
+      - choose:
+        - conditions:
+          - condition: numeric_state
+            entity_id: light.group_lounge_lights
+            attribute: brightness
+            enabled: true
+            above: 254
+          sequence:
+          - variables:
+              lights_saturated: "{{ expand('light.group_lounge_lights')    | selectattr('attributes.hs_color',
+                'defined') | map(attribute='entity_id') | list }} \n"
+          - repeat:
+              for_each: '{{lights_saturated}}'
+              sequence:
+              - action: light.turn_on
+                metadata: {}
+                data:
+                  hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
+                    - 20) %}
+
+                    {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat, 100]|sort)[1]]
+                    }}
+
+                    '
+                  transition: 1
+                target:
+                  entity_id: '{{ repeat.item }}
+
+                    '
+        default:
+        - action: light.turn_on
+          metadata: {}
+          data:
+            brightness_step_pct: 10
+            transition: 1
+          target:
+            entity_id: light.group_lounge_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_left_step
+        - rotate_left_slow
+        - brightness_step_down
+        - rotate_left_fast
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 1
+          brightness_step_pct: -15
+        target:
+          entity_id: light.group_lounge_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - dial_brightness_change
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness: '{{ states(trigger.entity_id) }}
+
+            '
+        target:
+          entity_id: light.group_lounge_lights
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 0
+      milliseconds: 50
+    enabled: false
+  mode: single
+- id: '1763655791601'
+  alias: Hallway hue dial automation
+  description: ''
+  triggers:
+  - domain: mqtt
+    device_id: f211190283e31774e7e39beb65195278
+    type: action
+    subtype: dial_rotate_right_step
+    trigger: device
+    id: rotate_right_step
+    enabled: false
+  - domain: mqtt
+    device_id: f211190283e31774e7e39beb65195278
+    type: action
+    subtype: brightness_step_up
+    trigger: device
+    id: brightness_step_up
+    enabled: false
+  - domain: mqtt
+    device_id: f211190283e31774e7e39beb65195278
+    type: action
+    subtype: dial_rotate_left_slow
+    trigger: device
+    id: rotate_right_fast
+  - domain: mqtt
+    device_id: f211190283e31774e7e39beb65195278
+    type: action
+    subtype: dial_rotate_right_slow
+    trigger: device
+    id: rotate_right_slow
+    enabled: true
+  - domain: mqtt
+    device_id: f211190283e31774e7e39beb65195278
+    type: action
+    subtype: brightness_step_down
+    trigger: device
+    id: brightness_step_down
+    enabled: true
+  - domain: mqtt
+    device_id: f211190283e31774e7e39beb65195278
+    type: action
+    subtype: dial_rotate_left_step
+    trigger: device
+    id: rotate_left_step
+    enabled: true
+  - domain: mqtt
+    device_id: f211190283e31774e7e39beb65195278
+    type: action
+    subtype: dial_rotate_left_fast
+    trigger: device
+    id: rotate_left_fast
+    enabled: true
+  - domain: mqtt
+    device_id: f211190283e31774e7e39beb65195278
+    type: action
+    subtype: dial_rotate_left_slow
+    trigger: device
+    id: rotate_left_slow
+    enabled: true
+  - trigger: state
+    entity_id:
+    - sensor.remote_salon_hue_dial_brightness
+    enabled: false
+    id: dial_brightness_change
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  - domain: mqtt
+    device_id: f211190283e31774e7e39beb65195278
+    type: action
+    subtype: button_1_press
+    trigger: device
+    id: button_1_press
+  - domain: mqtt
+    device_id: f211190283e31774e7e39beb65195278
+    type: action
+    subtype: button_2_press_release
+    trigger: device
+    id: button_2_press
+  - domain: mqtt
+    device_id: f211190283e31774e7e39beb65195278
+    type: action
+    subtype: button_4_hold
+    trigger: device
+    id: button_4_hold
+    enabled: false
+  - domain: mqtt
+    device_id: f211190283e31774e7e39beb65195278
+    type: action
+    subtype: button_3_press
+    trigger: device
+    id: button_3_press
+  - domain: mqtt
+    device_id: f211190283e31774e7e39beb65195278
+    type: action
+    subtype: button_4_press
+    trigger: device
+    id: button_4_press
+  - domain: mqtt
+    device_id: f211190283e31774e7e39beb65195278
+    type: action
+    subtype: button_2_hold
+    trigger: device
+    id: button_2_hold
+  - domain: mqtt
+    device_id: f211190283e31774e7e39beb65195278
+    type: action
+    subtype: button_1_hold
+    trigger: device
+    id: button_1_hold
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - button_1_press
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          transition: 2
+        target:
+          entity_id: light.group_hallway_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_1_hold
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          transition: 2
+          brightness_pct: 100
+          color_temp_kelvin: 4922
+        target:
+          entity_id: light.group_hallway_lights
+      - choose:
+        - conditions: []
+          sequence: []
+        - conditions:
+          - condition: state
+            entity_id: light.group_hallway_lights
+            attribute: brightness
+            state: ''
+          - condition: numeric_state
+            entity_id: light.group_hallway_lights
+            attribute: brightness
+            below: 99
+          sequence:
+          - action: light.turn_on
+            metadata: {}
+            data:
+              transition: 1
+              brightness_pct: 100
+            target:
+              entity_id: light.group_hallway_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 1
+          color_temp_kelvin: 5238
+          brightness_pct: 100
+        target:
+          entity_id: light.group_hallway_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_hold
+      sequence: []
+    - conditions:
+      - condition: trigger
+        id:
+        - button_3_press
+      sequence:
+      - action: script.change_received_lights_to_random_colors
+        metadata: {}
+        data:
+          selected_group: light.group_hallway_lights
+          saturation: 100
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_pct: 1
+        target:
+          entity_id: light.group_hallway_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_hold
+      sequence: []
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_right_step
+        - brightness_step_up
+        - rotate_right_slow
+        - rotate_right_fast
+      sequence:
+      - choose:
+        - conditions:
+          - condition: numeric_state
+            entity_id: light.group_hallway_lights
+            attribute: brightness
+            enabled: true
+            above: 254
+          sequence:
+          - variables:
+              lights_saturated: "{{ expand('light.group_hallway_lights')    | selectattr('attributes.hs_color',
+                'defined') | map(attribute='entity_id') | list }} \n"
+          - repeat:
+              for_each: '{{lights_saturated}}'
+              sequence:
+              - action: light.turn_on
+                metadata: {}
+                data:
+                  hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
+                    - 7) %}
+
+                    {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat, 100]|sort)[1]]
+                    }}
+
+                    '
+                  transition: 1
+                target:
+                  entity_id: '{{ repeat.item }}
+
+                    '
+        default:
+        - action: light.turn_on
+          metadata: {}
+          data:
+            brightness_step_pct: 10
+            transition: 1
+          target:
+            entity_id: light.group_hallway_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_left_step
+        - rotate_left_slow
+        - brightness_step_down
+        - rotate_left_fast
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 1
+          brightness_step_pct: -15
+        target:
+          entity_id: light.group_hallway_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - dial_brightness_change
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness: '{{ states(trigger.entity_id) }}
+
+            '
+        target:
+          entity_id: light.group_hallway_lights
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 0
+      milliseconds: 50
+    enabled: false
+  mode: single
+- id: '1763656472816'
+  alias: Workshop Hue dial automation
+  description: ''
+  triggers:
+  - domain: mqtt
+    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
+    type: action
+    subtype: dial_rotate_right_step
+    trigger: device
+    id: rotate_right_step
+    enabled: false
+  - domain: mqtt
+    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
+    type: action
+    subtype: brightness_step_up
+    trigger: device
+    id: brightness_step_up
+    enabled: false
+  - domain: mqtt
+    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
+    type: action
+    subtype: dial_rotate_right_fast
+    trigger: device
+    id: rotate_right_fast
+  - domain: mqtt
+    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
+    type: action
+    subtype: dial_rotate_right_slow
+    trigger: device
+    id: rotate_right_slow
+    enabled: true
+  - domain: mqtt
+    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
+    type: action
+    subtype: brightness_step_down
+    trigger: device
+    id: brightness_step_down
+    enabled: true
+  - domain: mqtt
+    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
+    type: action
+    subtype: dial_rotate_left_step
+    trigger: device
+    id: rotate_left_step
+    enabled: true
+  - domain: mqtt
+    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
+    type: action
+    subtype: dial_rotate_left_fast
+    trigger: device
+    id: rotate_left_fast
+    enabled: true
+  - domain: mqtt
+    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
+    type: action
+    subtype: dial_rotate_left_slow
+    trigger: device
+    id: rotate_left_slow
+    enabled: true
+  - trigger: state
+    entity_id:
+    - sensor.remote_salon_hue_dial_brightness
+    enabled: false
+    id: dial_brightness_change
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  - domain: mqtt
+    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
+    type: action
+    subtype: button_1_press
+    trigger: device
+    id: button_1_press
+  - domain: mqtt
+    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
+    type: action
+    subtype: button_2_press_release
+    trigger: device
+    id: button_2_press
+  - domain: mqtt
+    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
+    type: action
+    subtype: button_4_hold
+    trigger: device
+    id: button_4_hold
+    enabled: false
+  - domain: mqtt
+    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
+    type: action
+    subtype: button_3_press
+    trigger: device
+    id: button_3_press
+  - domain: mqtt
+    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
+    type: action
+    subtype: button_4_press
+    trigger: device
+    id: button_4_press
+  - domain: mqtt
+    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
+    type: action
+    subtype: button_2_hold
+    trigger: device
+    id: button_2_hold
+  - domain: mqtt
+    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
+    type: action
+    subtype: button_1_hold
+    trigger: device
+    id: button_1_hold
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - button_1_press
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          transition: 2
+        target:
+          entity_id: light.group_workshop_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_1_hold
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          transition: 2
+          brightness_pct: 100
+          color_temp_kelvin: 4922
+        target:
+          entity_id: light.group_workshop_lights
+      - choose:
+        - conditions: []
+          sequence: []
+        - conditions:
+          - condition: state
+            entity_id: light.group_workshop_lights
+            attribute: brightness
+            state: ''
+          - condition: numeric_state
+            entity_id: light.group_workshop_lights
+            attribute: brightness
+            below: 99
+          sequence:
+          - action: light.turn_on
+            metadata: {}
+            data:
+              transition: 1
+              brightness_pct: 100
+            target:
+              entity_id: light.group_workshop_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 1
+          color_temp_kelvin: 5238
+          brightness_pct: 100
+        target:
+          entity_id: light.group_workshop_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_hold
+      sequence:
+      - if:
+        - condition: state
+          entity_id: media_player.universal_workshop_chromecast
+          state: 'off'
+        then:
+        - action: google_assistant_sdk.send_text_command
+          metadata: {}
+          data:
+            command: power off workshop tv
+      - action: media_player.media_stop
+        metadata: {}
+        data: {}
+        target:
+          area_id: workshop
+      - action: media_player.clear_playlist
+        metadata: {}
+        data: {}
+        target:
+          area_id: workshop
+      - action: media_player.turn_off
+        metadata: {}
+        data: {}
+        target:
+          area_id: workshop
+    - conditions:
+      - condition: trigger
+        id:
+        - button_3_press
+      sequence:
+      - action: script.change_received_lights_to_random_colors
+        metadata: {}
+        data:
+          selected_group: light.group_workshop_lights
+          saturation: 100
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_pct: 1
+        target:
+          entity_id: light.group_workshop_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_hold
+      sequence: []
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_right_step
+        - brightness_step_up
+        - rotate_right_slow
+        - rotate_right_fast
+      sequence:
+      - choose:
+        - conditions:
+          - condition: numeric_state
+            entity_id: light.group_workshop_lights
+            attribute: brightness
+            enabled: true
+            above: 254
+          sequence:
+          - variables:
+              lights_saturated: "{{ expand('light.group_workshop_lights')    | selectattr('attributes.hs_color',
+                'defined') | map(attribute='entity_id') | list }} \n"
+          - repeat:
+              for_each: '{{lights_saturated}}'
+              sequence:
+              - action: light.turn_on
+                metadata: {}
+                data:
+                  hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
+                    - 7) %}
+
+                    {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat, 100]|sort)[1]]
+                    }}
+
+                    '
+                  transition: 1
+                target:
+                  entity_id: '{{ repeat.item }}
+
+                    '
+        default:
+        - action: light.turn_on
+          metadata: {}
+          data:
+            brightness_step_pct: 10
+            transition: 1
+          target:
+            entity_id: light.group_workshop_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_left_step
+        - rotate_left_slow
+        - brightness_step_down
+        - rotate_left_fast
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 1
+          brightness_step_pct: -15
+        target:
+          entity_id: light.group_workshop_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - dial_brightness_change
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness: '{{ states(trigger.entity_id) }}
+
+            '
+        target:
+          entity_id: light.group_workshop_lights
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 0
+      milliseconds: 50
+    enabled: false
+  mode: single
+- id: '1763657214344'
+  alias: Kitchen hue dial automation
+  description: ''
+  triggers:
+  - domain: mqtt
+    device_id: dc7089704215eb56dab209e30b546ffe
+    type: action
+    subtype: dial_rotate_right_step
+    trigger: device
+    id: rotate_right_step
+    enabled: false
+  - domain: mqtt
+    device_id: dc7089704215eb56dab209e30b546ffe
+    type: action
+    subtype: brightness_step_up
+    trigger: device
+    id: brightness_step_up
+    enabled: false
+  - domain: mqtt
+    device_id: dc7089704215eb56dab209e30b546ffe
+    type: action
+    subtype: dial_rotate_right_fast
+    trigger: device
+    id: rotate_right_fast
+  - domain: mqtt
+    device_id: dc7089704215eb56dab209e30b546ffe
+    type: action
+    subtype: dial_rotate_right_slow
+    trigger: device
+    id: rotate_right_slow
+    enabled: true
+  - domain: mqtt
+    device_id: dc7089704215eb56dab209e30b546ffe
+    type: action
+    subtype: brightness_step_down
+    trigger: device
+    id: brightness_step_down
+    enabled: true
+  - domain: mqtt
+    device_id: dc7089704215eb56dab209e30b546ffe
+    type: action
+    subtype: dial_rotate_left_step
+    trigger: device
+    id: rotate_left_step
+    enabled: true
+  - domain: mqtt
+    device_id: dc7089704215eb56dab209e30b546ffe
+    type: action
+    subtype: dial_rotate_left_fast
+    trigger: device
+    id: rotate_left_fast
+    enabled: true
+  - domain: mqtt
+    device_id: dc7089704215eb56dab209e30b546ffe
+    type: action
+    subtype: dial_rotate_left_slow
+    trigger: device
+    id: rotate_left_slow
+    enabled: true
+  - trigger: state
+    entity_id:
+    - sensor.remote_salon_hue_dial_brightness
+    enabled: false
+    id: dial_brightness_change
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  - domain: mqtt
+    device_id: dc7089704215eb56dab209e30b546ffe
+    type: action
+    subtype: button_1_press
+    trigger: device
+    id: button_1_press
+  - domain: mqtt
+    device_id: dc7089704215eb56dab209e30b546ffe
+    type: action
+    subtype: button_2_press_release
+    trigger: device
+    id: button_2_press
+  - domain: mqtt
+    device_id: dc7089704215eb56dab209e30b546ffe
+    type: action
+    subtype: button_4_hold
+    trigger: device
+    id: button_4_hold
+    enabled: false
+  - domain: mqtt
+    device_id: dc7089704215eb56dab209e30b546ffe
+    type: action
+    subtype: button_3_press
+    trigger: device
+    id: button_3_press
+  - domain: mqtt
+    device_id: dc7089704215eb56dab209e30b546ffe
+    type: action
+    subtype: button_4_press
+    trigger: device
+    id: button_4_press
+  - domain: mqtt
+    device_id: dc7089704215eb56dab209e30b546ffe
+    type: action
+    subtype: button_2_hold
+    trigger: device
+    id: button_2_hold
+  - domain: mqtt
+    device_id: dc7089704215eb56dab209e30b546ffe
+    type: action
+    subtype: button_1_hold
+    trigger: device
+    id: button_1_hold
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - button_1_press
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          transition: 2
+        target:
+          entity_id: light.group_kitchen_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_1_hold
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          transition: 2
+          brightness_pct: 100
+          color_temp_kelvin: 4922
+        target:
+          entity_id: light.group_kitchen_lights
+      - choose:
+        - conditions: []
+          sequence: []
+        - conditions:
+          - condition: state
+            entity_id: light.group_kitchen_lights
+            attribute: brightness
+            state: ''
+          - condition: numeric_state
+            entity_id: light.group_kitchen_lights
+            attribute: brightness
+            below: 99
+          sequence:
+          - action: light.turn_on
+            metadata: {}
+            data:
+              transition: 1
+              brightness_pct: 100
+            target:
+              entity_id: light.group_kitchen_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 1
+          color_temp_kelvin: 5238
+          brightness_pct: 100
+        target:
+          entity_id: light.group_kitchen_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_hold
+      sequence:
+      - if:
+        - condition: state
+          entity_id: media_player.universal_kitchen_chromecast
+          state: 'off'
+        then:
+        - action: google_assistant_sdk.send_text_command
+          metadata: {}
+          data:
+            command: power off kitchen tv
+      - action: media_player.media_stop
+        metadata: {}
+        data: {}
+        target:
+          area_id: kitchen
+      - action: media_player.clear_playlist
+        metadata: {}
+        data: {}
+        target:
+          area_id: kitchen
+      - action: media_player.turn_off
+        metadata: {}
+        data: {}
+        target:
+          area_id: kitchen
+    - conditions:
+      - condition: trigger
+        id:
+        - button_3_press
+      sequence:
+      - action: script.change_received_lights_to_random_colors
+        metadata: {}
+        data:
+          selected_group: light.group_kitchen_lights
+          saturation: 100
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_pct: 1
+        target:
+          entity_id: light.group_kitchen_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_hold
+      sequence: []
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_right_step
+        - brightness_step_up
+        - rotate_right_slow
+        - rotate_right_fast
+      sequence:
+      - choose:
+        - conditions:
+          - condition: numeric_state
+            entity_id: light.group_kitchen_lights
+            attribute: brightness
+            enabled: true
+            above: 254
+          sequence:
+          - variables:
+              lights_saturated: "{{ expand('light.group_kitchen_lights')    | selectattr('attributes.hs_color',
+                'defined') | map(attribute='entity_id') | list }} \n"
+          - repeat:
+              for_each: '{{lights_saturated}}'
+              sequence:
+              - action: light.turn_on
+                metadata: {}
+                data:
+                  hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
+                    - 7) %}
+
+                    {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat, 100]|sort)[1]]
+                    }}
+
+                    '
+                  transition: 1
+                target:
+                  entity_id: '{{ repeat.item }}
+
+                    '
+        default:
+        - action: light.turn_on
+          metadata: {}
+          data:
+            brightness_step_pct: 10
+            transition: 1
+          target:
+            entity_id: light.group_kitchen_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_left_step
+        - rotate_left_slow
+        - brightness_step_down
+        - rotate_left_fast
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 1
+          brightness_step_pct: -15
+        target:
+          entity_id: light.group_kitchen_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - dial_brightness_change
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness: '{{ states(trigger.entity_id) }}
+
+            '
+        target:
+          entity_id: light.group_kitchen_lights
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 0
+      milliseconds: 50
+    enabled: false
+  mode: single
+- id: '1763657573280'
+  alias: Salon hue dial automation
+  description: ''
+  triggers:
+  - domain: mqtt
+    device_id: bc66f82750d4adb04da9269fa03a125e
+    type: action
+    subtype: brightness_step_up
+    trigger: device
+    id: brightness_step_up
+    enabled: false
+  - domain: mqtt
+    device_id: bc66f82750d4adb04da9269fa03a125e
+    type: action
+    subtype: dial_rotate_right_fast
+    trigger: device
+    id: rotate_right_fast
+  - domain: mqtt
+    device_id: bc66f82750d4adb04da9269fa03a125e
+    type: action
+    subtype: dial_rotate_right_slow
+    trigger: device
+    id: rotate_right_slow
+    enabled: true
+  - domain: mqtt
+    device_id: bc66f82750d4adb04da9269fa03a125e
+    type: action
+    subtype: brightness_step_down
+    trigger: device
+    id: brightness_step_down
+    enabled: true
+  - domain: mqtt
+    device_id: bc66f82750d4adb04da9269fa03a125e
+    type: action
+    subtype: dial_rotate_left_step
+    trigger: device
+    id: rotate_left_step
+    enabled: true
+  - domain: mqtt
+    device_id: bc66f82750d4adb04da9269fa03a125e
+    type: action
+    subtype: dial_rotate_left_fast
+    trigger: device
+    id: rotate_left_fast
+    enabled: true
+  - domain: mqtt
+    device_id: bc66f82750d4adb04da9269fa03a125e
+    type: action
+    subtype: dial_rotate_left_slow
+    trigger: device
+    id: rotate_left_slow
+    enabled: true
+  - trigger: state
+    entity_id:
+    - sensor.remote_salon_hue_dial_brightness
+    enabled: false
+    id: dial_brightness_change
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  - domain: mqtt
+    device_id: bc66f82750d4adb04da9269fa03a125e
+    type: action
+    subtype: button_1_press
+    trigger: device
+    id: button_1_press
+  - domain: mqtt
+    device_id: bc66f82750d4adb04da9269fa03a125e
+    type: action
+    subtype: button_2_press_release
+    trigger: device
+    id: button_2_press
+  - domain: mqtt
+    device_id: bc66f82750d4adb04da9269fa03a125e
+    type: action
+    subtype: button_4_hold
+    trigger: device
+    id: button_4_hold
+    enabled: false
+  - domain: mqtt
+    device_id: bc66f82750d4adb04da9269fa03a125e
+    type: action
+    subtype: button_3_press
+    trigger: device
+    id: button_3_press
+  - domain: mqtt
+    device_id: bc66f82750d4adb04da9269fa03a125e
+    type: action
+    subtype: button_4_press
+    trigger: device
+    id: button_4_press
+  - domain: mqtt
+    device_id: bc66f82750d4adb04da9269fa03a125e
+    type: action
+    subtype: button_2_hold
+    trigger: device
+    id: button_2_hold
+  - domain: mqtt
+    device_id: bc66f82750d4adb04da9269fa03a125e
+    type: action
+    subtype: button_1_hold
+    trigger: device
+    id: button_1_hold
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - button_1_press
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          transition: 2
+        target:
+          entity_id: light.group_salon_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_1_hold
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          transition: 2
+          brightness_pct: 100
+          color_temp_kelvin: 4922
+        target:
+          entity_id: light.group_salon_lights
+      - choose:
+        - conditions: []
+          sequence: []
+        - conditions:
+          - condition: state
+            entity_id: light.group_salon_lights
+            attribute: brightness
+            state: ''
+          - condition: numeric_state
+            entity_id: light.group_salon_lights
+            attribute: brightness
+            below: 99
+          sequence:
+          - action: light.turn_on
+            metadata: {}
+            data:
+              transition: 1
+              brightness_pct: 100
+            target:
+              entity_id: light.group_salon_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 1
+          color_temp_kelvin: 5238
+          brightness_pct: 100
+        target:
+          entity_id: light.group_salon_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_hold
+      sequence:
+      - if:
+        - condition: state
+          entity_id: media_player.universal_salon_chromecast
+          state: 'off'
+        then:
+        - action: google_assistant_sdk.send_text_command
+          metadata: {}
+          data:
+            command: power off salon tv
+      - action: media_player.media_stop
+        metadata: {}
+        data: {}
+        target:
+          area_id: salon
+      - action: media_player.clear_playlist
+        metadata: {}
+        data: {}
+        target:
+          area_id: salon
+      - action: media_player.turn_off
+        metadata: {}
+        data: {}
+        target:
+          area_id: salon
+    - conditions:
+      - condition: trigger
+        id:
+        - button_3_press
+      sequence:
+      - action: script.change_received_lights_to_random_colors
+        metadata: {}
+        data:
+          selected_group: light.group_salon_lights
+          saturation: 100
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_pct: 1
+        target:
+          entity_id: light.group_salon_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_hold
+      sequence: []
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_right_step
+        - brightness_step_up
+        - rotate_right_slow
+        - rotate_right_fast
+      sequence:
+      - choose:
+        - conditions:
+          - condition: numeric_state
+            entity_id: light.group_salon_lights
+            attribute: brightness
+            enabled: true
+            above: 254
+          sequence:
+          - variables:
+              lights_saturated: "{{ expand('light.group_salon_lights')    | selectattr('attributes.hs_color',
+                'defined') | map(attribute='entity_id') | list }} \n"
+          - repeat:
+              for_each: '{{lights_saturated}}'
+              sequence:
+              - action: light.turn_on
+                metadata: {}
+                data:
+                  hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
+                    - 7) %}
+
+                    {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat, 100]|sort)[1]]
+                    }}
+
+                    '
+                  transition: 1
+                target:
+                  entity_id: '{{ repeat.item }}
+
+                    '
+        default:
+        - action: light.turn_on
+          metadata: {}
+          data:
+            brightness_step_pct: 10
+            transition: 1
+          target:
+            entity_id: light.group_salon_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_left_step
+        - rotate_left_slow
+        - brightness_step_down
+        - rotate_left_fast
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 1
+          brightness_step_pct: -15
+        target:
+          entity_id: light.group_salon_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - dial_brightness_change
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness: '{{ states(trigger.entity_id) }}
+
+            '
+        target:
+          entity_id: light.group_salon_lights
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 0
+      milliseconds: 50
+    enabled: false
+  mode: single
+- id: '1763775560173'
+  alias: Workshop Desk Hue Dial automation
+  description: ''
+  triggers:
+  - domain: mqtt
+    device_id: 1646c358a43638c330455746a22adb95
+    type: action
+    subtype: button_1_press
+    trigger: device
+    id: rotate_right_step
+    enabled: false
+  - domain: mqtt
+    device_id: 1646c358a43638c330455746a22adb95
+    type: action
+    subtype: brightness_step_up
+    trigger: device
+    id: brightness_step_up
+    enabled: false
+  - domain: mqtt
+    device_id: 1646c358a43638c330455746a22adb95
+    type: action
+    subtype: dial_rotate_right_fast
+    trigger: device
+    id: rotate_right_fast
+  - domain: mqtt
+    device_id: 1646c358a43638c330455746a22adb95
+    type: action
+    subtype: dial_rotate_right_slow
+    trigger: device
+    id: rotate_right_slow
+    enabled: true
+  - domain: mqtt
+    device_id: 1646c358a43638c330455746a22adb95
+    type: action
+    subtype: brightness_step_down
+    trigger: device
+    id: brightness_step_down
+    enabled: true
+  - domain: mqtt
+    device_id: 1646c358a43638c330455746a22adb95
+    type: action
+    subtype: dial_rotate_left_step
+    trigger: device
+    id: rotate_left_step
+    enabled: true
+  - domain: mqtt
+    device_id: 1646c358a43638c330455746a22adb95
+    type: action
+    subtype: dial_rotate_left_fast
+    trigger: device
+    id: rotate_left_fast
+    enabled: true
+  - domain: mqtt
+    device_id: 1646c358a43638c330455746a22adb95
+    type: action
+    subtype: dial_rotate_left_slow
+    trigger: device
+    id: rotate_left_slow
+    enabled: true
+  - trigger: state
+    entity_id:
+    - sensor.remote_salon_hue_dial_brightness
+    enabled: false
+    id: dial_brightness_change
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+  - domain: mqtt
+    device_id: 1646c358a43638c330455746a22adb95
+    type: action
+    subtype: button_1_press
+    trigger: device
+    id: button_1_press
+  - domain: mqtt
+    device_id: 1646c358a43638c330455746a22adb95
+    type: action
+    subtype: button_2_press_release
+    trigger: device
+    id: button_2_press
+  - domain: mqtt
+    device_id: 1646c358a43638c330455746a22adb95
+    type: action
+    subtype: button_4_hold
+    trigger: device
+    id: button_4_hold
+    enabled: false
+  - domain: mqtt
+    device_id: 1646c358a43638c330455746a22adb95
+    type: action
+    subtype: button_3_press
+    trigger: device
+    id: button_3_press
+  - domain: mqtt
+    device_id: 1646c358a43638c330455746a22adb95
+    type: action
+    subtype: button_4_press
+    trigger: device
+    id: button_4_press
+  - domain: mqtt
+    device_id: 1646c358a43638c330455746a22adb95
+    type: action
+    subtype: button_2_hold
+    trigger: device
+    id: button_2_hold
+  - domain: mqtt
+    device_id: 1646c358a43638c330455746a22adb95
+    type: action
+    subtype: button_1_hold
+    trigger: device
+    id: button_1_hold
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - button_1_press
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          transition: 2
+        target:
+          entity_id: light.group_workshop_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_1_hold
+      sequence:
+      - action: light.toggle
+        metadata: {}
+        data:
+          transition: 2
+          brightness_pct: 100
+          color_temp_kelvin: 4922
+        target:
+          entity_id: light.group_workshop_lights
+      - choose:
+        - conditions: []
+          sequence: []
+        - conditions:
+          - condition: state
+            entity_id: light.group_workshop_lights
+            attribute: brightness
+            state: ''
+          - condition: numeric_state
+            entity_id: light.group_workshop_lights
+            attribute: brightness
+            below: 99
+          sequence:
+          - action: light.turn_on
+            metadata: {}
+            data:
+              transition: 1
+              brightness_pct: 100
+            target:
+              entity_id: light.group_workshop_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 1
+          color_temp_kelvin: 5238
+          brightness_pct: 100
+        target:
+          entity_id: light.group_workshop_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_hold
+      sequence: []
+    - conditions:
+      - condition: trigger
+        id:
+        - button_3_press
+      sequence:
+      - action: script.change_received_lights_to_random_colors
+        metadata: {}
+        data:
+          selected_group: light.group_workshop_lights
+          saturation: 100
+    - conditions:
+      - condition: trigger
+        id:
+        - button_4_press
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_pct: 1
+        target:
+          entity_id: light.group_workshop_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - button_2_hold
+      sequence: []
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_right_step
+        - brightness_step_up
+        - rotate_right_slow
+        - rotate_right_fast
+      sequence:
+      - choose:
+        - conditions:
+          - condition: numeric_state
+            entity_id: light.group_workshop_lights
+            attribute: brightness
+            enabled: true
+            above: 254
+          sequence:
+          - variables:
+              lights_saturated: "{{ expand('light.group_workshop_lights')    | selectattr('attributes.hs_color',
+                'defined') | map(attribute='entity_id') | list }} \n"
+          - repeat:
+              for_each: '{{lights_saturated}}'
+              sequence:
+              - action: light.turn_on
+                metadata: {}
+                data:
+                  hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
+                    - 7) %}
+
+                    {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat, 100]|sort)[1]]
+                    }}
+
+                    '
+                  transition: 1
+                target:
+                  entity_id: '{{ repeat.item }}
+
+                    '
+        default:
+        - action: light.turn_on
+          metadata: {}
+          data:
+            brightness_step_pct: 10
+            transition: 1
+          target:
+            entity_id: light.group_workshop_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - rotate_left_step
+        - rotate_left_slow
+        - brightness_step_down
+        - rotate_left_fast
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 1
+          brightness_step_pct: -15
+        target:
+          entity_id: light.group_workshop_lights
+    - conditions:
+      - condition: trigger
+        id:
+        - dial_brightness_change
+      sequence:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness: '{{ states(trigger.entity_id) }}
+
+            '
+        target:
+          entity_id: light.group_workshop_lights
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 0
+      milliseconds: 50
+    enabled: false
+  mode: single
+- id: '1764362706933'
+  alias: Close Kitchen curtains when sun sets
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sun.sun
+    from: above_horizon
+    to: below_horizon
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+  conditions: []
+  actions:
+  - action: cover.close_cover
+    metadata: {}
+    data: {}
+    target:
+      entity_id: cover.cover_kitchen_curtains
+  mode: single

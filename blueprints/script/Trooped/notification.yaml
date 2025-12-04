@@ -1,0 +1,425 @@
+blueprint:
+  name: QuickBars - Display Notification
+  description: '## QuickBars - Display Notification v1.0.0
+
+
+    Send rich TV overlay notifications to QuickBars for Home Assistant with customizable
+    appearance, media, and interactive action buttons.
+
+
+    ### Features
+
+
+    * Display notifications on your Android/Google TV
+
+    * Customize colors, position, transparency, and duration
+
+    * Add Material Design icons or custom images
+
+    * Play notification sounds with adjustable volume (0-200%)
+
+    * Up to 3 interactive action buttons with automatic response handling
+
+    * Target specific devices by App ID or broadcast to all devices on your network
+
+
+    ### Requirements
+
+
+    * QuickBars for Home Assistant v1.3 installed on your Android/Google TV
+
+    * Accessibility service enabled for QuickBars
+
+    * Display over other apps permission enabled for QuickBars
+
+    * Persistent background connection enabled (Settings → Connection in the app)
+
+
+    ### Important Notes
+
+
+    * The script will automatically handle button presses and execute configured actions
+
+    * Notifications with actions can be dismissed early by pressing the back button
+    on your remote
+
+    * Images must be accessible via HTTP/HTTPS or placed in `/config/www/` (served
+    as `/local/`)
+
+    * Sounds must be in a format supported by Android TV (MP3, WAV recommended, but
+    feel free to try out other formats)
+
+    '
+  domain: script
+  author: Trooped / Omri
+  source_url: https://raw.githubusercontent.com/Trooped/quickbars-blueprints/main/notification.yaml
+  homeassistant:
+    min_version: 2024.6.0
+  input:
+    content:
+      name: Content
+      icon: mdi:text
+      collapsed: false
+      input:
+        message:
+          name: Message
+          description: Main text of the notification.
+          default: ''
+          selector:
+            text:
+              multiline: true
+              multiple: false
+        title:
+          name: Title
+          description: Optional short headline.
+          default: ''
+          selector:
+            text:
+              multiline: false
+              multiple: false
+        mdi_icon:
+          name: MDI Icon
+          description: Optional (e.g., mdi:bell) to display in the title row.
+          default: ''
+          selector:
+            icon: {}
+        image_url:
+          name: Image URL / path
+          description: 'Accepts:
+
+            - https://… (absolute URL, ending with .jpg, .png, etc.)
+
+            - /config/www/... or relative path after www/
+
+            - /api/camera_proxy/<camera_entity>  (still image)'
+          default: ''
+          selector:
+            text:
+              multiline: false
+              multiple: false
+    appearance:
+      name: Appearance
+      icon: mdi:palette
+      collapsed: true
+      input:
+        color:
+          name: Color (RGB)
+          description: Optional custom background color for the notification.
+          default:
+          selector:
+            color_rgb: {}
+        transparency:
+          name: Transparency (0–1)
+          description: 0.0 = opaque, 1.0 = fully transparent.
+          default: 0
+          selector:
+            number:
+              min: 0.0
+              max: 1.0
+              step: 0.05
+              mode: slider
+        position:
+          name: Position
+          description: Screen corner for the notification.
+          default: top_left
+          selector:
+            select:
+              options:
+              - top_left
+              - top_right
+              - bottom_left
+              - bottom_right
+              multiple: false
+              custom_value: false
+              sort: false
+    behavior:
+      name: Behavior
+      icon: mdi:cog
+      collapsed: true
+      input:
+        length:
+          name: Duration (sec)
+          description: Auto-dismiss time (3–300). BACK can dismiss earlier (if there's
+            an action button on the notification).
+          default: 10
+          selector:
+            number:
+              min: 3.0
+              max: 300.0
+              step: 1.0
+              unit_of_measurement: seconds
+              mode: slider
+        interrupt:
+          name: Interrupt
+          description: If true, replace any currently shown notification.
+          default: false
+          selector:
+            boolean: {}
+    sound:
+      name: Sound
+      icon: mdi:volume-high
+      collapsed: true
+      input:
+        sound_url:
+          name: Sound URL / path
+          description: 'Accepts:
+
+            - https://… (absolute URL, ending with .mp3 etc.)
+
+            - /config/www/... or relative path after www/'
+          default: ''
+          selector:
+            text:
+              multiline: false
+              multiple: false
+        sound_volume_percent:
+          name: Sound volume %
+          description: 0–200 (100 = system volume; >100 uses software boost, may distort/clip).
+          default: 100
+          selector:
+            number:
+              min: 0.0
+              max: 200.0
+              step: 1.0
+              mode: slider
+    targeting:
+      name: QuickBars Device Targeting
+      icon: mdi:bullseye
+      collapsed: true
+      input:
+        app_id:
+          name: QuickBars App ID (optional)
+          description: 8-character ID from the TV app. Leave empty to broadcast to
+            all QuickBars devices on the local network.
+          default: ''
+          selector:
+            text:
+              multiline: false
+              multiple: false
+    action_1_section:
+      name: Action Button 1
+      icon: mdi:gesture-tap-button
+      description: Optional buttons shown on the notification. Action IDs are emitted
+        via `quickbars.action`. On press, run this action, or leave empty and handle
+        via quickbars.action event elsewhere.
+      collapsed: true
+      input:
+        action_1_id:
+          name: Action 1 - ID
+          description: Internal identifier (e.g., "turn_on")
+          default: ''
+          selector:
+            text:
+              multiline: false
+              multiple: false
+        action_1_label:
+          name: Action 1 - Label
+          description: Button text (e.g., "Turn On")
+          default: ''
+          selector:
+            text:
+              multiline: false
+              multiple: false
+        action_1_action:
+          name: Action 1 - Action to Perform
+          description: Optional action(s) to run when this button is pressed
+          default: []
+          selector:
+            action: {}
+    action_2_section:
+      description: Optional buttons shown on the notification. Action IDs are emitted
+        via `quickbars.action`. On press, run this action, or leave empty and handle
+        via quickbars.action event elsewhere.
+      name: Action Button 2
+      icon: mdi:gesture-tap-button
+      collapsed: true
+      input:
+        action_2_id:
+          name: Action 2 - ID
+          default: ''
+          selector:
+            text:
+              multiline: false
+              multiple: false
+        action_2_label:
+          name: Action 2 - Label
+          default: ''
+          selector:
+            text:
+              multiline: false
+              multiple: false
+        action_2_action:
+          name: Action 2 - Action to Perform
+          default: []
+          selector:
+            action: {}
+    action_3_section:
+      name: Action Button 3
+      description: Optional buttons shown on the notification. Action IDs are emitted
+        via `quickbars.action`. On press, run this action, or leave empty and handle
+        via quickbars.action event elsewhere.
+      icon: mdi:gesture-tap-button
+      collapsed: true
+      input:
+        action_3_id:
+          name: Action 3 - ID
+          default: ''
+          selector:
+            text:
+              multiline: false
+              multiple: false
+        action_3_label:
+          name: Action 3 - Label
+          default: ''
+          selector:
+            text:
+              multiline: false
+              multiple: false
+        action_3_action:
+          name: Action 3 - Action to Perform
+          default: []
+          selector:
+            action: {}
+variables:
+  app_id: !input app_id
+  title: !input title
+  message: !input message
+  action_1_id: !input action_1_id
+  action_1_label: !input action_1_label
+  action_1_action: !input action_1_action
+  action_2_id: !input action_2_id
+  action_2_label: !input action_2_label
+  action_2_action: !input action_2_action
+  action_3_id: !input action_3_id
+  action_3_label: !input action_3_label
+  action_3_action: !input action_3_action
+  color: !input color
+  transparency: !input transparency
+  position: !input position
+  length: !input length
+  interrupt: !input interrupt
+  mdi_icon: !input mdi_icon
+  image_url: !input image_url
+  sound_url: !input sound_url
+  sound_volume_percent: !input sound_volume_percent
+  _cid: '{{ now().timestamp() | int ~ ''-'' ~ (range(1000,9999) | random) }}'
+sequence:
+- choose:
+  - conditions:
+    - condition: template
+      value_template: '{{ (message | string | trim) == '''' }}'
+    sequence:
+    - stop: Please provide a message.
+- variables:
+    _img_raw: '{{ (image_url | default('''')) | string }}'
+    _img_url: "{%- set s = _img_raw.strip() -%} {%- if s.startswith('http://') or
+      s.startswith('https://') -%}\n  {{ s }}\n{%- elif s.startswith('/api/') or s.startswith('/local/')
+      -%}\n  {{ s }}\n{%- elif s.startswith('/config/www/') -%}\n  /local/{{ s.split('/config/www/')[1]
+      }}\n{%- elif s.startswith('config/www/') -%}\n  /local/{{ s.split('config/www/')[1]
+      }}\n{%- elif s.startswith('/www/') -%}\n  /local/{{ s.split('/www/')[1] }}\n{%-
+      elif s.startswith('www/') -%}\n  /local/{{ s.split('www/')[1] }}\n{%- elif s
+      and not s.startswith('/') -%}\n  /local/{{ s.lstrip('/') }}\n{%- else -%}{%
+      endif %}"
+- variables:
+    _snd_raw: '{{ (sound_url | default('''')) | string }}'
+    _snd_trim: '{{ _snd_raw.strip() }}'
+    _snd_norm: "{%- set s = _snd_trim -%} {%- if s.startswith('http://') or s.startswith('https://')
+      -%}\n  {{ s }}\n{%- elif s.startswith('/local/') -%}\n  {{ s }}\n{%- elif s.startswith('/config/www/')
+      -%}\n  /local/{{ s.split('/config/www/')[1] }}\n{%- elif s.startswith('config/www/')
+      -%}\n  /local/{{ s.split('config/www/')[1] }}\n{%- elif s.startswith('/www/')
+      -%}\n  /local/{{ s.split('/www/')[1] }}\n{%- elif s.startswith('www/') -%}\n
+      \ /local/{{ s.split('www/')[1] }}\n{%- elif s and not s.startswith('/') -%}\n
+      \ /local/{{ s.lstrip('/') }}\n{%- else -%}{% endif %}"
+    _snd_blocked: "{{ _snd_trim.startswith('/media/local/')\n    or _snd_trim.startswith('media/local/')\n
+      \   or _snd_trim.startswith('media-source://')\n    or _snd_trim.startswith('/api/')
+      }}"
+    _snd_pct: '{{ (sound_volume_percent | default(100)) | int }}'
+- choose:
+  - conditions:
+    - condition: template
+      value_template: '{{ _snd_trim and _snd_blocked }}'
+    sequence:
+    - action: system_log.write
+      data:
+        level: warning
+        message: 'QuickBars TV Notify: sound_url "{{ _snd_trim }}" requires HA auth
+          (/media or /api) and is not supported by TV player. Move the file to /config/www
+          and use /local/…, or use https://.'
+- variables:
+    _ev: "{{\n  dict(\n    title=title, \n    message=message, \n    actions=(\n      [\n
+      \       dict(id=action_1_id, label=action_1_label)\n      ] if (action_1_id
+      | string | trim) else []\n    ) + (\n      [\n        dict(id=action_2_id, label=action_2_label)\n
+      \     ] if (action_2_id | string | trim) else []\n    ) + (\n      [\n        dict(id=action_3_id,
+      label=action_3_label)\n      ] if (action_3_id | string | trim) else []\n    ),\n
+      \   duration=(length | int), \n    position=position,\n    color=color, \n    transparency=(transparency
+      | float(0)),\n    interrupt=interrupt, cid=_cid\n  )\n  | combine( dict(mdi_icon=mdi_icon)
+      if (mdi_icon | string | trim) else {} )\n  | combine( dict(image_url=_img_url)
+      if _img_url|default('') else {} )\n  | combine( dict(sound_url=_snd_norm) if
+      _snd_norm|default('') and not _snd_blocked else {} )\n  | combine( dict(sound_volume_percent=_snd_pct)
+      if _snd_norm|default('') and not _snd_blocked else {} )\n}}"
+- choose:
+  - conditions:
+    - condition: template
+      value_template: '{{ (app_id | string | trim) | length > 0 }}'
+    sequence:
+    - event: quickbars.notify
+      event_data:
+        id: '{{ app_id }}'
+        title: '{{ _ev.title }}'
+        message: '{{ _ev.message }}'
+        actions: '{{ _ev.actions }}'
+        duration: '{{ _ev.duration }}'
+        position: '{{ _ev.position }}'
+        color: '{{ _ev.color }}'
+        transparency: '{{ _ev.transparency }}'
+        interrupt: '{{ _ev.interrupt }}'
+        cid: '{{ _ev.cid }}'
+        mdi_icon: '{{ _ev.mdi_icon if _ev.get(''mdi_icon'') else omit }}'
+        image_url: '{{ _ev.image_url if _ev.get(''image_url'') else omit }}'
+        sound_url: '{{ _ev.sound_url if _ev.get(''sound_url'') else omit }}'
+        sound_volume_percent: '{{ _ev.sound_volume_percent if _ev.get(''sound_volume_percent'')
+          else omit }}'
+  default:
+  - event: quickbars.notify
+    event_data:
+      title: '{{ _ev.title }}'
+      message: '{{ _ev.message }}'
+      actions: '{{ _ev.actions }}'
+      duration: '{{ _ev.duration }}'
+      position: '{{ _ev.position }}'
+      color: '{{ _ev.color }}'
+      transparency: '{{ _ev.transparency }}'
+      interrupt: '{{ _ev.interrupt }}'
+      cid: '{{ _ev.cid }}'
+      mdi_icon: '{{ _ev.mdi_icon if _ev.get(''mdi_icon'') else omit }}'
+      image_url: '{{ _ev.image_url if _ev.get(''image_url'') else omit }}'
+      sound_url: '{{ _ev.sound_url if _ev.get(''sound_url'') else omit }}'
+      sound_volume_percent: '{{ _ev.sound_volume_percent if _ev.get(''sound_volume_percent'')
+        else omit }}'
+- wait_for_trigger:
+  - trigger: event
+    event_type: quickbars.action
+  timeout:
+    seconds: '{{ length if length > 0 else 300 }}'
+  continue_on_timeout: false
+- variables:
+    _action_id: '{{ wait.trigger.event.data.action_id | default('''') }}'
+    _trigger_cid: '{{ wait.trigger.event.data.cid | default('''') }}'
+- condition: template
+  value_template: '{{ _trigger_cid == _cid }}'
+- choose:
+  - conditions:
+    - condition: template
+      value_template: '{{ _action_id == action_1_id and action_1_action | length >
+        0 }}'
+    sequence: !input action_1_action
+  - conditions:
+    - condition: template
+      value_template: '{{ _action_id == action_2_id and action_2_action | length >
+        0 }}'
+    sequence: !input action_2_action
+  - conditions:
+    - condition: template
+      value_template: '{{ _action_id == action_3_id and action_3_action | length >
+        0 }}'
+    sequence: !input action_3_action
