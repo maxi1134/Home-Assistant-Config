@@ -18,6 +18,29 @@
           {% endif %}
 
 
+      - name: "Motion Inside Home"
+        unique_id: motion_inside_home
+        delay_off:
+          minutes: 1
+        state: >                   
+          {% set occupancy_sensors = states.binary_sensor | selectattr('attributes.device_class', 'eq', 'occupancy') | selectattr('state', 'eq', 'on')|rejectattr('entity_id', 'search', 'parking')|  rejectattr('entity_id', 'search', 'patio')| rejectattr('entity_id', 'search', 'door') |map(attribute='entity_id')  | list %}
+          {{ occupancy_sensors | count > 0 }}
+        attributes:
+          last_active: >
+            {% set sensors = integration_entities('group')     
+              | select('search', 'motion_occupancy')  
+              | reject('search', 'group_hotbox_motion_occupancy') 
+              | select('is_state','on') 
+              | list 
+            %}  
+            {{ area_name(expand(sensors) 
+              | sort(reverse=true, attribute="last_changed") 
+              | map(attribute='entity_id') 
+              | list 
+              | first 
+              | default(this.state | default(None))) | lower }}
+        
+
       - name: "All residents Sleeping"
         unique_id: all_residents_sleeping
         delay_off:
@@ -309,7 +332,7 @@
           {% if state_attr('media_player.universal_home_speakers', 'media_series_title') %}
             {{ state_attr('media_player.universal_home_speakers', 'media_series_title') }}
           {% elif  state_attr('media_player.universal_home_speakers', 'media_album_name') %}
-           {{ state_attr('media_player.universal_home_speakers', 'media_title') }}  -  {{ state_attr('media_player.group_home_speakers', 'media_album_name') }} by {{ state_attr('media_player.group_home_speakers', 'media_artist') }}
+           {{ state_attr('media_player.universal_home_speakers', 'media_title') }}  -  {{ state_attr('media_player.universal_home_speakers', 'media_album_name') }} by {{ state_attr('media_player.universal_home_speakers', 'media_artist') }}
           {% elif  state_attr('media_player.universal_home_speakers', 'media_title') %}
             {{ state_attr('media_player.universal_home_speakers', 'media_title') }}
            {% elif  state_attr('media_player.universal_home_speakers', 'app_name') %}
@@ -470,8 +493,7 @@
               | reject('search', 'group_hotbox_motion_occupancy') 
               | select('is_state','on') 
               | list 
-              %}
-  
+              %}  
               {{ area_name(expand(sensors) 
               | sort(reverse=true, attribute="last_changed") 
               | map(attribute='entity_id') 

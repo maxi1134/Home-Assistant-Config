@@ -791,26 +791,25 @@
 - id: '1713631370622'
   alias: Turn off Closet fan after 5 minutes of non occupancy
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - binary_sensor.group_closet_motion_occupancy
-    from: 'on'
-    to: 'off'
+    from:
+    - 'on'
+    to:
+    - 'off'
     for:
       hours: 0
-      minutes: 5
+      minutes: 10
       seconds: 0
-  condition:
-  - condition: state
-    entity_id: input_boolean.sleeper_in_closet
-    state: 'off'
-  action:
-  - service: switch.turn_off
-    metadata: {}
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
     data: {}
     target:
       entity_id: switch.plug_closet_fan
+    action: switch.turn_off
   mode: single
 - id: '1713719722990'
   alias: Conditionally Unmute Speakers when a room is occupied
@@ -1562,7 +1561,7 @@
       alias: If the front door light is off
   mode: restart
 - id: '1715103309573'
-  alias: Control workshopTablet charging
+  alias: Control workshop Tablet charging
   description: ''
   triggers:
   - entity_id:
@@ -1576,7 +1575,7 @@
       above: 90
     - condition: numeric_state
       entity_id: sensor.workshop_tablet_battery
-      below: 15
+      below: 30
   actions:
   - choose:
     - conditions:
@@ -1592,13 +1591,19 @@
     - conditions:
       - condition: numeric_state
         entity_id: sensor.workshop_tablet_battery
-        below: 15
+        below: 30
       sequence:
       - metadata: {}
         data: {}
         target:
           entity_id: switch.plug_workshop_tablet
         action: switch.turn_on
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: '10'
+        target:
+          entity_id: number.workshop_tablet_screen_brightness
   mode: single
 - id: '1715664801848'
   alias: Auto close closet tablet screen when someone is sleeping
@@ -3618,8 +3623,9 @@
   triggers:
   - trigger: state
     entity_id:
-    - binary_sensor.everything_presence_lite_ef3b6c_beige_couch_occupancy
-    to: 'on'
+    - binary_sensor.everything_presence_lite_ef3b6c_zone_1_occupancy
+    to:
+    - 'on'
   - trigger: state
     entity_id:
     - media_player.universal_workshop_chromecast
@@ -3637,8 +3643,9 @@
   - condition: or
     conditions:
     - condition: state
-      state: 'on'
-      entity_id: binary_sensor.everything_presence_lite_ef3b6c_beige_couch_occupancy
+      state:
+      - 'on'
+      entity_id: binary_sensor.everything_presence_lite_ef3b6c_zone_1_occupancy
   actions:
   - action: light.turn_on
     metadata: {}
@@ -3654,8 +3661,9 @@
   triggers:
   - trigger: state
     entity_id:
-    - binary_sensor.everything_presence_lite_ef3b6c_beige_couch_occupancy
-    to: 'off'
+    - binary_sensor.everything_presence_lite_ef3b6c_zone_1_occupancy
+    to:
+    - 'off'
   - trigger: state
     entity_id:
     - media_player.universal_workshop_chromecast
@@ -3670,8 +3678,9 @@
     - condition: and
       conditions:
       - condition: state
-        entity_id: binary_sensor.everything_presence_lite_ef3b6c_beige_couch_occupancy
-        state: 'off'
+        entity_id: binary_sensor.everything_presence_lite_ef3b6c_zone_1_occupancy
+        state:
+        - 'off'
     - condition: state
       entity_id: media_player.universal_workshop_chromecast
       state: 'off'
@@ -5887,7 +5896,10 @@
       hours: 0
       minutes: 0
       seconds: 2
-  conditions: []
+  conditions:
+  - condition: numeric_state
+    entity_id: sensor.closet_tablet_battery
+    above: 50
   actions:
   - variables:
       brightness: '{{ trigger.to_state.attributes.brightness | default(''0'', true)  }}
@@ -6182,18 +6194,8 @@
       minutes: 3
       seconds: 0
       milliseconds: 0
-  - action: notify.mobile_app_phone_maxi_fold7
-    data:
-      title: Back Horn Started
-      message: Back horn started
-      data:
-        ttl: 0
-        priority: high
-        channel: alarm_stream
-        actions:
-        - action: stop_parking_horn
-          title: Stop the horn?
-        image: /media/local/parking_horn_check.png
+  - action: notify.mobile_app_phone_maxi
+    data: {}
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
       context: {}
@@ -6509,18 +6511,18 @@
       minutes: 0
       seconds: 3
       milliseconds: 0
-  - action: notify.mobile_app_phone_maxi_fold7
+  - action: notify.mobile_app_phone_maxi
     data:
-      title: Back Horn Started
-      message: Back horn started
       data:
-        ttl: 0
-        priority: high
-        channel: alarm_stream
+        image: /media/local/back_horn_check.png
         actions:
         - action: stop_horn
           title: Stop the horn?
-        image: /media/local/back_horn_check.png
+        channel: security_alerts_notifications
+        ttl: 0
+        priority: high
+      title: Security breach
+      message: Back horn started
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
       context: {}
@@ -7883,7 +7885,7 @@
   conditions:
   - condition: numeric_state
     entity_id: sensor.workshop_tablet_battery
-    above: 15
+    above: 30
   - condition: state
     entity_id: input_boolean.sleeper_in_workshop
     state: 'off'
@@ -8290,6 +8292,7 @@
         data: {}
         target:
           entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+        continue_on_error: true
       - delay:
           hours: 0
           minutes: 0
@@ -8920,10 +8923,71 @@
       target:
         entity_id:
         - light.group_lounge_lights
-  - action: google_assistant_sdk.send_text_command
+  - action: remote.turn_off
     metadata: {}
-    data:
-      command: Power off Salon TV
+    target:
+      entity_id: remote.lounge_roku_tv
+    data: {}
+  - if:
+    - condition: or
+      conditions:
+      - condition: state
+        entity_id: sensor.maxi_location_by_petro_v2
+        state:
+        - salon
+      - condition: state
+        entity_id: sensor.myriam_location_by_petro
+        state:
+        - salon
+    then:
+    - action: media_player.unjoin
+      metadata: {}
+      data: {}
+      target:
+        entity_id: media_player.wiim_salon_linkplay
+    - delay:
+        hours: 0
+        minutes: 0
+        seconds: 1
+        milliseconds: 0
+    - data:
+        media:
+          media_content_id: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
+          media_content_type: audio
+          metadata: {}
+      action: media_player.play_media
+      target:
+        entity_id: media_player.mass_salon_airplay_wiim_speaker
+    - metadata: {}
+      data:
+        is_volume_muted: true
+      action: media_player.volume_mute
+      target:
+        entity_id: media_player.universal_salon_speakers
+    - action: media_player.volume_set
+      metadata: {}
+      data:
+        volume_level: 0.46
+      target:
+        entity_id: media_player.mass_salon_airplay_wiim_speaker
+    - metadata: {}
+      data:
+        is_volume_muted: false
+      action: media_player.volume_mute
+      target:
+        entity_id: media_player.universal_salon_speakers
+  - action: light.turn_off
+    metadata: {}
+    target:
+      entity_id:
+      - light.esp32_s3_box_3_05a8d4_screen
+      - light.salon_assistant_0505ec_screen
+    data: {}
+  - action: switch.turn_off
+    metadata: {}
+    target:
+      entity_id: switch.salon_desk_tablet_screen
+    data: {}
   mode: single
 - id: '1749333829084'
   alias: undo Sleeper action in salon when sleeper turns off
@@ -11299,7 +11363,7 @@
           entity_id: light.group_hotbox_lights
   mode: single
 - id: '1753302685762'
-  alias: Adjust Kitchen Tablet brightness to mathc the lights
+  alias: Adjust Kitchen Tablet brightness to match the lights
   description: ''
   triggers:
   - trigger: state
@@ -12154,18 +12218,8 @@
           priority: high
         title: Security breach
       action: notify.mobile_app_phone_myriam
-  - action: notify.mobile_app_phone_maxi_fold7
-    data:
-      title: Back Horn Started
-      message: Back horn started
-      data:
-        ttl: 0
-        priority: high
-        channel: alarm_stream
-        actions:
-        - action: stop_parking_horn
-          title: Stop the horn?
-        image: /media/local/parking_horn_check.png
+  - action: notify.mobile_app_phone_maxi
+    data: {}
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
       context: {}
@@ -14673,4 +14727,150 @@
     data: {}
     target:
       entity_id: cover.cover_kitchen_curtains
+  mode: single
+- id: '1764891085092'
+  alias: Alert when Airfryer has finished
+  description: ''
+  triggers:
+  - entity_id:
+    - sensor.plug_kitchen_airfryer_electric_consumption_w
+    above: 100
+    trigger: numeric_state
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.maxi_sleeping
+    state: 'off'
+  - condition: state
+    entity_id: binary_sensor.all_present_sleeping
+    state: 'off'
+  - condition: state
+    entity_id: input_boolean.cooking_mode
+    state: 'off'
+  actions:
+  - wait_for_trigger:
+    - entity_id:
+      - sensor.plug_kitchen_airfryer_electric_consumption_w
+      for:
+        hours: 0
+        minutes: 0
+        seconds: 5
+      below: 5
+      trigger: numeric_state
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 20
+      seconds: 0
+      milliseconds: 0
+    enabled: true
+  - if:
+    - condition: state
+      entity_id: binary_sensor.group_kitchen_motion_occupancy
+      state: 'off'
+    then:
+    - action: script.non_important_broadcast_alert_in_the_house
+      data:
+        message: AirFryer finished
+  mode: restart
+- id: '1765730839407'
+  alias: Control closet tablet screen to avoid full discharge
+  description: ''
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - sensor.closet_tablet_battery
+    above: 95
+  - trigger: numeric_state
+    entity_id:
+    - sensor.closet_tablet_battery
+    below: 50
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.closet_tablet_battery
+        below: 15
+      - condition: state
+        entity_id: switch.closet_tablet_screen
+        state: 'on'
+      sequence:
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: '1'
+        target:
+          entity_id: number.closet_tablet_screen_brightness
+      - action: switch.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: switch.closet_tablet_screen
+        enabled: true
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.closet_tablet_battery
+        below: 50
+      - condition: state
+        entity_id: switch.closet_tablet_screen
+        state: 'on'
+      sequence:
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: '25'
+        target:
+          entity_id: number.closet_tablet_screen_brightness
+  mode: single
+- id: '1765731514294'
+  alias: Control bedroom tablet screen to avoid full discharge
+  description: When the bedroom tablet battery drops below 50%, reduce screen brightness
+    to 25% if it's on. If battery falls below 15%, set brightness to 1% and turn screen
+    off to preserve battery life.
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - sensor.bedroom_tablet_battery
+    above: 95
+  - trigger: numeric_state
+    entity_id:
+    - sensor.bedroom_tablet_battery
+    below: 50
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.bedroom_tablet_battery
+        below: 15
+      - condition: state
+        entity_id: switch.bedroom_tablet_screen
+        state: 'on'
+      sequence:
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: '1'
+        target:
+          entity_id: number.bedroom_tablet_screen_brightness
+      - action: switch.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: switch.bedroom_tablet_screen
+        enabled: true
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.bedroom_tablet_battery
+        below: 50
+      - condition: state
+        entity_id: switch.bedroom_tablet_screen
+        state: 'on'
+      sequence:
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: '25'
+        target:
+          entity_id: number.bedroom_tablet_screen_brightness
   mode: single

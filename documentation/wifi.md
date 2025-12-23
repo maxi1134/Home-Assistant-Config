@@ -62,12 +62,13 @@ Running a homelab is not always easy, especially when comes time to route, segre
 |[Twinkly Strings ](https://twinkly.com/en-ca/products/strings-multicolor?variant=42970659061982)| Smart Lights | :heavy_check_mark: | Very bright and adressable | 3 |
 |[Roborock Qrevo Curv S5X ](https://ca.roborock.com/products/roborock-qrevo-curv-s5x)| RobotVac | :heavy_check_mark: | Changed my life | 1 |
 |[ESP32](https://www.espressif.com/en/products/modules/esp32)| Micro-Controller | :heavy_check_mark:  | Used as BLE trackers with the 'Bermuda' integration | 17 |
+|[Motorola Moto Z3 Play ](https://en.wikipedia.org/wiki/Moto_Z3_Play)| Phone| :heavy_check_mark:  | Used as front door display | 1 |
 |[Samsung Galaxy Tab S7 FE ](https://www.samsung.com/ca/support/model/SM-T733NZKAXAC/)| Tablet| :heavy_check_mark:  | Used as Hallway dashboard | 1 |
-|[Samsung Galaxy Tab A7 Lite ](https://www.samsung.com/us/business/support/owners/product/galaxy-tab-a-7-lite-wi-fi/)| Tablet | :heavy_check_mark:  | Used as lounge desk dashboard | 1 
-|[Samsung Galaxy Tab E](https://www.samsung.com/ca/support/model/SM-T377WZKAXAC/)| Tablet | :heavy_check_mark:  | Used as Closet and Kitchen  dashboards | 2
-|[Samsung Galaxy Tab A8](https://www.samsung.com/ca/tablets/galaxy-tab-a/galaxy-tab-a8-wifi-dark-gray-64gb-sm-x200nzaexac/)| Tablet | :heavy_check_mark:  | Used as workshop dashboard | 1 
-|[Samsung Galaxy S6 Lite ](https://www.samsung.com/ca/tablets/galaxy-tab-s/galaxy-tab-s6-lite-gray-64gb-sm-p620nzaaxac/)| Tablet | :heavy_check_mark:  | Used as kitchen dashboard | 1 
-|[Aqara FP2 MMWave sensor](https://www.amazon.ca/Aqara-Positioning-Multi-Person-Detection-Assistant/dp/B0BXWZMQJ3)| Presence Sensor | :heavy_check_mark:  | Used for their zoning capacities in a room | 2
-|[Everything Presence Lite ](https://shop.everythingsmart.io/products/everything-presence-lite)| Presence Sensor | :heavy_check_mark:  | Used for their zoning capacities in a room | 6
-|[ESP32-S3-BOX-3 ](https://www.espressif.com/en/dev-board/esp32-s3-box-3-en)| Voice Assistant| :heavy_check_mark:  | Custom Voice Assistant EndPoints | 6
-|[ Home Assistant Voice Preview Edition ](https://www.home-assistant.io/voice-pe/)| Voice Assistant | :heavy_check_mark:  | Home Assistant Voice Assistant EndPoints | 2
+|[Samsung Galaxy Tab A7 Lite ](https://www.samsung.com/us/business/support/owners/product/galaxy-tab-a-7-lite-wi-fi/)| Tablet | :heavy_check_mark:  | Used as lounge desk dashboard | 1 |
+|[Samsung Galaxy Tab A8](https://www.samsung.com/ca/tablets/galaxy-tab-a/galaxy-tab-a8-wifi-dark-gray-64gb-sm-x200nzaexac/)| Tablet | :heavy_check_mark:  | Used as workshop dashboard | 1 |
+|[Samsung Galaxy S6 Lite ](https://www.samsung.com/ca/tablets/galaxy-tab-s/galaxy-tab-s6-lite-gray-64gb-sm-p620nzaaxac/)| Tablet | :heavy_check_mark:  | Used as kitchen dashboard | 1 |
+|[Lenovo Tab M8 TB-8505F ](https://www.gsmarena.com/lenovo_tab_m8_(hd)-9825.php)| Tablet | :heavy_check_mark:  | Used as various secondary dashboards | 5 |
+|[Aqara FP2 MMWave sensor](https://www.amazon.ca/Aqara-Positioning-Multi-Person-Detection-Assistant/dp/B0BXWZMQJ3)| Presence Sensor | :heavy_check_mark:  | Used for their zoning capacities in a room | 1 |
+|[Everything Presence Lite ](https://shop.everythingsmart.io/products/everything-presence-lite)| Presence Sensor | :heavy_check_mark:  | Used for their zoning capacities in a room | 6|
+|[ESP32-S3-BOX-3 ](https://www.espressif.com/en/dev-board/esp32-s3-box-3-en)| Voice Assistant| :heavy_check_mark:  | Custom Voice Assistant EndPoints | 6|
+|[ Home Assistant Voice Preview Edition ](https://www.home-assistant.io/voice-pe/)| Voice Assistant | :heavy_check_mark:  | Home Assistant Voice Assistant EndPoints | |
