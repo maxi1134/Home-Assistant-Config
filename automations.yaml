@@ -14874,3 +14874,180 @@
         target:
           entity_id: number.bedroom_tablet_screen_brightness
   mode: single
+- id: '1766609371758'
+  alias: Start turning lights on before maxi's alarm rings on week days for work
+  description: ''
+  triggers:
+  - trigger: time
+    at:
+      entity_id: sensor.phone_maxi_next_alarm
+      offset: -00:03:00
+    weekday:
+    - mon
+    - tue
+    - wed
+    - thu
+    - fri
+  conditions:
+  - condition: time
+    after: 07:30:00
+    before: 09:30:00
+    weekday:
+    - fri
+    - thu
+    - wed
+    - tue
+    - mon
+  actions:
+  - action: light.turn_on
+    metadata: {}
+    target:
+      entity_id: '{{ area_entities(states(''sensor.where_is_maxi_sleeping'')) | select(''search'',''^light.group'')|
+        reject(''search'', ''uv_lamp'') | list  }}
+
+        '
+    data:
+      transition: 600
+      color_temp_kelvin: 3311
+      brightness_pct: 75
+  - delay:
+      hours: 0
+      minutes: 45
+      seconds: 0
+      milliseconds: 0
+  mode: single
+- id: '1766696453789'
+  alias: Trippy Light Random Colors Effect automation
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.trippy_lights_effect
+    from:
+    - 'off'
+    - 'on'
+  - trigger: state
+    entity_id:
+    - input_number.trippy_lights_effect_speed
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 5
+  conditions:
+  - condition: state
+    entity_id: input_boolean.trippy_lights_effect
+    state:
+    - 'on'
+  - condition: state
+    entity_id: input_boolean.trippy_warm_colors_effect
+    state:
+    - 'off'
+  actions:
+  - alias: Trippy Lights Effect Sequence
+    sequence:
+    - variables:
+        lights: '{{ integration_entities(''group'')|  select(''search'', ''light.group_all_lights'')   |
+          expand | selectattr("attributes.hs_color", "defined") |  selectattr("state",
+          "eq", "on") | map(attribute=''entity_id'')  | list }}
+
+          '
+    - repeat:
+        while:
+        - condition: state
+          entity_id: input_boolean.trippy_lights_effect
+          state:
+          - 'on'
+        sequence:
+        - repeat:
+            for_each: '{{lights}}'
+            sequence:
+            - action: light.turn_on
+              metadata: {}
+              data:
+                transition: '{{ states(''input_number.trippy_lights_effect_speed'')}}'
+                hs_color: '{{ range(0, 360) | random }},{{ states(''input_number.trippy_lights_color_saturation'')}}'
+              target:
+                entity_id: '{{repeat.item}}'
+        - delay: 00:00:{{ states('input_number.trippy_lights_effect_speed')}}
+  - sequence:
+    - action: adaptive_lighting.apply
+      metadata: {}
+      data:
+        lights: '{{ lights }}
+
+          '
+        transition: '3'
+        adapt_brightness: true
+        adapt_color: true
+        turn_on_lights: true
+    alias: Restore Lights Sequence
+  mode: restart
+- id: '1766696890398'
+  alias: Trippy Warm colors effect for all lights
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.trippy_warm_colors_effect
+    from:
+    - 'off'
+    - 'on'
+  - trigger: state
+    entity_id:
+    - input_number.trippy_warm_colors_effect_speed
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 5
+  conditions:
+  - condition: state
+    entity_id: input_boolean.trippy_warm_colors_effect
+    state:
+    - 'on'
+  - condition: state
+    entity_id: input_boolean.trippy_lights_effect
+    state:
+    - 'off'
+  actions:
+  - alias: Trippy Lights Effect Sequence
+    sequence:
+    - variables:
+        lights: '{{ integration_entities(''group'')|  select(''search'', ''light.group_all_lights'')   |
+          expand | selectattr("attributes.hs_color", "defined") |  selectattr("state",
+          "eq", "on") | map(attribute=''entity_id'')  | list }}
+
+          '
+    - repeat:
+        while:
+        - condition: state
+          entity_id: input_boolean.trippy_warm_colors_effect
+          state:
+          - 'on'
+        sequence:
+        - repeat:
+            for_each: '{{lights}}'
+            sequence:
+            - action: light.turn_on
+              metadata: {}
+              data:
+                transition: '{{ states(''input_number.trippy_warm_colors_effect_speed'')}}'
+                hs_color: '{% set hue_under_20 = range(1, 20) | random | string  |
+                  string %}{% set hue_over_260 = range(260, 360) | random | string  |
+                  string%} {% set random = range(1, 3) | random %}{% if random ==
+                  1 %}{{hue_under_20 }}{% elif random > 1 %}{{hue_over_260}}{%endif%},{{states(''input_number.trippy_warm_colors_effect_saturation'')}}'
+              target:
+                entity_id: '{{repeat.item}}'
+        - delay: 00:00:{{ states('input_number.trippy_warm_colors_effect_speed')}}
+  - sequence:
+    - action: adaptive_lighting.apply
+      metadata: {}
+      data:
+        lights: '{{ lights }}
+
+          '
+        transition: '3'
+        adapt_brightness: true
+        adapt_color: true
+        turn_on_lights: true
+    alias: Restore Lights Sequence
+  mode: restart

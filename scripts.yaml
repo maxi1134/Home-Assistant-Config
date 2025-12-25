@@ -2865,3 +2865,41 @@ quickbars_display_notification:
           target:
             entity_id: input_text.front_door_phone_text
   description: ''
+trippy_lights_effect_script:
+  sequence:
+  - variables:
+      lights: '{{ integration_entities(''group'')|  select(''search'', ''light.group_all_lights'')   |
+        expand | selectattr("attributes.hs_color", "defined") |  selectattr("state",
+        "eq", "on") | map(attribute=''entity_id'')  | list }}
+
+        '
+  - repeat:
+      while:
+      - condition: state
+        entity_id: input_boolean.trippy_lights_effect
+        state:
+        - 'on'
+      sequence:
+      - repeat:
+          for_each: '{{lights}}'
+          sequence:
+          - action: light.turn_on
+            metadata: {}
+            data:
+              transition: '{{ states(''input_number.trippy_lights_effect_speed'')}}'
+              hs_color: '{{ range(0, 360) | random }},{{ states(''input_number.trippy_lights_color_saturation'')}}'
+            target:
+              entity_id: '{{repeat.item}}'
+      - delay: 00:00:{{ states('input_number.trippy_lights_effect_speed')}}
+  - action: adaptive_lighting.apply
+    metadata: {}
+    data:
+      lights: '{{ lights }}
+
+        '
+      transition: '3'
+      adapt_brightness: true
+      adapt_color: true
+      turn_on_lights: true
+  alias: Trippy Lights Effect script
+  description: ''
