@@ -10,8 +10,8 @@
 | ----------- | ----------- | -----------  |
 | CPU      | Ryzen 5560U    |   
 | RAM      | 16GB   |   
-| USB1   | Sonoff Zigbee 3.0 Stick     |  Zigbee devices |
-| USB2   | Zooz Zwave 800      |  Zwave devices |
+| USB1   | Nabu Casa ZBT-2   |  Zigbee devices |
+| USB2   | Nabu Casa ZWA-2    |  Zwave devices |
 | SSD1   | 500GB NVMe    |  Operating Systems |
 | UPS|      950VA |
 
