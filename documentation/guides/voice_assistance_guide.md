@@ -24,7 +24,7 @@ I recommend using a good machine with access to a GPU with at least 12 GB of Vra
 (This can run also with as low as 3-4gb! Using Llama 3.2 or other small 3b models )  
 I also personally think that it's better to keep the model loaded in the host at all time for speedy reaction times on our satellites. 
 
-**Here an example of the IDLE VRAM usage for  `Ollama` with the `qwen3:4b-instruct-2507-q4_K_M ` model:**
+**Here an example of the IDLE VRAM usage for  `Ollama` with the `qwen3:4b-instruct-2507-q4_K_M ` LLM model and `faster-whisper-large-v3`STT model running:**
 ```
 Fri Jan  2 00:36:34 2026
 +-----------------------------------------------------------------------------------------+
