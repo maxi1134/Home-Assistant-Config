@@ -41,6 +41,7 @@
 | HDDs   | 7*8TB       |  Plex Storage|
 | SSD1   | 2TB PCIe3 M.2      |  Operating Systems |
 | SSD2   | 500GB PCIe3 M.2        |  Incoming Download Cache |
+| SSD3   | 1*2TB       |  Nextcloud Storage | 
 | UPS|      1500VA |
 
 ## Proxmox Cluster Hosts Specifications
