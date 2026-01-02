@@ -24,18 +24,18 @@ I recommend using a good machine with access to a GPU with at least 12 GB of Vra
 (This can run also with as low as 3-4gb! Using Llama 3.2 or other small 3b models )  
 I also personally think that it's better to keep the model loaded in the host at all time for speedy reaction times on our satellites. 
 
-**Here an example of the IDLE VRAM usage for  `Ollama` with the `qwen2.5:7b-instruct-q8_0` model:**
+**Here an example of the IDLE VRAM usage for  `Ollama` with the `qwen3:4b-instruct-2507-q4_K_M ` model:**
 ```
-
+Fri Jan  2 00:36:34 2026
 +-----------------------------------------------------------------------------------------+
-| NVIDIA-SMI 570.86.16              Driver Version: 570.86.16      CUDA Version: 12.8     |
-|-----------------------------------------+------------------------+----------------------+
+| NVIDIA-SMI 580.95.05              Driver Version: 580.95.05      CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
 | GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
 | Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
 |                                         |                        |               MIG M. |
 |=========================================+========================+======================|
 |   0  NVIDIA GeForce RTX 3090        Off |   00000000:01:00.0 Off |                  N/A |
-| 69%   60C    P2            210W /  370W |    9579MiB /  24576MiB |      0%      Default |
+|  0%   36C    P8             17W /  370W |    9527MiB /  24576MiB |      0%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
 
@@ -44,8 +44,10 @@ I also personally think that it's better to keep the model loaded in the host at
 |  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
 |        ID   ID                                                               Usage      |
 |=========================================================================================|
-|    0   N/A  N/A         2724508      C   ...a_v12_avx/ollama_llama_server       9570MiB |
+|    0   N/A  N/A            1713      C   python3                                4052MiB |
+|    0   N/A  N/A            1991      C   /usr/local/bin/ollama                  5460MiB |
 +-----------------------------------------------------------------------------------------+
+
 
 
 ```
@@ -61,13 +63,13 @@ In order to do so, simply run this command:
 
 Once Ollama if installed, we will need to pull the model we want to use.
 
-I recommend using `qwen2.5:7b-instruct-q8_0` if you can spare the VRAM. 
-( ~10gb of it).
+I recommend using `qwen3:4b-instruct-2507-q4_K_M ` if you can spare the VRAM. 
+( ~6gb of it).
 
 If you happen to be more VRAM-limited, you can also try using a Llama3.2 model, which run on 3B parameters. (should run on a 6GB GPU, maybe even 4GB with a lower Quantization) 
 
 You can do so with:
-`ollama pull qwen2.5:7b-instruct-q8_0`
+`ollama pull qwen3:4b-instruct-2507-q4_K_M `
 or
 `ollama pull llama3.2:3b-instruct-q8_0`
 
@@ -102,7 +104,7 @@ _____
   - 2: Click on `Voice Assistants`.
   - 3: Click on `Add Assistant`
   - 4: Enter the name `LLM Voice Assistant`
-  - 5: Select `llama3.2` or `qwen2.5:7b-instruct-q8_0`
+  - 5: Select `llama3.2` or `qwen3:4b-instruct-2507-q4_K_M `
   - 6: Check `Prefer handling commands locally` so it is on.
   - 7: Select your `Speech-to-text` [service](https://www.home-assistant.io/integrations/Whisper).
   - 8: Select your `Text-to-speech` [service](https://www.home-assistant.io/integrations/piper/).
