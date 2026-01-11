@@ -223,7 +223,7 @@
       sequence:
       - metadata: {}
         data:
-          message: Vacuum Stuck
+          message: Vacuum Stuck in "{{states('sensor.roborock_qrevo_curv_series_current_room')}}"
         action: script.non_important_broadcast_alert_in_the_house
       - delay:
           hours: 0
@@ -941,6 +941,8 @@
       minutes: 0
       seconds: 0
     trigger: state
+    to:
+    - 'on'
   conditions:
   - alias: Make sure no sleeper is present
     condition: template
@@ -1858,6 +1860,15 @@
       hours: 0
       minutes: 0
       seconds: 2
+    trigger: state
+  - entity_id:
+    - binary_sensor.front_door_camera_package_occupancy
+    to:
+    - 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 1
     trigger: state
   conditions:
   - condition: state
@@ -5082,6 +5093,33 @@
                 entity_id: sensor.active_speakers_rooms
                 state: '[''bathroom'']'
           sequence:
+          - action: media_player.volume_mute
+            metadata: {}
+            data:
+              is_volume_muted: true
+            target:
+              entity_id: media_player.universal_bathroom_speakers
+        default:
+        - sequence:
+          - alias: Wait until bathroom occupancy is off
+            wait_for_trigger:
+            - trigger: state
+              entity_id:
+              - binary_sensor.group_bathroom_motion_occupancy
+              to:
+              - 'off'
+              from:
+              - 'on'
+              for:
+                hours: 0
+                minutes: 0
+                seconds: 15
+            continue_on_timeout: false
+            timeout:
+              hours: 1
+              minutes: 10
+              seconds: 0
+              milliseconds: 0
           - action: media_player.volume_mute
             metadata: {}
             data:
@@ -15282,3 +15320,229 @@
         adapt_color: true
         turn_on_lights: true
   mode: restart
+- id: '1767392175958'
+  alias: Closet kitchen curtain upon sunset
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sun.sun
+    from: above_horizon
+    to: below_horizon
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+  conditions: []
+  actions:
+  - action: cover.close_cover
+    metadata: {}
+    data: {}
+    target:
+      entity_id: cover.cover_kitchen_curtains
+  mode: single
+- id: '1767743397238'
+  alias: Mute Bathroom Speaker Muzak v3
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.group_bathroom_motion_occupancy
+    from:
+    - 'on'
+    to:
+    - 'off'
+  - trigger: state
+    entity_id:
+    - binary_sensor.sensor_bathroom_door_contact
+    from:
+    - 'off'
+    - 'on'
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.sensor_bathroom_door_contact
+    state:
+    - 'on'
+  actions:
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: binary_sensor.group_bathroom_motion_occupancy
+        state: 'on'
+      sequence:
+      - choose:
+        - conditions:
+          - condition: not
+            conditions:
+            - condition: state
+              entity_id: sensor.active_chromecast_rooms
+              state: '[]'
+              alias: If there is no active chromecast
+          sequence:
+          - action: media_player.volume_mute
+            metadata: {}
+            target:
+              entity_id: media_player.universal_bathroom_speakers
+            data:
+              is_volume_muted: true
+          alias: If any chromecast is playing
+        - conditions:
+          - condition: state
+            entity_id: media_player.universal_kitchen_speakers
+            state:
+            - playing
+            - 'on'
+            - buffering
+          - condition: state
+            entity_id: media_player.universal_workshop_speakers
+            state:
+            - playing
+            - 'on'
+            - buffering
+            enabled: true
+          - condition: state
+            entity_id: media_player.universal_hallway_speakers
+            state:
+            - playing
+            - 'on'
+            - buffering
+            enabled: true
+          sequence:
+          - action: media_player.volume_mute
+            metadata: {}
+            target:
+              entity_id: media_player.universal_bathroom_speakers
+            data:
+              is_volume_muted: true
+          alias: If a nearby speaker is playing
+        - conditions:
+          - condition: state
+            entity_id: sensor.active_chromecast_rooms
+            state: '[]'
+            alias: If there is no active chromecast
+          - condition: state
+            entity_id: sensor.active_speakers_rooms
+            state:
+            - '[''bathroom'']'
+            alias: If only the bathroom is an active speaker
+          sequence:
+          - wait_for_trigger:
+            - trigger: state
+              entity_id:
+              - binary_sensor.group_bathroom_motion_occupancy
+              to:
+              - 'off'
+              for:
+                hours: 0
+                minutes: 1
+                seconds: 0
+          - action: media_player.volume_mute
+            metadata: {}
+            target:
+              entity_id: media_player.universal_bathroom_speakers
+            data:
+              is_volume_muted: true
+          alias: If only the bathroom speaker is playing
+        default:
+        - sequence:
+          - alias: Wait until bathroom occupancy is off
+            wait_for_trigger:
+            - trigger: state
+              entity_id:
+              - binary_sensor.group_bathroom_motion_occupancy
+              to:
+              - 'off'
+              from:
+              - 'on'
+              for:
+                hours: 0
+                minutes: 0
+                seconds: 15
+            continue_on_timeout: false
+          - action: media_player.volume_mute
+            metadata: {}
+            data:
+              is_volume_muted: true
+            target:
+              entity_id: media_player.universal_bathroom_speakers
+    - conditions:
+      - condition: state
+        entity_id: binary_sensor.group_bathroom_motion_occupancy
+        state: 'off'
+      sequence:
+      - action: media_player.volume_mute
+        metadata: {}
+        data:
+          is_volume_muted: true
+        target:
+          entity_id: media_player.universal_bathroom_speakers
+  mode: parallel
+  max: 2
+- id: '1767744894962'
+  alias: Automatically adjust bathroom volume on unmute
+  description: Uses the script 'Speaker Automatic Volume Adjustment script'
+  triggers:
+  - trigger: state
+    entity_id:
+    - media_player.mass_bathroom_speaker
+    attribute: is_volume_muted
+    from:
+    - true
+    to:
+    - false
+  conditions: []
+  actions:
+  - variables:
+      trigger_speaker: '{{ trigger.entity_id }}
+
+        '
+  - action: script.speaker_automatic_volume_adjustment_script
+    metadata: {}
+    data:
+      received_speaker: '{{trigger_speaker}}
+
+        '
+  mode: parallel
+  trace:
+    stored_traces: 30
+  max: 10
+- id: '1768062570998'
+  alias: Turn on Waiting Pakidge when Intelcom emails me and off when it arrives
+  description: ''
+  triggers:
+  - trigger: event
+    event_type: imap_content
+    event_data: {}
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ ''ici une heure'' in trigger.event.data.subject }}'
+        alias: When {{ 'ici une heure' in trigger.event.data.subject }} is true
+      sequence:
+      - action: input_boolean.turn_on
+        metadata: {}
+        target:
+          entity_id: input_boolean.waiting_pakidge
+        data: {}
+      alias: When package is nearing
+    - conditions:
+      - condition: template
+        value_template: '{{ ''Votre colis est arriv'' in trigger.event.data.subject
+          }}'
+        alias: When {{ 'Votre colis est arriv' in trigger.event.data.subject }} is
+          true
+      sequence:
+      - delay:
+          hours: 0
+          minutes: 10
+          seconds: 0
+          milliseconds: 0
+      - action: input_boolean.turn_off
+        metadata: {}
+        target:
+          entity_id: input_boolean.waiting_pakidge
+        data: {}
+      alias: When package arrives
+  mode: single

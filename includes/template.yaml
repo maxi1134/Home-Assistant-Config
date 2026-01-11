@@ -549,12 +549,13 @@
       - name: "active_chromecast_rooms"
         unique_id: "active_chromecast_rooms"
         state: >-
-            {{ integration_entities('universal')     |    select('search', 'chromecast') |  select('is_state','playing') | list | expand     | rejectattr('entity_id', 'search', 'home') | map(attribute='entity_id') | unique | list | replace('media_player.universal_','') | replace('_chromecast','')   }}
+            {{ integration_entities('universal')     |    select('search', 'chromecast') | list | expand      | selectattr('attributes.app_id', 'defined')|    rejectattr('attributes.app_id','search', 'A078F6B0')| map(attribute='entity_id') |  select('is_state','playing') | list | expand     | rejectattr('entity_id', 'search', 'home') | map(attribute='entity_id') | unique | list | replace('media_player.universal_','') | replace('_chromecast','')   }} 
         attributes:
           muted_rooms: >-
-            {{ integration_entities('universal')     |    select('search', 'chromecast') | select('is_state','playing') | list | expand |  selectattr('attributes.is_volume_muted', 'eq', true)     | rejectattr('entity_id', 'search', 'home') | map(attribute='entity_id')| unique | list | replace('media_player.universal_','')  | replace('_chromecast','')  }}
+            {{ integration_entities('universal')     |    select('search', 'chromecast') | list | expand      | selectattr('attributes.app_id', 'defined')|    rejectattr('attributes.app_id','search', 'A078F6B0')| select('is_state','playing') | list | expand |  selectattr('attributes.is_volume_muted', 'eq', true)     | rejectattr('entity_id', 'search', 'home') | map(attribute='entity_id')| unique | list | replace('media_player.universal_','')  | replace('_chromecast','')  }}
           unmuted_rooms: >-
-            {{ integration_entities('universal')     |    select('search', 'chromecast') | select('is_state','playing') | list | expand |  selectattr('attributes.is_volume_muted', 'eq', false)  | rejectattr('entity_id', 'search', 'home')    | map(attribute='entity_id')| unique| list | replace('media_player.universal_','')  | replace('_chromecast','')  }}
+            {{ integration_entities('universal')     |    select('search', 'chromecast') | list | expand      | selectattr('attributes.app_id', 'defined')|    rejectattr('attributes.app_id','search', 'A078F6B0')| select('is_state','playing') | list | expand |  selectattr('attributes.is_volume_muted', 'eq', false)     | rejectattr('entity_id', 'search', 'home') | map(attribute='entity_id')| unique | list | replace('media_player.universal_','')  | replace('_chromecast','')  }}
+
 
       - name: "active_speakers_rooms"
         unique_id: "active_speakers_rooms"
@@ -1110,74 +1111,6 @@
             {% endfor %}            
               {{ ns.results | sort(attribute='1', reverse=True) | map(attribute='0') | first | default }}
 
-      - name: "Maxi Location by petro_old"
-        unique_id: maxi_location_by_petro_old
-        state: >-
-            {% set info = [
-              ('watch', 'device_tracker.maxi_watch_4_espresense', 'sensor.watch_galaxy4'),
-              ('bracelet', 'device_tracker.maxi_bracelet_espresense', 'sensor.b7bracelet1'),
-              ('phone', 'device_tracker.maxi_phone_s24_espresense', 'sensor.phone_s24'),
-              
-            ] %}          
-            {% set gpslocation = states('device_tracker.phone_maxi') | lower %}         
-            {% set ns = namespace(rooms=[], results=[]) %}
-            {% for name, room, sensor in info if (name == 'watch' and is_state('binary_sensor.galaxy_watch_4_on_body_sensor', 'on') and is_state('sensor.galaxy_watch4_2n0f_charger_type', 'none') ) or 
-                                                 (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on')) or
-                                                 (name == 'bracelet' )                                                     
-            %}
-              {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
-                {% if room != 'not_home' and room != 'main floor' and room  != 'unknown' and room  != 'home' and room!= 'unavailable' %}
-                  {% set ns.rooms = ns.rooms + [(name, room.split('_').0)] %}
-                {% endif %}                
-                {% if sensor != 'not_home' and sensor != 'main floor' and sensor  != 'unknown' and sensor  != 'home' and sensor != 'unavailable' %}
-                  {% set ns.rooms = ns.rooms + [(name, sensor.split('_').0)] %}
-                {% endif %}              
-            {% endfor %}
-            {% if is_state('binary_sensor.maxi_alone', 'on') %}
-              {% set ns.rooms = ns.rooms + [('last',states('sensor.last_active_room')|lower)] %}
-            {% endif %}            
-            {% for room, items in ns.rooms | groupby(attribute='1') %}
-               {% set ns.results = ns.results + [(room, items | map(attribute='0') | list | length)] %}
-            {% endfor %}            
-            {% if is_state('device_tracker.phone_maxi', 'home') %}
-              {{ ns.results | sort(attribute='1', reverse=True) | map(attribute='0') | first | default }}
-            {% elif gpslocation != "home" and gpslocation != "away" %}
-              At {{gpslocation}}
-            {% else %}
-              not_home
-            {% endif %}  
-        attributes:
-          rooms: >
-            {% set info = [
-              ('watch', 'device_tracker.watch_galaxy4', 'sensor.watch_galaxy4'),
-              ('bracelet', 'device_tracker.b7bracelet1', 'sensor.b7bracelet1'),
-              ('phone', 'device_tracker.phone_s24', 'sensor.phone_s24'),
-              ('watch_espresense', 'device_tracker.maxi_watch_4_espresense', 'sensor.maxi_watch_4_espresense'),
-              ('bracelet_espresense', 'device_tracker.maxi_bracelet_espresense', 'sensor.maxi_bracelet_espresense'),
-              ('phone_espresense', 'device_tracker.maxi_phone_s24_espresense', 'sensor.maxi_phone_s24_espresense'),
-              
-            ] %}       
-            {% set gpslocation = states('device_tracker.phone_maxi') | lower %}         
-            {% set ns = namespace(rooms=[], results=[]) %}
-            {% for name, room, sensor in info if ( name != 'watch' or (name == 'watch' and is_state('binary_sensor.galaxy_watch_4_on_body_sensor', 'on') and is_state('sensor.galaxy_watch4_2n0f_charger_type', 'none') )) and (name != 'phone' or (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on') )) %}
-              {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
-                {% if room != 'not_home' and room != 'main floor' and room  != 'unknown' and room  != 'home' and room!= 'unavailable' %}
-                  {% set ns.rooms = ns.rooms + [(name, room)] %}
-                {% endif %}                
-                {% if sensor != 'not_home' and sensor != 'main floor' and sensor  != 'unknown' and sensor  != 'home' and sensor != 'unavailable' %}
-                  {% set ns.rooms = ns.rooms + [(name, sensor)] %}
-                {% endif %}              
-            {% endfor %}
-            {% if is_state('binary_sensor.maxi_alone', 'on') %}
-              {% set ns.rooms = ns.rooms + [('last',states('sensor.last_active_room')|lower)] %}
-            {% endif %}            
-            {% for room, items in ns.rooms | groupby(attribute='1') %}
-               {% set ns.results = ns.results + [(room, items | map(attribute='0') | list )] %}
-            {% endfor %}   
-            {%- for room, devices in ns.results %}
-              '{{ room }}': {{ devices | tojson | replace('[','(') | replace(']',')') }}{{ ',' if not loop.last }}
-            {%- endfor %}
-
 
 
 
@@ -1192,8 +1125,8 @@
             ] %}          
             {% set gpslocation = states('device_tracker.phone_maxi') | lower %}         
             {% set ns = namespace(rooms=[], results=[]) %}
-            {% for name, room, sensor in info if (name == 'watch' and is_state('binary_sensor.galaxy_watch_4_on_body_sensor', 'on') and is_state('sensor.galaxy_watch4_2n0f_charger_type', 'none') ) or 
-                                                 (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on')) or
+            {% for name, room, sensor in info if (name == 'watch' and is_state('binary_sensor.maxi_watch_on_body_sensor', 'on') and is_state('sensor.maxi_watch_charger_type', 'none') ) or 
+                                                 (name == 'phone' and is_state('sensor.maxi_watch_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on')) or
                                                  (name == 'bracelet' )                                                     
             %}
               {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
@@ -1216,7 +1149,7 @@
               At {{gpslocation}}
             {% else %}
               not_home
-            {% endif %}  
+            {% endif %} 
         attributes:
           rooms: >
             {% set info = [
@@ -1224,10 +1157,10 @@
               ('bracelet', 'sensor.bermuda_maxi_ankle_monitor_bps_zone', 'sensor.bermuda_maxi_ankle_monitor_area'),
               ('phone', 'sensor.bermuda_maxi_phone_bps_zone', 'sensor.bermuda_maxi_phone_area'),
               
-            ] %}        
+            ] %}          
             {% set gpslocation = states('device_tracker.phone_maxi') | lower %}         
             {% set ns = namespace(rooms=[], results=[]) %}
-            {% for name, room, sensor in info if ( name != 'watch' or (name == 'watch' and is_state('binary_sensor.galaxy_watch_4_on_body_sensor', 'on') and is_state('sensor.galaxy_watch4_2n0f_charger_type', 'none') )) and (name != 'phone' or (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on') )) %}
+            {% for name, room, sensor in info if ( name != 'watch' or (name == 'watch' and is_state('binary_sensor.maxi_watch_on_body_sensor', 'on') and is_state('sensor.maxi_watch_charger_type', 'none') )) and (name != 'phone' or (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on') )) %}
               {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
                 {% if room != 'not_home' and room != 'main floor' and room  != 'unknown' and room  != 'home' and room!= 'unavailable' %}
                   {% set ns.rooms = ns.rooms + [(name, room)] %}
