@@ -104,5 +104,5 @@ Each node contains 2 CPUS; The shown config is per CHASSIS.
 | Backyard Camera   |  RLC-520A     |  |
 | Parking Camera  | RLC-520A  |  Sketchy Parking camera |
 | PArking Exit Camera   | RLC-1224A   |  Sketchy Parking exit camera |
-
 | Back Door Camera   | RLC-1212A   |   |
+
