@@ -37,7 +37,7 @@
 | RAM      | 128Gb   |   |
 | GPU1   | Nvidia P4000     | Jellyfin Transcoding |
 | GPU2   | Nvidia RTX 5050     | Nextcloud Transcoding |
-| GPU2   | Nvidia RTX 3090        |  Machine Learning |
+| GPU3   | Nvidia RTX 3090        |  Machine Learning |
 | HDDs   | 7*8TB       |  Plex Storage|
 | SSD1   | 2TB PCIe3 M.2      |  Operating Systems |
 | SSD2   | 500GB PCIe3 M.2        |  Incoming Download Cache |
@@ -105,3 +105,4 @@ Each node contains 2 CPUS; The shown config is per CHASSIS.
 | Parking Camera  | RLC-520A  |  Sketchy Parking camera |
 | PArking Exit Camera   | RLC-1224A   |  Sketchy Parking exit camera |
 | Back Door Camera   | RLC-1212A   |   |
+
