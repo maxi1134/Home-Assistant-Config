@@ -533,6 +533,10 @@
     - condition: state
       entity_id: media_player.universal_workshop_chromecast
       state: playing
+  - condition: state
+    entity_id: binary_sensor.sensor_bathroom_door_contact
+    state:
+    - 'on'
   actions:
   - action: media_player.shuffle_set
     metadata: {}
@@ -857,7 +861,7 @@
         ''speakers'') | select(''is_state'',''playing'') | unique | list }}
 
         '
-      average_volume: '{{ states(''sensor.average_unmuted_speakers_volume'')}}
+      average_volume: '{{ states(''sensor.template_average_unmuted_speakers_volume'')}}
 
         '
   - metadata: {}
@@ -918,6 +922,11 @@
       - button.workshop_tablet_load_start_url
       - button.closet_tablet_load_start_url
       - button.tablet_kitchen_s6_lite_load_start_url
+      - button.bedroom_tablet_load_start_url
+      - button.front_door_phone_load_start_url
+      - button.hallway_desk_tablet_load_start_url
+      - button.salon_desk_tablet_load_start_url
+      - button.server_tablet_load_start_url
     action: button.press
   mode: single
 - id: '1713824382107'
@@ -1131,7 +1140,7 @@
         hours: 0
         minutes: 10
         seconds: 0
-      below: 0.1
+      below: 0.01
       trigger: numeric_state
     continue_on_timeout: false
   - metadata: {}
@@ -4521,7 +4530,7 @@
     above: 0
   conditions:
   - condition: numeric_state
-    entity_id: sensor.average_unmuted_speakers_volume
+    entity_id: sensor.template_average_unmuted_speakers_volume
     above: 0.4
   - condition: state
     entity_id: input_boolean.party_mode
@@ -4600,7 +4609,7 @@
   conditions: []
   actions:
   - variables:
-      average_volume: '{{ states(''sensor.average_unmuted_speakers_volume'')}}'
+      average_volume: '{{ states(''sensor.template_average_unmuted_speakers_volume'')}}'
       unmuted_speakers: '{{ state_attr(''sensor.active_speakers_rooms'',''unmuted_rooms'')}}'
   - choose:
     - conditions:
@@ -6068,7 +6077,7 @@
     data:
       group_members: "{{ speaker }} \n"
     target:
-      entity_id: media_player.mass_workshop_airplay_wiim_speaker
+      entity_id: media_player.group_mass_home_group_speakers
   mode: single
 - id: '1741317422533'
   alias: Adjust hallway tablet screen brigthess to match the lights
@@ -7700,13 +7709,10 @@
     entity_id: binary_sensor.sensor_bathroom_door_contact
     state: 'on'
   - condition: state
-    entity_id: media_player.bathroom_speaker
+    entity_id: media_player.universal_bathroom_speakers
     attribute: is_volume_muted
-    state: 'true'
-  - condition: state
-    entity_id: media_player.bathroom_speaker
-    attribute: app_name
-    state: Spotify
+    state:
+    - 'true'
   - condition: state
     entity_id: binary_sensor.group_bathroom_motion_occupancy
     state: 'off'
@@ -7744,7 +7750,7 @@
     data:
       is_volume_muted: true
     target:
-      entity_id: media_player.bathroom_speaker
+      entity_id: media_player.universal_bathroom_speakers
   mode: restart
 - id: '1747632525749'
   alias: Close salon blind sometimes after sun closes
@@ -11809,11 +11815,6 @@
     data: {}
     target:
       entity_id: remote.hotbox_roku
-  - action: switch.turn_on
-    metadata: {}
-    data: {}
-    target:
-      entity_id: switch.plug_lylou_galaxy_lamp
   mode: single
 - id: '1756568623181'
   alias: Dial Lounge Tree Automation New
@@ -12100,7 +12101,7 @@
   conditions:
   - condition: time
     after: 07:45:00
-    before: '20:45:00'
+    before: 08:45:00
   actions:
   - action: input_boolean.turn_off
     metadata: {}
@@ -14806,8 +14807,8 @@
       for:
         hours: 0
         minutes: 0
-        seconds: 5
-      below: 5
+        seconds: 20
+      below: 3
       trigger: numeric_state
     continue_on_timeout: false
     timeout:
@@ -14816,14 +14817,15 @@
       seconds: 0
       milliseconds: 0
     enabled: true
+  - action: script.non_important_broadcast_alert_in_the_house
+    data:
+      message: AirFryer finished
   - if:
     - condition: state
       entity_id: binary_sensor.group_kitchen_motion_occupancy
       state: 'off'
-    then:
-    - action: script.non_important_broadcast_alert_in_the_house
-      data:
-        message: AirFryer finished
+    then: []
+    enabled: false
   mode: restart
 - id: '1765730839407'
   alias: Control closet tablet screen to avoid full discharge
@@ -15545,4 +15547,128 @@
           entity_id: input_boolean.waiting_pakidge
         data: {}
       alias: When package arrives
+  mode: single
+- id: '1768863734220'
+  alias: Turn off patio lights at sunset when patio is empty
+  description: Turns off patio lights at sunset if the patio motion sensor shows no
+    occupancy. This prevents unnecessary lighting after dark when no one is present.
+  triggers:
+  - trigger: sun
+    event: sunset
+    offset: 0
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.group_patio_motion_occupancy
+    state:
+    - 'off'
+  actions:
+  - action: light.turn_off
+    metadata: {}
+    target:
+      entity_id: light.group_patio_lights
+    data: {}
+  mode: single
+- id: '1769570875542'
+  alias: Dim budha if someone is watching TV in salon from bed
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.salon_radar_occupancy_zone_2_occupancy
+    to:
+    - 'on'
+  - trigger: state
+    entity_id:
+    - media_player.universal_salon_chromecast
+    from:
+    to:
+    - playing
+  - trigger: state
+    entity_id:
+    - media_player.salon_roku_tv
+    attribute: app_id
+    to:
+    - tvinput.hdmi1
+  conditions:
+  - condition: state
+    entity_id: light.group_salon_buddha_statue_lights
+    state:
+    - 'on'
+  - condition: or
+    conditions:
+    - condition: not
+      conditions:
+      - condition: state
+        entity_id: media_player.universal_salon_chromecast
+        state:
+        - 'off'
+    - condition: state
+      entity_id: media_player.salon_roku_tv
+      state:
+      - tvinput.hdmi1
+      attribute: app_id
+  - condition: or
+    conditions:
+    - condition: state
+      state:
+      - 'on'
+      entity_id: binary_sensor.salon_radar_occupancy_zone_2_occupancy
+  actions:
+  - action: light.turn_on
+    metadata: {}
+    data:
+      transition: 2
+      brightness_pct: 1
+    target:
+      entity_id:
+      - light.group_salon_buddha_statue_lights
+  mode: single
+- id: '1769570986649'
+  alias: Undim budha lights when movie stops or people raise
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.salon_radar_occupancy_zone_2_occupancy
+    to:
+    - 'off'
+  - trigger: state
+    entity_id:
+    - media_player.universal_salon_chromecast
+    - media_player.salon_roku_tv
+    from:
+    to:
+    - 'off'
+  conditions:
+  - condition: state
+    entity_id: light.group_salon_buddha_statue_lights
+    state:
+    - 'on'
+  - condition: or
+    conditions:
+    - condition: and
+      conditions:
+      - condition: state
+        entity_id: binary_sensor.salon_radar_occupancy_zone_2_occupancy
+        state:
+        - 'off'
+    - condition: state
+      entity_id: media_player.universal_salon_chromecast
+      state:
+      - 'off'
+  - condition: state
+    entity_id: input_boolean.sleeper_in_salon
+    state:
+    - 'off'
+  actions:
+  - action: light.turn_on
+    metadata: {}
+    data:
+      transition: 5
+      brightness: '{{ state_attr("light.group_salon_main_lights", ''brightness'')
+        / 3 }}
+
+        '
+    target:
+      entity_id: light.group_salon_buddha_statue_lights
   mode: single

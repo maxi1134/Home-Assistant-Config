@@ -58,31 +58,20 @@
             %}
             {{ asleep_count >= 2 }}
 
-
-
-          
-      - name: "Sensor Patio Occupancy"
-        state: >
-         {{ not is_state('sensor.patio_camera_person_count', "0")
-             or  is_state('binary_sensor.sensor_patio_motion_occupancy', 'on')
-             or  is_state('binary_sensor.sensor_patio_ceiling_motion_occupancy', 'on')
-             }}
-
-
-
-
       - name: "maxi is talking"
         unique_id: "maxi_is_talking" 
         state: >-
            {{ ( states('binary_sensor.computer_maxi_pc_computer_maxi_pc_microphoneactive') == "on" or not is_state('sensor.phone_maxi_phone_state', "idle")
               or states('sensor.phone_maxi_audio_mode') != 'normal'and states('person.maximiliano') == 'home'
             ) }}
+
       - name: "myriam_is_listening_at_home"
         unique_id: "myriam_is_listening_at_home" 
         state: >-
            {{ ( ( is_state('sensor.phone_myriam_media_session', "playing") and states('person.myriam') == 'home' ) 
               or states('sensor.phone_myriam_audio_mode') != 'normal'and states('person.myriam') == 'home'
             ) }}
+
       - name: "myriam is talking"
         unique_id: "myriam_is_talking" 
         state: >-
@@ -152,22 +141,13 @@
             {{ state_attr('media_player.patio_chromecast', 'media_title') }}
           {% endif %}
         unique_id: playing_on_patio_tv
-      - name: "Playing on lounge TV"
-        state: >-
-          {% if state_attr('media_player.lounge_chromecast', 'media_series_title') %}
-            {{ state_attr('media_player.lounge_chromecast', 'media_series_title') }}
-            S{{ state_attr('media_player.lounge_chromecast', 'media_season') }}
-            E{{ state_attr('media_player.lounge_chromecast', 'media_episode') }}
-          {% elif  state_attr('media_player.lounge_chromecast', 'media_album_name') %}
-           {{ state_attr('media_player.lounge_chromecast', 'media_title') }}  -  {{ state_attr('media_player.lounge_chromecast', 'media_album_name') }} by {{ state_attr('media_player.lounge_chromecast', 'media_album_artist') }}
-          {% elif  state_attr('media_player.lounge_chromecast', 'media_title') %}
-            {{ state_attr('media_player.lounge_chromecast', 'media_title') }}
-          {% endif %}
-        unique_id: playing_on_lounge_tv
+
+
       - name: "Minutes since boot"
         state: >
           {{ (as_timestamp(now()) - as_timestamp(states('sensor.uptime'))) // 60|int }}
         unique_id: minutes_since_boot
+        
       - name: "Security All Clear"
         unique_id: security_all_clear
         state: >-
@@ -181,6 +161,8 @@
             Armed Away
           {% elif is_state('alarm_control_panel.home_alarm', 'armed_home') %}
             Armed Home
+          {% elif is_state('alarm_control_panel.home_alarm', 'armed_night') %}
+            Armed Night
           {% else %}
             Edgecase
           {% endif %}
@@ -200,24 +182,9 @@
           {% endif %}
           
 
-
-      - name: "Playing on Hotbox Down TV"
-        state: >-
-          {% if state_attr('media_player.hotbox_down_chromecast', 'media_series_title') %}
-            {{ state_attr('media_player.hotbox_down_chromecast', 'media_series_title') }}
-            S{{ state_attr('media_player.hotbox_down_chromecast', 'media_season') }}
-            E{{ state_attr('media_player.hotbox_down_chromecast', 'media_episode') }}
-          {% elif  state_attr('media_player.hotbox_down_chromecast', 'media_album_name') %}
-           {{ state_attr('media_player.hotbox_down_chromecast', 'media_title') }}  -  {{ state_attr('media_player.hotbox_down_chromecast', 'media_album_name') }} by {{ state_attr('media_player.hotbox_down_chromecast', 'media_album_artist') }}
-          {% elif  state_attr('media_player.hotbox_down_chromecast', 'media_title') %}
-            {{ state_attr('media_player.hotbox_down_chromecast', 'media_title') }}
-          {% endif %}
-        unique_id: playing_on_hotbox_down_tv
-
-
         
       - name: "Playing on workshop TV"
-        unique_id: playing_on_livingoom_tv
+        unique_id: playing_on_workshop_tv
         state: >-
           {# Displays the current media information of the workshop Chromecast. It checks for different types of media and formats them accordingly #}
           {% if state_attr('media_player.workshop_chromecast', 'media_series_title') %}
@@ -277,24 +244,6 @@
         unique_id: timer_remaining
 
 
-      - name: "average_unmuted_speakers_volume"
-        unique_id: "average_unmuted_speakers_volume"
-        state: >-
-          {% set array = states.media_player 
-          | selectattr('entity_id', 'search', 'speakers') 
-          | selectattr('entity_id', 'search', 'universal') 
-          | rejectattr('attributes.volume_level', 'eq', null) 
-          | rejectattr('entity_id', 'search', 'following|home|group') 
-          | rejectattr('attributes.is_volume_muted', 'eq', True) 
-          | selectattr('state', 'eq', 'playing') 
-          | map(attribute='attributes.volume_level') 
-          | list%}
-          {% if array != [] %}
-          {{ array | average }}
-          {% elif array == [] %}
-          0
-          {% endif %}
-        unit_of_measurement: percents
 
       - name: "Existing Rooms"
         unique_id: "existing_rooms"
@@ -306,14 +255,10 @@
         unique_id: "current_time"
         state: >-
           {{now().strftime('%H:%M %p')}}
-      - name: "Closet Lights Brightness"
-        unique_id: "closet_lights_brightness" 
-        state: >-
-          {% if state_attr('light.group_closet_lights', 'brightness')  %}
-            {{ state_attr('light.group_closet_lights', 'brightness') }}
-           {% else %}
-              1
-          {% endif %}
+          
+
+
+          
       - name: "Playing on Bedroom Speaker"
         unique_id: "playing_on_bedroom_speaker" 
         state: >-
@@ -969,29 +914,7 @@
         state: !secret plex_token
 
 
-      - name: "Maxi Location v3"
-        unique_id: maxi_location_v3
-        state: >-
-            {% set braceletroom = states('sensor.b7bracelet1') %}
-            {% set watchroom = states('sensor.watch_galaxy4') %}
-            {% set watchonbody = states('binary_sensor.galaxy_watch_4_on_body_sensor') %}
-            {% set gpslocation = states('device_tracker.phone_maxi') %}
-            {% set lastactiveroom = states('sensor.last_active_room') %}
-            {% set maxialone = states('binary_sensor.maxi_alone') %}
-            {% if maxialone == "off" %}
-              {% if watchonbody == "on" and watchroom != "not_home" %}                   
-                {% set location = watchroom %}
-              {% elif braceletroom != "not_home" %}      
-                {% set location = braceletroom %}
-              {% elif gpslocation != "not_home"%}
-                {% set location = "At " + gpslocation %}
-              {% else %}
-                {% set location = unknown %}
-              {% endif %}
-            {% else %}
-                {% set location = lastactiveroom %}
-            {% endif %}
-            {{ location.split ("_")  | first }}
+
 
 #     - name: "Maxi Location v4"
 #       unique_id: maxi_location_v4
@@ -1038,81 +961,6 @@
 #           {% endif %}
 #           {% set sorted_list = ns.counted_list|sort(attribute='amount', reverse=true) %}
 #           {{(sorted_list |  map(attribute='name')) | list  | first }}
-
-      - name: "Maxi Location v5"
-        unique_id: maxi_location_v5
-        state: >-
-            {% set ns = namespace(most_seen_room='') %}       
-            {% set lastactiveroom = states('sensor.last_active_room') %}     
-            {% set maxialone = states('binary_sensor.maxi_alone') %}
-            {% set braceletroom = states('sensor.b7bracelet1') %}
-            {% set braceletespresenseroom = states('device_tracker.maxi_bracelet_espresense') | lower%}            
-            {% set gpslocation = states('device_tracker.phone_maxi') | lower %}     
-            
-              {% if braceletroom == braceletespresenseroom %}
-                  {% set final_bracelet_room = braceletespresenseroom %}
-                {% else %}
-                  {% set final_bracelet_room = braceletroom %}
-              {% endif %}   
-              
-            {% set watchroom = states('sensor.watch_galaxy4') | lower %}
-            {% set watchespresenseroom = states('device_tracker.maxi_watch_4_espresense') | lower %}
-            {% set watchonbody = states('binary_sensor.galaxy_watch_4_on_body_sensor')| lower %}
-            
-            {% if (watchroom == watchespresenseroom) and (watchonbody =="on")%}
-                  {% set final_watch_room = watchespresenseroom %}
-                {% else %}
-                  {% set final_watch_room = watchroom %}
-              {% endif %}     
-              
-            {% set phoneroom = states('sensor.phone_s24') | lower%}
-            {% set phoneespresenseroom = states('device_tracker.maxi_phone_s24_espresense') | lower%}
-            
-            {% if phoneroom == phoneespresenseroom %}
-                  {% set final_phone_room = phoneespresenseroom %}
-                {% else %}
-                  {% set final_phone_room = phoneroom %}
-              {% endif %}    
-                     
-            {% set in_home_positions_array = [final_bracelet_room]  + [final_phone_room] %}   
-            
-            {% if watchonbody == 'on' %}
-              {% set in_home_positions_array = in_home_positions_array +  [final_watch_room] %}
-            {% endif %}  
-            
-            {% if maxialone == 'on' %}
-              {% set in_home_positions_array = in_home_positions_array +  [lastactiveroom] %}
-            {% endif %}    
-            
-            {% if gpslocation == 'home' and in_home_positions_array | unique | list | length == 1 %}
-                 {% set ns.most_seen_room =  in_home_positions_array | unique | first %}
-            {% elif gpslocation == 'home' and in_home_positions_array | unique | list | length > 1 %}
-                 {% set ns.most_seen_room =  in_home_positions_array |  statistical_mode  %}
-            {% endif %}
-            
-            {{ns.most_seen_room }}
-      - name: "Myriam Tablet Location Compounded"
-        unique_id: myriam_talet_location_compounded
-        state: >-
-            {% set info = [('tablet', 'sensor.bermuda_myriam_tablet_bps_zone', 'sensor.bermuda_myriam_tablet_area')] %}               
-            {% set ns = namespace(rooms=[], results=[]) %}
-            {% for name, room, sensor in info                                           
-            %}
-              {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
-                {% if room != 'not_home' and room != 'main floor' and room  != 'unknown' and room  != 'home' and room!= 'unavailable' %}
-                  {% set ns.rooms = ns.rooms + [(name, room.split('_').0)] %}
-                {% endif %}                
-                {% if sensor != 'not_home' and sensor != 'main floor' and sensor  != 'unknown' and sensor  != 'home' and sensor != 'unavailable' %}
-                  {% set ns.rooms = ns.rooms + [(name, sensor.split('_').0)] %}
-                {% endif %}              
-            {% endfor %}           
-            {% for room, items in ns.rooms | groupby(attribute='1') %}
-               {% set ns.results = ns.results + [(room, items | map(attribute='0') | list | length)] %}
-            {% endfor %}            
-              {{ ns.results | sort(attribute='1', reverse=True) | map(attribute='0') | first | default }}
-
-
-
 
       - name: "Maxi Location by petro"
         unique_id: maxi_location_by_petro

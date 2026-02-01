@@ -45,7 +45,7 @@ No more Zigbee drops, no more Z-Wave issues — just smooth, unified device mana
 | [WiFi & Networking](documentation/wifi.md) | VLANs, network architecture, buy-again notes, access strategies |
 | [Zigbee Devices](documentation/zigbee.md) | All my Zigbee devices, types, and placement |
 | [Indoor Localization](documentation/indoor_localization.md) | Presence via ESPresense, floorplans, and proximity tracking |
-| [Voice Assistant/LLM (Guide)](documentation/guides/voice_assistance_guide.md) | How to install and use voice assistant stack (Ollama, Open-WebUI, Home-LLM, ESPHOME) |
+| [Voice Assistant/LLM (Guide)](documentation/guides/voice_assistance_guide.md) | How to install and use voice assistant stack (Ollama,  ESPHOME) |
 | [General Thoughts](documentation/general_thoughts.md) | Lessons learned, network/POS planning, VLANs, and rants |
 | [Floorplan Creator for ESPresense](espresense/floorplan_creator/Readme.md) | A GUI tool and workflow for producing floorplans for ESP-based indoor localization |
 | [Work-in-Progress List](wip%20list.md) | Experiments, project backlog, and automation ideas |
