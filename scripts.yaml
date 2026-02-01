@@ -475,6 +475,20 @@ change_received_lights_to_random_colors:
       saturation: 100
   - repeat:
       sequence:
+      - variables:
+          current_hue: '{{ state_attr(repeat.item,''hs_color'') | first}}
+
+            '
+          wanted_hue: "{# Assuming current_hue is already defined, e.g., set current_hue
+            =\nstate_attr('light.living_room', 'hs_color')[0] #}\n{% set buffer =
+            25 %}\n{% set random_hue = range(0, 360) | random %}\n{# Logic: Check
+            if the absolute difference is > 15 AND < 345 (to handle the\n0/360 wrap-around)
+            #} \n{% set diff = (random_hue - current_hue) | abs %}\n{% if diff > buffer
+            and diff < (360 - buffer) %}\n  {% set wanted_hue_not_near_original =
+            random_hue %}\n{% else %}\n  {# If it's too close, we shift it by 180
+            degrees to the opposite side of the wheel #}\n  {% set wanted_hue_not_near_original
+            = (random_hue + 180) % 360 %}\n{% endif %}\n{{ wanted_hue_not_near_original
+            }}\n"
       - metadata: {}
         data:
           hs_color: '{{ range(1, 360) | random | string + '','' + saturation | string
