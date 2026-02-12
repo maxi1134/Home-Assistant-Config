@@ -468,10 +468,11 @@ change_received_lights_to_random_colors:
   sequence:
   - variables:
       lights: "{% if area %}  {{ [area | first]\n  | map('area_entities')\n  | sum(start=[])\n
-        \ | select('search', 'group_')\n  | select('search', '_lights')\n  | reject('search',
-        'decorative')\n  | reject('search', 'main')\n  | list | expand | map(attribute='entity_id')
-        | list  }}   \n\n{% else %}  {{ selected_group | expand | map(attribute='entity_id')
-        | list  }}  {% endif %}\n"
+        \ | select('search', 'group_')\n  | select('search', '_lights')\n  | expand\n
+        \ | selectattr('attributes.hs_color', 'defined')\n  | reject('search', 'decorative')\n
+        \ | reject('search', 'main')\n  | list | expand | map(attribute='entity_id')
+        | list  }}   \n\n{% else %} \n  {{ selected_group | expand | selectattr('attributes.hs_color',
+        'defined')| expand | map(attribute='entity_id') | list }} \n{% endif %}\n"
       saturation: 100
   - repeat:
       sequence:
@@ -1009,8 +1010,10 @@ in_home_defense_script:
     enabled: true
     action: switch.turn_on
   - data:
-      media_content_id: http://192.168.0.15:8123/local/civil-defense-siren.wav
-      media_content_type: music
+      media:
+        media_content_id: http://192.168.0.15:8123/local/civil-defense-siren.wav
+        media_content_type: music
+        metadata: {}
     action: media_player.play_media
     target:
       entity_id:
@@ -1028,7 +1031,7 @@ in_home_defense_script:
     target:
       entity_id:
       - media_player.universal_bedroom_speakers
-      - media_player.universal_closet_speaker
+      - media_player.universal_closet_speakers
       - media_player.universal_hallway_speakers
       - media_player.universal_kitchen_speakers
       - media_player.universal_workshop_speakers
@@ -1045,7 +1048,7 @@ in_home_defense_script:
         target:
           entity_id:
           - media_player.universal_bedroom_speakers
-          - media_player.universal_closet_speaker
+          - media_player.universal_closet_speakers
           - media_player.universal_hallway_speakers
           - media_player.universal_kitchen_speakers
           - media_player.universal_workshop_speakers
@@ -1353,7 +1356,8 @@ equalize_home_group_volume:
   alias: Equalize Home GRoup volume
   sequence:
   - variables:
-      average_volume: '{{ states(''sensor.template_average_unmuted_speakers_volume'')|float}}'
+      average_volume: '{{ states(''sensor.template_average_unmuted_speakers_volume'')|float
+        / 100}}'
       speakers:
       - media_player.universal_hallway_speakers
       - media_player.universal_kitchen_speakers
@@ -2186,6 +2190,14 @@ changes_all_existing_lights_to_white:
           entity_id: '{{all_on_lights[repeat.index - 1]}}'
         action: light.turn_on
       for_each: '{{ all_on_lights }}'
+    enabled: false
+  - metadata: {}
+    data:
+      kelvin: 4632
+      brightness_pct: 100
+    target:
+      entity_id: '{{all_on_lights}}'
+    action: light.turn_on
   - action: light.turn_off
     metadata: {}
     data: {}
