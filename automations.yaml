@@ -332,7 +332,6 @@
     entity_id: input_boolean.party_mode
     state: 'off'
   - condition: sun
-    before: sunrise
     after: sunset
   actions:
   - metadata: {}
@@ -1198,10 +1197,10 @@
   - repeat:
       sequence:
       - data:
-          lights:
-          - '{{lights[repeat.index - 1]}}'
+          selected_group:
+          - '{{repeat.item}}'
           saturation: 60
-        action: script.change_received_lights_to_random_colors
+        action: script.change_received_lights_to_random_pastel_colors
       for_each: '{{ lights }}'
   mode: single
 - id: '1714150045572'
@@ -1262,11 +1261,12 @@
     - media_player.universal_hallway_speakers
     - media_player.universal_workshop_speakers
     - media_player.universal_salon_speakers
-    - media_player.universal_closet_speaker
+    - media_player.universal_closet_speakers
     - media_player.universal_bedroom_speakers
     - media_player.universal_hotbox_speakers
     - media_player.group_mass_home_group_speakers
-    to: idle
+    to:
+    - idle
     for:
       hours: 0
       minutes: 15
@@ -4554,7 +4554,7 @@
   - alias: Lower volume if a cop is present and notify maxi
     if:
     - condition: template
-      value_template: '{{ "YES" in answer.reponse_text | upper }}'
+      value_template: '{{ "YES" in answer.response_text | upper }}'
     then:
     - metadata: {}
       data:
@@ -5707,9 +5707,11 @@
   triggers:
   - trigger: state
     entity_id:
-    - binary_sensor.all_present_sleeping
-    from: 'off'
-    to: 'on'
+    - binary_sensor.all_residents_sleeping
+    from:
+    - 'off'
+    to:
+    - 'on'
     for:
       hours: 0
       minutes: 30
@@ -5718,7 +5720,12 @@
   - condition: state
     entity_id: input_boolean.acid_time
     state: 'on'
-  actions: []
+  actions:
+  - action: input_boolean.turn_off
+    metadata: {}
+    target:
+      entity_id: input_boolean.acid_time
+    data: {}
   mode: single
 - id: '1740934326306'
   alias: 'Disable Waiting someone after an hour '
@@ -5748,8 +5755,8 @@
   - trigger: state
     entity_id:
     - input_boolean.sleeper_in_closet
-    from: 'off'
-    to: 'on'
+    to:
+    - 'on'
     for:
       hours: 10
       minutes: 0
@@ -5782,14 +5789,16 @@
     - trigger: state
       entity_id:
       - binary_sensor.group_patio_motion_occupancy
-      from: 'on'
-      to: 'on'
+      from:
+      - 'off'
+      to:
+      - 'on'
       for:
         hours: 0
-        minutes: 5
+        minutes: 25
         seconds: 0
     timeout:
-      hours: 2
+      hours: 3
       minutes: 0
       seconds: 0
       milliseconds: 0
@@ -6628,7 +6637,7 @@
       state: playing
   actions:
   - variables:
-      speaker_id: 'medias_player.universal_bathroom_speakers
+      speaker_id: 'media_player.universal_bathroom_speakers
 
         '
   - choose:
@@ -6832,12 +6841,14 @@
   - trigger: state
     entity_id:
     - binary_sensor.back_door_presence_person_occupancy
-    from: 'off'
-    to: 'on'
+    from:
+    - 'off'
+    to:
+    - 'on'
     for:
       hours: 0
       minutes: 0
-      seconds: 1
+      seconds: 2
   conditions:
   - condition: state
     entity_id: input_boolean.maxi_is_scared
@@ -6997,27 +7008,6 @@
       - switch.parking_exit_camera_audio_detection
   mode: single
 - id: '1744572115522'
-  alias: Turn on parking audio detection when patio occupancy is off
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - binary_sensor.group_patio_motion_occupancy
-    to: 'off'
-    for:
-      hours: 0
-      minutes: 1
-      seconds: 0
-  conditions: []
-  actions:
-  - action: switch.turn_on
-    metadata: {}
-    data: {}
-    target:
-      entity_id:
-      - switch.parking_exit_camera_audio_detection
-  mode: single
-- id: '1744572189762'
   alias: Turn on parking audio detection when patio occupancy is off
   description: ''
   triggers:
@@ -7997,12 +7987,12 @@
   - alias: Stop if myriam's tablet is active in the room
     condition: template
     value_template: '{% if (states(''binary_sensor.tablet_myriam_interactive'') ==
-      on and states(''sensor.myriam_talet_location_compounded'') | lower in [area_id(trigger.entity_id)]
+      ''on'' and states(''sensor.myriam_talet_location_compounded'') | lower in [area_id(trigger.entity_id)]
       | lower) %} false {% else %} true {%endif%}'
   - alias: Stop if myriam's phone is active in the room
     condition: template
     value_template: '{% if (states(''binary_sensor.phone_myriam_interactive'') ==
-      on and states(''sensor.bermuda_myriam_phone_area'') | lower in [area_id(trigger.entity_id)]
+      ''on'' and states(''sensor.bermuda_myriam_phone_area'') | lower in [area_id(trigger.entity_id)]
       | lower) %} false {% else %} true {%endif%}'
   - condition: state
     entity_id: input_boolean.kink_party
@@ -8191,9 +8181,9 @@
   - condition: not
     conditions:
     - condition: state
-      entity_id: sensor.hallway_tablet_current_page
-      attribute: full_url
-      state: http://192.168.0.15:8123/tablet-workshop-dashboard/main-view?kiosk=1
+      entity_id: sensor.workshop_tablet_current_page
+      state:
+      - http://192.168.0.15:8123/tablet-workshop-dashboard/main-view?kiosk=1
   actions:
   - action: button.press
     metadata: {}
@@ -8300,15 +8290,16 @@
       data: {}
       target:
         entity_id: climate.bedroom_ac
-    - action: media_player.media_stop
-      metadata: {}
-      data: {}
-      target:
+    - sequence:
+      - condition: state
         entity_id: media_player.universal_bedroom_speakers
-    - condition: state
-      entity_id: media_player.universal_bedroom_speakers
-      attribute: media_title
-      state: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
+        attribute: media_title
+        state: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
+      - action: media_player.media_stop
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.universal_bedroom_speakers
   mode: single
 - id: '1748845278340'
   alias: execute Sleep actions when "sleeper in bedroom" is turned on
@@ -8342,28 +8333,34 @@
         entity_id: light.home_assistant_voice_09e4a7_led_ring
     - if:
       - condition: template
-        value_template: '{{ state_attr(''media_player.universal_bedroom_speakers'',''media_title'')
-          != ''thunderstorm'' }} e'
-        enabled: false
+        value_template: '  {{ ''thunderstorm'' not in state_attr(''media_player.universal_bedroom_speakers'',''media_title'')  }}'
       then:
       - action: media_player.unjoin
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+          entity_id: media_player.mass_bedroom_wiim_speaker
         continue_on_error: true
       - delay:
           hours: 0
           minutes: 0
           seconds: 1
           milliseconds: 0
+      - action: media_player.volume_set
+        metadata: {}
+        data:
+          volume_level: 0.36
+        target:
+          entity_id:
+          - media_player.universal_bedroom_speakers
+          - media_player.mass_bedroom_wiim_speaker
       - data:
           media:
             media_content_id: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
             media_content_type: audio
             metadata: {}
         target:
-          entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+          entity_id: media_player.mass_bedroom_wiim_speaker
         action: media_player.play_media
       - metadata: {}
         data:
@@ -8374,11 +8371,11 @@
       - action: media_player.volume_set
         metadata: {}
         data:
-          volume_level: 0.46
+          volume_level: 0.36
         target:
           entity_id:
           - media_player.universal_bedroom_speakers
-          - media_player.mass_bedroom_airplay_wiim_speaker
+          - media_player.mass_bedroom_wiim_speaker
       - metadata: {}
         data:
           is_volume_muted: false
@@ -8394,11 +8391,6 @@
   alias: Control volume of kitchen to prevent noise in children room while she sleeps
   description: ''
   triggers:
-  - trigger: numeric_state
-    entity_id:
-    - media_player.wiim_kitchen_linkplay
-    attribute: volume_level
-    above: 29
   - trigger: state
     entity_id:
     - input_boolean.sleeper_in_hotbox
@@ -8413,7 +8405,7 @@
     entity_id: input_boolean.sleeper_in_hotbox
     state: 'on'
   - condition: time
-    after: '21:00:00'
+    after: '21:30:00'
     before: 09:00:00
   - condition: template
     value_template: '{{ state_attr(''media_player.universal_kitchen_speakers'',''volume_level'')
@@ -8855,13 +8847,13 @@
   description: ''
   triggers:
   - entity_id:
-    - media_player.mass_bedroom_airplay_wiim_speaker
-    - media_player.mass_closet_airplay_wiim_speaker
-    - media_player.mass_kitchen_airplay_wiim_speaker
-    - media_player.mass_lounge_airplay_wiim_speaker
-    - media_player.mass_workshop_airplay_wiim_speaker
-    - media_player.mass_salon_airplay_wiim_speaker
-    - media_player.mass_hallway_airplay_wiim_speaker
+    - media_player.mass_bedroom_wiim_speaker
+    - media_player.mass_closet_wiim_speaker
+    - media_player.mass_kitchen_wiim_speaker
+    - media_player.mass_lounge_wiim_speaker
+    - media_player.mass_workshop_wiim_speaker
+    - media_player.mass_salon_wiim_speaker
+    - media_player.mass_hallway_wiim_speaker
     - media_player.group_mass_home_group_speakers
     trigger: state
     attribute: media_title
@@ -8901,19 +8893,19 @@
       seconds: 0
   conditions:
   - condition: template
-    value_template: '{{ ''thunderstorm'' in state_attr(''media_player.mass_bedroom_airplay_wiim_speaker'',''media_title'')}}'
+    value_template: '{{ ''thunderstorm'' in state_attr(''media_player.mass_bedroom_wiim_speaker'',''media_title'')}}'
   actions:
   - action: media_player.clear_playlist
     metadata: {}
     data: {}
     target:
       entity_id:
-      - media_player.mass_bedroom_airplay_wiim_speaker
+      - media_player.mass_bedroom_wiim_speaker
   - action: media_player.turn_off
     metadata: {}
     data: {}
     target:
-      entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+      entity_id: media_player.mass_bedroom_wiim_speaker
   mode: single
 - id: '1749320320984'
   alias: Turn off cooking mode after 4 hours
@@ -9016,7 +9008,7 @@
           metadata: {}
       action: media_player.play_media
       target:
-        entity_id: media_player.mass_salon_airplay_wiim_speaker
+        entity_id: media_player.mass_salon_wiim_speaker
     - metadata: {}
       data:
         is_volume_muted: true
@@ -9028,7 +9020,7 @@
       data:
         volume_level: 0.46
       target:
-        entity_id: media_player.mass_salon_airplay_wiim_speaker
+        entity_id: media_player.mass_salon_wiim_speaker
     - metadata: {}
       data:
         is_volume_muted: false
@@ -9065,18 +9057,6 @@
       transition: 30
     target:
       entity_id: light.group_salon_lights
-  mode: single
-- id: '1749501515006'
-  alias: Back lock automation
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - lock.back_door
-    to:
-    from:
-  conditions: []
-  actions: []
   mode: single
 - id: '1749521213239'
   alias: Bedroom Hue Dial Automation
@@ -9218,8 +9198,6 @@
         target:
           entity_id: light.group_bedroom_lights
       - choose:
-        - conditions: []
-          sequence: []
         - conditions:
           - condition: state
             entity_id: light.group_bedroom_lights
@@ -9564,12 +9542,12 @@
   - trigger: state
     entity_id:
     - sensor.is_myriam_asleep
-    from: 'on'
-    to: 'Off'
+    from: asleep
+    to: awake
   - trigger: template
     value_template: '{{ ((state_attr(''sensor.phone_myriam_next_alarm'',''Time in
       Milliseconds'') / 1000 ) | int - now().timestamp() | int ) < 60 }} '
-    alias: 10  minutes before myriam's next alarm is due
+    alias: 1  minutes before myriam's next alarm is due
   conditions:
   - condition: template
     value_template: '{{  ((as_timestamp((now()) )   - (as_timestamp(trigger.from_state.last_changed))))
@@ -10045,7 +10023,7 @@
     path: EPMatt/ikea_e1744.yaml
     input:
       integration: Zigbee2MQTT
-      controller_device: 9d9748cd89c9e4b3a75fe13d8b2d461a
+      controller_device: 72b74294a3a7ebd904b6ae64f2eb5260
       helper_last_controller_event: input_text.dial_salon_helper
       action_rotate_left:
       - if:
@@ -10053,8 +10031,7 @@
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.media_player.universal_salon_speakers''
-            %}
+            {% set speaker = ''media_player.universal_salon_speakers'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10078,7 +10055,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_salon_airplay_wiim_speaker
+            entity_id: media_player.universal_salon_speakers
       - delay:
           hours: 0
           minutes: 0
@@ -10095,8 +10072,7 @@
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.media_player.universal_salon_speakers''
-            %}
+            {% set speaker = ''media_player.universal_salon_speakers'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10119,7 +10095,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_salon_airplay_wiim_speaker
+            entity_id: media_player.universal_salon_speakers
       - delay:
           hours: 0
           minutes: 0
@@ -10132,8 +10108,7 @@
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.media_player.universal_salon_speakers''
-            %}
+            {% set speaker = ''media_player.universal_salon_speakers'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10157,15 +10132,14 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_salon_airplay_wiim_speaker
+            entity_id: media_player.universal_salon_speakers
       action_click_double:
       - if:
         - alias: 'If a chromecast is present '
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.media_player.universal_salon_speakers''
-            %}
+            {% set speaker = ''media_player.universal_salon_speakers'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10189,15 +10163,14 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_salon_airplay_wiim_speaker
+            entity_id: media_player.universal_salon_speakers
       action_click_short:
       - if:
         - alias: 'If a chromecast is present '
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.media_player.universal_salon_speakers''
-            %}
+            {% set speaker = ''media_player.universal_salon_speakers'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10221,7 +10194,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_salon_airplay_wiim_speaker
+            entity_id: media_player.universal_salon_speakers
 - id: '1752638811178'
   alias: Dial Workshop Automation New
   description: ''
@@ -10259,7 +10232,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_workshop_airplay_wiim_speaker
+            entity_id: media_player.universal_workshop_speakers
       - delay:
           hours: 0
           minutes: 0
@@ -10297,7 +10270,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_workshop_airplay_wiim_speaker
+            entity_id: media_player.universal_workshop_speakers
       - delay:
           hours: 0
           minutes: 0
@@ -10332,7 +10305,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_workshop_airplay_wiim_speaker
+            entity_id: media_player.universal_workshop_speakers
       action_click_double:
       - if:
         - alias: 'If a chromecast is present '
@@ -10361,7 +10334,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_workshop_airplay_wiim_speaker
+            entity_id: media_player.universal_workshop_speakers
       action_click_short:
       - if:
         - alias: 'If a chromecast is present '
@@ -10390,7 +10363,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_workshop_airplay_wiim_speaker
+            entity_id: media_player.universal_workshop_speakers
 - id: '1752638839619'
   alias: Dial Workshop Wall Automation New
   description: ''
@@ -10428,7 +10401,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_workshop_airplay_wiim_speaker
+            entity_id: media_player.universal_workshop_speakers
       - delay:
           hours: 0
           minutes: 0
@@ -10466,7 +10439,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_workshop_airplay_wiim_speaker
+            entity_id: media_player.universal_workshop_speakers
       - delay:
           hours: 0
           minutes: 0
@@ -10501,7 +10474,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_workshop_airplay_wiim_speaker
+            entity_id: media_player.universal_workshop_speakers
       action_click_double:
       - if:
         - alias: 'If a chromecast is present '
@@ -10530,7 +10503,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_workshop_airplay_wiim_speaker
+            entity_id: media_player.universal_workshop_speakers
       action_click_short:
       - if:
         - alias: 'If a chromecast is present '
@@ -10559,62 +10532,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_workshop_airplay_wiim_speaker
-- id: '1752638895366'
-  alias: Dial Hallway Automation New
-  description: ''
-  use_blueprint:
-    path: EPMatt/ikea_e1744.yaml
-    input:
-      integration: Zigbee2MQTT
-      controller_device: 83c6d6773874bd6654223d9e400b0b86
-      helper_last_controller_event: input_text.dial_hallway_helper
-      action_rotate_left:
-      - action: media_player.volume_down
-        metadata: {}
-        data: {}
-        target:
-          entity_id: media_player.mass_hallway_airplay_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 201
-      action_rotate_left_stop: []
-      rotate_right_loop: true
-      rotate_left_loop: true
-      rotate_left_max_loop_repeats: 60
-      rotate_right_max_loop_repeats: 60
-      action_rotate_right:
-      - action: media_player.volume_up
-        metadata: {}
-        data: {}
-        target:
-          entity_id: media_player.mass_hallway_airplay_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 200
-      helper_debounce_delay: 0
-      action_click_triple:
-      - action: media_player.turn_off
-        metadata: {}
-        data: {}
-        target:
-          entity_id: media_player.mass_hallway_airplay_wiim_speaker
-      action_click_double:
-      - action: media_player.media_next_track
-        metadata: {}
-        data: {}
-        target:
-          entity_id: media_player.mass_hallway_airplay_wiim_speaker
-      action_click_short:
-      - action: media_player.media_play_pause
-        metadata: {}
-        data: {}
-        target:
-          entity_id: media_player.mass_hallway_airplay_wiim_speaker
+            entity_id: media_player.universal_workshop_speakers
 - id: '1752638946576'
   alias: Dial Salon window Automation New
   description: ''
@@ -10655,7 +10573,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_salon_airplay_wiim_speaker
+            entity_id: media_player.universal_salon_speakers
       - delay:
           hours: 0
           minutes: 0
@@ -10696,7 +10614,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_salon_airplay_wiim_speaker
+            entity_id: media_player.universal_salon_speakers
       - delay:
           hours: 0
           minutes: 0
@@ -10734,7 +10652,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_salon_airplay_wiim_speaker
+            entity_id: media_player.universal_salon_speakers
       action_click_double:
       - if:
         - alias: 'If a chromecast is present '
@@ -10766,7 +10684,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_salon_airplay_wiim_speaker
+            entity_id: media_player.universal_salon_speakers
       action_click_short:
       - if:
         - alias: 'If a chromecast is present '
@@ -10798,7 +10716,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_salon_airplay_wiim_speaker
+            entity_id: media_player.universal_salon_speakers
 - id: '1752639024754'
   alias: Dial Kitchen Automation New
   description: ''
@@ -10842,7 +10760,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_kitchen_airplay_wiim_speaker
+            entity_id: media_player.universal_kitchen_speakers
       - delay:
           hours: 0
           minutes: 0
@@ -10886,7 +10804,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_kitchen_airplay_wiim_speaker
+            entity_id: media_player.universal_kitchen_speakers
         enabled: true
       - delay:
           hours: 0
@@ -10928,7 +10846,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_kitchen_airplay_wiim_speaker
+            entity_id: media_player.universal_kitchen_speakers
       action_click_double:
       - if:
         - alias: 'If a chromecast is present '
@@ -10963,7 +10881,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_kitchen_airplay_wiim_speaker
+            entity_id: media_player.universal_kitchen_speakers
       action_click_short:
       - if:
         - alias: 'If a chromecast is present '
@@ -10998,186 +10916,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_kitchen_airplay_wiim_speaker
-- id: '1752639025461'
-  alias: Dial Kitchen Automation New
-  description: ''
-  use_blueprint:
-    path: EPMatt/ikea_e1744.yaml
-    input:
-      integration: Zigbee2MQTT
-      controller_device: 83c6d6773874bd6654223d9e400b0b86
-      helper_last_controller_event: input_text.dial_kitchen_helper
-      action_rotate_left:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
-          enabled: false
-        then:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.universal_kitchen_chromecast
-          enabled: false
-        else:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_kitchen_airplay_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 201
-      action_rotate_left_stop: []
-      rotate_right_loop: true
-      rotate_left_loop: true
-      rotate_left_max_loop_repeats: 60
-      rotate_right_max_loop_repeats: 60
-      action_rotate_right:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
-          enabled: false
-        then:
-        - action: media_player.volume_up
-          data: {}
-          target:
-            entity_id: media_player.universal_kitchen_chromecast
-          enabled: false
-        else:
-        - action: media_player.volume_up
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_kitchen_airplay_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 200
-      helper_debounce_delay: 0
-      action_click_triple:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
-          enabled: false
-        then:
-        - action: media_player.turn_off
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.universal_kitchen_chromecast
-          enabled: false
-        else:
-        - action: media_player.turn_off
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_kitchen_airplay_wiim_speaker
-      action_click_double:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
-          enabled: false
-        then:
-        - action: media_player.media_next_track
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.universal_kitchen_chromecast
-          enabled: false
-        else:
-        - action: media_player.media_next_track
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_kitchen_airplay_wiim_speaker
-      action_click_short:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
-          enabled: false
-        then:
-        - action: media_player.media_play_pause
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.universal_kitchen_chromecast
-          enabled: false
-        else:
-        - action: media_player.media_play_pause
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_kitchen_airplay_wiim_speaker
+            entity_id: media_player.universal_kitchen_speakers
 - id: '1752639270370'
   alias: Dial Lounge Automation New
   description: ''
@@ -11192,7 +10931,7 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.mass_lounge_airplay_wiim_speaker
+          entity_id: media_player.universal_lounge_speakers
       - delay:
           hours: 0
           minutes: 0
@@ -11208,7 +10947,7 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.mass_lounge_airplay_wiim_speaker
+          entity_id: media_player.universal_lounge_speakers
       - delay:
           hours: 0
           minutes: 0
@@ -11220,19 +10959,19 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.mass_lounge_airplay_wiim_speaker
+          entity_id: media_player.universal_lounge_speakers
       action_click_double:
       - action: media_player.media_next_track
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.mass_lounge_airplay_wiim_speaker
+          entity_id: media_player.universal_lounge_speakers
       action_click_short:
       - action: media_player.media_play_pause
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.mass_lounge_airplay_wiim_speaker
+          entity_id: media_player.universal_lounge_speakers
 - id: '1752801417034'
   alias: Lower lights to 30% when a movie is played
   description: ''
@@ -11335,27 +11074,6 @@
     subtype: on_hold
     trigger: device
     id: on_hold
-  - domain: mqtt
-    device_id: 35f630d9a5a8349ddc4a8090a85e3418
-    type: action
-    subtype: off_press
-    trigger: device
-    id: off_press
-    enabled: false
-  - domain: mqtt
-    device_id: 35f630d9a5a8349ddc4a8090a85e3418
-    type: action
-    subtype: off_press
-    trigger: device
-    id: off_press
-    enabled: false
-  - domain: mqtt
-    device_id: 35f630d9a5a8349ddc4a8090a85e3418
-    type: action
-    subtype: off_press
-    trigger: device
-    id: off_press
-    enabled: false
   - domain: mqtt
     device_id: 35f630d9a5a8349ddc4a8090a85e3418
     type: action
@@ -11830,7 +11548,7 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.mass_lounge_airplay_wiim_speaker
+          entity_id: media_player.universal_lounge_speakers
       - delay:
           hours: 0
           minutes: 0
@@ -11846,7 +11564,7 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.mass_lounge_airplay_wiim_speaker
+          entity_id: media_player.universal_lounge_speakers
       - delay:
           hours: 0
           minutes: 0
@@ -11858,19 +11576,19 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.mass_lounge_airplay_wiim_speaker
+          entity_id: media_player.universal_lounge_speakers
       action_click_double:
       - action: media_player.media_next_track
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.mass_lounge_airplay_wiim_speaker
+          entity_id: media_player.universal_lounge_speakers
       action_click_short:
       - action: media_player.media_play_pause
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.mass_lounge_airplay_wiim_speaker
+          entity_id: media_player.universal_lounge_speakers
 - id: '1757350225543'
   alias: Turn off cameras on screens when door is locked back
   description: ''
@@ -12253,47 +11971,77 @@
       filename: /media/parking_horn_check.png
     action: camera.snapshot
     target:
-      entity_id: camera.back_door_camera
-  - if:
-    - condition: state
-      entity_id: person.myriam
-      state: home
-    then:
-    - metadata: {}
-      data:
-        message: Back horn started
+      entity_id: camera.parking_exit_camera
+  - parallel:
+    - sequence:
+      - action: notify.mobile_app_phone_maxi
+        metadata: {}
         data:
-          image: /media/local/parking_horn_check.png
-          actions:
-          - action: stop_horn
-            title: Stop the horn?
-          channel: security_alerts_notifications
-          ttl: 0
-          priority: high
-        title: Security breach
-      action: notify.mobile_app_phone_myriam
-  - action: notify.mobile_app_phone_maxi
-    data: {}
-  - wait_for_trigger:
-    - event_type: mobile_app_notification_action
-      context: {}
-      event_data:
-        action: stop_parking_horn
-      trigger: event
-    continue_on_timeout: false
-    timeout:
-      hours: 0
-      minutes: 3
-      seconds: 0
-      milliseconds: 0
-  - action: siren.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: siren.parking_exit_camera_siren
+          message: Parking horn started
+          data:
+            image: /media/local/parking_horn_check.png
+            actions:
+            - action: stop_parking_horn
+              title: Stop the horn?
+            channel: security_alerts_notifications
+            ttl: 0
+            priority: high
+          title: Security breach
+      - wait_for_trigger:
+        - event_type: mobile_app_notification_action
+          context: {}
+          event_data:
+            action: stop_parking_horn
+          trigger: event
+        continue_on_timeout: false
+        timeout:
+          hours: 0
+          minutes: 3
+          seconds: 0
+          milliseconds: 0
+      - action: siren.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: siren.parking_exit_camera_siren
+    - if:
+      - condition: state
+        entity_id: person.myriam
+        state: home
+      then:
+      - metadata: {}
+        data:
+          message: Parking horn started
+          data:
+            image: /media/local/parking_horn_check.png
+            actions:
+            - action: stop_parking_horn
+              title: Stop the horn?
+            channel: security_alerts_notifications
+            ttl: 0
+            priority: high
+          title: Security breach
+        action: notify.mobile_app_phone_myriam
+      - wait_for_trigger:
+        - event_type: mobile_app_notification_action
+          context: {}
+          event_data:
+            action: stop_parking_horn
+          trigger: event
+        continue_on_timeout: false
+        timeout:
+          hours: 0
+          minutes: 3
+          seconds: 0
+          milliseconds: 0
+      - action: siren.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: siren.parking_exit_camera_siren
   mode: restart
 - id: '1760963671925'
-  alias: Disasrm alarm when sun rises if everyone present is awake
+  alias: Disarm alarm when sun rises if everyone present is awake
   description: ''
   triggers:
   - entity_id:
@@ -12310,8 +12058,9 @@
     entity_id: alarm_control_panel.home_alarm
     state: armed_night
   - condition: state
-    entity_id: binary_sensor.all_present_sleeping
-    state: 'off'
+    entity_id: binary_sensor.all_residents_sleeping
+    state:
+    - 'off'
   actions:
   - target:
       entity_id: alarm_control_panel.home_alarm
@@ -12343,8 +12092,10 @@
       entity_id:
       - input_boolean.live_concert
       id: '`'
-      to: 'off'
-      from: 'off'
+      to:
+      - 'off'
+      from:
+      - 'on'
       for:
         hours: 0
         minutes: 5
@@ -12389,8 +12140,10 @@
       entity_id:
       - input_boolean.live_concert
       id: '`'
-      to: 'off'
-      from: 'off'
+      to:
+      - 'off'
+      from:
+      - 'on'
       for:
         hours: 0
         minutes: 5
@@ -12504,7 +12257,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+            entity_id: media_player.mass_bedroom_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -12546,7 +12299,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+            entity_id: media_player.mass_bedroom_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -12585,7 +12338,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+            entity_id: media_player.mass_bedroom_wiim_speaker
       action_click_double:
       - if:
         - alias: 'If a chromecast is present '
@@ -12618,7 +12371,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+            entity_id: media_player.mass_bedroom_wiim_speaker
       action_click_short:
       - if:
         - alias: 'If a chromecast is present '
@@ -12651,7 +12404,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+            entity_id: media_player.mass_bedroom_wiim_speaker
 - id: '1763157128192'
   alias: Hotbox Hue Dial Automation
   description: ''
@@ -12830,28 +12583,28 @@
       sequence:
       - if:
         - condition: state
-          entity_id: media_player.universal_bedroom_chromecast
+          entity_id: media_player.universal_hotbox_chromecast
           state: 'off'
         then:
         - action: google_assistant_sdk.send_text_command
           metadata: {}
           data:
-            command: power off bedroom tv
+            command: power off hotbox tv
       - action: media_player.media_stop
         metadata: {}
         data: {}
         target:
-          area_id: bedroom
+          area_id: hotbox
       - action: media_player.clear_playlist
         metadata: {}
         data: {}
         target:
-          area_id: bedroom
+          area_id: hotbox
       - action: media_player.turn_off
         metadata: {}
         data: {}
         target:
-          area_id: bedroom
+          area_id: hotbox
     - conditions:
       - condition: trigger
         id:
@@ -12877,7 +12630,7 @@
         metadata: {}
         data: {}
         target:
-          entity_id: light.plug_bedroom_mirror_lamp
+          entity_id: light.plug_hotbox_mirror_lamp
     - conditions:
       - condition: trigger
         id:
@@ -12964,7 +12717,7 @@
     enabled: false
   mode: single
 - id: '1763283441940'
-  alias: New automation
+  alias: Adjust Bedroom Tablet brightness to match the lights
   description: ''
   triggers:
   - trigger: state
@@ -14806,8 +14559,8 @@
       - sensor.plug_kitchen_airfryer_electric_consumption_w
       for:
         hours: 0
-        minutes: 0
-        seconds: 20
+        minutes: 3
+        seconds: 0
       below: 3
       trigger: numeric_state
     continue_on_timeout: false
@@ -14834,11 +14587,12 @@
   - trigger: numeric_state
     entity_id:
     - sensor.closet_tablet_battery
-    above: 95
+    above: 50
+    below: 55
   - trigger: numeric_state
     entity_id:
     - sensor.closet_tablet_battery
-    below: 50
+    below: 15
   conditions: []
   actions:
   - choose:
@@ -15182,7 +14936,7 @@
     id: random_effect_on
     for:
       hours: 16
-      minutes: 16
+      minutes: 0
       seconds: 0
   - trigger: state
     entity_id:
@@ -15322,27 +15076,6 @@
         adapt_color: true
         turn_on_lights: true
   mode: restart
-- id: '1767392175958'
-  alias: Closet kitchen curtain upon sunset
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - sun.sun
-    from: above_horizon
-    to: below_horizon
-    for:
-      hours: 0
-      minutes: 10
-      seconds: 0
-  conditions: []
-  actions:
-  - action: cover.close_cover
-    metadata: {}
-    data: {}
-    target:
-      entity_id: cover.cover_kitchen_curtains
-  mode: single
 - id: '1767743397238'
   alias: Mute Bathroom Speaker Muzak v3
   description: ''
@@ -15671,4 +15404,231 @@
         '
     target:
       entity_id: light.group_salon_buddha_statue_lights
+  mode: single
+- id: '1772205343426'
+  alias: Alert when Dishwasher finishes and no one is in the kitchen
+  description: 'Triggers an alert when the dishwasher power consumption drops below
+    5W after being above 100W, Waits up to 20 minutes for confirmation before sending
+    the alert. '
+  triggers:
+  - entity_id:
+    - sensor.plug_kitchen_dishwasher_electric_consumption_w
+    above: 100
+    trigger: numeric_state
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.maxi_sleeping
+    state: 'off'
+  - condition: state
+    entity_id: binary_sensor.all_present_sleeping
+    state: 'off'
+  actions:
+  - wait_for_trigger:
+    - entity_id:
+      - sensor.plug_kitchen_dishwasher_electric_consumption_w
+      for:
+        hours: 0
+        minutes: 0
+        seconds: 5
+      below: 5
+      trigger: numeric_state
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 20
+      seconds: 0
+      milliseconds: 0
+    enabled: true
+  - action: script.non_important_broadcast_alert_in_the_house
+    data:
+      message: The Dishwasher has finished
+  mode: restart
+- id: '1772205443339'
+  alias: Alert when Toaster finishes
+  description: Triggers an alert when the kitchen toaster stops consuming power (indicating
+    it has finished heating) and no one is detected in the kitchen. Waits up to 20
+    minutes for confirmation that power has dropped below 2W, ensuring it's not a
+    brief spike. If no motion is detected, sends a non-urgent broadcast alert to the
+    house indicating the toaster has finished.
+  triggers:
+  - entity_id:
+    - sensor.plug_kitchen_toaster_electric_consumption_w
+    above: 50
+    trigger: numeric_state
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.maxi_sleeping
+    state: 'off'
+  - condition: state
+    entity_id: binary_sensor.all_present_sleeping
+    state: 'off'
+  - condition: state
+    entity_id: input_boolean.cooking_mode
+    state: 'off'
+  actions:
+  - wait_for_trigger:
+    - entity_id:
+      - sensor.plug_kitchen_toaster_electric_consumption_w
+      for:
+        hours: 0
+        minutes: 0
+        seconds: 5
+      below: 2
+      trigger: numeric_state
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 20
+      seconds: 0
+      milliseconds: 0
+    enabled: true
+  - if:
+    - condition: state
+      entity_id: binary_sensor.group_kitchen_motion_occupancy
+      state: 'off'
+    then:
+    - action: script.non_important_broadcast_alert_in_the_house
+      data:
+        message: The Toaster has finished
+  mode: restart
+- id: '1772244438943'
+  alias: Isolate front salon when active smoking is present
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.active_smoking_in_the_salon
+    to:
+    - 'on'
+  conditions:
+  - condition: not
+    conditions:
+    - condition: or
+      conditions:
+      - condition: state
+        entity_id: sensor.roborock_qrevo_curv_series_current_room
+        state:
+        - Salon
+      - condition: state
+        entity_id: sensor.roborock_qrevo_curv_series_current_room
+        state:
+        - Lounge
+    enabled: true
+  actions:
+  - action: cover.close_cover
+    metadata: {}
+    target:
+      entity_id:
+      - cover.cover_lounge_door
+    data: {}
+  mode: single
+- id: '1772328254331'
+  alias: Open front salon when smoke is gone
+  description: ''
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - sensor.apollo_air_1_7b76cc_pm_1mm_weight_concentration
+    below: 10
+  conditions:
+  - condition: state
+    entity_id: input_boolean.sleeper_in_salon
+    state:
+    - 'off'
+  actions:
+  - action: cover.open_cover
+    metadata: {}
+    target:
+      entity_id:
+      - cover.cover_lounge_door
+    data: {}
+  mode: single
+- id: '1772565586854'
+  alias: Dial hallway automation new
+  description: ''
+  use_blueprint:
+    path: EPMatt/ikea_e1744.yaml
+    input:
+      integration: Zigbee2MQTT
+      controller_device: 83c6d6773874bd6654223d9e400b0b86
+      helper_last_controller_event: input_text.dial_hallway_helper
+      action_rotate_left:
+      - action: media_player.volume_down
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.universal_hallway_speakers
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 0
+          milliseconds: 201
+      action_rotate_left_stop: []
+      rotate_right_loop: true
+      rotate_left_loop: true
+      rotate_left_max_loop_repeats: 60
+      rotate_right_max_loop_repeats: 60
+      action_rotate_right:
+      - action: media_player.volume_up
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.universal_hallway_speakers
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 0
+          milliseconds: 200
+      helper_debounce_delay: 0
+      action_click_triple:
+      - action: media_player.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.universal_hallway_speakers
+      action_click_double:
+      - action: media_player.media_next_track
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.universal_hallway_speakers
+      action_click_short:
+      - action: media_player.media_play_pause
+        metadata: {}
+        data: {}
+        target:
+          entity_id: media_player.universal_hallway_speakers
+- id: '1772575048674'
+  alias: Purify Salon air when someone is smoking
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.active_smoking_in_the_salon
+    from:
+    - 'off'
+    - 'on'
+  conditions: []
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    target:
+      entity_id: switch.plug_salon_air_purifier
+    data: {}
+  mode: single
+- id: '1772575096130'
+  alias: Turn off air purifier in salon when smoke is gone
+  description: ''
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - sensor.apollo_air_1_7b76cc_pm_1mm_weight_concentration
+    below: 10
+  conditions: []
+  actions:
+  - action: switch.turn_off
+    metadata: {}
+    target:
+      entity_id: switch.plug_salon_air_purifier
+    data: {}
   mode: single

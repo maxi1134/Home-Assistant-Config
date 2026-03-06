@@ -194,7 +194,7 @@ broadcast_alert_in_the_house:
           metadata: {}
           data:
             cache: true
-            media_player_entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+            media_player_entity_id: media_player.mass_bedroom_wiim_speaker
             message: '{{ message }}'
           target:
             entity_id:
@@ -221,7 +221,7 @@ broadcast_alert_in_the_house:
               metadata: {}
               data:
                 cache: true
-                media_player_entity_id: media_player.mass_hotbox_airplay_wiim_speaker
+                media_player_entity_id: media_player.mass_hotbox_wiim_speaker
                 message: '{{ message }}'
               action: tts.speak
               enabled: true
@@ -257,7 +257,7 @@ broadcast_alert_in_the_house:
             url: '{{ broadcast_url }}'
             announce_volume: 35
           target:
-            entity_id: media_player.mass_bedroom_airplay_wiim_speaker
+            entity_id: media_player.mass_bedroom_wiim_speaker
           enabled: true
         - metadata: {}
           data:
@@ -290,7 +290,7 @@ broadcast_alert_in_the_house:
               metadata: {}
               data:
                 cache: true
-                media_player_entity_id: media_player.mass_hotbox_airplay_wiim_speaker
+                media_player_entity_id: media_player.mass_hotbox_wiim_speaker
                 message: '{{ broadcast_url }}'
               action: tts.speak
               enabled: true
@@ -582,7 +582,17 @@ non_important_broadcast_alert_in_the_house:
         [(entity_id , rgb_values, states(entity_id))] %}\n        {% set ns.rgb_dict
         = ns.rgb_dict + rgb_dict %}\n    {% endif %}    \n{% endfor %}  {{ ns.rgb_dict
         }}\n"
-    alias: 'Store ON Lights entity_id and current rgb values '
+      playing_chromecasts: '{{ integration_entities(''cast'') |  select(''search'',
+        ''chromecast'') | expand | selectattr(''state'', ''eq'', ''playing'')| map(attribute=''entity_id'')|
+        list }}
+
+        '
+      non_playing_chromecasts: '{{ integration_entities(''cast'') |  select(''search'',
+        ''chromecast'') | expand | rejectattr(''state'', ''eq'', ''playing'')| map(attribute=''entity_id'')|
+        list }}
+
+        '
+    alias: Store stuff
   - parallel:
     - alias: Lights
       sequence:
@@ -804,29 +814,30 @@ non_important_broadcast_alert_in_the_house:
   - alias: Restore lights to their initial state
     repeat:
       sequence:
-      - if:
+      - alias: Turn off lights back to off
+        if:
         - condition: template
-          value_template: '{{ not on_light_entity_ids[repeat.index].2 | bool }}'
+          value_template: '{{ not light_entity_ids[repeat.index].2 | bool }}'
         then:
         - target:
-            entity_id: '{{on_light_entity_ids[repeat.index].0}}'
+            entity_id: '{{light_entity_ids[repeat.index].0}}'
           enabled: true
           alias: Turn back off lights to previous state
           action: light.turn_{{ light_entity_ids[repeat.index].2 }}
-        alias: Turn off lights back to off
-      - if:
+      - alias: Turn on lights back to their original colors
+        if:
         - condition: template
-          value_template: '{{ on_light_entity_ids[repeat.index].2 | bool }}'
+          value_template: '{{ light_entity_ids[repeat.index].2 | bool }}'
         then:
         - target:
-            entity_id: '{{on_light_entity_ids[repeat.index].0}}'
+            entity_id: '{{light_entity_ids[repeat.index].0}}'
           data:
-            rgb_color: '{{on_light_entity_ids[repeat.index].1}}'
+            rgb_color: '{{light_entity_ids[repeat.index].1}}'
           enabled: true
           alias: Turn back on lights to previous state
           action: light.turn_{{ light_entity_ids[repeat.index].2 }}
-        alias: Turn on lights back to their original colors
-      count: '{{ on_light_entity_ids | length - 1 }}'
+      count: '{{ light_entity_ids | length - 1 }}'
+    enabled: false
   mode: queued
   icon: mdi:speaker-message
   max: 3
@@ -859,8 +870,8 @@ changes_all_on:
 
 
     Do not use this to modify individual lights or bulbs!'
-'1714667687332':
-  alias: Changes all on lights to random pastel colors
+change_all_on_lights_to_random_pastel_colors:
+  alias: Changes all turned on lights to random pastel colors
   sequence:
   - variables:
       on_lights: '
@@ -882,6 +893,7 @@ changes_all_on:
   mode: restart
   icon: mdi:sale
   fields: {}
+  description: ''
 generate_and_save_localai_image:
   alias: Generate and save LocalAI image
   sequence:
@@ -1169,12 +1181,12 @@ inside_only_home_defense_script:
     target:
       entity_id:
       - media_player.group_mass_home_group_speakers
-      - media_player.mass_bedroom_airplay_wiim_speaker
-      - media_player.mass_kitchen_airplay_wiim_speaker
-      - media_player.mass_workshop_airplay_wiim_speaker
-      - media_player.mass_lounge_airplay_wiim_speaker
-      - media_player.mass_salon_airplay_wiim_speaker
-      - media_player.mass_hallway_airplay_wiim_speaker
+      - media_player.mass_bedroom_wiim_speaker
+      - media_player.mass_kitchen_wiim_speaker
+      - media_player.mass_workshop_wiim_speaker
+      - media_player.mass_lounge_wiim_speaker
+      - media_player.mass_salon_wiim_speaker
+      - media_player.mass_hallway_wiim_speaker
   - action: media_player.play_media
     metadata: {}
     target:
@@ -1202,12 +1214,12 @@ inside_only_home_defense_script:
     target:
       entity_id:
       - media_player.group_mass_home_group_speakers
-      - media_player.mass_bedroom_airplay_wiim_speaker
-      - media_player.mass_kitchen_airplay_wiim_speaker
-      - media_player.mass_workshop_airplay_wiim_speaker
-      - media_player.mass_lounge_airplay_wiim_speaker
-      - media_player.mass_salon_airplay_wiim_speaker
-      - media_player.mass_hallway_airplay_wiim_speaker
+      - media_player.mass_bedroom_wiim_speaker
+      - media_player.mass_kitchen_wiim_speaker
+      - media_player.mass_workshop_wiim_speaker
+      - media_player.mass_lounge_wiim_speaker
+      - media_player.mass_salon_wiim_speaker
+      - media_player.mass_hallway_wiim_speaker
   - wait_for_trigger:
     - entity_id:
       - binary_sensor.home_occupancy
@@ -1604,8 +1616,14 @@ speaker_automatic_volume_adjustment_script:
 llm_script_for_music_assitant_voice_requests:
   mode: single
   max_exceeded: silent
-  description: This Script must be used by the LLM to initiate a Movie or Show playback
+  description: 'This Script must be used by the LLM to initiate a Movie or Show playback
     on a TV or a chromecast
+
+
+    !!! This Script should never be used when Youtube is mentioned, under no circumstance
+    is this acceptable !!!
+
+    '
   fields:
     media_type:
       selector:
@@ -1680,7 +1698,7 @@ llm_script_for_music_assitant_voice_requests:
   - stop: Playback started!
     response_variable: target_data
     enabled: true
-  alias: LLM Script to start TV SHOWS and MOVIES on TVs
+  alias: 'LLM Script to start TV SHOWS and MOVIES on TVs '
 set_whole_house_tonsexy_ambiance:
   sequence:
   - alias: Set Fireplace effect on all hue lights
@@ -2476,7 +2494,10 @@ llm_script_for_music_assistant_voice_requests:
     always be supplied as arguments to this tool. An area or Music Assistant media
     player can optionally be provided in the voice request as well. Use the parameters
     as described in the description of each parameter. Use this tool whenever the
-    user requests to play music.'
+    user requests to play music.
+
+
+    !!! This Script should never be used when Youtube is mentioned!!'
 script_to_launch_movie_from_jellyfin_on_a_tv:
   sequence:
   - variables:
@@ -2616,12 +2637,12 @@ start_a_random_maxi_playlist:
   alias: Start a random maxi playlist
   description: ''
   mode: restart
-changesreceived_ights_to_random_pastel_colors:
+change_received_lights_to_random_pastel_colors:
   sequence:
   - variables:
-      lights: "{%- set lights = states.light | selectattr('entity_id', 'in', state_attr(selected_group,
-        'entity_id'))  | list -%}\n{%- set entity_ids = lights | map(attribute='entity_id')
-        | list -%}    \n{{ entity_ids }}\n"
+      lights: '{{selected_group}}
+
+        '
       saturation: '{{ saturation }}
 
         '
@@ -2930,7 +2951,7 @@ trippy_lights_effect_script:
               hs_color: '{{ range(0, 360) | random }},{{ states(''input_number.trippy_lights_color_saturation'')}}'
             target:
               entity_id: '{{repeat.item}}'
-      - delay: 00:00:{{ states('input_number.trippy_lights_effect_speed')}}
+      - delay: 00:00:{{ states('input_number.trippy_lights_effect_speed') | int}}
   - action: adaptive_lighting.apply
     metadata: {}
     data:
