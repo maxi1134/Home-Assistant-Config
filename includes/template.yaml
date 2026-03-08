@@ -11,7 +11,7 @@
         delay_off:
           minutes: 0
         state: >
-          {% if ( states('person.maximiliano') == 'home' and states('sensor.is_maxi_asleep') == 'asleep' ) and (states('person.active_sleeper_amount') != 0 and states('sensor.active_sleeper_rooms') | length  > 2 and states('sensor.active_sleeper_amount') >= states('sensor.total_amount_people_home') ) %}
+          {% if ( states('person.maximiliano') == 'home' and states('sensor.is_maxi_asleep') == 'asleep' ) and (states('person.active_sleeper_amount' | int) != 0 and states('sensor.active_sleeper_rooms') | length  > 2 and states('sensor.active_sleeper_amount') >= states('sensor.total_amount_people_home') ) %}
             on
           {% else %}
             off
@@ -62,21 +62,21 @@
         unique_id: "maxi_is_talking" 
         state: >-
            {{ ( states('binary_sensor.computer_maxi_pc_computer_maxi_pc_microphoneactive') == "on" or not is_state('sensor.phone_maxi_phone_state', "idle")
-              or states('sensor.phone_maxi_audio_mode') != 'normal'and states('person.maximiliano') == 'home'
+              or states('sensor.phone_maxi_audio_mode') != 'normal' and states('person.maximiliano') == 'home'
             ) }}
 
       - name: "myriam_is_listening_at_home"
         unique_id: "myriam_is_listening_at_home" 
         state: >-
            {{ ( ( is_state('sensor.phone_myriam_media_session', "playing") and states('person.myriam') == 'home' ) 
-              or states('sensor.phone_myriam_audio_mode') != 'normal'and states('person.myriam') == 'home'
+              or states('sensor.phone_myriam_audio_mode') != 'normal' and states('person.myriam') == 'home'
             ) }}
 
       - name: "myriam is talking"
         unique_id: "myriam_is_talking" 
         state: >-
            {{ ( not is_state('sensor.phone_myriam_phone_state', "idle")
-              or states('sensor.phone_myriam_audio_mode') != 'normal'and states('person.myriam') == 'home'
+              or states('sensor.phone_myriam_audio_mode') != 'normal' and states('person.myriam') == 'home'
             ) }}
 
       - name: "maxi_is_listening_at_home"
@@ -84,7 +84,7 @@
         state: >-
             {{ ( is_state('sensor.phone_maxi_media_session', "Playing")
               or not is_state('sensor.phone_maxi_phone_state', "idle")
-              or states('sensor.phone_maxi_audio_mode') != 'normal'and states('person.maximiliano') == 'home' ) }}
+              or states('sensor.phone_maxi_audio_mode') != 'normal' and states('person.maximiliano') == 'home' ) }}
   - sensor:
       - name: "Average House Humidity"
         unique_id: "average_house_humidity"
@@ -738,6 +738,7 @@
         unique_id: is_computer_active
         state: >-
           {{ not (  now()|as_timestamp   - states('sensor.computer_maxi_pc_computer_maxi_pc_lastactive') | as_timestamp ) > 400}}
+
       - name: "Maxi current Activity V2"
         unique_id: maxi_current_activity_v2
         state: >-  
@@ -768,7 +769,7 @@
             {% elif is_maxi_home == false %}
               {%set ns.activityname = "Adventuring"%}
             {% elif is_maxi_alone == "on" %}
-              {% if is_computer_active  == "True" and room == "hotbox" %}
+              {% if is_computer_active  == truee and room == "hotbox" %}
                   {% if maxis_current_game != "idle" %}
                     {%set ns.activityname = "Gaming"%}
                   {% else %}                    
@@ -884,9 +885,9 @@
                     {% elif ns.active_sleepers_amount < partnershome and states('sensor.is_maxi_asleep') == "awake" %} {# Trigger if less people are asleep than are present and that is not maxi #}
                         {% if room in ns.active_chromecasts_room %}
                             {% set ns.activityname = "Watching TV with girls in the " + room %}     
-                        {% elif states('zone.home') == 2 and states('person.alexe') == home and room == "closet" and states('input_boolean.sleeper_in_closet') == "off" %}
+                        {% elif states('zone.home') | int == 2 and states('person.alexe') == "home" and room == "closet" and states('input_boolean.sleeper_in_closet') == "off" %}
                             {% set ns.activityname = "Playtime" %}                
-                        {% elif states('zone.home') == 2 and states('person.myriam') == home and room == "closet" and states('input_boolean.sleeper_in_closet') == "off" %}
+                        {% elif states('zone.home') | int == 2 and states('person.myriam') == "home" and room == "closet" and states('input_boolean.sleeper_in_closet') == "off" %}
                             {% set ns.activityname = "Playtime" %}            {% else %}
                             {% set ns.activityname = "With girls in the " + room %}
                         {% endif %}
