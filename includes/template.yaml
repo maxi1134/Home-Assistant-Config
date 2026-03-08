@@ -11,7 +11,7 @@
         delay_off:
           minutes: 0
         state: >
-          {% if ( states('person.maximiliano') == 'home' and states('sensor.is_maxi_asleep') == 'asleep' ) and (states('person.active_sleeper_amount' | int) != 0 and states('sensor.active_sleeper_rooms') | length  > 2 and states('sensor.active_sleeper_amount') >= states('sensor.total_amount_people_home') ) %}
+          {% if ( states('person.maximiliano') == 'home' and states('sensor.is_maxi_asleep') == 'asleep' ) and (states('sensor.active_sleeper_amount') | int != 0 and states('sensor.active_sleeper_amount') | int > 2 and states('sensor.active_sleeper_amount') | int >= states('sensor.total_amount_people_home') | int ) %}
             on
           {% else %}
             off
@@ -61,30 +61,30 @@
       - name: "maxi is talking"
         unique_id: "maxi_is_talking" 
         state: >-
-           {{ ( states('binary_sensor.computer_maxi_pc_computer_maxi_pc_microphoneactive') == "on" or not is_state('sensor.phone_maxi_phone_state', "idle")
-              or states('sensor.phone_maxi_audio_mode') != 'normal' and states('person.maximiliano') == 'home'
+           {{ ( (states('binary_sensor.computer_maxi_pc_computer_maxi_pc_microphoneactive') == "on" or not is_state('sensor.phone_maxi_phone_state', "idle")
+              or states('sensor.phone_maxi_audio_mode') != 'normal') and states('person.maximiliano') == 'home'
             ) }}
 
       - name: "myriam_is_listening_at_home"
         unique_id: "myriam_is_listening_at_home" 
         state: >-
-           {{ ( ( is_state('sensor.phone_myriam_media_session', "playing") and states('person.myriam') == 'home' ) 
-              or states('sensor.phone_myriam_audio_mode') != 'normal' and states('person.myriam') == 'home'
+           {{ ( ( ( is_state('sensor.phone_myriam_media_session', "playing") and states('person.myriam') == 'home' ) 
+              or states('sensor.phone_myriam_audio_mode') != 'normal' ) and states('person.myriam') == 'home'
             ) }}
 
       - name: "myriam is talking"
         unique_id: "myriam_is_talking" 
         state: >-
-           {{ ( not is_state('sensor.phone_myriam_phone_state', "idle")
-              or states('sensor.phone_myriam_audio_mode') != 'normal' and states('person.myriam') == 'home'
+           {{ ( (not is_state('sensor.phone_myriam_phone_state', "idle")
+              or states('sensor.phone_myriam_audio_mode') != 'normal') and states('person.myriam') == 'home'
             ) }}
 
       - name: "maxi_is_listening_at_home"
         unique_id: "maxi_is_listening_at_home" 
         state: >-
-            {{ ( is_state('sensor.phone_maxi_media_session', "Playing")
+            {{ (( is_state('sensor.phone_maxi_media_session', "Playing")
               or not is_state('sensor.phone_maxi_phone_state', "idle")
-              or states('sensor.phone_maxi_audio_mode') != 'normal' and states('person.maximiliano') == 'home' ) }}
+              or states('sensor.phone_maxi_audio_mode') != 'normal') and states('person.maximiliano') == 'home' ) }}
   - sensor:
       - name: "Average House Humidity"
         unique_id: "average_house_humidity"
@@ -93,11 +93,9 @@
              |    select('search', '_temperature_humidity') 
              |    select('search', 'sensor_') 
              |    reject('search', 'calibration') 
-             |    reject('search', 'calibration') 
              | expand
              | rejectattr('state', 'search', 'unavailable') 
              | list 
-             | expand 
              | map(attribute='state')   
              | map('float')
              | list
@@ -208,7 +206,7 @@
 
       - name: "Day Of The Week"
         state: >-
-            {{ utcnow().weekday() }}
+            {{ now().weekday() }}
         unique_id: day_of_the_week
 
       - name: 'Bathroom Usage' 
@@ -469,12 +467,12 @@
             {% for inp in states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search',"input_boolean.sleeper_") %}
               {% set ns.items = ns.items  + [ (loop.index, inp.entity_id  | replace('input_boolean.sleeper_in_','') ) ] %}
             {% endfor %}
-            {{ dict.from_keys(ns.items) }}
+            {{ dict(ns.items) }}
 
       - name: "active_sleeper_amount"
         unique_id: "active_sleeper_amount"
         state: >-
-            {{ states('sensor.active_sleeper_rooms') | wordcount }}
+            {{(states('sensor.active_sleeper_rooms') | replace("'", '"') | from_json) | length}}
 
 
       - name: "active microphones rooms"
@@ -615,7 +613,7 @@
         state: >
             {% set room = states('sensor.myriam_location_by_petro') %}  {# get the current myriam location sensor state #}
             {% set sleeperamount = states('sensor.active_sleeper_amount') | int %}
-            {% set activesleeperrooms = states('sensor.active_sleeper_rooms') %}
+            {% set activesleeperrooms = states('sensor.active_sleeper_rooms') | replace("'", '"') | from_json %}
             {% set lasttvactiveroom = states('sensor.last_active_room') %}
             {% set phone_sleep_confidence = states('sensor.phone_myriam_sleep_confidence') | int %}
             {% set sleepingstate = "awake" %}
@@ -661,7 +659,7 @@
         state: >
             {% set room = states('sensor.maxi_location_by_petro') %}  {# get the current maxi location sensor state #}
             {% set sleeperamount = states('sensor.active_sleeper_amount') | int %}
-            {% set activesleeperrooms = states('sensor.active_sleeper_rooms') %}
+            {% set activesleeperrooms = states('sensor.active_sleeper_rooms') | replace("'", '"') | from_json %}
             {% set lasttvactiveroom = states('sensor.last_active_room') %}
             {% set phone_sleep_confidence = states('sensor.phone_maxi_sleep_confidence') | int %}
             {% set sleepingstate = "awake" %}
@@ -693,8 +691,8 @@
           location: >
             {% set room = states.sensor.maxi_location.state %}  {# get the current maxi location sensor state #}
             {% set sleeperamount = states('sensor.active_sleeper_amount') | int %}
-            {% set activesleeperrooms = states('sensor.active_sleeper_rooms') %}
-            {% set lasttvactiveroom = states('sensor.last_active_room') %}  
+            {% set activesleeperrooms = states('sensor.active_sleeper_rooms') | replace("'", '"') | from_json %}
+            {% set lasttvactiveroom = states('sensor.last_active_room') %}
             {% set maxilocation = states('sensor.maxi_location_by_petro') %}
             {% set phone_sleep_confidence = states('sensor.phone_maxi_sleep_confidence') | int %}
             {% set sleepingspot = "" %}
@@ -710,13 +708,13 @@
                   {% endif %}
               
                 {% elif sleeperamount == 1 %}  {# if there is only one "sleeper" input_boolean that is "on" #}
-                  {% set sleepingspot =  states.sensor.active_sleepers.attributes.rooms.1%}  {# set the roomname to the only "sleeper" input_boolean that is "on" #}
+                  {% set sleepingspot =  states.sensor.active_sleepers.attributes.rooms[1] %}  {# set the roomname to the only "sleeper" input_boolean that is "on" #}
                 {% endif %}  
               
               {% elif states.binary_sensor.maxi_alone.state == "off" and states.person.maximiliano.state == "home" %}  {# if the maxi_alone sensor is off, it indicates that there is more than maxi present #}
                   {# this below code set sleepingspots as the last sleeper that was turned on#}
                   {% set last_sleeping_spot = states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search',"input_boolean.sleeper_") | sort(attribute='last_updated', reverse=True) | map(attribute="entity_id") | first | default | replace("input_boolean.sleeper_in_","") %}  
-                    {% if maxilocation in activesleeperrooms | string   %}
+                    {% if maxilocation in activesleeperrooms %}
                       {% set sleepingspot = maxilocation %}
                     {% elif last_sleeping_spot == maxilocation %}                    
                       {% set sleepingspot = last_sleeping_spot %}
@@ -751,8 +749,7 @@
             {% set party_mode = states("input_boolean.party_mode") %}
             {% set vacuum_cleaning = states("vacuum.xiaomi_vacuum_cleaner") != 'docked' %}
             {% set kink_mode = states("input_boolean.kink_party") %}
-            {% set lounge_desk_in_use = states("binary_sensor.sensor_lounge_desk_fp2_occupancy") == "on" %}
-            {% set phone_in_use = states('binary_sensor.phone_maxi_device_locked') == 'false' %}
+            {% set phone_in_use = states('binary_sensor.phone_maxi_device_locked') == 'off' %}
             {% set cooking_mode = states("input_boolean.cooking_mode") %}
             {% set partnershome = states("sensor.amount_partners_home") | int  %}
             {% set friendshome = states("sensor.amount_friends_home") | int  %} {# Set friendshome to the amount of people #} 
@@ -769,7 +766,7 @@
             {% elif is_maxi_home == false %}
               {%set ns.activityname = "Adventuring"%}
             {% elif is_maxi_alone == "on" %}
-              {% if is_computer_active  == truee and room == "hotbox" %}
+              {% if is_computer_active  == 'True' and room == "salon" %}
                   {% if maxis_current_game != "idle" %}
                     {%set ns.activityname = "Gaming"%}
                   {% else %}                    
@@ -865,7 +862,7 @@
                   {% if ns.active_chromecasts_room | length > 0 %}                    
                   {# Check if I am in a room with mediaplayback #}
                   {% for activeroom in ns.active_chromecasts_room %}
-                    {% if ns.room in activeroom %}                                                       
+                    {% if room == activeroom %}
                   {% set ns.activityname = "Watching TV in the " + room %}
                     {% endif %}
                   {% endfor %}          
@@ -975,14 +972,14 @@
             {% set gpslocation = states('device_tracker.phone_maxi') | lower %}         
             {% set ns = namespace(rooms=[], results=[]) %}
             {% for name, room, sensor in info if (name == 'watch' and is_state('binary_sensor.maxi_watch_on_body_sensor', 'on') and is_state('sensor.maxi_watch_charger_type', 'none') ) or 
-                                                 (name == 'phone' and is_state('sensor.maxi_watch_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on')) or
+                                                 (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on')) or
                                                  (name == 'bracelet' )                                                     
             %}
               {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
-                {% if room != 'not_home' and room != 'main floor' and room  != 'unknown' and room  != 'Unknown' and room  != 'home' and room!= 'unavailable' %}
+                {% if room != 'not_home' and room != 'main floor' and room  != 'unknown' and room  != 'home' and room!= 'unavailable' %}
                   {% set ns.rooms = ns.rooms + [(name, room.split('_').0)] %}
-                {% endif %}                
-                {% if sensor != 'not_home' and sensor != 'main floor' and sensor  != 'unknown' and room  != 'Unknown' and sensor  != 'home' and sensor != 'unavailable' %}
+                {% endif %}
+                {% if sensor != 'not_home' and sensor != 'main floor' and sensor  != 'unknown' and sensor  != 'home' and sensor != 'unavailable' %}
                   {% set ns.rooms = ns.rooms + [(name, sensor.split('_').0)] %}
                 {% endif %}              
             {% endfor %}
