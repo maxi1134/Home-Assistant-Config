@@ -78,35 +78,6 @@
     target:
       entity_id: media_player.universal_bedroom_speakers
   mode: single
-- id: '1711377604136'
-  alias: Assist Play song by artist now
-  description: ''
-  triggers:
-  - command:
-    - play {song} by {artist}
-    trigger: conversation
-  conditions: []
-  actions:
-  - target:
-      entity_id:
-      - media_player.group_mass_home_group_speakers
-    data:
-      media_type: track
-      enqueue: play
-      media_id: '{{ trigger.slots.song  }}'
-      artist: '{{ trigger.slots.artist  }}'
-    action: music_assistant.play_media
-  - target:
-      entity_id:
-      - media_player.group_mass_home_group_speakers
-    data:
-      media_type: track
-      enqueue: add
-      media_id: '{{ found_song.tracks.0.name }}'
-      radio_mode: true
-    action: mass.play_media
-    enabled: false
-  mode: single
 - id: '1711565389493'
   alias: Assist Restart Music Assistant
   description: ''
@@ -766,10 +737,11 @@
     enabled: true
   actions:
   - variables:
-      lights_under_60_percent: '{{ [area_id(trigger.entity_id)] | map(''area_id'')
-        | map(''area_entities'') | sum(start=[]) | select(''match'', ''^light.'')
-        | select(''is_state'',''on'')  | expand | selectattr(''attributes.brightness'',''<'',153)
-        | map(attribute=''entity_id'') | unique | list }}
+      lights_under_60_percent: '{{ [area_id(trigger.entity_id)] | map(''area_entities'')
+        | sum(start=[]) | select(''match'', ''^light.'') | select(''is_state'',''on'')  |
+        expand | selectattr(''attributes.brightness'', ''defined'') | rejectattr(''attributes.brightness'',
+        ''none'') | selectattr(''attributes.brightness'',''<'',153) | map(attribute=''entity_id'')
+        | unique | list }}
 
         '
       entity_id: '{{ trigger.entity_id }}
@@ -785,7 +757,7 @@
           brightness: 153
           transition: 2
         target:
-          entity_id: '{{ lights_under_60_percent[repeat.index - 1 ] }}'
+          entity_id: '{{ repeat.item }}'
         action: light.turn_on
       for_each: '{{lights_under_60_percent}}'
     enabled: true
@@ -1266,7 +1238,7 @@
     - media_player.universal_hotbox_speakers
     - media_player.group_mass_home_group_speakers
     to:
-    - idle
+    - 'off'
     for:
       hours: 0
       minutes: 15
@@ -1284,6 +1256,7 @@
     target:
       entity_id: '{{ trigger.entity_id }}'
     action: media_player.turn_off
+    enabled: false
   mode: parallel
   max: 25
 - id: '1714321256821'
@@ -1374,8 +1347,8 @@
       unmuted_player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
         \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
         'universal')\n  | expand\n  | rejectattr('state', 'eq', 'off')\n  | rejectattr('state',
-        'eq', 'unavailable ')\n  | selectattr('attributes.is_volume_muted', 'eq',
-        false)\n  | map(attribute='entity_id')\n  | unique\n  | list \n}}\n"
+        'eq', 'unavailable')\n  | selectattr('attributes.is_volume_muted', 'eq', false)\n
+        \ | map(attribute='entity_id')\n  | unique\n  | list \n}}\n"
   - if:
     - condition: template
       value_template: '{{ unmuted_player_chromecasts != [] }}'
@@ -1658,12 +1631,15 @@
   - condition: state
     entity_id: person.maximiliano
     state: home
+  - condition: time
+    after: 06:45:00
+    before: '10:00:00'
   actions:
   - metadata: {}
     data:
       title: Current Weather
-      message: It is '{{ states('weather.weather_montreal_forecast') }}' and the temperature
-        is '{{ states('sensor.outside_temperature_with_fallback') }}'
+      message: It is "{{ states('weather.weather_montreal_forecast') }}" and the temperature
+        is "{{ states('sensor.outside_temperature_with_fallback') }}"
     action: notify.maxi_notification_group
   mode: single
 - id: '1715717946486'
@@ -1800,13 +1776,15 @@
   description: ''
   triggers:
   - entity_id:
-    - sensor.watch_maxi_galaxy_4_battery_level
-    to: '100'
+    - sensor.maxi_watch_battery_level
+    to:
+    - '100'
     trigger: state
   conditions:
   - condition: state
-    entity_id: sensor.watch_maxi_galaxy_4_battery_state
-    state: charging
+    entity_id: sensor.maxi_watch_battery_state
+    state:
+    - charging
   actions:
   - metadata: {}
     data:
@@ -1916,66 +1894,6 @@
         message: Package is being delivered
         title: Package Detected
       action: notify.maxi_notification_group
-  mode: single
-- id: '1716416273330'
-  alias: Display room color  on TVs when mimiclights mode is triggered
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - input_boolean.mimic_lights_on_screens
-    from:
-    to:
-  conditions: []
-  actions:
-  - choose:
-    - conditions:
-      - condition: state
-        entity_id: input_boolean.mimic_lights_on_screens
-        state: 'on'
-      sequence:
-      - variables:
-          off_chromecasts: '{{integration_entities(''cast'')  |  select(''search'',
-            ''chromecast'') |
-
-            select(''is_state'',''off'')| list}}
-
-            '
-      - repeat:
-          sequence:
-          - variables:
-              room: '{{ repeat.item | replace("media_player.","") | replace("_chromecast","")
-                }}
-
-                '
-          - action: cast.show_lovelace_view
-            metadata: {}
-            data:
-              entity_id: '{{repeat.item}}'
-              dashboard_path: color-hubs
-              view_path: '{{room}}'
-          for_each: '{{ off_chromecasts }}'
-    - conditions:
-      - condition: state
-        entity_id: input_boolean.mimic_lights_on_screens
-        state: 'off'
-      sequence:
-      - variables:
-          off_chromecasts: '{{integration_entities(''cast'')  |  select(''search'',
-            ''chromecast'') |
-
-            select(''is_state'',''playing'')| list |  expand |  select(''search'',
-            ''Color Hubs'')  | map(attribute=''entity_id'') |list }}
-
-            '
-      - repeat:
-          sequence:
-          - action: media_player.turn_off
-            metadata: {}
-            data: {}
-            target:
-              entity_id: '{{repeat.item}}'
-          for_each: '{{ off_chromecasts }}'
   mode: single
 - id: '1716566146304'
   alias: Assist play next song
@@ -2094,44 +2012,6 @@
       - switch.plug_front_door_horn
     data: {}
     action: switch.turn_on
-  mode: restart
-- id: '1716934404427'
-  alias: Alert when someone is in the front
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - binary_sensor.back_door_loitering_person_occupancy
-    from: 'off'
-    to: 'on'
-  conditions: []
-  actions:
-  - metadata: {}
-    data:
-      filename: /media/frontdoor_movement.png
-    target:
-      entity_id:
-      - camera.front_door_camera
-    action: camera.snapshot
-  - metadata: {}
-    data:
-      message: Loitering in the front!
-      title: Someone is loitering in the front!
-      data:
-        image: /media/local/frontdoor_movement.png
-        actions:
-        - action: blow_front_horn
-          title: Blow the horn for 2 minutes?
-        - action: REPLY
-          title: Enter Text
-        - action: URI
-          title: Open Camera
-          uri: 'intent://scan/#Intent;scheme=reolink;package=com.mcu.reolink;action=android.intent.action.VIEW;S.UID=95270001J6YVJA91;S.DEVNAME=Front
-            Door PTZ Camera;S.ALMTYPE=Person;S.ALMCHN=Fluent;S.ALMNAME=Detection;S.ALMTIME={{now().isoformat()}};end '
-        ttl: 0
-        priority: high
-        channel: security_alerts_notifications
-    action: notify.maxi_notification_group
   mode: restart
 - id: '1716935540936'
   alias: Alert when the horn goes off and offer to turn it off
@@ -2751,7 +2631,7 @@
     data: {}
     action: automation.turn_on
     target:
-      entity_id: automation.turn_on_lighs_automatically
+      entity_id: automation.turn_on_lights_automatically
   mode: single
 - id: '1717355583664'
   alias: Trigger front horn through phone notification
@@ -3880,7 +3760,7 @@
       minutes: 0
       seconds: 1
   conditions:
-  - alias: Was the door unlocked?
+  - alias: Was the door unlocked with the keypad?
     condition: template
     value_template: '{{  states(''sensor.lock_front_door_action_source_name'') ==
       ''keypad'' }}'
@@ -4119,18 +3999,27 @@
   triggers:
   - trigger: state
     entity_id:
-    - binary_sensor.parking_exit_camera_yell_sound
-    - binary_sensor.parking_exit_camera_scream_sound
+    - binary_sensor.patio_camera_yell_sound
+    - binary_sensor.patio_camera_cheering_sound
+    - binary_sensor.patio_camera_crowd_sound
     to: 'on'
     from: 'off'
     for:
       hours: 0
       minutes: 0
-      seconds: 20
+      seconds: 10
+  - trigger: numeric_state
+    entity_id:
+    - sensor.patio_camera_sound_level
+    below: -30
   conditions:
   - condition: state
     entity_id: binary_sensor.group_patio_motion_occupancy
     state: 'on'
+  - condition: state
+    entity_id: input_boolean.party_mode
+    state:
+    - 'on'
   actions:
   - choose:
     - conditions:
@@ -4146,15 +4035,27 @@
         data:
           message: People are being too noisy on the patio
           title: Noise alert
+          data:
+            image: /api/camera_proxy/camera.patio_camera
   - choose:
     - conditions:
       - condition: state
         entity_id: person.maximiliano
         state: not_home
+      - condition: state
+        entity_id: input_boolean.party_mode
+        state: 'on'
       sequence:
-      - action: script.non_important_broadcast_alert_in_the_house
+      - action: script.broadcast_alert_in_the_house
         data:
-          message: Please make less noise on the patio
+          message: Please reduce the volume on the Patio!
+      - action: notify.maxi_notification_group
+        metadata: {}
+        data:
+          message: People are being told to reduce noise on the patio
+          title: Automatic Noise Management alert
+          data:
+            image: /api/camera_proxy/camera.patio_camera
   mode: single
 - id: '1731515407976'
   alias: Sleep actions when "sleeper in patio" is turned on
@@ -4320,29 +4221,6 @@
   - action: script.non_important_broadcast_alert_in_the_house
     data:
       message: Kitchen Timer Finished!
-  mode: single
-- id: '1731636350020'
-  alias: Auto vacuum the entrance
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - lock.lock_front_door
-    to: unlocked
-  conditions:
-  - condition: numeric_state
-    entity_id: counter.entries_since_last_vacuuming
-    above: 4
-  - condition: state
-    entity_id: input_boolean.party_mode
-    state: 'off'
-  - condition: state
-    entity_id: input_boolean.acid_time
-    state: 'off'
-  - condition: state
-    entity_id: input_boolean.kink_party
-    state: 'off'
-  actions: []
   mode: single
 - id: '1731941986104'
   alias: Trigger back horn when someone loiters for too long at the door
@@ -4652,7 +4530,8 @@
   description: ''
   triggers:
   - command:
-    - lights {color}
+    - '[set] [turn] [the] lights [to] {color}'
+    - '{color} lights'
     trigger: conversation
   conditions: []
   actions:
@@ -5512,11 +5391,6 @@
     target:
       entity_id: cover.cover_hotbox_blinds
     enabled: true
-  - action: switch.turn_on
-    metadata: {}
-    data: {}
-    target:
-      entity_id: switch.plug_lylou_galaxy_lamp
   - action: light.turn_off
     metadata: {}
     data:
@@ -5525,41 +5399,6 @@
       area_id: hotbox
       entity_id:
       - light.group_hotbox_lights
-  mode: single
-- id: '1739631790415'
-  alias: Undo Sleep actions when "sleeper in hotbox" is turned off
-  description: ''
-  triggers:
-  - entity_id:
-    - input_boolean.sleeper_in_hotbox
-    to: 'off'
-    from: 'on'
-    trigger: state
-  conditions: []
-  actions:
-  - action: light.turn_on
-    data:
-      brightness_pct: 100
-      transition: 300
-      effect: solid
-      color_temp_kelvin: 4208
-    target:
-      entity_id: light.group_hotbox_top_lights
-  - if:
-    - condition: state
-      entity_id: sun.sun
-      state: above_horizon
-    then:
-    - action: cover.open_cover
-      metadata: {}
-      data: {}
-      target:
-        entity_id: cover.cover_hotbox_blinds
-  - action: switch.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: switch.plug_lylou_galaxy_lamp
   mode: single
 - id: '1740690697244'
   alias: Control brightness of Front door Phone to avoid discharge
@@ -5771,7 +5610,7 @@
       - input_boolean.sleeper_in_closet
   mode: single
 - id: '1740934578627'
-  alias: Automaticaally Turn off sleeper in patio
+  alias: Automatically Turn off sleeper in patio
   description: ''
   triggers:
   - trigger: state
@@ -5948,7 +5787,7 @@
       entity_id: light.group_bathroom_lights
   mode: single
 - id: '1740935205313'
-  alias: Adjust closet tablet screen brigthess to match the lights
+  alias: Adjust closet tablet screen brightness to match the lights
   description: ''
   triggers:
   - trigger: state
@@ -6089,7 +5928,7 @@
       entity_id: media_player.group_mass_home_group_speakers
   mode: single
 - id: '1741317422533'
-  alias: Adjust hallway tablet screen brigthess to match the lights
+  alias: Adjust hallway tablet screen brightness to match the lights
   description: ''
   triggers:
   - trigger: state
@@ -6197,9 +6036,19 @@
     - binary_sensor.parking_exit_camera_person_occupancy
     for:
       hours: 0
+      minutes: 1
+      seconds: 0
+    to:
+    - 'on'
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    for:
+      hours: 0
       minutes: 0
-      seconds: 20
-    to: 'on'
+      seconds: 15
+    to:
+    - 'on'
   - trigger: state
     entity_id:
     - binary_sensor.group_parking_occupancy
@@ -6208,11 +6057,17 @@
     for:
       hours: 0
       minutes: 0
-      seconds: 20
+      seconds: 15
   conditions:
-  - condition: state
-    entity_id: person.myriam
-    state: home
+  - condition: or
+    conditions:
+    - condition: state
+      entity_id: person.myriam
+      state: home
+    - condition: state
+      entity_id: binary_sensor.parking_camera_car_occupancy
+      state:
+      - 'on'
   actions:
   - action: llmvision.stream_analyzer
     metadata: {}
@@ -6225,8 +6080,7 @@
       temperature: 0.1
       provider: 01K9337G97H1HC11NBFD4HF7JQ
       model: qwen3-vl:2b-instruct-q4_K_M
-      message: Answer only with yes or no; Is this person trying to break in into
-        the car?
+      message: Answer only with yes or no; Is this person trying to enter the car?
       image_entity:
       - camera.parking_exit_camera
     response_variable: answer
@@ -6243,7 +6097,7 @@
       data:
         ttl: 0
         priority: high
-        image: api/camera_proxy/camera.parking_exit_camera
+        image: /api/camera_proxy/camera.parking_exit_camera
         actions:
         - action: turn_parking_horn_on
           title: Ring the siren!
@@ -6305,7 +6159,7 @@
   - metadata: {}
     data:
       title: Car security alert
-      message: Persn loitering beside the car
+      message: Person loitering beside the car
       data:
         ttl: 0
         priority: high
@@ -7920,7 +7774,7 @@
       entity_id: input_boolean.maxi_is_scared
   mode: single
 - id: '1747973281617'
-  alias: Adjust workshop tablet screen brigthess to match the lights
+  alias: Adjust workshop tablet screen brightness to match the lights
   description: ''
   triggers:
   - trigger: state
@@ -8151,6 +8005,11 @@
       entity_id: sensor.hallway_tablet_current_page
       attribute: full_url
       state: http://192.168.0.15:8123/tablet-entrance-dashboard/main-view?kiosk
+    - condition: state
+      entity_id: sensor.hallway_tablet_current_page
+      attribute: full_url
+      state:
+      - http://192.168.0.15:8095/#/party
   actions:
   - action: button.press
     metadata: {}
@@ -8184,6 +8043,10 @@
       entity_id: sensor.workshop_tablet_current_page
       state:
       - http://192.168.0.15:8123/tablet-workshop-dashboard/main-view?kiosk=1
+    - condition: state
+      entity_id: sensor.workshop_tablet_current_page
+      state:
+      - http://192.168.0.15:8095/#/party
   actions:
   - action: button.press
     metadata: {}
@@ -10548,8 +10411,7 @@
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.media_player.universal_salon_speakers''
-            %}
+            {% set speaker = ''media_player.universal_salon_speakers'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10590,8 +10452,7 @@
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.media_player.universal_salon_speakers''
-            %}
+            {% set speaker = ''media_player.universal_salon_speakers'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10627,8 +10488,7 @@
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.media_player.universal_salon_speakers''
-            %}
+            {% set speaker = ''media_player.universal_salon_speakers'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10659,8 +10519,7 @@
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.media_player.universal_salon_speakers''
-            %}
+            {% set speaker = ''media_player.universal_salon_speakers'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10691,8 +10550,7 @@
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.media_player.universal_salon_speakers''
-            %}
+            {% set speaker = ''media_player.universal_salon_speakers'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -11886,34 +11744,32 @@
     entity_id:
     - input_boolean.party_mode
     id: party
-    from: 'off'
-    to: 'on'
+    from:
+    - 'off'
+    to:
+    - 'on'
     for:
       hours: 0
       minutes: 0
-      seconds: 2
-  conditions: []
+      seconds: 0
+  conditions:
+  - condition: state
+    entity_id: input_boolean.live_concert
+    state:
+    - 'off'
   actions:
-  - action: switch.turn_on
-    metadata: {}
-    data: {}
-    target:
-      entity_id: switch.music_assistant_jukebox_jukebox_allow_access
-  - wait_for_trigger:
-    - trigger: state
-      entity_id:
-      - input_boolean.party_mode
-      from: 'on'
-      to: 'off'
-      for:
-        hours: 0
-        minutes: 5
-        seconds: 0
-  - action: switch.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: switch.music_assistant_jukebox_jukebox_allow_access
+  - action: fully_kiosk.load_url
+    data:
+      url: http://192.168.0.15:8095/#/party
+      device_id: 3855559a40e217d20c661fd5e6e1b452
+  - action: fully_kiosk.load_url
+    data:
+      url: http://192.168.0.15:8095/#/party
+      device_id: ea5d6e406b53af2043a0e3e21444f36e
+  - action: fully_kiosk.load_url
+    data:
+      url: http://192.168.0.15:8095/#/party
+      device_id: a94170d4bf7a596defcb763eda129822
   mode: single
 - id: '1760286041191'
   alias: Ring parking horn on actionnable notification from mobile
@@ -12170,51 +12026,62 @@
   - trigger: state
     entity_id:
     - input_boolean.live_concert
-    from: 'off'
-    to: 'on'
+    from:
+    - 'off'
+    to:
+    - 'on'
     for:
       hours: 0
-      minutes: 5
-      seconds: 0
+      minutes: 0
+      seconds: 10
   conditions: []
   actions:
-  - action: switch.turn_off
+  - action: script.reset_tablet_endpoint_interface
     metadata: {}
-    data: {}
-    target:
-      entity_id:
-      - switch.music_assistant_jukebox_jukebox_allow_access
-      - switch.music_assistant_jukebox_jukebox_play_music_on_start
-      - switch.music_assistant_jukebox_jukebox_queue
+    data:
+      area: hallway
+  - action: script.reset_tablet_endpoint_interface
+    metadata: {}
+    data:
+      area: kitchen
+  - action: script.reset_tablet_endpoint_interface
+    metadata: {}
+    data:
+      area: workshop
   - wait_for_trigger:
     - trigger: state
       entity_id:
       - input_boolean.live_concert
       id: '`'
-      to: 'off'
-      from: 'off'
+      to:
+      - 'off'
+      from:
+      - 'on'
       for:
         hours: 0
-        minutes: 5
-        seconds: 0
+        minutes: 0
+        seconds: 20
     timeout:
       hours: 5
       minutes: 0
       seconds: 0
       milliseconds: 0
-  - if:
-    - condition: state
-      entity_id: input_boolean.party_mode
-      state: 'on'
-    then:
-    - action: switch.turn_on
-      metadata: {}
-      data: {}
-      target:
-        entity_id:
-        - switch.music_assistant_jukebox_jukebox_allow_access
-        - switch.music_assistant_jukebox_jukebox_play_music_on_start
-        - switch.music_assistant_jukebox_jukebox_queue
+  - condition: state
+    state:
+    - 'on'
+    entity_id: input_boolean.party_mode
+  - action: fully_kiosk.load_url
+    data:
+      url: http://192.168.0.15:8095/#/party
+      device_id: ea5d6e406b53af2043a0e3e21444f36e
+  - action: fully_kiosk.load_url
+    data:
+      url: http://192.168.0.15:8095/#/party
+      device_id: a94170d4bf7a596defcb763eda129822
+  - action: fully_kiosk.load_url
+    data:
+      url: http://192.168.0.15:8095/#/party
+      device_id: 3855559a40e217d20c661fd5e6e1b452
   mode: restart
 - id: '1763156136004'
   alias: Dial Bedroom automation
@@ -12232,8 +12099,7 @@
           value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
             %}
 
-            {% set speaker = ''media_player.media_player.universal_bedroom_speakers''
-            %}
+            {% set speaker = ''media_player.universal_bedroom_speakers'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -12275,8 +12141,7 @@
           value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
             %}
 
-            {% set speaker = ''media_player.media_player.universal_bedroom_speakers''
-            %}
+            {% set speaker = ''media_player.universal_bedroom_speakers'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -12313,8 +12178,7 @@
           value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
             %}
 
-            {% set speaker = ''media_player.media_player.universal_bedroom_speakers''
-            %}
+            {% set speaker = ''media_player.universal_bedroom_speakers'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -12346,8 +12210,7 @@
           value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
             %}
 
-            {% set speaker = ''media_player.media_player.universal_bedroom_speakers''
-            %}
+            {% set speaker = ''media_player.universal_bedroom_speakers'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -12379,8 +12242,7 @@
           value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
             %}
 
-            {% set speaker = ''media_player.media_player.universal_bedroom_speakers''
-            %}
+            {% set speaker = ''media_player.universal_bedroom_speakers'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -15018,13 +14880,13 @@
                   light_initial_hue: '{{ state_attr(repeat.item, ''hs_color'').0 }}
 
                     '
-                  light_above_hue: "{% set number_positive = light_initial_hue + 7
+                  light_above_hue: "{% set number_positive = light_initial_hue + 25
                     %}\n  {% if number_positive > 360 %}\n    {% set number_positive
-                    = (number - 360) %}\n  {% endif %}\n{{ number_positive }}\n"
-                  light_below_hue: "{% set number_negative = light_initial_hue - 7
+                    = (number - 360) %}\n  {% endif %}\n{{ number_positive | int }}\n"
+                  light_below_hue: "{% set number_negative = light_initial_hue - 25
                     %}\n  {% if number_negative < 0 %}\n    {% set number_negative
                     = (number_negative | abs ) %}\n  {% endif %}\n{{ number_negative
-                    }}\n"
+                    | int }}\n"
               - action: light.turn_on
                 metadata: {}
                 data:
@@ -15053,9 +14915,6 @@
                   entity_id: '{{repeat.item}}'
               - delay: 00:00:{{ states('input_number.vibrating_color_effect_speed')
                   | int + 1}}
-        - delay: 00:00:{{ (states('input_number.vibrating_color_effect_speed') | int
-            * 3)+5}}
-          enabled: false
   - alias: Restore Lights Sequence
     sequence:
     - variables:

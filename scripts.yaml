@@ -174,9 +174,6 @@ broadcast_alert_in_the_house:
           false
 
           {% endif %}'
-      - condition: state
-        entity_id: input_boolean.party_mode
-        state: 'off'
       then:
       - alias: Announcements
         parallel:
@@ -240,9 +237,6 @@ broadcast_alert_in_the_house:
           false
 
           {% endif %}'
-      - condition: state
-        entity_id: input_boolean.party_mode
-        state: 'off'
       then:
       - alias: Announcements
         parallel:
@@ -454,7 +448,7 @@ broadcast_alert_in_the_house:
           enabled: true
           continue_on_error: true
       - wait_for_trigger: []
-      enabled: false
+      enabled: true
   - delay:
       hours: 0
       minutes: 0
@@ -885,9 +879,9 @@ change_all_on_lights_to_random_pastel_colors:
       sequence:
       - metadata: {}
         data:
-          hs_color: '{{ range(1, 360) | random | string + '','' + 55 | string }}'
+          hs_color: '{{ range(1, 360) | random | string + '','' + 40 | string }}'
         target:
-          entity_id: '{{on_lights[repeat.index - 1]}}'
+          entity_id: '{{repeat.item}}'
         action: light.turn_on
       for_each: '{{ on_lights }}'
   mode: restart
@@ -1759,7 +1753,7 @@ set_whole_house_to_party_ambiance:
       data:
         requested_playlist: Colorful Backgrounds Visuals
       action: script.start_visual_playlist_on_plex
-    - action: script.1714667687332
+    - action: script.change_all_on_lights_to_random_pastel_colors
       metadata: {}
       data: {}
     - action: light.turn_on
@@ -1779,11 +1773,15 @@ set_whole_house_to_party_ambiance:
         brightness_pct: 100
         effect: Pride 2015
       target:
-        entity_id: light.lounge_door_arch_light
+        entity_id: light.salon_door_leds
     - if:
       - condition: state
         entity_id: media_player.group_mass_home_group_speakers
         state: 'off'
+      - condition: state
+        entity_id: input_boolean.live_concert
+        state:
+        - 'off'
       then:
       - action: music_assistant.play_media
         metadata: {}
@@ -1885,21 +1883,20 @@ set_whole_house_to_kinky_ambiance:
           enqueue: replace
         target:
           entity_id: media_player.group_mass_home_group_speakers
-    - alias: Start 4k visuals on all TVs
+    - alias: Star kinky visuals on all TVs
       metadata: {}
       data:
         requested_playlist: Local Kinky Time Visuals Playlist
       action: script.start_visual_playlist_on_plex
-    - action: cover.close_cover
+    - alias: Close All Blinds
+      action: cover.close_cover
       metadata: {}
       data: {}
       target:
         entity_id:
         - cover.group_all_blinds
-        - cover.cover_hotbox_blinds
         - cover.cover_bedroom_blinds
-      alias: Close All Blinds
-    - alias: Turn on acid time boolean
+    - alias: Turn on kink party boolean
       if:
       - condition: state
         entity_id: input_boolean.kink_party
@@ -1917,21 +1914,21 @@ set_whole_house_to_kinky_ambiance:
 set_whole_house_to_a_normal_ambiance:
   sequence:
   - parallel:
-    - action: light.turn_on
-      metadata: {}
-      data:
-        kelvin: 4282
-        transition: 12
-        brightness_pct: 100
-      target:
-        entity_id: light.group_all_inside_lights
-      alias: Slowly set all inside lights to warm white
     - alias: Slowly set all inside lights to warm white
       action: light.turn_on
       metadata: {}
       data:
-        kelvin: 4282
-        transition: 12
+        color_temp_kelvin: 4282
+        transition: 5
+        brightness_pct: 100
+      target:
+        entity_id: light.group_all_inside_lights
+    - alias: Slowly set all inside lights to warm white
+      action: light.turn_on
+      metadata: {}
+      data:
+        color_temp_kelvin: 4282
+        transition: 5
         brightness_pct: 100
         effect: effect_stop
       target:
@@ -1955,6 +1952,11 @@ set_whole_house_to_a_normal_ambiance:
       data: {}
       target:
         entity_id: light.all_uv_lamps
+    - action: button.press
+      metadata: {}
+      target:
+        entity_id: button.load_all_tablets_interface
+      data: {}
   - stop: Ambiance Normalized
     response_variable: target_data
     enabled: true
@@ -2098,7 +2100,7 @@ changes_all_on_lights_to_white:
         data:
           effect: effect_stop
         target:
-          entity_id: '{{all_on_lights_with_effect_stop[repeat.index - 1]}}'
+          entity_id: '{{repeat.item}}'
         action: light.turn_on
       for_each: '{{ all_on_lights_with_effect_stop }}'
   - repeat:
@@ -2107,7 +2109,7 @@ changes_all_on_lights_to_white:
         data:
           effect: stop_effect
         target:
-          entity_id: '{{all_on_lights_with_stop_effect[repeat.index - 1]}}'
+          entity_id: '{{repeat.item}}'
         action: light.turn_on
       for_each: '{{ all_on_lights_with_stop_effect }}'
   - repeat:
@@ -2117,7 +2119,7 @@ changes_all_on_lights_to_white:
           color_temp_kelvin: 4632
           brightness_pct: 100
         target:
-          entity_id: '{{all_on_lights[repeat.index - 1]}}'
+          entity_id: '{{repeat.item}}'
         action: light.turn_on
       for_each: '{{ all_on_lights }}'
   - action: light.turn_off
@@ -2140,19 +2142,21 @@ changes_all_on_lights_to_white:
 generate_parking_camera_description:
   sequence:
   - action: llmvision.image_analyzer
+    metadata: {}
     data:
       include_filename: false
-      target_width: 1024
-      max_tokens: 100
-      temperature: 0.1
-      model: qwen3-vl:2b-instruct-q4_K_M
-      generate_title: false
-      expose_images: false
+      target_width: 1280
+      max_tokens: 3000
+      response_format: text
+      title_field: title
+      description_field: description
       provider: 01K9337G97H1HC11NBFD4HF7JQ
-      message: 'Describe in one sentence the human activities in this image, if there
-        is any. '
+      model: qwen3-vl:2b-instruct-q4_K_M
+      message: Describe in one sentence the human activities in this image, if there
+        is any.
       image_entity:
       - camera.parking_exit_camera
+      - camera.parking_camera
     response_variable: answer
   - stop: Finished
     response_variable: answer
@@ -2186,7 +2190,7 @@ changes_all_existing_lights_to_white:
         data:
           effect: effect_stop
         target:
-          entity_id: '{{all_on_lights_with_effect_stop[repeat.index - 1]}}'
+          entity_id: '{{repeat.item}}'
         action: light.turn_on
       for_each: '{{ all_on_lights_with_effect_stop }}'
   - repeat:
@@ -2195,23 +2199,23 @@ changes_all_existing_lights_to_white:
         data:
           effect: stop_effect
         target:
-          entity_id: '{{all_on_lights_with_stop_effect[repeat.index - 1]}}'
+          entity_id: '{{repeat.item}}'
         action: light.turn_on
       for_each: '{{ all_on_lights_with_stop_effect }}'
   - repeat:
       sequence:
       - metadata: {}
         data:
-          kelvin: 4632
+          color_temp_kelvin: 4632
           brightness_pct: 100
         target:
-          entity_id: '{{all_on_lights[repeat.index - 1]}}'
+          entity_id: '{{repeat.item}}'
         action: light.turn_on
       for_each: '{{ all_on_lights }}'
     enabled: false
   - metadata: {}
     data:
-      kelvin: 4632
+      color_temp_kelvin: 4632
       brightness_pct: 100
     target:
       entity_id: '{{all_on_lights}}'
