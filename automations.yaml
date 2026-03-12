@@ -815,15 +815,15 @@
     alias: Confirm Motion
   - alias: Make sure no sleeper is present
     condition: template
-    value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_sleeper_rooms'')
+    value_template: '{{ area_id(trigger.entity_id) | string | lower not in states(''sensor.active_sleeper_rooms'')
       | string | lower }}'
   - alias: Make sure no unmuted TV is present
     condition: template
-    value_template: '{{ area_id(trigger.entity_id) | lower not in state_attr(''sensor.active_chromecast_rooms'',
+    value_template: '{{ area_id(trigger.entity_id) | string | lower not in state_attr(''sensor.active_chromecast_rooms'',
       ''unmuted_rooms'') | string | lower }}'
   - alias: Make sure no active microphone is present
     condition: template
-    value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_microphones_rooms'')
+    value_template: '{{ area_id(trigger.entity_id) | string | lower not in states(''sensor.active_microphones_rooms'')
       | string | lower }}'
   actions:
   - variables:
@@ -1235,7 +1235,6 @@
     - media_player.universal_salon_speakers
     - media_player.universal_closet_speakers
     - media_player.universal_bedroom_speakers
-    - media_player.universal_hotbox_speakers
     - media_player.group_mass_home_group_speakers
     to:
     - 'off'
@@ -2399,7 +2398,6 @@
   - entity_id:
     - sensor.where_is_maxi_sleeping
     trigger: state
-    from: ''
   conditions:
   - condition: state
     entity_id: person.maximiliano
@@ -2408,7 +2406,15 @@
     conditions:
     - condition: state
       entity_id: sensor.where_is_maxi_sleeping
-      state: hotbox
+      state:
+      - hotbox
+      - unavailable
+  - condition: template
+    value_template: '{{ trigger.to_state.state != ''unavailable''}}'
+    alias: '{{ trigger.to_state.state != ''unavailable''}}'
+  - alias: '{{ trigger.to_state.state != '''' }}'
+    condition: template
+    value_template: '{{ trigger.to_state.state != '''' }}'
   actions:
   - variables:
       sleeper_speaker: '{{ [states(''sensor.where_is_maxi_sleeping'') ]  | map(''area_entities'')
@@ -2444,10 +2450,11 @@
         minutes: 0
         seconds: 5
         milliseconds: 0
-    - metadata: {}
-      data:
-        media_content_id: http://192.168.0.15:8123/local/thunderstorm.mp4
-        media_content_type: music
+    - data:
+        media:
+          media_content_id: http://192.168.0.15:8123/local/thunderstorm.mp4
+          media_content_type: music
+          metadata: {}
       target:
         entity_id: '{{ sleeper_speaker }}'
       action: media_player.play_media
@@ -4506,7 +4513,6 @@
           - media_player.universal_salon_speakers
           - media_player.universal_lounge_speakers
           - media_player.universal_workshop_speakers
-          - media_player.universal_hotbox_speakers
     - conditions:
       - condition: state
         entity_id: input_boolean.following_music
@@ -5109,9 +5115,9 @@
     - media_player.universal_kitchen_speakers
     - media_player.universal_lounge_speakers
     - media_player.universal_workshop_speakers
-    - media_player.universal_hotbox_speakers
     to:
-    from: idle
+    from:
+    - idle
     trigger: state
   - entity_id:
     - media_player.universal_bedroom_speakers
@@ -5121,9 +5127,9 @@
     - media_player.universal_kitchen_speakers
     - media_player.universal_lounge_speakers
     - media_player.universal_workshop_speakers
-    - media_player.universal_hotbox_speakers
     to:
-    from: 'off'
+    from:
+    - 'off'
     trigger: state
   conditions:
   - condition: template
@@ -5181,30 +5187,6 @@
         ttl: 0
         priority: high
         channel: security_alerts_notifications
-  - action: tts.speak
-    metadata: {}
-    data:
-      cache: false
-      media_player_entity_id: media_player.universal_hotbox_speakers
-      message: Please leave this room immediately.
-    target:
-      entity_id: tts.piper_2
-  - wait_for_trigger:
-    - trigger: state
-      entity_id:
-      - binary_sensor.group_hotbox_motion_occupancy
-      to: 'off'
-      from: 'on'
-      for:
-        hours: 0
-        minutes: 5
-        seconds: 0
-    continue_on_timeout: false
-  - action: media_player.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: media_player.universal_hotbox_speakers
   mode: restart
 - id: '1738094823714'
   alias: Mute bathroom speaker when no motion and door open
@@ -8465,7 +8447,7 @@
       > timedelta(seconds=600)) or trigger.id != ''speakers'' }}'
   - alias: Make sure no sleeper is present
     condition: template
-    value_template: '{{ area_id(trigger.entity_id) | lower not in states(''sensor.active_sleeper_rooms'')
+    value_template: '{{ area_id(trigger.entity_id) | string | lower not in states(''sensor.active_sleeper_rooms'')
       | string | lower }}'
   - alias: Make sure motion is present
     condition: template
@@ -8516,6 +8498,7 @@
       hours: 0
       minutes: 0
       seconds: 1
+    id: speaker_unmuted
   - alias: Speakers
     entity_id:
     - media_player.universal_workshop_speakers
@@ -8528,7 +8511,13 @@
       minutes: 0
       seconds: 2
     enabled: true
-  conditions: []
+  conditions:
+  - condition: template
+    value_template: '{% if trigger.id == ''speaker_unmuted'' %}
+
+      {{ trigger.to_state.attributes.is_volume_muted == false }}
+
+      {% endif %}'
   actions:
   - variables:
       unmuted_playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n

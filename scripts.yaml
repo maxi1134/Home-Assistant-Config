@@ -38,7 +38,7 @@ broadcast_alert_in_the_house:
         - alias: Change lights conditionally
           if:
           - condition: template
-            value_template: '{% if color %}
+            value_template: '{% if color is defined %}
 
               true
 
@@ -109,7 +109,7 @@ broadcast_alert_in_the_house:
       - alias: Change lights conditionally
         if:
         - condition: template
-          value_template: '{% if color %}
+          value_template: '{% if color is defined %}
 
             true
 
@@ -130,42 +130,42 @@ broadcast_alert_in_the_house:
               enabled: true
               action: light.turn_on
             count: '{{ light_entity_ids | length - 1 }}'
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 2
-          milliseconds: 250
-      - alias: Restore lights to their initial state
-        repeat:
-          sequence:
-          - if:
-            - condition: template
-              value_template: '{{ light_entity_ids[repeat.index].2 | bool }}'
-            then:
-            - target:
-                entity_id: '{{light_entity_ids[repeat.index].0}}'
-              data:
-                rgb_color: '{{light_entity_ids[repeat.index].1}}'
-              enabled: true
-              alias: Turn back on lights to previous state
-              action: light.turn_{{ light_entity_ids[repeat.index].2 }}
-            alias: Turn on lights back to their original colors
-          - if:
-            - condition: template
-              value_template: '{{ not light_entity_ids[repeat.index].2 | bool }}'
-            then:
-            - target:
-                entity_id: '{{light_entity_ids[repeat.index].0}}'
-              enabled: true
-              alias: Turn back off lights to previous state
-              action: light.turn_{{ light_entity_ids[repeat.index].2 }}
-            alias: Turn off lights back to off
-          count: '{{ light_entity_ids | length - 1 }}'
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 2
+            milliseconds: 250
+        - alias: Restore lights to their initial state
+          repeat:
+            sequence:
+            - if:
+              - condition: template
+                value_template: '{{ light_entity_ids[repeat.index].2 | bool }}'
+              then:
+              - target:
+                  entity_id: '{{light_entity_ids[repeat.index].0}}'
+                data:
+                  rgb_color: '{{light_entity_ids[repeat.index].1}}'
+                enabled: true
+                alias: Turn back on lights to previous state
+                action: light.turn_{{ light_entity_ids[repeat.index].2 }}
+              alias: Turn on lights back to their original colors
+            - if:
+              - condition: template
+                value_template: '{{ not light_entity_ids[repeat.index].2 | bool }}'
+              then:
+              - target:
+                  entity_id: '{{light_entity_ids[repeat.index].0}}'
+                enabled: true
+                alias: Turn back off lights to previous state
+                action: light.turn_{{ light_entity_ids[repeat.index].2 }}
+              alias: Turn off lights back to off
+            count: '{{ light_entity_ids | length - 1 }}'
       enabled: true
     - alias: 'music asssitant Announcements '
       if:
       - condition: template
-        value_template: '{% if message %}
+        value_template: '{% if message is defined %}
 
           true
 
@@ -228,7 +228,7 @@ broadcast_alert_in_the_house:
     - alias: 'music asssitant Announcements '
       if:
       - condition: template
-        value_template: '{% if broadcast_url %}
+        value_template: '{% if broadcast_url is defined %}
 
           true
 
@@ -294,7 +294,7 @@ broadcast_alert_in_the_house:
     - alias: 'Notifications '
       if:
       - condition: template
-        value_template: '{% if phone_data %}
+        value_template: '{% if phone_data is defined %}
 
           true
 
@@ -319,7 +319,7 @@ broadcast_alert_in_the_house:
       - alias: Broadcast image to paused TVs if image is present
         if:
         - condition: template
-          value_template: '{% if image and not url %}
+          value_template: '{% if image is defined and not url is defined %}
 
             true
 
@@ -377,7 +377,7 @@ broadcast_alert_in_the_house:
       - alias: Broadcast image to paused TVs if url is present
         if:
         - condition: template
-          value_template: '{% if url %}
+          value_template: '{% if url is defined %}
 
             true
 
@@ -592,7 +592,7 @@ non_important_broadcast_alert_in_the_house:
       sequence:
       - if:
         - condition: template
-          value_template: '{% if color %}
+          value_template: '{% if color is defined %}
 
             true
 
@@ -647,7 +647,7 @@ non_important_broadcast_alert_in_the_house:
     - alias: 'Announcements '
       if:
       - condition: template
-        value_template: '{% if message %}
+        value_template: '{% if message is defined %}
 
           true
 
@@ -699,7 +699,7 @@ non_important_broadcast_alert_in_the_house:
       - alias: Broadcast image to paused TVs if image is present
         if:
         - condition: template
-          value_template: '{% if image %}
+          value_template: '{% if image is defined %}
 
             true
 
@@ -739,7 +739,7 @@ non_important_broadcast_alert_in_the_house:
       - alias: Broadcast image to paused TVs if URL is present
         if:
         - condition: template
-          value_template: '{% if url %}
+          value_template: '{% if url is defined %}
 
             true
 
@@ -1043,7 +1043,6 @@ in_home_defense_script:
       - media_player.universal_workshop_speakers
       - media_player.universal_salon_speakers
       - media_player.universal_lounge_speakers
-      - media_player.universal_hotbox_speakers
     continue_on_error: true
   - repeat:
       count: 10
@@ -1060,7 +1059,6 @@ in_home_defense_script:
           - media_player.universal_workshop_speakers
           - media_player.universal_salon_speakers
           - media_player.universal_lounge_speakers
-          - media_player.universal_hotbox_speakers
     continue_on_error: true
   - metadata: {}
     data:
@@ -1385,7 +1383,7 @@ equalize_home_group_volume:
         if:
         - alias: Is the speaker room occupied?
           condition: template
-          value_template: '{{ area_id(repeat.item) | lower not in states(''sensor.active_motion_rooms'')
+          value_template: '{{ area_id(repeat.item) | string | lower not in states(''sensor.active_motion_rooms'')
             | string | lower }}
 
             '
@@ -1405,6 +1403,8 @@ speaker_automatic_volume_adjustment_script:
       speaker_id: '{{ received_speaker }}
 
         '
+  - condition: template
+    value_template: '{{ speaker_id != ''[]'' }}'
   - alias: Set volume then mute if empty
     sequence:
     - choose:
@@ -1589,7 +1589,7 @@ speaker_automatic_volume_adjustment_script:
       if:
       - alias: Is the speaker room occupied?
         condition: template
-        value_template: '{{ area_id(speaker_id) | lower not in states(''sensor.active_motion_rooms'')
+        value_template: '{{ area_id(speaker_id) | string | lower not in states(''sensor.active_motion_rooms'')
           | string | lower }}
 
           '
@@ -2427,8 +2427,8 @@ chromecast_automatic_volume_adjustment_script:
       if:
       - alias: Is the speaker room occupied?
         condition: template
-        value_template: '{{ area_id(chromecast_id) | lower not in states(''sensor.active_motion_rooms'')
-          | string | lower }}
+        value_template: '{{ area_id(chromecast_id | string) | string | lower not in
+          states(''sensor.active_motion_rooms'') | string | lower }}
 
           '
       - condition: state
