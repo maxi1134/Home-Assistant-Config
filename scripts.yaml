@@ -461,17 +461,23 @@ change_received_lights_to_random_colors:
   alias: Change received lights to random color
   sequence:
   - variables:
-      lights: "{% if area %}  {{ [area | first]\n  | map('area_entities')\n  | sum(start=[])\n
-        \ | select('search', 'group_')\n  | select('search', '_lights')\n  | expand\n
-        \ | selectattr('attributes.hs_color', 'defined')\n  | reject('search', 'decorative')\n
-        \ | reject('search', 'main')\n  | list | expand | map(attribute='entity_id')
-        | list  }}   \n\n{% else %} \n  {{ selected_group | expand | selectattr('attributes.hs_color',
-        'defined')| expand | map(attribute='entity_id') | list }} \n{% endif %}\n"
-      saturation: 100
+      lights: "{% if area is defined and area %}\n  {{ [area | first]\n    | map('area_entities')\n
+        \   | sum(start=[])\n    | select('search', 'group_')\n    | select('search',
+        '_lights')\n    | expand\n    | selectattr('attributes.supported_color_modes',
+        'defined')\n    | selectattr('attributes.supported_color_modes', 'search',
+        'hs|xy|rgb')\n    | reject('search', 'decorative')\n    | reject('search',
+        'main')\n    | list | expand | map(attribute='entity_id') | list }}\n    {%
+        elif selected_group is defined and selected_group %}\n      {{ selected_group
+        | expand\n        | selectattr('attributes.supported_color_modes', 'defined')\n
+        \       | selectattr('attributes.supported_color_modes', 'search', 'hs|xy|rgb')\n
+        \       | expand | map(attribute='entity_id') | list }}\n    {% else %}\n
+        \     {{ [] }}\n  {% endif %}\n"
   - repeat:
       sequence:
       - variables:
-          current_hue: '{{ state_attr(repeat.item,''hs_color'') | first}}
+          current_hue: '{% set hs = state_attr(repeat.item, ''hs_color'') %}
+
+            {{ hs[0] if hs else 0 }}
 
             '
           wanted_hue: "{# Assuming current_hue is already defined, e.g., set current_hue
@@ -491,6 +497,7 @@ change_received_lights_to_random_colors:
         target:
           entity_id: '{{repeat.item}}'
         action: light.turn_on
+        continue_on_error: true
       for_each: '{{ lights }}'
   mode: restart
   icon: mdi:sale
@@ -1007,6 +1014,7 @@ in_home_defense_script:
     target:
       entity_id: input_boolean.following_music
     data: {}
+    continue_on_error: true
   - metadata: {}
     data: {}
     target:
@@ -1015,6 +1023,7 @@ in_home_defense_script:
       - switch.plug_front_door_horn
     enabled: true
     action: switch.turn_on
+    continue_on_error: true
   - data:
       media:
         media_content_id: http://192.168.0.15:8123/local/civil-defense-siren.wav
@@ -1024,11 +1033,13 @@ in_home_defense_script:
     target:
       entity_id:
       - media_player.universal_bedroom_speakers
+      - media_player.universal_closet_speakers
       - media_player.universal_hallway_speakers
       - media_player.universal_kitchen_speakers
       - media_player.universal_workshop_speakers
       - media_player.universal_salon_speakers
       - media_player.universal_lounge_speakers
+      - media_player.universal_bathroom_speakers
     continue_on_error: true
   - action: media_player.volume_set
     metadata: {}
@@ -1043,6 +1054,7 @@ in_home_defense_script:
       - media_player.universal_workshop_speakers
       - media_player.universal_salon_speakers
       - media_player.universal_lounge_speakers
+      - media_player.universal_bathroom_speakers
     continue_on_error: true
   - repeat:
       count: 10
@@ -1059,6 +1071,8 @@ in_home_defense_script:
           - media_player.universal_workshop_speakers
           - media_player.universal_salon_speakers
           - media_player.universal_lounge_speakers
+          - media_player.universal_bathroom_speakers
+        continue_on_error: true
     continue_on_error: true
   - metadata: {}
     data:
@@ -1070,38 +1084,87 @@ in_home_defense_script:
         priority: high
         channel: security_alerts_notifications
     action: notify.users_notification_group
-  - wait_for_trigger:
-    - entity_id:
-      - binary_sensor.home_occupancy
-      to: 'off'
-      for:
-        hours: 0
-        minutes: 5
-        seconds: 0
-      trigger: state
-    timeout:
-      hours: 0
-      minutes: 40
-      seconds: 0
-      milliseconds: 0
-    continue_on_timeout: false
-  - action: media_player.media_stop
+    continue_on_error: true
+  - action: script.find_phone
     metadata: {}
     data: {}
-    target:
-      entity_id:
-      - media_player.universal_bedroom_speakers
-      - media_player.universal_hallway_speakers
-      - media_player.universal_kitchen_speakers
-      - media_player.universal_workshop_speakers
-      - media_player.universal_salon_speakers
-      - media_player.universal_lounge_speakers
     continue_on_error: true
-  - metadata: {}
-    action: input_boolean.turn_on
-    target:
-      entity_id: input_boolean.following_music
-    data: {}
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: binary_sensor.group_security_occupancy_sensors
+        state:
+        - 'on'
+      sequence:
+      - wait_for_trigger:
+        - entity_id:
+          - binary_sensor.group_security_occupancy_sensors
+          to:
+          - 'off'
+          for:
+            hours: 0
+            minutes: 3
+            seconds: 0
+          trigger: state
+        timeout:
+          hours: 0
+          minutes: 10
+          seconds: 0
+          milliseconds: 0
+        continue_on_timeout: true
+        continue_on_error: true
+      - action: media_player.media_stop
+        metadata: {}
+        data: {}
+        target:
+          entity_id:
+          - media_player.universal_bedroom_speakers
+          - media_player.universal_hallway_speakers
+          - media_player.universal_kitchen_speakers
+          - media_player.universal_workshop_speakers
+          - media_player.universal_salon_speakers
+          - media_player.universal_lounge_speakers
+          - media_player.universal_bathroom_speakers
+        continue_on_error: true
+      - metadata: {}
+        action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.following_music
+        data: {}
+        continue_on_error: true
+      - metadata: {}
+        data:
+          title: Intruder Alert Still active
+          data:
+            image: https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
+            ttl: 0
+            priority: high
+            channel: security_alerts_notifications
+          message: Speakers turned off automatically after 10 minutes of horn.
+        action: notify.users_notification_group
+        continue_on_error: true
+      alias: If occupancy is still present
+    continue_on_error: true
+    default:
+    - action: media_player.media_stop
+      metadata: {}
+      data: {}
+      target:
+        entity_id:
+        - media_player.universal_bedroom_speakers
+        - media_player.universal_hallway_speakers
+        - media_player.universal_kitchen_speakers
+        - media_player.universal_workshop_speakers
+        - media_player.universal_salon_speakers
+        - media_player.universal_lounge_speakers
+        - media_player.universal_bathroom_speakers
+      continue_on_error: true
+    - metadata: {}
+      action: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.following_music
+      data: {}
+      continue_on_error: true
   mode: restart
 changes_all_on_lights_to_fake_white:
   alias: Changes selected light group to ordered fake white
@@ -1214,9 +1277,11 @@ inside_only_home_defense_script:
       - media_player.mass_hallway_wiim_speaker
   - wait_for_trigger:
     - entity_id:
-      - binary_sensor.home_occupancy
-      to: 'off'
-      from: 'on'
+      - binary_sensor.group_security_occupancy_sensors
+      to:
+      - 'off'
+      from:
+      - 'on'
       for:
         hours: 0
         minutes: 5
@@ -1407,6 +1472,8 @@ speaker_automatic_volume_adjustment_script:
     value_template: '{{ speaker_id != ''[]'' }}'
   - condition: template
     value_template: '{{ speaker_id != '''' }}'
+  - condition: template
+    value_template: '{{ speaker_id != [] }}'
   - alias: Set volume then mute if empty
     sequence:
     - choose:
@@ -1814,10 +1881,13 @@ set_whole_house_to_acid_time:
       metadata: {}
       data: {}
       alias: Set all the lights to random colors
-    - if:
+    - alias: Start music house-wide if nothing is playing
+      if:
       - condition: state
         entity_id: media_player.group_mass_home_group_speakers
-        state: 'off'
+        state:
+        - 'off'
+        - idle
       then:
       - action: music_assistant.play_media
         metadata: {}
@@ -1827,7 +1897,6 @@ set_whole_house_to_acid_time:
           enqueue: replace
         target:
           entity_id: media_player.group_mass_home_group_speakers
-      alias: Start music house-wide if nothing is playing
     - metadata: {}
       data:
         requested_playlist: 4k visuals
