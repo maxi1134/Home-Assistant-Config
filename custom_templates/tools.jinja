@@ -1,10 +1,13 @@
-{% macro is_light_white1(entity_id) %} 
-{%- if expand(entity_id) | selectattr('attributes.color_temp', 'defined') |  map(attribute='attributes.color_temp') | list  != [None] -%}
+{% macro is_light_white1(entity_id) %}
+{%- if expand(entity_id) | selectattr('attributes.color_temp', 'defined') | map(attribute='attributes.color_temp') | list != [None] -%}
   true
-{%- elif expand(entity_id) | selectattr('attributes.color_temp_kelvin', 'defined') |  map(attribute='attributes.color_temp') | list  != [None] -%}
+{%- elif expand(entity_id) | selectattr('attributes.color_temp_kelvin', 'defined') | map(attribute='attributes.color_temp') | list != [None] -%}
   true
-{%- elif  expand(entity_id) | selectattr('attributes.hs_color', 'defined') |  map(attribute='entity_id') | list  != [] -%} {# Check if 'hs_color' is defined #}
-  {%- if expand(entity_id) | expand(entity_id)| map(attribute='attributes.hs_color.0') | first  | float >= 8  and expand(entity_id) | expand(entity_id)| map(attribute='attributes.hs_color.0') | first  | float < 60 and expand(entity_id) | expand(entity_id)| map(attribute='attributes.hs_color.1') | first  | float < 63  -%} {# Continue if hue is over a certain white-ish color #}
+{%- elif expand(entity_id) | selectattr('attributes.hs_color', 'defined') | map(attribute='entity_id') | list != [] -%} {# Check if 'hs_color' is defined #}
+  {%- set expanded = expand(entity_id) | selectattr('attributes.hs_color', 'defined') | list -%}
+  {%- set hue = expanded | map(attribute='attributes.hs_color') | map('first') | first | float(0) -%}
+  {%- set sat = expanded | map(attribute='attributes.hs_color') | map('last') | first | float(0) -%}
+  {%- if hue >= 8 and hue < 60 and sat < 63 -%} {# Continue if hue is over a certain white-ish color #}
       true
   {%- else -%}
       false

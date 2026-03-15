@@ -960,11 +960,13 @@
       state: armed_away
   actions:
   - variables:
-      off_lights_in_room: "{% set ns = namespace(f = [] ) %} {% for i in ( [area_id(trigger.entity_id)]
-        \ | map('area_entities') | sum(start=[]) | select('match', '^light.') | select('is_state','off')
-        \ |  unique | list )  %} {% if i not in  label_entities(\"High Intensity Light\")
-        | string %}\n  {% set ns.f = ns.f + [i] %}\n{% endif %} {% endfor %} {{ ns.f
-        }}\n"
+      off_lights_in_room: >-
+        {{ [area_id(trigger.entity_id)]
+          | map('area_entities') | sum(start=[])
+          | select('match', '^light.')
+          | select('is_state', 'off')
+          | reject('in', label_entities('High Intensity Light'))
+          | unique | list }}
   - repeat:
       sequence:
       - metadata: {}
@@ -2436,16 +2438,14 @@
     value_template: '{{ trigger.to_state.state != '''' }}'
   actions:
   - variables:
-      sleeper_speaker: '{{ [states(''sensor.where_is_maxi_sleeping'') ]  | map(''area_entities'')
-        | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]?$'')  |
-        unique | list | first}}
-
-        '
-      sleeper_speaker_mass: '{{ [states(''sensor.where_is_maxi_sleeping'') ]  | map(''area_entities'')
-        | sum(start=[]) | select(''match'', ''^media_player.mass.*speaker[s]?$'')  |
-        unique | list | first}}
-
-        '
+      sleeper_speaker: '{{ [states(''sensor.where_is_maxi_sleeping'')]
+        | map(''area_entities'') | sum(start=[])
+        | select(''match'', ''^media_player.universal.*speaker[s]?$'')
+        | unique | list | first | default('''') }}'
+      sleeper_speaker_mass: '{{ [states(''sensor.where_is_maxi_sleeping'')]
+        | map(''area_entities'') | sum(start=[])
+        | select(''match'', ''^media_player.mass.*speaker[s]?$'')
+        | unique | list | first | default('''') }}'
       maxi_location: '{{states(''sensor.where_is_maxi_sleeping'')}}
 
         '
@@ -2456,8 +2456,8 @@
     enabled: true
   - if:
     - condition: template
-      value_template: '{{ state_attr(sleeper_speaker,''media_title'') != ''thunderstorm''
-        }} '
+      value_template: '{{ sleeper_speaker != '''' and state_attr(sleeper_speaker,''media_title'') != ''thunderstorm''
+        }}'
     then:
     - action: media_player.unjoin
       metadata: {}
@@ -3552,11 +3552,13 @@
   conditions: []
   actions:
   - variables:
-      off_lights_in_room: "{% set ns = namespace(f = [] ) %} {% for i in ( [area_id(trigger.entity_id)]
-        \ | map('area_entities') | sum(start=[]) | select('match', '^light.') | select('is_state','off')
-        \ |  unique | list )  %} {% if i not in  label_entities(\"High Intensity Light\")
-        | string %}\n  {% set ns.f = ns.f + [i] %}\n{% endif %} {% endfor %} {{ ns.f
-        }}\n"
+      off_lights_in_room: >-
+        {{ [area_id(trigger.entity_id)]
+          | map('area_entities') | sum(start=[])
+          | select('match', '^light.')
+          | select('is_state', 'off')
+          | reject('in', label_entities('High Intensity Light'))
+          | unique | list }}
   - action: light.turn_on
     data:
       transition: 120
@@ -5313,13 +5315,18 @@
         state: home
       sequence:
       - variables:
-          in_room_speakers: "{% if [area_id(states('sensor.maxi_location_by_petro'))]
-            \  | map('area_entities') | sum(start=[]) |    select('search', 'speakers')
-            | select('search','mass') | unique | list %} {{ [area_id(states('sensor.maxi_location_by_petro'))]
-            \  | map('area_entities') | sum(start=[]) |    select('search', 'speakers')
-            | select('search','mass') | unique | list }} {% else %} {{ [area_id(states('sensor.maxi_location_by_petro'))]
-            \  | map('area_entities') | sum(start=[]) |  select('search', 'speaker')
-            \ | unique | list }} {% endif %} \n"
+          in_room_speakers: >-
+            {% set area = area_id(states('sensor.maxi_location_by_petro')) %}
+            {% if area %}
+              {% set mass_speakers = [area] | map('area_entities') | sum(start=[]) | select('search', 'speakers') | select('search', 'mass') | unique | list %}
+              {% if mass_speakers %}
+                {{ mass_speakers }}
+              {% else %}
+                {{ [area] | map('area_entities') | sum(start=[]) | select('search', 'speaker') | unique | list }}
+              {% endif %}
+            {% else %}
+              []
+            {% endif %}
           attributes: '{{ trigger }}
 
             '
@@ -11619,12 +11626,8 @@
         '
     response_variable: return
   - variables:
-      artist_ids: "{% set ns = namespace(list = []) %} \n{% for artist in return.content.artists
-        %}\n  {% set ns.list = ns.list + [artist.id]  %}\n{% endfor %}\n{{ns.list[0:1]
-        }}\n"
-      artist_names: "{% set ns = namespace(list = []) %} \n{% for artist in return.content.artists
-        %}\n  {% set ns.list = ns.list + [artist.name]  %}\n{% endfor %}\n{{ns.list[0:1]
-        }}\n"
+      artist_ids: "{{ return.content.artists | map(attribute='id') | first | default('') }}"
+      artist_names: "{{ return.content.artists | map(attribute='name') | first | default('') }}"
   - action: rest_command.lidarr_add_artist
     metadata: {}
     data:
