@@ -71,12 +71,12 @@
     metadata: {}
     data: {}
     target:
-      entity_id: media_player.universal_bedroom_speakers
+      entity_id: media_player.mass_bedroom_wiim_speaker
   - metadata: {}
     data: {}
     action: media_player.turn_off
     target:
-      entity_id: media_player.universal_bedroom_speakers
+      entity_id: media_player.mass_bedroom_wiim_speaker
   mode: single
 - id: '1711565389493'
   alias: Assist Restart Music Assistant
@@ -492,13 +492,13 @@
   - condition: not
     conditions:
     - condition: state
-      entity_id: media_player.universal_bathroom_speakers
+      entity_id: media_player.mass_bathroom_vpe_speaker
       state: playing
     - condition: state
-      entity_id: media_player.universal_kitchen_speakers
+      entity_id: media_player.mass_kitchen_wiim_speaker
       state: playing
     - condition: state
-      entity_id: media_player.universal_workshop_speakers
+      entity_id: media_player.mass_workshop_wiim_speaker
       state: playing
     - condition: state
       entity_id: media_player.universal_workshop_chromecast
@@ -513,7 +513,7 @@
     data:
       shuffle: true
     target:
-      entity_id: media_player.mass_bathroom_speaker
+      entity_id: media_player.mass_bathroom_vpe_speaker
   - action: music_assistant.play_media
     metadata: {}
     data:
@@ -521,7 +521,7 @@
       media_type: playlist
       enqueue: replace
     target:
-      entity_id: media_player.mass_bathroom_speaker
+      entity_id: media_player.mass_bathroom_vpe_speaker
   - choose:
     - conditions:
       - condition: state
@@ -534,7 +534,7 @@
         target:
           entity_id:
           - media_player.bathroom_speaker
-          - media_player.universal_bathroom_speakers
+          - media_player.mass_bathroom_vpe_speaker
         action: media_player.volume_set
     - conditions:
       - condition: state
@@ -547,7 +547,7 @@
         action: media_player.volume_set
         target:
           entity_id:
-          - media_player.universal_bathroom_speakers
+          - media_player.mass_bathroom_vpe_speaker
   mode: restart
 - id: '1713536409397'
   alias: Raise music on the playing speaker when the Bathroom fans goes on
@@ -570,7 +570,7 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_bathroom_speakers
+          entity_id: media_player.mass_bathroom_vpe_speaker
   mode: single
 - id: '1713536741103'
   alias: Start bathroom fan when Shower in Usage turns on
@@ -960,13 +960,10 @@
       state: armed_away
   actions:
   - variables:
-      off_lights_in_room: >-
-        {{ [area_id(trigger.entity_id)]
-          | map('area_entities') | sum(start=[])
-          | select('match', '^light.')
-          | select('is_state', 'off')
-          | reject('in', label_entities('High Intensity Light'))
-          | unique | list }}
+      off_lights_in_room: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')
+        | sum(start=[])\n  | select('match', '^light.')\n  | select('is_state', 'off')\n
+        \ | reject('in', label_entities('High Intensity Light'))\n  | unique | list
+        }}"
   - repeat:
       sequence:
       - metadata: {}
@@ -1250,12 +1247,12 @@
   description: ''
   triggers:
   - entity_id:
-    - media_player.universal_lounge_speakers
-    - media_player.universal_hallway_speakers
-    - media_player.universal_workshop_speakers
-    - media_player.universal_salon_speakers
-    - media_player.universal_closet_speakers
-    - media_player.universal_bedroom_speakers
+    - media_player.mass_lounge_wiim_speaker
+    - media_player.mass_hallway_wiim_speaker
+    - media_player.mass_workshop_wiim_speaker
+    - media_player.mass_salon_wiim_speaker
+    - media_player.mass_closet_wiim_speaker
+    - media_player.mass_bedroom_wiim_speaker
     - media_player.group_mass_home_group_speakers
     to:
     - 'off'
@@ -1336,10 +1333,10 @@
     trigger: state
   - alias: Speakers
     entity_id:
-    - media_player.universal_workshop_speakers
-    - media_player.universal_salon_speakers
-    - media_player.universal_bedroom_speakers
-    - media_player.universal_kitchen_speakers
+    - media_player.mass_workshop_wiim_speaker
+    - media_player.mass_salon_wiim_speaker
+    - media_player.mass_bedroom_wiim_speaker
+    - media_player.mass_kitchen_wiim_speaker
     to: playing
     trigger: state
     for:
@@ -1882,9 +1879,12 @@
     entity_id: input_boolean.waiting_pakidge
     state: 'on'
   actions:
-  - action: script.ptz_to_package
+  - action: select.select_option
     metadata: {}
-    data: {}
+    target:
+      entity_id: select.front_door_ptz_camera_ptz_preset
+    data:
+      option: Package
   - delay:
       hours: 0
       minutes: 0
@@ -1968,9 +1968,6 @@
     trigger: device
   conditions: []
   actions:
-  - action: script.ptz_to_doorway
-    metadata: {}
-    data: {}
   - action: select.select_option
     metadata: {}
     target:
@@ -2263,7 +2260,7 @@
     data:
       message: Someone has entered, '{{trigger.id}}' has been opened
       cache: true
-      media_player_entity_id: media_player.universal_bedroom_speakers
+      media_player_entity_id: media_player.mass_bedroom_wiim_speaker
     target:
       entity_id:
       - tts.piper_2
@@ -2272,12 +2269,12 @@
     data:
       volume_level: 0.56
     target:
-      entity_id: media_player.universal_bedroom_speakers
+      entity_id: media_player.mass_bedroom_wiim_speaker
   - action: media_player.volume_up
     metadata: {}
     data: {}
     target:
-      entity_id: media_player.universal_bedroom_speakers
+      entity_id: media_player.mass_bedroom_wiim_speaker
   mode: single
 - id: '1717038729859'
   alias: Set front door screen text
@@ -2438,13 +2435,11 @@
     value_template: '{{ trigger.to_state.state != '''' }}'
   actions:
   - variables:
-      sleeper_speaker: '{{ [states(''sensor.where_is_maxi_sleeping'')]
-        | map(''area_entities'') | sum(start=[])
-        | select(''match'', ''^media_player.universal.*speaker[s]?$'')
+      sleeper_speaker: '{{ [states(''sensor.where_is_maxi_sleeping'')] | map(''area_entities'')
+        | sum(start=[]) | select(''match'', ''^media_player.universal.*speaker[s]?$'')
         | unique | list | first | default('''') }}'
-      sleeper_speaker_mass: '{{ [states(''sensor.where_is_maxi_sleeping'')]
-        | map(''area_entities'') | sum(start=[])
-        | select(''match'', ''^media_player.mass.*speaker[s]?$'')
+      sleeper_speaker_mass: '{{ [states(''sensor.where_is_maxi_sleeping'')] | map(''area_entities'')
+        | sum(start=[]) | select(''match'', ''^media_player.mass.*speaker[s]?$'')
         | unique | list | first | default('''') }}'
       maxi_location: '{{states(''sensor.where_is_maxi_sleeping'')}}
 
@@ -2456,8 +2451,8 @@
     enabled: true
   - if:
     - condition: template
-      value_template: '{{ sleeper_speaker != '''' and state_attr(sleeper_speaker,''media_title'') != ''thunderstorm''
-        }}'
+      value_template: '{{ sleeper_speaker != '''' and state_attr(sleeper_speaker,''media_title'')
+        != ''thunderstorm'' }}'
     then:
     - action: media_player.unjoin
       metadata: {}
@@ -2697,30 +2692,30 @@
     action: media_player.media_stop
     target:
       entity_id:
-      - media_player.universal_home_speakers
-      - media_player.universal_bathroom_speakers
-      - media_player.universal_bedroom_speakers
-      - media_player.universal_closet_speakers
-      - media_player.universal_lounge_speakers
-      - media_player.universal_kitchen_speakers
-      - media_player.universal_hallway_speakers
-      - media_player.universal_salon_speakers
-      - media_player.universal_workshop_speakers
+      - media_player.group_mass_home_group_speakers
+      - media_player.mass_bathroom_vpe_speaker
+      - media_player.mass_bedroom_wiim_speaker
+      - media_player.mass_closet_wiim_speaker
+      - media_player.mass_lounge_wiim_speaker
+      - media_player.mass_kitchen_wiim_speaker
+      - media_player.mass_hallway_wiim_speaker
+      - media_player.mass_salon_wiim_speaker
+      - media_player.mass_workshop_wiim_speaker
     continue_on_error: true
   - metadata: {}
     data: {}
     action: media_player.clear_playlist
     target:
       entity_id:
-      - media_player.universal_home_speakers
-      - media_player.universal_bathroom_speakers
-      - media_player.universal_bedroom_speakers
-      - media_player.universal_closet_speakers
-      - media_player.universal_lounge_speakers
-      - media_player.universal_kitchen_speakers
-      - media_player.universal_hallway_speakers
-      - media_player.universal_salon_speakers
-      - media_player.universal_workshop_speakers
+      - media_player.group_mass_home_group_speakers
+      - media_player.mass_bathroom_vpe_speaker
+      - media_player.mass_bedroom_wiim_speaker
+      - media_player.mass_closet_wiim_speaker
+      - media_player.mass_lounge_wiim_speaker
+      - media_player.mass_kitchen_wiim_speaker
+      - media_player.mass_hallway_wiim_speaker
+      - media_player.mass_salon_wiim_speaker
+      - media_player.mass_workshop_wiim_speaker
     continue_on_error: true
   mode: single
 - id: '1717358289455'
@@ -2788,37 +2783,37 @@
       data: {}
       action: media_player.turn_on
       target:
-        entity_id: media_player.universal_bathroom_speakers
+        entity_id: media_player.mass_bathroom_vpe_speaker
     - metadata: {}
       data: {}
       action: media_player.turn_on
       target:
-        entity_id: media_player.universal_bedroom_speakers
+        entity_id: media_player.mass_bedroom_wiim_speaker
     - metadata: {}
       data: {}
       action: media_player.turn_on
       target:
-        entity_id: media_player.universal_hallway_speakers
+        entity_id: media_player.mass_hallway_wiim_speaker
     - metadata: {}
       data: {}
       action: media_player.turn_on
       target:
-        entity_id: media_player.universal_kitchen_speakers
+        entity_id: media_player.mass_kitchen_wiim_speaker
     - metadata: {}
       data: {}
       action: media_player.turn_on
       target:
-        entity_id: media_player.universal_salon_speakers
+        entity_id: media_player.mass_salon_wiim_speaker
     - metadata: {}
       data: {}
       action: media_player.turn_on
       target:
-        entity_id: media_player.universal_lounge_speakers
+        entity_id: media_player.mass_lounge_wiim_speaker
     - metadata: {}
       data: {}
       action: media_player.turn_on
       target:
-        entity_id: media_player.universal_workshop_speakers
+        entity_id: media_player.mass_workshop_wiim_speaker
     enabled: false
   - metadata: {}
     data:
@@ -2834,43 +2829,43 @@
         is_volume_muted: false
       action: media_player.volume_mute
       target:
-        entity_id: media_player.universal_bathroom_speakers
+        entity_id: media_player.mass_bathroom_vpe_speaker
     - metadata: {}
       data:
         is_volume_muted: false
       action: media_player.volume_mute
       target:
-        entity_id: media_player.universal_bedroom_speakers
+        entity_id: media_player.mass_bedroom_wiim_speaker
     - metadata: {}
       data:
         is_volume_muted: false
       action: media_player.volume_mute
       target:
-        entity_id: media_player.universal_hallway_speakers
+        entity_id: media_player.mass_hallway_wiim_speaker
     - metadata: {}
       data:
         is_volume_muted: false
       action: media_player.volume_mute
       target:
-        entity_id: media_player.universal_kitchen_speakers
+        entity_id: media_player.mass_kitchen_wiim_speaker
     - metadata: {}
       data:
         is_volume_muted: false
       action: media_player.volume_mute
       target:
-        entity_id: media_player.universal_salon_speakers
+        entity_id: media_player.mass_salon_wiim_speaker
     - metadata: {}
       data:
         is_volume_muted: false
       action: media_player.volume_mute
       target:
-        entity_id: media_player.universal_lounge_speakers
+        entity_id: media_player.mass_lounge_wiim_speaker
     - metadata: {}
       data:
         is_volume_muted: false
       action: media_player.volume_mute
       target:
-        entity_id: media_player.universal_workshop_speakers
+        entity_id: media_player.mass_workshop_wiim_speaker
     enabled: true
   - parallel:
     - metadata: {}
@@ -2878,43 +2873,43 @@
         volume_level: 1
       action: media_player.volume_set
       target:
-        entity_id: media_player.universal_bathroom_speakers
+        entity_id: media_player.mass_bathroom_vpe_speaker
     - metadata: {}
       data:
         volume_level: 1
       action: media_player.volume_set
       target:
-        entity_id: media_player.universal_bedroom_speakers
+        entity_id: media_player.mass_bedroom_wiim_speaker
     - metadata: {}
       data:
         volume_level: 1
       action: media_player.volume_set
       target:
-        entity_id: media_player.universal_hallway_speakers
+        entity_id: media_player.mass_hallway_wiim_speaker
     - metadata: {}
       data:
         volume_level: 1
       action: media_player.volume_set
       target:
-        entity_id: media_player.universal_kitchen_speakers
+        entity_id: media_player.mass_kitchen_wiim_speaker
     - metadata: {}
       data:
         volume_level: 1
       action: media_player.volume_set
       target:
-        entity_id: media_player.universal_salon_speakers
+        entity_id: media_player.mass_salon_wiim_speaker
     - metadata: {}
       data:
         volume_level: 1
       action: media_player.volume_set
       target:
-        entity_id: media_player.universal_lounge_speakers
+        entity_id: media_player.mass_lounge_wiim_speaker
     - metadata: {}
       data:
         volume_level: 1
       action: media_player.volume_set
       target:
-        entity_id: media_player.universal_workshop_speakers
+        entity_id: media_player.mass_workshop_wiim_speaker
     enabled: true
   - delay:
       hours: 0
@@ -3502,8 +3497,8 @@
       is_volume_muted: true
     target:
       entity_id:
-      - media_player.universal_workshop_speakers
-      - media_player.universal_hallway_speakers
+      - media_player.mass_workshop_wiim_speaker
+      - media_player.mass_hallway_wiim_speaker
   - action: cover.close_cover
     metadata: {}
     data: {}
@@ -3552,13 +3547,10 @@
   conditions: []
   actions:
   - variables:
-      off_lights_in_room: >-
-        {{ [area_id(trigger.entity_id)]
-          | map('area_entities') | sum(start=[])
-          | select('match', '^light.')
-          | select('is_state', 'off')
-          | reject('in', label_entities('High Intensity Light'))
-          | unique | list }}
+      off_lights_in_room: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')
+        | sum(start=[])\n  | select('match', '^light.')\n  | select('is_state', 'off')\n
+        \ | reject('in', label_entities('High Intensity Light'))\n  | unique | list
+        }}"
   - action: light.turn_on
     data:
       transition: 120
@@ -3571,8 +3563,8 @@
       is_volume_muted: false
     target:
       entity_id:
-      - media_player.universal_workshop_speakers
-      - media_player.universal_hallway_speakers
+      - media_player.mass_workshop_wiim_speaker
+      - media_player.mass_hallway_wiim_speaker
   - action: switch.turn_on
     metadata: {}
     data: {}
@@ -3912,7 +3904,7 @@
     data:
       volume_level: 1
     target:
-      entity_id: media_player.universal_bedroom_speakers
+      entity_id: media_player.mass_bedroom_wiim_speaker
   - repeat:
       while:
       - condition: or
@@ -3931,7 +3923,7 @@
         metadata: {}
         data:
           cache: true
-          media_player_entity_id: media_player.universal_bedroom_speakers
+          media_player_entity_id: media_player.mass_bedroom_wiim_speaker
           message: Please leave this room immediately.
         target:
           entity_id:
@@ -3941,7 +3933,7 @@
         data:
           volume_level: 1
         target:
-          entity_id: media_player.universal_bedroom_speakers
+          entity_id: media_player.mass_bedroom_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -3990,7 +3982,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - media_player.universal_home_speakers
+    - media_player.group_mass_home_group_speakers
     to: 'off'
     for:
       hours: 0
@@ -4502,11 +4494,11 @@
         volume_level: 0.3
       target:
         entity_id:
-        - media_player.universal_hallway_speakers
-        - media_player.universal_workshop_speakers
-        - media_player.universal_kitchen_speakers
-        - media_player.universal_salon_speakers
-        - media_player.universal_lounge_speakers
+        - media_player.mass_hallway_wiim_speaker
+        - media_player.mass_workshop_wiim_speaker
+        - media_player.mass_kitchen_wiim_speaker
+        - media_player.mass_salon_wiim_speaker
+        - media_player.mass_lounge_wiim_speaker
     - action: media_player.volume_set
       metadata: {}
       data:
@@ -4554,11 +4546,11 @@
           volume_level: '{{average_volume}}'
         target:
           entity_id:
-          - media_player.universal_hallway_speakers
-          - media_player.universal_kitchen_speakers
-          - media_player.universal_salon_speakers
-          - media_player.universal_lounge_speakers
-          - media_player.universal_workshop_speakers
+          - media_player.mass_hallway_wiim_speaker
+          - media_player.mass_kitchen_wiim_speaker
+          - media_player.mass_salon_wiim_speaker
+          - media_player.mass_lounge_wiim_speaker
+          - media_player.mass_workshop_wiim_speaker
     - conditions:
       - condition: state
         entity_id: input_boolean.following_music
@@ -5003,7 +4995,7 @@
         data:
           is_volume_muted: true
         target:
-          entity_id: media_player.universal_bathroom_speakers
+          entity_id: media_player.mass_bathroom_vpe_speaker
     - conditions:
       - condition: state
         entity_id: binary_sensor.group_bathroom_motion_occupancy
@@ -5020,7 +5012,7 @@
             data:
               volume_level: 0.2
             target:
-              entity_id: media_player.universal_bathroom_speakers
+              entity_id: media_player.mass_bathroom_vpe_speaker
         - conditions:
           - condition: not
             conditions:
@@ -5038,7 +5030,7 @@
             data:
               is_volume_muted: true
             target:
-              entity_id: media_player.universal_bathroom_speakers
+              entity_id: media_player.mass_bathroom_vpe_speaker
         default:
         - sequence:
           - alias: Wait until bathroom occupancy is off
@@ -5065,7 +5057,7 @@
             data:
               is_volume_muted: true
             target:
-              entity_id: media_player.universal_bathroom_speakers
+              entity_id: media_player.mass_bathroom_vpe_speaker
   mode: restart
 - id: '1734912412449'
   alias: Turn off BAthroom fan when humidity falls
@@ -5147,32 +5139,34 @@
   - action: script.speaker_automatic_volume_adjustment_script
     metadata: {}
     data:
-      received_speaker: media_player.universal_bathroom_speakers
+      received_speaker: media_player.mass_bathroom_vpe_speaker
   mode: restart
 - id: '1737729890470'
   alias: Speaker Automatic Volume v4
   description: Uses the script 'Speaker Automatic Volume Adjustment script'
   triggers:
   - entity_id:
-    - media_player.universal_bedroom_speakers
-    - media_player.universal_salon_speakers
-    - media_player.universal_closet_speakers
-    - media_player.universal_hallway_speakers
-    - media_player.universal_kitchen_speakers
-    - media_player.universal_lounge_speakers
-    - media_player.universal_workshop_speakers
+    - media_player.mass_bedroom_wiim_speaker
+    - media_player.mass_salon_wiim_speaker
+    - media_player.mass_closet_wiim_speaker
+    - media_player.mass_hallway_wiim_speaker
+    - media_player.mass_kitchen_wiim_speaker
+    - media_player.mass_lounge_wiim_speaker
+    - media_player.mass_workshop_wiim_speaker
     to:
+    - playing
     from:
     - idle
     trigger: state
+    id: from_idle_to_play
   - entity_id:
-    - media_player.universal_bedroom_speakers
-    - media_player.universal_salon_speakers
-    - media_player.universal_closet_speakers
-    - media_player.universal_hallway_speakers
-    - media_player.universal_kitchen_speakers
-    - media_player.universal_lounge_speakers
-    - media_player.universal_workshop_speakers
+    - media_player.mass_bedroom_wiim_speaker
+    - media_player.mass_salon_wiim_speaker
+    - media_player.mass_closet_wiim_speaker
+    - media_player.mass_hallway_wiim_speaker
+    - media_player.mass_kitchen_wiim_speaker
+    - media_player.mass_lounge_wiim_speaker
+    - media_player.mass_workshop_wiim_speaker
     to:
     from:
     - 'off'
@@ -5188,8 +5182,8 @@
     state: 'on'
   - alias: Only continue if non-playing for over 300 seconds
     condition: template
-    value_template: '{{  ((as_timestamp((now()) )   - (as_timestamp(trigger.from_state.last_changed))))
-      | float > 300}}'
+    value_template: '{{ (trigger.id != ''from_idle_to_play'') or ((trigger.id == ''from_idle_to_play'')  and  ((as_timestamp((now())
+      )   - (as_timestamp(trigger.from_state.last_changed)))) | float > 300 )}}'
     enabled: true
   actions:
   - variables:
@@ -5256,7 +5250,7 @@
     data:
       is_volume_muted: true
     target:
-      entity_id: media_player.universal_bathroom_speakers
+      entity_id: media_player.mass_bathroom_vpe_speaker
   mode: restart
 - id: '1738198899369'
   alias: Assist identify the device
@@ -5315,18 +5309,13 @@
         state: home
       sequence:
       - variables:
-          in_room_speakers: >-
-            {% set area = area_id(states('sensor.maxi_location_by_petro')) %}
-            {% if area %}
-              {% set mass_speakers = [area] | map('area_entities') | sum(start=[]) | select('search', 'speakers') | select('search', 'universal') | unique | list %}
-              {% if mass_speakers %}
-                {{ mass_speakers }}
-              {% else %}
-                {{ [area] | map('area_entities') | sum(start=[]) | select('search', 'speaker') | unique | list }}
-              {% endif %}
-            {% else %}
-              []
-            {% endif %}
+          in_room_speakers: "{% set area = area_id(states('sensor.maxi_location_by_petro'))
+            %} {% if area %}\n  {% set mass_speakers = [area] | map('area_entities')
+            | sum(start=[]) | select('search', 'speakers') | select('search', 'universal')
+            | unique | list %}\n  {% if mass_speakers %}\n    {{ mass_speakers }}\n
+            \ {% else %}\n    {{ [area] | map('area_entities') | sum(start=[]) | select('search',
+            'speaker') | unique | list }}\n  {% endif %}\n{% else %}\n  []\n{% endif
+            %}"
           attributes: '{{ trigger }}
 
             '
@@ -6510,22 +6499,22 @@
     trigger: state
   conditions:
   - condition: state
-    entity_id: media_player.universal_bathroom_speakers
+    entity_id: media_player.mass_bathroom_vpe_speaker
     state: playing
   - condition: not
     conditions:
     - condition: state
-      entity_id: media_player.universal_kitchen_speakers
+      entity_id: media_player.mass_kitchen_wiim_speaker
       state: playing
     - condition: state
-      entity_id: media_player.universal_workshop_speakers
+      entity_id: media_player.mass_workshop_wiim_speaker
       state: playing
     - condition: state
       entity_id: media_player.universal_workshop_chromecast
       state: playing
   actions:
   - variables:
-      speaker_id: 'media_player.universal_bathroom_speakers
+      speaker_id: 'media_player.mass_bathroom_vpe_speaker
 
         '
   - choose:
@@ -6711,7 +6700,7 @@
     data:
       is_volume_muted: false
     target:
-      entity_id: media_player.universal_bathroom_speakers
+      entity_id: media_player.mass_bathroom_vpe_speaker
   mode: restart
 - id: '1743747879302'
   alias: Ring horn in the back if someone tries to approach while maxi is scared
@@ -6989,7 +6978,7 @@
   - condition: not
     conditions:
     - condition: state
-      entity_id: media_player.mass_bathroom_speaker
+      entity_id: media_player.mass_bathroom_vpe_speaker
       state: playing
   actions:
   - action: media_player.shuffle_set
@@ -6997,7 +6986,7 @@
     data:
       shuffle: true
     target:
-      entity_id: media_player.mass_bathroom_speaker
+      entity_id: media_player.mass_bathroom_vpe_speaker
   - action: music_assistant.play_media
     metadata: {}
     data:
@@ -7005,13 +6994,13 @@
       media_type: playlist
       enqueue: replace
     target:
-      entity_id: media_player.mass_bathroom_speaker
+      entity_id: media_player.mass_bathroom_vpe_speaker
   - metadata: {}
     data:
       volume_level: 0.4
     action: media_player.volume_set
     target:
-      entity_id: media_player.universal_bathroom_speakers
+      entity_id: media_player.mass_bathroom_vpe_speaker
   mode: restart
 - id: '1744750478317'
   alias: Immediately mute bathroom speaker when door open and stuff is playing around
@@ -7030,10 +7019,10 @@
   - condition: or
     conditions:
     - condition: state
-      entity_id: media_player.universal_kitchen_speakers
+      entity_id: media_player.mass_kitchen_wiim_speaker
       state: playing
     - condition: state
-      entity_id: media_player.universal_workshop_speakers
+      entity_id: media_player.mass_workshop_wiim_speaker
       state: playing
     - condition: state
       entity_id: media_player.universal_workshop_chromecast
@@ -7047,7 +7036,7 @@
     data:
       is_volume_muted: true
     target:
-      entity_id: media_player.universal_bathroom_speakers
+      entity_id: media_player.mass_bathroom_vpe_speaker
   mode: restart
 - id: '1744810927278'
   alias: Turn on camera floodlight when someone is detected and maxi is scared is
@@ -7587,7 +7576,7 @@
     entity_id: binary_sensor.sensor_bathroom_door_contact
     state: 'on'
   - condition: state
-    entity_id: media_player.universal_bathroom_speakers
+    entity_id: media_player.mass_bathroom_vpe_speaker
     attribute: is_volume_muted
     state:
     - true
@@ -7614,7 +7603,7 @@
     data:
       shuffle: true
     target:
-      entity_id: media_player.mass_bathroom_speaker
+      entity_id: media_player.mass_bathroom_vpe_speaker
   - action: music_assistant.play_media
     metadata: {}
     data:
@@ -7622,13 +7611,13 @@
       media_type: playlist
       enqueue: replace
     target:
-      entity_id: media_player.mass_bathroom_speaker
+      entity_id: media_player.mass_bathroom_vpe_speaker
   - action: media_player.volume_mute
     metadata: {}
     data:
       is_volume_muted: true
     target:
-      entity_id: media_player.universal_bathroom_speakers
+      entity_id: media_player.mass_bathroom_vpe_speaker
   mode: restart
 - id: '1747632525749'
   alias: Close salon blind sometimes after sun closes
@@ -8189,14 +8178,14 @@
         entity_id: climate.bedroom_ac
     - sequence:
       - condition: state
-        entity_id: media_player.universal_bedroom_speakers
+        entity_id: media_player.mass_bedroom_wiim_speaker
         attribute: media_title
         state: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
       - action: media_player.media_stop
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_bedroom_speakers
+          entity_id: media_player.mass_bedroom_wiim_speaker
   mode: single
 - id: '1748845278340'
   alias: execute Sleep actions when "sleeper in bedroom" is turned on
@@ -8230,7 +8219,7 @@
         entity_id: light.home_assistant_voice_09e4a7_led_ring
     - if:
       - condition: template
-        value_template: '{{ ''thunderstorm'' not in (state_attr(''media_player.universal_bedroom_speakers'',''media_title'')
+        value_template: '{{ ''thunderstorm'' not in (state_attr(''media_player.mass_bedroom_wiim_speaker'',''media_title'')
           | default('''', true)) }}
 
           '
@@ -8252,7 +8241,7 @@
           volume_level: 0.36
         target:
           entity_id:
-          - media_player.universal_bedroom_speakers
+          - media_player.mass_bedroom_wiim_speaker
           - media_player.mass_bedroom_wiim_speaker
       - data:
           media:
@@ -8267,20 +8256,20 @@
           is_volume_muted: true
         action: media_player.volume_mute
         target:
-          entity_id: media_player.universal_bedroom_speakers
+          entity_id: media_player.mass_bedroom_wiim_speaker
       - action: media_player.volume_set
         metadata: {}
         data:
           volume_level: 0.36
         target:
           entity_id:
-          - media_player.universal_bedroom_speakers
+          - media_player.mass_bedroom_wiim_speaker
           - media_player.mass_bedroom_wiim_speaker
       - metadata: {}
         data:
           is_volume_muted: false
         target:
-          entity_id: media_player.universal_bedroom_speakers
+          entity_id: media_player.mass_bedroom_wiim_speaker
         action: media_player.volume_mute
     - action: google_assistant_sdk.send_text_command
       metadata: {}
@@ -8298,7 +8287,7 @@
     to: 'on'
   - trigger: state
     entity_id:
-    - media_player.wiim_kitchen_linkplay
+    - media_player.mass_kitchen_wiim_speaker
     attribute: volume_level
   conditions:
   - condition: state
@@ -8308,7 +8297,7 @@
     after: '21:30:00'
     before: 09:00:00
   - condition: template
-    value_template: '{{ state_attr(''media_player.universal_kitchen_speakers'',''volume_level'')
+    value_template: '{{ state_attr(''media_player.mass_kitchen_wiim_speaker'',''volume_level'')
       > 0.28 }}'
   actions:
   - action: media_player.volume_set
@@ -8316,7 +8305,7 @@
     data:
       volume_level: 0.29
     target:
-      entity_id: media_player.universal_kitchen_speakers
+      entity_id: media_player.mass_kitchen_wiim_speaker
   mode: single
 - id: '1748898158918'
   alias: Disable Sleeper in children room when children leaves
@@ -8359,16 +8348,16 @@
     from: 'off'
   - alias: Speakers muted status
     entity_id:
-    - media_player.universal_workshop_speakers
-    - media_player.universal_salon_speakers
-    - media_player.universal_bedroom_speakers
+    - media_player.mass_workshop_wiim_speaker
+    - media_player.mass_salon_wiim_speaker
+    - media_player.mass_bedroom_wiim_speaker
     trigger: state
     attribute: is_volume_muted
   - alias: Speakers
     entity_id:
-    - media_player.universal_workshop_speakers
-    - media_player.universal_salon_speakers
-    - media_player.universal_bedroom_speakers
+    - media_player.mass_workshop_wiim_speaker
+    - media_player.mass_salon_wiim_speaker
+    - media_player.mass_bedroom_wiim_speaker
     to:
     trigger: state
     for:
@@ -8477,9 +8466,9 @@
       seconds: 2
   - alias: Speakers
     entity_id:
-    - media_player.universal_workshop_speakers
-    - media_player.universal_salon_speakers
-    - media_player.universal_bedroom_speakers
+    - media_player.mass_workshop_wiim_speaker
+    - media_player.mass_salon_wiim_speaker
+    - media_player.mass_bedroom_wiim_speaker
     to: playing
     trigger: state
     for:
@@ -8543,9 +8532,9 @@
     trigger: state
   - alias: Speakers mute states
     entity_id:
-    - media_player.universal_workshop_speakers
-    - media_player.universal_salon_speakers
-    - media_player.universal_bedroom_speakers
+    - media_player.mass_workshop_wiim_speaker
+    - media_player.mass_salon_wiim_speaker
+    - media_player.mass_bedroom_wiim_speaker
     trigger: state
     enabled: true
     attribute: is_volume_muted
@@ -8556,9 +8545,9 @@
     id: speaker_unmuted
   - alias: Speakers
     entity_id:
-    - media_player.universal_workshop_speakers
-    - media_player.universal_salon_speakers
-    - media_player.universal_bedroom_speakers
+    - media_player.mass_workshop_wiim_speaker
+    - media_player.mass_salon_wiim_speaker
+    - media_player.mass_bedroom_wiim_speaker
     to: playing
     trigger: state
     for:
@@ -8660,7 +8649,7 @@
     data:
       is_volume_muted: true
     target:
-      entity_id: media_player.universal_bathroom_speakers
+      entity_id: media_player.mass_bathroom_vpe_speaker
   mode: restart
 - id: '1749001900174'
   alias: Adjust Chromecast volume when unmuted after a long moment
@@ -8902,7 +8891,7 @@
       metadata: {}
       data: {}
       target:
-        entity_id: media_player.wiim_salon_linkplay
+        entity_id: media_player.mass_salon_wiim_speaker
     - delay:
         hours: 0
         minutes: 0
@@ -8921,7 +8910,7 @@
         is_volume_muted: true
       action: media_player.volume_mute
       target:
-        entity_id: media_player.universal_salon_speakers
+        entity_id: media_player.mass_salon_wiim_speaker
     - action: media_player.volume_set
       metadata: {}
       data:
@@ -8933,7 +8922,7 @@
         is_volume_muted: false
       action: media_player.volume_mute
       target:
-        entity_id: media_player.universal_salon_speakers
+        entity_id: media_player.mass_salon_wiim_speaker
   - action: light.turn_off
     metadata: {}
     target:
@@ -9701,25 +9690,28 @@
   alias: Return PTZ to doorway after 10 minutes
   description: ''
   triggers:
-  - trigger: state
-    entity_id:
-    - script.ptz_to_package
-    - script.ptz_to_crackhead
-    - script.ptz_to_drama
-    - script.ptz_to_intersection
-    - script.ptz_to_street
-    from:
-    to:
-    for:
+  - trigger: event
+    event_type: call_service
+    event_data:
+      domain: select
+      service: select_option
+      service_data:
+        entity_id:
+        - select.front_door_ptz_camera_ptz_preset
+  conditions: []
+  actions:
+  - delay:
       hours: 0
       minutes: 10
       seconds: 0
-  conditions: []
-  actions:
-  - action: script.ptz_to_doorway
+      milliseconds: 0
+  - action: select.select_option
     metadata: {}
-    data: {}
-  mode: single
+    target:
+      entity_id: select.front_door_ptz_camera_ptz_preset
+    data:
+      option: Doorway
+  mode: restart
 - id: '1751674442304'
   alias: Stop home group when maxi leaves
   description: ''
@@ -9938,7 +9930,7 @@
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.universal_salon_speakers'' %}
+            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -9962,7 +9954,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_salon_speakers
+            entity_id: media_player.mass_salon_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -9979,7 +9971,7 @@
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.universal_salon_speakers'' %}
+            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10002,7 +9994,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_salon_speakers
+            entity_id: media_player.mass_salon_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -10015,7 +10007,7 @@
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.universal_salon_speakers'' %}
+            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10039,14 +10031,14 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_salon_speakers
+            entity_id: media_player.mass_salon_wiim_speaker
       action_click_double:
       - if:
         - alias: 'If a chromecast is present '
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.universal_salon_speakers'' %}
+            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10070,14 +10062,14 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_salon_speakers
+            entity_id: media_player.mass_salon_wiim_speaker
       action_click_short:
       - if:
         - alias: 'If a chromecast is present '
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.universal_salon_speakers'' %}
+            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10101,7 +10093,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_salon_speakers
+            entity_id: media_player.mass_salon_wiim_speaker
 - id: '1752638811178'
   alias: Dial Workshop Automation New
   description: ''
@@ -10139,7 +10131,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_workshop_speakers
+            entity_id: media_player.mass_workshop_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -10177,7 +10169,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_workshop_speakers
+            entity_id: media_player.mass_workshop_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -10212,7 +10204,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_workshop_speakers
+            entity_id: media_player.mass_workshop_wiim_speaker
       action_click_double:
       - if:
         - alias: 'If a chromecast is present '
@@ -10241,7 +10233,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_workshop_speakers
+            entity_id: media_player.mass_workshop_wiim_speaker
       action_click_short:
       - if:
         - alias: 'If a chromecast is present '
@@ -10270,7 +10262,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_workshop_speakers
+            entity_id: media_player.mass_workshop_wiim_speaker
 - id: '1752638839619'
   alias: Dial Workshop Wall Automation New
   description: ''
@@ -10308,7 +10300,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_workshop_speakers
+            entity_id: media_player.mass_workshop_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -10346,7 +10338,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_workshop_speakers
+            entity_id: media_player.mass_workshop_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -10381,7 +10373,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_workshop_speakers
+            entity_id: media_player.mass_workshop_wiim_speaker
       action_click_double:
       - if:
         - alias: 'If a chromecast is present '
@@ -10410,7 +10402,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_workshop_speakers
+            entity_id: media_player.mass_workshop_wiim_speaker
       action_click_short:
       - if:
         - alias: 'If a chromecast is present '
@@ -10439,7 +10431,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_workshop_speakers
+            entity_id: media_player.mass_workshop_wiim_speaker
 - id: '1752638946576'
   alias: Dial Salon window Automation New
   description: ''
@@ -10455,7 +10447,7 @@
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.universal_salon_speakers'' %}
+            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10479,7 +10471,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_salon_speakers
+            entity_id: media_player.mass_salon_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -10496,7 +10488,7 @@
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.universal_salon_speakers'' %}
+            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10519,7 +10511,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_salon_speakers
+            entity_id: media_player.mass_salon_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -10532,7 +10524,7 @@
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.universal_salon_speakers'' %}
+            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10556,14 +10548,14 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_salon_speakers
+            entity_id: media_player.mass_salon_wiim_speaker
       action_click_double:
       - if:
         - alias: 'If a chromecast is present '
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.universal_salon_speakers'' %}
+            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10587,14 +10579,14 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_salon_speakers
+            entity_id: media_player.mass_salon_wiim_speaker
       action_click_short:
       - if:
         - alias: 'If a chromecast is present '
           condition: template
           value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
 
-            {% set speaker = ''media_player.universal_salon_speakers'' %}
+            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -10618,7 +10610,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_salon_speakers
+            entity_id: media_player.mass_salon_wiim_speaker
 - id: '1752639024754'
   alias: Dial Kitchen Automation New
   description: ''
@@ -10662,7 +10654,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_kitchen_speakers
+            entity_id: media_player.mass_kitchen_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -10706,7 +10698,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_kitchen_speakers
+            entity_id: media_player.mass_kitchen_wiim_speaker
         enabled: true
       - delay:
           hours: 0
@@ -10748,7 +10740,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_kitchen_speakers
+            entity_id: media_player.mass_kitchen_wiim_speaker
       action_click_double:
       - if:
         - alias: 'If a chromecast is present '
@@ -10783,7 +10775,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_kitchen_speakers
+            entity_id: media_player.mass_kitchen_wiim_speaker
       action_click_short:
       - if:
         - alias: 'If a chromecast is present '
@@ -10818,7 +10810,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.universal_kitchen_speakers
+            entity_id: media_player.mass_kitchen_wiim_speaker
 - id: '1752639270370'
   alias: Dial Lounge Automation New
   description: ''
@@ -10833,7 +10825,7 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_lounge_speakers
+          entity_id: media_player.mass_lounge_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -10849,7 +10841,7 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_lounge_speakers
+          entity_id: media_player.mass_lounge_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -10861,19 +10853,19 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_lounge_speakers
+          entity_id: media_player.mass_lounge_wiim_speaker
       action_click_double:
       - action: media_player.media_next_track
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_lounge_speakers
+          entity_id: media_player.mass_lounge_wiim_speaker
       action_click_short:
       - action: media_player.media_play_pause
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_lounge_speakers
+          entity_id: media_player.mass_lounge_wiim_speaker
 - id: '1752801417034'
   alias: Lower lights to 30% when a movie is played
   description: ''
@@ -11444,7 +11436,7 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_lounge_speakers
+          entity_id: media_player.mass_lounge_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -11460,7 +11452,7 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_lounge_speakers
+          entity_id: media_player.mass_lounge_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -11472,19 +11464,19 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_lounge_speakers
+          entity_id: media_player.mass_lounge_wiim_speaker
       action_click_double:
       - action: media_player.media_next_track
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_lounge_speakers
+          entity_id: media_player.mass_lounge_wiim_speaker
       action_click_short:
       - action: media_player.media_play_pause
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_lounge_speakers
+          entity_id: media_player.mass_lounge_wiim_speaker
 - id: '1757350225543'
   alias: Turn off cameras on screens when door is locked back
   description: ''
@@ -11610,7 +11602,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - media_player.universal_home_speakers
+    - media_player.group_mass_home_group_speakers
     attribute: media_artist
   conditions:
   - condition: template
@@ -11624,10 +11616,12 @@
       artist: '{{ trigger.to_state.attributes.media_artist }}'
     response_variable: return
   - variables:
-      artist_ids: "{{ return.content.artists | map(attribute='id') | first | default('') }}"
-      artist_names: "{{ return.content.artists | map(attribute='name') | first | default('') }}"
+      artist_ids: '{{ return.content.artists | map(attribute=''id'') | first | default('''')
+        }}'
+      artist_names: '{{ return.content.artists | map(attribute=''name'') | first |
+        default('''') }}'
   - condition: template
-    value_template: "{{ artist_ids != '' and artist_names != '' }}"
+    value_template: '{{ artist_ids != '''' and artist_names != '''' }}'
   - action: rest_command.lidarr_add_artist
     metadata: {}
     data:
@@ -11682,11 +11676,11 @@
     entity_id: binary_sensor.shower_in_usage
     state: 'on'
   - condition: state
-    entity_id: media_player.universal_bathroom_speakers
+    entity_id: media_player.mass_bathroom_vpe_speaker
     attribute: is_volume_muted
     state: false
   - condition: template
-    value_template: '{{ state_attr(''media_player.universal_bathroom_speakers'',''volume_level'')
+    value_template: '{{ state_attr(''media_player.mass_bathroom_vpe_speaker'',''volume_level'')
       > 0.68 }}'
   actions:
   - action: media_player.volume_set
@@ -11694,7 +11688,7 @@
     data:
       volume_level: 0.67
     target:
-      entity_id: media_player.mass_bathroom_speaker
+      entity_id: media_player.mass_bathroom_vpe_speaker
   mode: single
 - id: '1758115238753'
   alias: Disable automatic back horn when lylou awakes between 7:45 and 8:45
@@ -12134,7 +12128,7 @@
           value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
             %}
 
-            {% set speaker = ''media_player.universal_bedroom_speakers'' %}
+            {% set speaker = ''media_player.mass_bedroom_wiim_speaker'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -12176,7 +12170,7 @@
           value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
             %}
 
-            {% set speaker = ''media_player.universal_bedroom_speakers'' %}
+            {% set speaker = ''media_player.mass_bedroom_wiim_speaker'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -12213,7 +12207,7 @@
           value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
             %}
 
-            {% set speaker = ''media_player.universal_bedroom_speakers'' %}
+            {% set speaker = ''media_player.mass_bedroom_wiim_speaker'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -12245,7 +12239,7 @@
           value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
             %}
 
-            {% set speaker = ''media_player.universal_bedroom_speakers'' %}
+            {% set speaker = ''media_player.mass_bedroom_wiim_speaker'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -12277,7 +12271,7 @@
           value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
             %}
 
-            {% set speaker = ''media_player.universal_bedroom_speakers'' %}
+            {% set speaker = ''media_player.mass_bedroom_wiim_speaker'' %}
 
             {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
             and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
@@ -15011,26 +15005,26 @@
           - action: media_player.volume_mute
             metadata: {}
             target:
-              entity_id: media_player.universal_bathroom_speakers
+              entity_id: media_player.mass_bathroom_vpe_speaker
             data:
               is_volume_muted: true
           alias: If any chromecast is playing
         - conditions:
           - condition: state
-            entity_id: media_player.universal_kitchen_speakers
+            entity_id: media_player.mass_kitchen_wiim_speaker
             state:
             - playing
             - 'on'
             - buffering
           - condition: state
-            entity_id: media_player.universal_workshop_speakers
+            entity_id: media_player.mass_workshop_wiim_speaker
             state:
             - playing
             - 'on'
             - buffering
             enabled: true
           - condition: state
-            entity_id: media_player.universal_hallway_speakers
+            entity_id: media_player.mass_hallway_wiim_speaker
             state:
             - playing
             - 'on'
@@ -15040,7 +15034,7 @@
           - action: media_player.volume_mute
             metadata: {}
             target:
-              entity_id: media_player.universal_bathroom_speakers
+              entity_id: media_player.mass_bathroom_vpe_speaker
             data:
               is_volume_muted: true
           alias: If a nearby speaker is playing
@@ -15068,7 +15062,7 @@
           - action: media_player.volume_mute
             metadata: {}
             target:
-              entity_id: media_player.universal_bathroom_speakers
+              entity_id: media_player.mass_bathroom_vpe_speaker
             data:
               is_volume_muted: true
           alias: If only the bathroom speaker is playing
@@ -15093,7 +15087,7 @@
             data:
               is_volume_muted: true
             target:
-              entity_id: media_player.universal_bathroom_speakers
+              entity_id: media_player.mass_bathroom_vpe_speaker
     - conditions:
       - condition: state
         entity_id: binary_sensor.group_bathroom_motion_occupancy
@@ -15104,7 +15098,7 @@
         data:
           is_volume_muted: true
         target:
-          entity_id: media_player.universal_bathroom_speakers
+          entity_id: media_player.mass_bathroom_vpe_speaker
   mode: parallel
   max: 2
 - id: '1767744894962'
@@ -15113,7 +15107,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - media_player.mass_bathroom_speaker
+    - media_player.mass_bathroom_vpe_speaker
     attribute: is_volume_muted
     from:
     - true
@@ -15451,7 +15445,7 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_hallway_speakers
+          entity_id: media_player.mass_hallway_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -15467,7 +15461,7 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_hallway_speakers
+          entity_id: media_player.mass_hallway_wiim_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -15479,19 +15473,19 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_hallway_speakers
+          entity_id: media_player.mass_hallway_wiim_speaker
       action_click_double:
       - action: media_player.media_next_track
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_hallway_speakers
+          entity_id: media_player.mass_hallway_wiim_speaker
       action_click_short:
       - action: media_player.media_play_pause
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.universal_hallway_speakers
+          entity_id: media_player.mass_hallway_wiim_speaker
 - id: '1772575048674'
   alias: Purify Salon air when someone is smoking
   description: ''
@@ -15601,10 +15595,10 @@
       minutes: 0
       seconds: 1
     entity_id:
-    - media_player.universal_workshop_speakers
-    - media_player.universal_salon_speakers
-    - media_player.universal_bedroom_speakers
-    - media_player.universal_kitchen_speakers
+    - media_player.mass_workshop_wiim_speaker
+    - media_player.mass_salon_wiim_speaker
+    - media_player.mass_bedroom_wiim_speaker
+    - media_player.mass_kitchen_wiim_speaker
   - alias: Speakers from playing (1 s)
     trigger: state
     id: spk_from_playing
@@ -15615,9 +15609,9 @@
       minutes: 0
       seconds: 1
     entity_id:
-    - media_player.universal_workshop_speakers
-    - media_player.universal_salon_speakers
-    - media_player.universal_bedroom_speakers
+    - media_player.mass_workshop_wiim_speaker
+    - media_player.mass_salon_wiim_speaker
+    - media_player.mass_bedroom_wiim_speaker
   - alias: Speakers mute status (1 s)
     trigger: state
     id: spk_mute_status
@@ -15625,9 +15619,9 @@
     for:
       seconds: 1
     entity_id:
-    - media_player.universal_workshop_speakers
-    - media_player.universal_salon_speakers
-    - media_player.universal_bedroom_speakers
+    - media_player.mass_workshop_wiim_speaker
+    - media_player.mass_salon_wiim_speaker
+    - media_player.mass_bedroom_wiim_speaker
   conditions:
   - condition: template
     value_template: '{{ trigger.to_state.state != ''unavailable'' }}'
