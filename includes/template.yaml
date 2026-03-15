@@ -4,6 +4,41 @@
         state: >
           {{ expand('binary_sensor.group_security_occupancy_sensors') | selectattr('state', 'eq', 'on') | list | count >= 2 }}
 
+      - name: "Users Present"
+        unique_id: user_home
+        delay_off:
+          minutes: 7
+        state: >-
+          {{ states.person | selectattr('state', 'eq', 'home') | list | count > 0 }}
+
+      - name: "Maxi is Alone"
+        unique_id: maxi_alone
+        delay_off:
+          minutes: 1
+        state: >-
+          {{ is_state('person.maximiliano', 'home')
+             and is_state('zone.home', '1')
+             and is_state('sensor.chilling_hotspot_client_count', '0') }}
+
+      - name: "Lylou is Alone"
+        unique_id: lylou_alone
+        state: >-
+          {{ is_state('person.lylou', 'home')
+             and is_state('zone.home', '1')
+             and is_state('sensor.chilling_hotspot_client_count', '0') }}
+
+      - name: "Myriam is Alone"
+        unique_id: myriam_alone
+        state: >-
+          {{ is_state('person.myriam', 'home')
+             and is_state('zone.home', '1')
+             and is_state('sensor.chilling_hotspot_client_count', '0') }}
+
+      - name: "Maxi is sleeping"
+        unique_id: maxi_sleeping
+        state: >-
+          {{ not is_state('sensor.where_is_maxi_sleeping', '') }}
+
       - name: "Shower in Usage"
         unique_id: shower_in_usage
         delay_off:
@@ -168,7 +203,7 @@
           {% elif is_state('alarm_control_panel.home_alarm', 'armed_night') %}
             Armed Night
           {% else %}
-            Edgecase
+            Unknown
           {% endif %}
         icon: >-
           {% if is_state('lock.lock_front_door', 'locked') and is_state('lock.back_door', 'locked') and (states('alarm_control_panel.home_alarm') == "disarmed")  %}
@@ -182,7 +217,7 @@
           {% elif is_state('alarm_control_panel.home_alarm', 'armed_home') %}
             mdi:shield-account
           {% else %}
-            mdi:microsoft-edge-legacy
+            mdi:shield-alert
           {% endif %}
           
 
@@ -478,7 +513,7 @@
       - name: "active_sleeper_amount"
         unique_id: "active_sleeper_amount"
         state: >-
-            {{(states('sensor.active_sleeper_rooms') | replace("'", '"') | from_json) | length}}
+            {{ states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search','input_boolean.sleeper_in_') | list | count }}
 
 
       - name: "active microphones rooms"
@@ -677,7 +712,7 @@
         state: >
             {% set room = states('sensor.myriam_location_by_petro') %}  {# get the current myriam location sensor state #}
             {% set sleeperamount = states('sensor.active_sleeper_amount') | int %}
-            {% set activesleeperrooms = states('sensor.active_sleeper_rooms') | replace("'", '"') | from_json %}
+            {% set activesleeperrooms = states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search','input_boolean.sleeper_in_') | map(attribute='entity_id') | map('replace', 'input_boolean.sleeper_in_', '') | list %}
             {% set lasttvactiveroom = states('sensor.last_active_room') %}
             {% set phone_sleep_confidence = states('sensor.phone_myriam_sleep_confidence') | int %}
             {% set sleepingstate = "awake" %}
@@ -723,7 +758,7 @@
         state: >
             {% set room = states('sensor.maxi_location_by_petro') %}  {# get the current maxi location sensor state #}
             {% set sleeperamount = states('sensor.active_sleeper_amount') | int %}
-            {% set activesleeperrooms = states('sensor.active_sleeper_rooms') | replace("'", '"') | from_json %}
+            {% set activesleeperrooms = states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search','input_boolean.sleeper_in_') | map(attribute='entity_id') | map('replace', 'input_boolean.sleeper_in_', '') | list %}
             {% set lasttvactiveroom = states('sensor.last_active_room') %}
             {% set phone_sleep_confidence = states('sensor.phone_maxi_sleep_confidence') | int %}
             {% set sleepingstate = "awake" %}
@@ -755,7 +790,7 @@
           location: >
             {% set room = states('sensor.maxi_location_by_petro') %}  {# get the current maxi location sensor state #}
             {% set sleeperamount = states('sensor.active_sleeper_amount') | int %}
-            {% set activesleeperrooms = states('sensor.active_sleeper_rooms') | replace("'", '"') | from_json %}
+            {% set activesleeperrooms = states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search','input_boolean.sleeper_in_') | map(attribute='entity_id') | map('replace', 'input_boolean.sleeper_in_', '') | list %}
             {% set lasttvactiveroom = states('sensor.last_active_room') %}
             {% set maxilocation = states('sensor.maxi_location_by_petro') %}
             {% set phone_sleep_confidence = states('sensor.phone_maxi_sleep_confidence') | int %}
@@ -963,15 +998,12 @@
                         {% elif room in ns.active_chromecasts_room %}
                             {% set ns.activityname = "Watching TV in the " + room %}  
                         {% else %}
-                            {% set ns.activityname = "todetermine" %}  
+                            {% set ns.activityname = "Unknown" %}
                         {% endif %}  
                     {% endif %}        
               {% elif friendshome > 0    %}     {# if we have more people over than users #}{# assume a chilling #}
                         {% set ns.activityname = "Chilling" %}
-              {% else %}
-              {% endif %}                      
-            {% else %}
-              EDGECASE
+              {% endif %}
             {% endif %}
             {{ns.activityname }}            
       - name: "plex token"
