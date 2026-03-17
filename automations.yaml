@@ -1493,7 +1493,7 @@
         metadata: {}
         data:
           transition: 2
-          color_temp_kelvin: 263
+          color_temp_kelvin: 4628
           brightness: 255
         target:
           entity_id: light.front_door_light
@@ -1534,7 +1534,7 @@
         metadata: {}
         data:
           transition: 2
-          color_temp_kelvin: 263
+          color_temp_kelvin: 4628
           brightness: 255
         target:
           entity_id: light.front_door_light
@@ -3000,17 +3000,19 @@
 - id: '1719366131642'
   alias: Open bedroom covers when the person awakes
   description: ''
-  trigger:
-  - platform: state
-    entity_id:
+  triggers:
+  - entity_id:
     - input_boolean.sleeper_in_bedroom
-    from: 'on'
-    to: 'off'
+    from:
+    - 'on'
+    to:
+    - 'off'
     for:
       hours: 0
-      minutes: 10
+      minutes: 0
       seconds: 0
-  condition:
+    trigger: state
+  conditions:
   - condition: state
     entity_id: binary_sensor.sensor_bedroom_door_contact
     state: 'on'
@@ -3018,7 +3020,7 @@
       hours: 0
       minutes: 5
       seconds: 0
-  action:
+  actions:
   - metadata: {}
     data: {}
     target:
@@ -3045,32 +3047,6 @@
       entity_id:
       - cover.cover_bedroom_blinds
     data: {}
-  mode: single
-- id: '1719617622275'
-  alias: Display Salon Display interface
-  description: ''
-  triggers:
-  - trigger: time_pattern
-    hours: /1
-  conditions: []
-  actions:
-  - metadata: {}
-    data: {}
-    action: media_player.turn_off
-    target:
-      entity_id: media_player.salon_hub
-  - metadata: {}
-    data:
-      dashboard_path: lovelace-hub
-      view_path: salon-hub
-      entity_id: media_player.salon_hub
-    action: cast.show_lovelace_view
-    enabled: false
-  - action: dash_cast.load_url
-    data:
-      entity_id: media_player.salon_hub
-      url: http://192.168.0.15:8123/lovelace-hub/salon-hub?kiosk=1
-      force: true
   mode: single
 - id: '1721278758149'
   alias: 'Bedroom hue tap remote automation '
@@ -3364,14 +3340,21 @@
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
     - assist_satellite.saloon_assistant_assist_satellite
     - assist_satellite.lv_assistant_assist_satellite
+    - assist_satellite.bathroom_assistant_assist_satellite
+    - assist_satellite.desktop_assistant_assist_satellite
+    - assist_satellite.home_assistant_voice_09e4a7_assist_satellite
+    - assist_satellite.lounge_assistant_assist_satellite
+    - assist_satellite.bedroom_assistant_assist_satellite
+    - assist_satellite.home_assistant_voice_09ee99_assist_satellite
     from:
     trigger: state
-    to: listening
+    to:
+    - listening
   conditions: []
   actions:
   - variables:
       playing_speakers: "{% set entity_id = [area_id(trigger.entity_id)]  | map('area_entities')
-        | sum(start=[]) | select('search', 'speakers') | select('is_state','playing')
+        | sum(start=[]) | select('search', 'speaker') | select('is_state','playing')
         | unique | list %} {% if entity_id %}\n  {{ [entity_id | first | string] +
         [state_attr(entity_id | first | string, 'volume_level') | string] }}\n{% else
         %}\n  {{ [] }}\n{% endif %}\n"
@@ -3385,7 +3368,8 @@
       if:
       - alias: Speaker present
         condition: template
-        value_template: '{{ playing_speakers.0 != ""}}'
+        value_template: '{{ playing_speakers | length > 0 and playing_speakers[0]
+          != ""}}'
       then:
       - alias: Speakers
         sequence:
@@ -3425,7 +3409,8 @@
     - alias: Dismiss empty variables
       if:
       - condition: template
-        value_template: '{{ playing_chromecasts.0 != ""}}'
+        value_template: '{{ playing_chromecasts | length > 0 and playing_chromecasts[0]
+          != ""}}'
       then:
       - alias: chromecasts
         sequence:
@@ -4064,7 +4049,7 @@
   - trigger: numeric_state
     entity_id:
     - sensor.patio_camera_sound_level
-    below: -30
+    above: -30
   conditions:
   - condition: state
     entity_id: binary_sensor.group_patio_motion_occupancy
@@ -4670,7 +4655,7 @@
         metadata: {}
         data:
           transition: 20
-          color_temp_kelvin: 3597
+          color_temp_kelvin: 4628
           brightness_pct: 100
         target:
           entity_id: light.front_door_light
@@ -4862,7 +4847,10 @@
       minutes: 2
       seconds: 0
     trigger: state
-    to: 'off'
+    to:
+    - 'off'
+    from:
+    - 'on'
   conditions: []
   actions:
   - variables:
@@ -4943,7 +4931,10 @@
     - binary_sensor.group_workstation_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
     trigger: state
-    to: 'on'
+    to:
+    - 'on'
+    from:
+    - 'off'
   conditions:
   - condition: template
     value_template: '{{ area_id(trigger.entity_id) | replace(''_top'','''') | replace(''_down'','''')
@@ -6211,11 +6202,18 @@
   alias: Turn on parking light when a car is moving
   description: ''
   triggers:
-  - trigger: numeric_state
+  - trigger: state
     entity_id:
-    - sensor.parking_exit_camera_car_active_count
-    - sensor.parking_camera_car_active_count
-    above: 0
+    - binary_sensor.parking_camera_car_occupancy
+    - binary_sensor.parking_exit_camera_car_occupancy
+    from:
+    - 'off'
+    to:
+    - 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 3
   conditions: []
   actions:
   - metadata: {}
@@ -8218,11 +8216,19 @@
       target:
         entity_id: light.home_assistant_voice_09e4a7_led_ring
     - if:
-      - condition: template
-        value_template: '{{ ''thunderstorm'' not in (state_attr(''media_player.mass_bedroom_wiim_speaker'',''media_title'')
-          | default('''', true)) }}
+      - condition: or
+        conditions:
+        - condition: template
+          value_template: '{{ ''thunderstorm'' not in (state_attr(''media_player.mass_bedroom_wiim_speaker'',''media_title'')
+            | default('''', true)) }}
 
-          '
+            '
+        - condition: not
+          conditions:
+          - condition: state
+            entity_id: media_player.mass_bedroom_wiim_speaker
+            state:
+            - playing
       then:
       - action: media_player.unjoin
         metadata: {}
@@ -9750,12 +9756,15 @@
   triggers:
   - trigger: state
     entity_id:
-    - assist_satellite.desktop_assistant_assist_satellite
-    - assist_satellite.bedroom_assistant_assist_satellite
-    - assist_satellite.lounge_assistant_assist_satellite
     - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
-    - assist_satellite.lv_assistant_assist_satellite
     - assist_satellite.saloon_assistant_assist_satellite
+    - assist_satellite.lv_assistant_assist_satellite
+    - assist_satellite.bathroom_assistant_assist_satellite
+    - assist_satellite.desktop_assistant_assist_satellite
+    - assist_satellite.home_assistant_voice_09e4a7_assist_satellite
+    - assist_satellite.lounge_assistant_assist_satellite
+    - assist_satellite.bedroom_assistant_assist_satellite
+    - assist_satellite.home_assistant_voice_09ee99_assist_satellite
     from:
     to: responding
   conditions: []

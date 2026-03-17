@@ -62,8 +62,8 @@
         unique_id: motion_inside_home
         delay_off:
           minutes: 1
-        state: >                   
-          {% set occupancy_sensors = states.binary_sensor | selectattr('attributes.device_class', 'eq', 'occupancy') | selectattr('state', 'eq', 'on')|rejectattr('entity_id', 'search', 'parking')|  rejectattr('entity_id', 'search', 'patio')| rejectattr('entity_id', 'search', 'door') |map(attribute='entity_id')  | list %}
+        state: >
+          {% set occupancy_sensors = expand('binary_sensor.group_security_occupancy_sensors') | selectattr('state', 'eq', 'on') | rejectattr('entity_id', 'search', 'parking') | rejectattr('entity_id', 'search', 'patio') | rejectattr('entity_id', 'search', 'door') | map(attribute='entity_id') | list %}
           {{ occupancy_sensors | count > 0 }}
         attributes:
           last_active: >
@@ -284,12 +284,6 @@
 
 
 
-      - name: "Existing Rooms"
-        unique_id: "existing_rooms"
-        state: >-
-          {% set areas = states  | selectattr('attributes.device_class', 'defined')   | map(attribute='entity_id')  | map('area_id') | unique | reject('none') | list %}
-          {{ areas }}
-
       - name: "current time"
         unique_id: "current_time"
         state: >-
@@ -406,43 +400,6 @@
             {{ ns.residents }}{# output residents at home #}      
         unit_of_measurement: "residents"
 
-      - name: "amount friends home"
-        unique_id: "amount_friends_home"
-        state: >-
-            {# Set friendshome to the amount of friends #}
-            {% set ns = namespace(friends=0) %}
-             {% for device_tracker in states.device_tracker | selectattr('state','eq','home')  | selectattr('entity_id','search',"phone_") %}
-              {% if  state_attr(device_tracker.entity_id, "essid") == "Chilling Hotspot" and 'phone' in device_tracker.entity_id  %}
-               {% set ns.friends = ns.friends  + 1 %}
-              {% endif %}
-             {% endfor %}
-             {% set friendshome = [ns.friends  | int - states('sensor.amount_partners_home') | int - states('sensor.amount_crashing_home') | int, 0] | max  %}
-             {{friendshome}}
-        unit_of_measurement: "friends"
-        attributes:
-          friends: >
-            {% set ns = namespace(friends=[]) %}
-            {% for device_tracker in states.device_tracker | selectattr('state','eq','home')  | selectattr('entity_id','search',"phone_") %}
-              {% if  state_attr(device_tracker.entity_id, "essid") == "Chilling Hotspot" and 'phone' in device_tracker.entity_id  %}
-               {% set name  = device_tracker.entity_id | replace('device_tracker.phone_','') | replace('_',' ') | capitalize  %}
-              {% set ns.friends = ns.friends  + [name] %}
-             {% endif %}
-            {% endfor %}
-            {{ ns.friends }}
-
-
-
-      - name: "Chilling Hotspot devices"
-        unique_id: "which_devices_hotspot"
-        state: >-
-            {% set ns = namespace(friends=[]) %}
-            {% for device_tracker in states.device_tracker | selectattr('state','eq','home')   %}
-             {% if  state_attr(device_tracker.entity_id, "essid") == "Chilling Hotspot" %}
-               {% set name  = device_tracker.entity_id   %}
-              {% set ns.friends = ns.friends  + [name] %}
-             {% endif %}
-            {% endfor %}
-            {{ ns.friends }}
 
       - name: "which friends home"
         unique_id: "which_friends_home"
@@ -484,37 +441,6 @@
               | list 
               | first 
               | default(this.state | default(None))) | lower }}
-
-
-      - name: "active_sleeper_rooms"
-        unique_id: "active_sleeper_rooms"
-        state: >-
-            {% set ns = namespace(active_sleeper_rooms = []) %}  {# create a namespace object to store variables #}
-            {%- for boolean in states.input_boolean -%} 
-              {% if boolean.state == "on" and "input_boolean.sleeper_in_" in boolean.entity_id %}
-                {% set sensor = boolean.entity_id | replace('input_boolean.sleeper_in_','') %}
-                  {% set ns.active_sleeper_rooms = ns.active_sleeper_rooms + [sensor] %}
-              {%- endif %}
-            {% endfor %}
-            {{ ns.active_sleeper_rooms }}
-
-      - name: "active_sleepers"
-        unique_id: "active_sleepers"
-        state: >-
-          {{ states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search',"input_boolean.sleeper_in_") | list | count }}
-        attributes:
-          rooms: >
-            {% set ns = namespace(items=[]) %}
-            {% for inp in states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search',"input_boolean.sleeper_in_") %}
-              {% set ns.items = ns.items  + [ (loop.index, inp.entity_id  | replace('input_boolean.sleeper_in_','') ) ] %}
-            {% endfor %}
-            {{ dict(ns.items) }}
-
-      - name: "active_sleeper_amount"
-        unique_id: "active_sleeper_amount"
-        state: >-
-            {{ states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search','input_boolean.sleeper_in_') | list | count }}
-
 
       - name: "active microphones rooms"
         unique_id: "active_microphones_rooms"
@@ -615,15 +541,13 @@
       - name: "active_motion_rooms"
         unique_id: "active_motion_rooms"
         state: >-
-            {% set ns = namespace(mediaactiverooms = []) %}  {# create a namespace object to store variables #}
-            {% for motion_sensor in states.binary_sensor -%} 
-              {%- if  "occupancy" in motion_sensor.entity_id -%}  
-                {%- if motion_sensor.state == 'on' -%}
-                {% set currentroomname = area_name(motion_sensor.entity_id)  %}
-                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname] -%}   
-                {%- endif -%}
+            {% set ns = namespace(mediaactiverooms = []) %}
+            {% for motion_sensor in expand('binary_sensor.group_security_occupancy_sensors') -%}
+              {%- if motion_sensor.state == 'on' -%}
+                {% set currentroomname = area_name(motion_sensor.entity_id) %}
+                {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname] -%}
               {%- endif -%}
-            {% endfor %} 
+            {% endfor %}
             {{ ns.mediaactiverooms | unique | list}}
 
         
@@ -712,7 +636,7 @@
         state: >
             {% set room = states('sensor.myriam_location_by_petro') %}  {# get the current myriam location sensor state #}
             {% set sleeperamount = states('sensor.active_sleeper_amount') | int %}
-            {% set activesleeperrooms = states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search','input_boolean.sleeper_in_') | map(attribute='entity_id') | map('replace', 'input_boolean.sleeper_in_', '') | list %}
+            {% set activesleeperrooms = (state_attr('sensor.active_sleepers', 'rooms') or {}).values() | list %}
             {% set lasttvactiveroom = states('sensor.last_active_room') %}
             {% set phone_sleep_confidence = states('sensor.phone_myriam_sleep_confidence') | int %}
             {% set sleepingstate = "awake" %}
@@ -758,7 +682,7 @@
         state: >
             {% set room = states('sensor.maxi_location_by_petro') %}  {# get the current maxi location sensor state #}
             {% set sleeperamount = states('sensor.active_sleeper_amount') | int %}
-            {% set activesleeperrooms = states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search','input_boolean.sleeper_in_') | map(attribute='entity_id') | map('replace', 'input_boolean.sleeper_in_', '') | list %}
+            {% set activesleeperrooms = (state_attr('sensor.active_sleepers', 'rooms') or {}).values() | list %}
             {% set lasttvactiveroom = states('sensor.last_active_room') %}
             {% set phone_sleep_confidence = states('sensor.phone_maxi_sleep_confidence') | int %}
             {% set sleepingstate = "awake" %}
@@ -790,7 +714,7 @@
           location: >
             {% set room = states('sensor.maxi_location_by_petro') %}  {# get the current maxi location sensor state #}
             {% set sleeperamount = states('sensor.active_sleeper_amount') | int %}
-            {% set activesleeperrooms = states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search','input_boolean.sleeper_in_') | map(attribute='entity_id') | map('replace', 'input_boolean.sleeper_in_', '') | list %}
+            {% set activesleeperrooms = (state_attr('sensor.active_sleepers', 'rooms') or {}).values() | list %}
             {% set lasttvactiveroom = states('sensor.last_active_room') %}
             {% set maxilocation = states('sensor.maxi_location_by_petro') %}
             {% set phone_sleep_confidence = states('sensor.phone_maxi_sleep_confidence') | int %}
@@ -803,16 +727,16 @@
                     {% set sleepingspot = lasttvactiveroom %}
                   {% else %}
                   {# this below code set sleepingspots as the last sleeper that eas turned on#}
-                  {% set sleepingspot =  states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search',"input_boolean.sleeper_") | sort(attribute='last_updated', reverse=True) | map(attribute="entity_id") | first | default | replace("input_boolean.sleeper_in_","") %}  
+                  {% set sleepingspot = expand('input_boolean.sleeper_in_bedroom', 'input_boolean.sleeper_in_closet', 'input_boolean.sleeper_in_workshop', 'input_boolean.sleeper_in_patio', 'input_boolean.sleeper_in_hotbox', 'input_boolean.sleeper_in_salon', 'input_boolean.sleeper_in_lounge') | selectattr('state','eq','on') | sort(attribute='last_updated', reverse=True) | map(attribute='entity_id') | first | default | replace('input_boolean.sleeper_in_','') %}
                   {% endif %}
-              
+
                 {% elif sleeperamount == 1 %}  {# if there is only one "sleeper" input_boolean that is "on" #}
                   {% set sleepingspot =  state_attr('sensor.active_sleepers','rooms')[1] %}  {# set the roomname to the only "sleeper" input_boolean that is "on" #}
-                {% endif %}  
-              
+                {% endif %}
+
               {% elif states('binary_sensor.maxi_alone') == "off" and states('person.maximiliano') == "home" %}  {# if the maxi_alone sensor is off, it indicates that there is more than maxi present #}
                   {# this below code set sleepingspots as the last sleeper that was turned on#}
-                  {% set last_sleeping_spot = states.input_boolean | selectattr('state','eq','on') | selectattr('entity_id','search',"input_boolean.sleeper_") | sort(attribute='last_updated', reverse=True) | map(attribute="entity_id") | first | default | replace("input_boolean.sleeper_in_","") %}  
+                  {% set last_sleeping_spot = expand('input_boolean.sleeper_in_bedroom', 'input_boolean.sleeper_in_closet', 'input_boolean.sleeper_in_workshop', 'input_boolean.sleeper_in_patio', 'input_boolean.sleeper_in_hotbox', 'input_boolean.sleeper_in_salon', 'input_boolean.sleeper_in_lounge') | selectattr('state','eq','on') | sort(attribute='last_updated', reverse=True) | map(attribute='entity_id') | first | default | replace('input_boolean.sleeper_in_','') %}  
                     {% if maxilocation in activesleeperrooms %}
                       {% set sleepingspot = maxilocation %}
                     {% elif last_sleeping_spot == maxilocation %}                    
@@ -1059,6 +983,128 @@
 #           {% set sorted_list = ns.counted_list|sort(attribute='amount', reverse=true) %}
 #           {{(sorted_list |  map(attribute='name')) | list  | first }}
 
+  #############################################################################
+  # TRIGGER-BASED TEMPLATES
+  # Converted from polling templates to reduce constant domain-wide iterations
+  #############################################################################
+
+  # Friends & Hotspot - triggers on hotspot client count changes instead of scanning all device_trackers
+  - trigger:
+      - trigger: state
+        entity_id:
+          - sensor.chilling_hotspot_client_count
+          - device_tracker.phone_maxi
+          - device_tracker.phone_lylou
+          - device_tracker.phone_myriam_gps
+      - trigger: time_pattern
+        minutes: "/5"
+    sensor:
+      - name: "amount friends home"
+        unique_id: "amount_friends_home"
+        state: >-
+            {% set ns = namespace(friends=0) %}
+            {% for device_tracker in states.device_tracker | selectattr('state','eq','home') | selectattr('entity_id','search',"phone_") %}
+              {% if state_attr(device_tracker.entity_id, "essid") == "Chilling Hotspot" and 'phone' in device_tracker.entity_id %}
+                {% set ns.friends = ns.friends + 1 %}
+              {% endif %}
+            {% endfor %}
+            {% set friendshome = [ns.friends | int - states('sensor.amount_partners_home') | int - states('sensor.amount_crashing_home') | int, 0] | max %}
+            {{ friendshome }}
+        unit_of_measurement: "friends"
+        attributes:
+          friends: >
+            {% set ns = namespace(friends=[]) %}
+            {% for device_tracker in states.device_tracker | selectattr('state','eq','home') | selectattr('entity_id','search',"phone_") %}
+              {% if state_attr(device_tracker.entity_id, "essid") == "Chilling Hotspot" and 'phone' in device_tracker.entity_id %}
+                {% set name = device_tracker.entity_id | replace('device_tracker.phone_','') | replace('_',' ') | capitalize %}
+                {% set ns.friends = ns.friends + [name] %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.friends }}
+
+      - name: "Chilling Hotspot devices"
+        unique_id: "which_devices_hotspot"
+        state: >-
+            {% set ns = namespace(friends=[]) %}
+            {% for device_tracker in states.device_tracker | selectattr('state','eq','home') %}
+              {% if state_attr(device_tracker.entity_id, "essid") == "Chilling Hotspot" %}
+                {% set name = device_tracker.entity_id %}
+                {% set ns.friends = ns.friends + [name] %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.friends }}
+
+  # Sleeper sensors - triggers on specific sleeper input_booleans instead of scanning all input_booleans
+  - trigger:
+      - trigger: state
+        entity_id:
+          - input_boolean.sleeper_in_bedroom
+          - input_boolean.sleeper_in_closet
+          - input_boolean.sleeper_in_workshop
+          - input_boolean.sleeper_in_patio
+          - input_boolean.sleeper_in_hotbox
+          - input_boolean.sleeper_in_salon
+          - input_boolean.sleeper_in_lounge
+      - trigger: homeassistant
+        event: start
+    sensor:
+      - name: "active_sleeper_rooms"
+        unique_id: "active_sleeper_rooms"
+        state: >-
+            {% set sleepers = expand('input_boolean.sleeper_in_bedroom', 'input_boolean.sleeper_in_closet', 'input_boolean.sleeper_in_workshop', 'input_boolean.sleeper_in_patio', 'input_boolean.sleeper_in_hotbox', 'input_boolean.sleeper_in_salon', 'input_boolean.sleeper_in_lounge') | selectattr('state','eq','on') | map(attribute='entity_id') | map('replace', 'input_boolean.sleeper_in_', '') | list %}
+            {{ sleepers }}
+
+      - name: "active_sleepers"
+        unique_id: "active_sleepers"
+        state: >-
+            {% set active = expand('input_boolean.sleeper_in_bedroom', 'input_boolean.sleeper_in_closet', 'input_boolean.sleeper_in_workshop', 'input_boolean.sleeper_in_patio', 'input_boolean.sleeper_in_hotbox', 'input_boolean.sleeper_in_salon', 'input_boolean.sleeper_in_lounge') | selectattr('state','eq','on') | list %}
+            {{ active | count }}
+        attributes:
+          rooms: >
+            {% set ns = namespace(items=[]) %}
+            {% for inp in expand('input_boolean.sleeper_in_bedroom', 'input_boolean.sleeper_in_closet', 'input_boolean.sleeper_in_workshop', 'input_boolean.sleeper_in_patio', 'input_boolean.sleeper_in_hotbox', 'input_boolean.sleeper_in_salon', 'input_boolean.sleeper_in_lounge') | selectattr('state','eq','on') %}
+              {% set ns.items = ns.items + [ (loop.index, inp.entity_id | replace('input_boolean.sleeper_in_','') ) ] %}
+            {% endfor %}
+            {{ dict(ns.items) }}
+
+      - name: "active_sleeper_amount"
+        unique_id: "active_sleeper_amount"
+        state: >-
+            {% set active = expand('input_boolean.sleeper_in_bedroom', 'input_boolean.sleeper_in_closet', 'input_boolean.sleeper_in_workshop', 'input_boolean.sleeper_in_patio', 'input_boolean.sleeper_in_hotbox', 'input_boolean.sleeper_in_salon', 'input_boolean.sleeper_in_lounge') | selectattr('state','eq','on') | list %}
+            {{ active | count }}
+
+  # Existing Rooms - triggers on time pattern instead of iterating ALL states
+  - trigger:
+      - trigger: time_pattern
+        minutes: "/30"
+      - trigger: homeassistant
+        event: start
+    sensor:
+      - name: "Existing Rooms"
+        unique_id: "existing_rooms"
+        state: >-
+          {% set areas = states | selectattr('attributes.device_class', 'defined') | map(attribute='entity_id') | map('area_id') | unique | reject('none') | list %}
+          {{ areas }}
+
+  # Maxi Location by petro - triggers on specific BLE tracker entities instead of constant re-rendering
+  - trigger:
+      - trigger: state
+        entity_id:
+          - sensor.bermuda_maxi_watch_bps_zone
+          - sensor.bermuda_maxi_watch_area
+          - device_tracker.maxi_bracelet_espresense
+          - sensor.bermuda_maxi_ankle_monitor_area
+          - sensor.bermuda_maxi_phone_bps_zone
+          - sensor.bermuda_maxi_phone_area
+          - device_tracker.espresense_phone_maxi
+          - device_tracker.phone_maxi
+          - binary_sensor.maxi_watch_on_body_sensor
+          - sensor.maxi_watch_charger_type
+          - sensor.phone_maxi_charger_type
+          - binary_sensor.phone_maxi_interactive
+          - binary_sensor.maxi_alone
+          - sensor.last_active_room
+    sensor:
       - name: "Maxi Location by petro"
         unique_id: maxi_location_by_petro
         state: >-
@@ -1066,13 +1112,12 @@
               ('watch', 'sensor.bermuda_maxi_watch_bps_zone', 'sensor.bermuda_maxi_watch_area'),
               ('bracelet', 'device_tracker.maxi_bracelet_espresense', 'sensor.bermuda_maxi_ankle_monitor_area'),
               ('phone', 'sensor.bermuda_maxi_phone_bps_zone', 'sensor.bermuda_maxi_phone_area'),
-              
-            ] %}          
-            {% set gpslocation = states('device_tracker.phone_maxi') | lower %}         
+            ] %}
+            {% set gpslocation = states('device_tracker.phone_maxi') | lower %}
             {% set ns = namespace(rooms=[], results=[]) %}
-            {% for name, room, sensor in info if (name == 'watch' and is_state('binary_sensor.maxi_watch_on_body_sensor', 'on') and is_state('sensor.maxi_watch_charger_type', 'none') ) or 
+            {% for name, room, sensor in info if (name == 'watch' and is_state('binary_sensor.maxi_watch_on_body_sensor', 'on') and is_state('sensor.maxi_watch_charger_type', 'none') ) or
                                                  (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on')) or
-                                                 (name == 'bracelet' )                                                     
+                                                 (name == 'bracelet' )
             %}
               {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
                 {% if room != 'not_home' and room != 'main floor' and room  != 'unknown' and room  != 'home' and room!= 'unavailable' %}
@@ -1080,79 +1125,86 @@
                 {% endif %}
                 {% if sensor != 'not_home' and sensor != 'main floor' and sensor  != 'unknown' and sensor  != 'home' and sensor != 'unavailable' %}
                   {% set ns.rooms = ns.rooms + [(name, sensor.split('_').0)] %}
-                {% endif %}              
+                {% endif %}
             {% endfor %}
             {% if is_state('binary_sensor.maxi_alone', 'on') %}
               {% set ns.rooms = ns.rooms + [('last',states('sensor.last_active_room')|lower)] %}
-            {% endif %}            
+            {% endif %}
             {% for room, items in ns.rooms | groupby(attribute='1') %}
                {% set ns.results = ns.results + [(room, items | map(attribute='0') | list | length)] %}
-            {% endfor %}            
+            {% endfor %}
             {% if is_state('device_tracker.phone_maxi', 'home') %}
               {{ ns.results | sort(attribute='1', reverse=True) | map(attribute='0') | first | default('unknown') }}
             {% elif gpslocation != "home" and gpslocation != "away" %}
               At {{gpslocation}}
             {% else %}
               not_home
-            {% endif %} 
+            {% endif %}
         attributes:
           rooms: >
             {% set info = [
               ('watch', 'sensor.bermuda_maxi_watch_bps_zone', 'sensor.bermuda_maxi_watch_area'),
               ('bracelet', 'device_tracker.maxi_bracelet_espresense', 'sensor.bermuda_maxi_ankle_monitor_area'),
               ('phone', 'device_tracker.espresense_phone_maxi', 'sensor.bermuda_maxi_phone_area'),
-              
-            ] %}          
-            {% set gpslocation = states('device_tracker.phone_maxi') | lower %}         
+            ] %}
+            {% set gpslocation = states('device_tracker.phone_maxi') | lower %}
             {% set ns = namespace(rooms=[], results=[]) %}
             {% for name, room, sensor in info if ( name != 'watch' or (name == 'watch' and is_state('binary_sensor.maxi_watch_on_body_sensor', 'on') and is_state('sensor.maxi_watch_charger_type', 'none') )) and (name != 'phone' or (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on') )) %}
               {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
                 {% if room != 'not_home' and room != 'main floor' and room  != 'unknown' and room  != 'home' and room!= 'unavailable' %}
                   {% set ns.rooms = ns.rooms + [(name, room)] %}
-                {% endif %}                
+                {% endif %}
                 {% if sensor != 'not_home' and sensor != 'main floor' and sensor  != 'unknown' and sensor  != 'home' and sensor != 'unavailable' %}
                   {% set ns.rooms = ns.rooms + [(name, sensor)] %}
-                {% endif %}              
+                {% endif %}
             {% endfor %}
             {% if is_state('binary_sensor.maxi_alone', 'on') %}
               {% set ns.rooms = ns.rooms + [('last',states('sensor.last_active_room')|lower)] %}
-            {% endif %}            
+            {% endif %}
             {% for room, items in ns.rooms | groupby(attribute='1') %}
                {% set ns.results = ns.results + [(room, items | map(attribute='0') | list )] %}
-            {% endfor %}   
+            {% endfor %}
             {%- for room, devices in ns.results %}
               '{{ room }}': {{ devices | tojson | replace('[','(') | replace(']',')') }}{{ ',' if not loop.last }}
             {%- endfor %}
 
+  # Myriam Location by petro - triggers on specific entities instead of constant re-rendering
+  - trigger:
+      - trigger: state
+        entity_id:
+          - device_tracker.myriam_s24_espresense
+          - sensor.bermuda_myriam_phone_area
+          - device_tracker.phone_myriam_gps
+          - binary_sensor.myriam_alone
+          - sensor.last_active_room
+    sensor:
       - name: "Myriam Location by petro"
         unique_id: myriam_location_by_petro
         state: >-
             {% set info = [
               ('phone', 'device_tracker.myriam_s24_espresense', 'sensor.bermuda_myriam_phone_area'),
-              
-            ] %}          
-            {% set gpslocation = states('device_tracker.phone_myriam_gps') | lower %}         
+            ] %}
+            {% set gpslocation = states('device_tracker.phone_myriam_gps') | lower %}
             {% set ns = namespace(rooms=[], results=[]) %}
-
-            {% for name, room, sensor in info  %}
+            {% for name, room, sensor in info %}
               {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
                 {% if room != 'not_home' and room != 'main floor' and room  != 'unknown' and room  != 'home' and room!= 'unavailable' %}
                   {% set ns.rooms = ns.rooms + [(name, room.split('_').0)] %}
-                {% endif %}                
+                {% endif %}
                 {% if sensor != 'not_home' and sensor != 'main floor' and sensor  != 'unknown' and sensor  != 'home' and sensor != 'unavailable' %}
                   {% set ns.rooms = ns.rooms + [(name, sensor.split('_').0)] %}
-                {% endif %}              
+                {% endif %}
             {% endfor %}
             {% if is_state('binary_sensor.myriam_alone', 'on') %}
               {% set ns.rooms = ns.rooms + [('last',states('sensor.last_active_room')|lower)] %}
-            {% endif %}            
+            {% endif %}
             {% for room, items in ns.rooms | groupby(attribute='1') %}
                {% set ns.results = ns.results + [(room, items | map(attribute='0') | list | length)] %}
-            {% endfor %}            
+            {% endfor %}
             {% if is_state('device_tracker.phone_myriam_gps', 'home') %}
               {{ ns.results | sort(attribute='1', reverse=True) | map(attribute='0') | first | default('unknown') }}
             {% elif gpslocation != "home" and gpslocation != "away" %}
               At {{gpslocation}}
             {% else %}
               not_home
-            {% endif %}  
+            {% endif %}
