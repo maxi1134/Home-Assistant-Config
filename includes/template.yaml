@@ -4,13 +4,6 @@
         state: >
           {{ expand('binary_sensor.group_security_occupancy_sensors') | selectattr('state', 'eq', 'on') | list | count >= 2 }}
 
-      - name: "Users Present"
-        unique_id: user_home
-        delay_off:
-          minutes: 7
-        state: >-
-          {{ states.person | selectattr('state', 'eq', 'home') | list | count > 0 }}
-
       - name: "Maxi is Alone"
         unique_id: maxi_alone
         delay_off:
@@ -66,19 +59,7 @@
           {% set occupancy_sensors = expand('binary_sensor.group_security_occupancy_sensors') | selectattr('state', 'eq', 'on') | rejectattr('entity_id', 'search', 'parking') | rejectattr('entity_id', 'search', 'patio') | rejectattr('entity_id', 'search', 'door') | map(attribute='entity_id') | list %}
           {{ occupancy_sensors | count > 0 }}
         attributes:
-          last_active: >
-            {% set sensors = integration_entities('group')     
-              | select('search', 'motion_occupancy')  
-              | reject('search', 'group_hotbox_motion_occupancy') 
-              | select('is_state','on') 
-              | list 
-            %}  
-            {{ area_name(expand(sensors) 
-              | sort(reverse=true, attribute="last_changed") 
-              | map(attribute='entity_id') 
-              | list 
-              | first 
-              | default(this.state | default(None))) | lower }}
+          last_active: "{{ states('sensor.last_active_room') }}"
         
 
       - name: "All residents Sleeping"
@@ -126,24 +107,6 @@
               or not is_state('sensor.phone_maxi_phone_state', "idle")
               or states('sensor.phone_maxi_audio_mode') != 'normal') and states('person.maximiliano') == 'home' ) }}
   - sensor:
-      - name: "Average House Humidity"
-        unique_id: "average_house_humidity"
-        state: >-
-             {{ integration_entities('mqtt')     
-             |    select('search', '_temperature_humidity') 
-             |    select('search', 'sensor_') 
-             |    reject('search', 'calibration') 
-             | expand
-             | rejectattr('state', 'search', 'unavailable') 
-             | rejectattr('state', 'search', 'unknown') 
-             | list 
-             | map(attribute='state')   
-             | map('float')
-             | list
-             | average(default=0)
-             | round(2)}}
-        unit_of_measurement: '%'
-
       - name: "Outside Temperature with Fallback"
         unique_id: "outside_temperature_with_fallback"
         state: >-
@@ -156,37 +119,6 @@
                 {% endif %}
         unit_of_measurement: degrees
 
-      - name: "Playing on Hotbox TV"
-        state: >-
-          {% if state_attr('media_player.hotbox_top_chromecast', 'media_series_title') %}
-            {{ state_attr('media_player.hotbox_top_chromecast', 'media_series_title') }}
-            S{{ state_attr('media_player.hotbox_top_chromecast', 'media_season') }}
-            E{{ state_attr('media_player.hotbox_top_chromecast', 'media_episode') }}
-          {% elif  state_attr('media_player.hotbox_top_chromecast', 'media_album_name') %}
-           {{ state_attr('media_player.hotbox_top_chromecast', 'media_title') }}  -  {{ state_attr('media_player.hotbox_top_chromecast', 'media_album_name') }} by {{ state_attr('media_player.hotbox_top_chromecast', 'media_album_artist') }}
-          {% elif  state_attr('media_player.hotbox_top_chromecast', 'media_title') %}
-            {{ state_attr('media_player.hotbox_top_chromecast', 'media_title') }}
-          {% endif %}
-        unique_id: playing_on_hotbox_tv
-      - name: "Playing on Patio TV"
-        state: >-
-          {% if state_attr('media_player.patio_chromecast', 'media_series_title') %}
-            {{ state_attr('media_player.patio_chromecast', 'media_series_title') }}
-            S{{ state_attr('media_player.patio_chromecast', 'media_season') }}
-            E{{ state_attr('media_player.patio_chromecast', 'media_episode') }}
-          {% elif  state_attr('media_player.patio_chromecast', 'media_album_name') %}
-           {{ state_attr('media_player.patio_chromecast', 'media_title') }}  -  {{ state_attr('media_player.patio_chromecast', 'media_album_name') }} by {{ state_attr('media_player.patio_chromecast', 'media_album_artist') }}
-          {% elif  state_attr('media_player.patio_chromecast', 'media_title') %}
-            {{ state_attr('media_player.patio_chromecast', 'media_title') }}
-          {% endif %}
-        unique_id: playing_on_patio_tv
-
-
-      - name: "Minutes since boot"
-        state: >
-          {{ (as_timestamp(now()) - as_timestamp(states('sensor.uptime'))) // 60 }}
-        unique_id: minutes_since_boot
-        
       - name: "Security All Clear"
         unique_id: security_all_clear
         state: >-
@@ -222,34 +154,6 @@
           
 
         
-      - name: "Playing on workshop TV"
-        unique_id: playing_on_workshop_tv
-        state: >-
-          {# Displays the current media information of the workshop Chromecast. It checks for different types of media and formats them accordingly #}
-          {% if state_attr('media_player.workshop_chromecast', 'media_series_title') %}
-            {#  Prints the TV show's title, season number, and episode number when playing a video file. #}
-            {{ state_attr('media_player.workshop_chromecast', 'media_series_title') }}: S{{ state_attr('media_player.workshop_chromecast', 'media_season') }} E{{ state_attr('media_player.workshop_chromecast', 'media_episode') }}
-          {% elif  state_attr('media_player.workshop_chromecast', 'media_album_name') %}
-          {#  Prints the song's title, album name, and artist when playing an audio file. #}
-            {{ state_attr('media_player.workshop_chromecast', 'media_title') }}  -  {{ state_attr('media_player.workshop_chromecast', 'media_album_name') }} by {{ state_attr('media_player.workshop_chromecast', 'media_album_artist') }}
-          {% elif  state_attr('media_player.workshop_chromecast', 'media_title') %}
-            {# Prints the current media title when neither a TV show nor an audio file is playing. #}
-            {{ state_attr('media_player.workshop_chromecast', 'media_title') }}
-          {% endif %}
-
-
-  
-      - name: "Guest WiFi Count"
-        state: >-
-          {{ states('sensor.chilling_hotspot_client_count')}}
-        unit_of_measurement: guests
-        unique_id: guest_wifi_count
-
-      - name: "Day Of The Week"
-        state: >-
-            {{ now().weekday() }}
-        unique_id: day_of_the_week
-
       - name: 'Bathroom Usage' 
         state: >-
           {% if states('binary_sensor.shower_in_usage') == "on" %}
@@ -283,39 +187,6 @@
 #        unique_id: timer_remaining
 
 
-
-      - name: "current time"
-        unique_id: "current_time"
-        state: >-
-          {{now().strftime('%H:%M %p')}}
-          
-
-
-          
-      - name: "Playing on Bedroom Speaker"
-        unique_id: "playing_on_bedroom_speaker" 
-        state: >-
-          {% if state_attr('media_player.bedroom_speaker', 'media_series_title') %}
-            {{ state_attr('media_player.bedroom_speaker', 'media_series_title') }}
-          {% elif  state_attr('media_player.bedroom_speaker', 'media_album_name') %}
-           {{ state_attr('media_player.bedroom_speaker', 'media_title') }}  -  {{ state_attr('media_player.bedroom_speaker', 'media_album_name') }} by {{ state_attr('media_player.bedroom_speaker', 'media_artist') }}
-          {% elif  state_attr('media_player.bedroom_speaker', 'media_title') %}
-            {{ state_attr('media_player.bedroom_speaker', 'media_title') }}
-           {% elif  state_attr('media_player.bedroom_speaker', 'app_name') %}
-            {{ state_attr('media_player.bedroom_speaker', 'app_name') }}
-          {% endif %}
-      - name: "Playing on home group Speaker"
-        unique_id: "playing_on_home_group_speaker" 
-        state: >-
-          {% if state_attr('media_player.group_mass_home_group_speakers', 'media_series_title') %}
-            {{ state_attr('media_player.group_mass_home_group_speakers', 'media_series_title') }}
-          {% elif  state_attr('media_player.group_mass_home_group_speakers', 'media_album_name') %}
-           {{ state_attr('media_player.group_mass_home_group_speakers', 'media_title') }}  -  {{ state_attr('media_player.group_mass_home_group_speakers', 'media_album_name') }} by {{ state_attr('media_player.group_mass_home_group_speakers', 'media_artist') }}
-          {% elif  state_attr('media_player.group_mass_home_group_speakers', 'media_title') %}
-            {{ state_attr('media_player.group_mass_home_group_speakers', 'media_title') }}
-           {% elif  state_attr('media_player.group_mass_home_group_speakers', 'app_name') %}
-            {{ state_attr('media_player.group_mass_home_group_speakers', 'app_name') }}
-          {% endif %}
 
       - name: "Maxi Location"
         unique_id: "maxi_location" 
@@ -363,44 +234,6 @@
             {% else %}idle
             {% endif %} 
 
-      - name: "amount partners home"
-        unique_id: "amount_partners_home"
-        state: >-
-            {% set ns = namespace(total_partners = 0) %} {# set namespace user amount at 0 #}
-            {% for person in states.person %} {# iterate over existing persons #}
-            {% if "partners" in person.entity_id | labels() and person.state == "home"  %}
-              {% set ns.total_partners = ns.total_partners + 1 %}
-            {% endif %}
-            {% endfor %}            
-            {{ ns.total_partners }}{# output total_partners at home #}      
-        unit_of_measurement: "partners"
-
-      - name: "amount people crashing at home"
-        unique_id: "amount_crashing_home"
-        state: >-
-            {% set ns = namespace(crashers = 0) %} {# set namespace user amount at 0 #}
-            {% for person in states.person %} {# iterate over existing persons #}
-            {% if "crashers" in person.entity_id | labels() and person.state == "home"  %}
-              {% set ns.crashers = ns.crashers + 1 %}
-            {% endif %}
-            {% endfor %}            
-            {{ ns.crashers }}{# output crashers at home #}      
-        unit_of_measurement: "crashers"
-
-        
-      - name: "amount residents at home"
-        unique_id: "amount_residents_home"
-        state: >-
-            {% set ns = namespace(residents = 0) %} {# set namespace user amount at 0 #}
-            {% for person in states.person %} {# iterate over existing persons #}
-            {% if "residents" in person.entity_id | labels() and person.state == "home"  %}
-              {% set ns.residents = ns.residents + 1 %}
-            {% endif %}
-            {% endfor %}            
-            {{ ns.residents }}{# output residents at home #}      
-        unit_of_measurement: "residents"
-
-
       - name: "which friends home"
         unique_id: "which_friends_home"
         state: >-
@@ -426,22 +259,6 @@
 
       
 
-      - name: "last active room"
-        unique_id: last_active_room
-        state: >-
-              {% set sensors = integration_entities('group')     
-              | select('search', 'motion_occupancy')  
-              | reject('search', 'group_hotbox_motion_occupancy') 
-              | select('is_state','on') 
-              | list 
-              %}  
-              {{ area_name(expand(sensors) 
-              | sort(reverse=true, attribute="last_changed") 
-              | map(attribute='entity_id') 
-              | list 
-              | first 
-              | default(this.state | default(None))) | lower }}
-
       - name: "active microphones rooms"
         unique_id: "active_microphones_rooms"
         state: >-
@@ -456,160 +273,6 @@
               {% set ns.active_micro_room = ns.active_micro_room + [ states('sensor.maxi_location_by_petro')] %}
             {% endif %}
             {{ ns.active_micro_room | unique | list }}
-      - name: "active_chromecast_rooms"
-        unique_id: "active_chromecast_rooms"
-        state: >-
-            {{ integration_entities('universal')
-              | select('search', 'chromecast')
-              | list | expand
-              | selectattr('state', 'eq', 'playing')
-              | rejectattr('entity_id', 'search', 'home')
-              | map(attribute='entity_id')
-              | unique
-              | map('regex_replace', 'media_player.universal_', '')
-              | map('regex_replace', '_chromecast', '')
-              | list }}
-        attributes:
-          muted_rooms: >-
-            {{ integration_entities('universal')
-              | select('search', 'chromecast')
-              | list | expand
-              | selectattr('state', 'eq', 'playing')
-              | selectattr('attributes.is_volume_muted', 'eq', true)
-              | rejectattr('entity_id', 'search', 'home')
-              | map(attribute='entity_id')
-              | unique
-              | map('regex_replace', 'media_player.universal_', '')
-              | map('regex_replace', '_chromecast', '')
-              | list }}
-          unmuted_rooms: >-
-            {{ integration_entities('universal')
-              | select('search', 'chromecast')
-              | list | expand
-              | selectattr('state', 'eq', 'playing')
-              | selectattr('attributes.is_volume_muted', 'eq', false)
-              | rejectattr('entity_id', 'search', 'home')
-              | map(attribute='entity_id')
-              | unique
-              | map('regex_replace', 'media_player.universal_', '')
-              | map('regex_replace', '_chromecast', '')
-              | list }}
-
-
-      - name: "active_speakers_rooms"
-        unique_id: "active_speakers_rooms"
-        state: >-
-            {{ integration_entities('universal')
-              | select('search', 'speakers')
-              | select('is_state','playing')
-              | list | expand
-              | rejectattr('entity_id', 'search', 'home')
-              | map(attribute='entity_id')
-              | unique
-              | map('regex_replace', 'media_player.universal_', '')
-              | map('regex_replace', '_speakers', '')
-              | list }}
-        attributes:
-          muted_rooms: >-
-            {{ integration_entities('universal')
-              | select('search', 'speakers')
-              | select('is_state','playing')
-              | list | expand
-              | selectattr('attributes.is_volume_muted', 'eq', true)
-              | rejectattr('entity_id', 'search', 'home')
-              | map(attribute='entity_id')
-              | unique
-              | map('regex_replace', 'media_player.universal_', '')
-              | map('regex_replace', '_speakers', '')
-              | list }}
-          unmuted_rooms: >-
-            {{ integration_entities('universal')
-              | select('search', 'speakers')
-              | select('is_state','playing')
-              | list | expand
-              | selectattr('attributes.is_volume_muted', 'eq', false)
-              | rejectattr('entity_id', 'search', 'home')
-              | map(attribute='entity_id')
-              | unique
-              | map('regex_replace', 'media_player.universal_', '')
-              | map('regex_replace', '_speakers', '')
-              | list }}
-
-
-
-
-      - name: "active_motion_rooms"
-        unique_id: "active_motion_rooms"
-        state: >-
-            {% set ns = namespace(mediaactiverooms = []) %}
-            {% for motion_sensor in expand('binary_sensor.group_security_occupancy_sensors') -%}
-              {%- if motion_sensor.state == 'on' -%}
-                {% set currentroomname = area_name(motion_sensor.entity_id) %}
-                {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname] -%}
-              {%- endif -%}
-            {% endfor %}
-            {{ ns.mediaactiverooms | unique | list}}
-
-        
-
-      - name: "active_media_playback"
-        unique_id: "active_media_playback"
-        state: >-
-              {% set speakers = integration_entities('universal')     
-              | select('search', 'speakers') 
-              | select('is_state','playing') 
-              | list 
-              | expand   
-              | rejectattr('entity_id', 'search', 'home') 
-              | map(attribute='entity_id')
-              | unique 
-              | map('regex_replace', 'media_player.universal_', '') 
-              | map('regex_replace', '_speakers', '')
-              |list
-              %}            
-              {% set chromecasts = integration_entities('universal')     
-              | select('search', 'chromecast') 
-              | select('is_state','playing') 
-              | list 
-              | expand   
-              | rejectattr('entity_id', 'search', 'home') 
-              | map(attribute='entity_id') 
-              | unique 
-              | map('regex_replace', 'media_player.universal_', '') 
-              | map('regex_replace', '_chromecast', '')
-              | map('regex_replace', '_top', '')
-              | map('regex_replace', '_bottom', '')
-              |list
-              %}
-              {{ (speakers + chromecasts) | unique | list  | length > 0 }}
-        attributes:
-          speakers: >-
-              {{ integration_entities('universal')     
-              | select('search', 'speakers') 
-              | select('is_state','playing') 
-              | list 
-              | expand   
-              | rejectattr('entity_id', 'search', 'home') 
-              | map(attribute='entity_id') 
-              | unique 
-              | map('regex_replace', 'media_player.universal_', '') 
-              | map('regex_replace', '_speakers', '')
-              |list
-               }}      
-          chromecasts: >-
-              {{ integration_entities('universal')     
-              | select('search', 'chromecast') 
-              | select('is_state','playing') 
-              | list 
-              | expand   
-              | rejectattr('entity_id', 'search', 'home') 
-              | map(attribute='entity_id') 
-              | unique 
-              | map('regex_replace', 'media_player.universal_', '') 
-              | map('regex_replace', '_chromecast', '')
-              |list
-              }}      
-
       - name: Is lylou asleep?
         unique_id: "is_lylou_asleep"
         state: >
@@ -1140,6 +803,217 @@
             {% else %}
               not_home
             {% endif %}
+
+  # Playing on X sensors - trigger-based on each media player's state changes
+  - trigger:
+      - trigger: state
+        entity_id:
+          - media_player.hotbox_top_chromecast
+          - media_player.patio_chromecast
+          - media_player.workshop_chromecast
+          - media_player.group_mass_home_group_speakers
+          - media_player.mass_bathroom_vpe_speaker
+          - media_player.mass_bedroom_wiim_speaker
+          - media_player.mass_closet_wiim_speaker
+          - media_player.mass_lounge_wiim_speaker
+          - media_player.mass_kitchen_wiim_speaker
+          - media_player.mass_hallway_wiim_speaker
+          - media_player.mass_salon_wiim_speaker
+          - media_player.mass_workshop_wiim_speaker
+      - trigger: homeassistant
+        event: start
+    sensor:
+      - name: "Playing on Hotbox TV"
+        unique_id: playing_on_hotbox_tv
+        state: >-
+          {% set e = 'media_player.hotbox_top_chromecast' %}
+          {% if state_attr(e, 'media_series_title') %}
+            {{ state_attr(e, 'media_series_title') }} S{{ state_attr(e, 'media_season') }} E{{ state_attr(e, 'media_episode') }}
+          {% elif state_attr(e, 'media_album_name') %}
+            {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_album_artist') }}
+          {% elif state_attr(e, 'media_title') %}
+            {{ state_attr(e, 'media_title') }}
+          {% endif %}
+      - name: "Playing on Patio TV"
+        unique_id: playing_on_patio_tv
+        state: >-
+          {% set e = 'media_player.patio_chromecast' %}
+          {% if state_attr(e, 'media_series_title') %}
+            {{ state_attr(e, 'media_series_title') }} S{{ state_attr(e, 'media_season') }} E{{ state_attr(e, 'media_episode') }}
+          {% elif state_attr(e, 'media_album_name') %}
+            {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_album_artist') }}
+          {% elif state_attr(e, 'media_title') %}
+            {{ state_attr(e, 'media_title') }}
+          {% endif %}
+      - name: "Playing on Workshop TV"
+        unique_id: playing_on_workshop_tv
+        state: >-
+          {% set e = 'media_player.workshop_chromecast' %}
+          {% if state_attr(e, 'media_series_title') %}
+            {{ state_attr(e, 'media_series_title') }}: S{{ state_attr(e, 'media_season') }} E{{ state_attr(e, 'media_episode') }}
+          {% elif state_attr(e, 'media_album_name') %}
+            {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_album_artist') }}
+          {% elif state_attr(e, 'media_title') %}
+            {{ state_attr(e, 'media_title') }}
+          {% endif %}
+      - name: "Playing on Home Group Speaker"
+        unique_id: playing_on_home_group_speaker
+        state: >-
+          {% set e = 'media_player.group_mass_home_group_speakers' %}
+          {% if state_attr(e, 'media_series_title') %}
+            {{ state_attr(e, 'media_series_title') }}
+          {% elif state_attr(e, 'media_album_name') %}
+            {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_artist') }}
+          {% elif state_attr(e, 'media_title') %}
+            {{ state_attr(e, 'media_title') }}
+          {% elif state_attr(e, 'app_name') %}
+            {{ state_attr(e, 'app_name') }}
+          {% endif %}
+      - name: "Playing on Bathroom Speaker"
+        unique_id: playing_on_bathroom_speaker
+        state: >-
+          {% set e = 'media_player.mass_bathroom_vpe_speaker' %}
+          {% if state_attr(e, 'media_album_name') %}
+            {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_artist') }}
+          {% elif state_attr(e, 'media_title') %}
+            {{ state_attr(e, 'media_title') }}
+          {% elif state_attr(e, 'app_name') %}
+            {{ state_attr(e, 'app_name') }}
+          {% endif %}
+      - name: "Playing on Bedroom Speaker"
+        unique_id: playing_on_bedroom_speaker
+        state: >-
+          {% set e = 'media_player.mass_bedroom_wiim_speaker' %}
+          {% if state_attr(e, 'media_album_name') %}
+            {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_artist') }}
+          {% elif state_attr(e, 'media_title') %}
+            {{ state_attr(e, 'media_title') }}
+          {% elif state_attr(e, 'app_name') %}
+            {{ state_attr(e, 'app_name') }}
+          {% endif %}
+      - name: "Playing on Closet Speaker"
+        unique_id: playing_on_closet_speaker
+        state: >-
+          {% set e = 'media_player.mass_closet_wiim_speaker' %}
+          {% if state_attr(e, 'media_album_name') %}
+            {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_artist') }}
+          {% elif state_attr(e, 'media_title') %}
+            {{ state_attr(e, 'media_title') }}
+          {% elif state_attr(e, 'app_name') %}
+            {{ state_attr(e, 'app_name') }}
+          {% endif %}
+      - name: "Playing on Lounge Speaker"
+        unique_id: playing_on_lounge_speaker
+        state: >-
+          {% set e = 'media_player.mass_lounge_wiim_speaker' %}
+          {% if state_attr(e, 'media_album_name') %}
+            {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_artist') }}
+          {% elif state_attr(e, 'media_title') %}
+            {{ state_attr(e, 'media_title') }}
+          {% elif state_attr(e, 'app_name') %}
+            {{ state_attr(e, 'app_name') }}
+          {% endif %}
+      - name: "Playing on Kitchen Speaker"
+        unique_id: playing_on_kitchen_speaker
+        state: >-
+          {% set e = 'media_player.mass_kitchen_wiim_speaker' %}
+          {% if state_attr(e, 'media_album_name') %}
+            {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_artist') }}
+          {% elif state_attr(e, 'media_title') %}
+            {{ state_attr(e, 'media_title') }}
+          {% elif state_attr(e, 'app_name') %}
+            {{ state_attr(e, 'app_name') }}
+          {% endif %}
+      - name: "Playing on Hallway Speaker"
+        unique_id: playing_on_hallway_speaker
+        state: >-
+          {% set e = 'media_player.mass_hallway_wiim_speaker' %}
+          {% if state_attr(e, 'media_album_name') %}
+            {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_artist') }}
+          {% elif state_attr(e, 'media_title') %}
+            {{ state_attr(e, 'media_title') }}
+          {% elif state_attr(e, 'app_name') %}
+            {{ state_attr(e, 'app_name') }}
+          {% endif %}
+      - name: "Playing on Salon Speaker"
+        unique_id: playing_on_salon_speaker
+        state: >-
+          {% set e = 'media_player.mass_salon_wiim_speaker' %}
+          {% if state_attr(e, 'media_album_name') %}
+            {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_artist') }}
+          {% elif state_attr(e, 'media_title') %}
+            {{ state_attr(e, 'media_title') }}
+          {% elif state_attr(e, 'app_name') %}
+            {{ state_attr(e, 'app_name') }}
+          {% endif %}
+      - name: "Playing on Workshop Speaker"
+        unique_id: playing_on_workshop_speaker
+        state: >-
+          {% set e = 'media_player.mass_workshop_wiim_speaker' %}
+          {% if state_attr(e, 'media_album_name') %}
+            {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_artist') }}
+          {% elif state_attr(e, 'media_title') %}
+            {{ state_attr(e, 'media_title') }}
+          {% elif state_attr(e, 'app_name') %}
+            {{ state_attr(e, 'app_name') }}
+          {% endif %}
+
+  # Person counting sensors - triggers on person state changes instead of iterating states.person every minute
+  - trigger:
+      - trigger: state
+        entity_id:
+          - person.maximiliano
+          - person.myriam
+          - person.carla
+          - person.fay
+          - person.cindy
+          - person.gnome
+          - person.lylou
+      - trigger: homeassistant
+        event: start
+    binary_sensor:
+      - name: "Users Present"
+        unique_id: user_home
+        delay_off:
+          minutes: 7
+        state: >-
+          {{ states.person | selectattr('state', 'eq', 'home') | list | count > 0 }}
+    sensor:
+      - name: "amount partners home"
+        unique_id: "amount_partners_home"
+        unit_of_measurement: "partners"
+        state: >-
+            {% set ns = namespace(total_partners = 0) %}
+            {% for person in states.person %}
+            {% if "partners" in person.entity_id | labels() and person.state == "home" %}
+              {% set ns.total_partners = ns.total_partners + 1 %}
+            {% endif %}
+            {% endfor %}
+            {{ ns.total_partners }}
+
+      - name: "amount people crashing at home"
+        unique_id: "amount_crashing_home"
+        unit_of_measurement: "crashers"
+        state: >-
+            {% set ns = namespace(crashers = 0) %}
+            {% for person in states.person %}
+            {% if "crashers" in person.entity_id | labels() and person.state == "home" %}
+              {% set ns.crashers = ns.crashers + 1 %}
+            {% endif %}
+            {% endfor %}
+            {{ ns.crashers }}
+
+      - name: "amount residents at home"
+        unique_id: "amount_residents_home"
+        unit_of_measurement: "residents"
+        state: >-
+            {% set ns = namespace(residents = 0) %}
+            {% for person in states.person %}
+            {% if "residents" in person.entity_id | labels() and person.state == "home" %}
+              {% set ns.residents = ns.residents + 1 %}
+            {% endif %}
+            {% endfor %}
+            {{ ns.residents }}
         attributes:
           rooms: >
             {% set info = [
@@ -1167,6 +1041,293 @@
             {%- for room, devices in ns.results %}
               '{{ room }}': {{ devices | tojson | replace('[','(') | replace(']',')') }}{{ ',' if not loop.last }}
             {%- endfor %}
+
+  # Average House Humidity - triggers on humidity sensor state changes instead of scanning all MQTT entities
+  - trigger:
+      - trigger: state
+        entity_id:
+          - sensor.sensor_outside_temperature_humidity
+          - sensor.sensor_stove_temperature_humidity
+          - sensor.sensor_closet_temperature_humidity
+          - sensor.sensor_bedroom_temperature_humidity
+          - sensor.sensor_workshop_temperature_humidity
+          - sensor.sensor_hotbox_down_temperature_humidity
+          - sensor.sensor_bathroom_temperature_humidity
+          - sensor.sensor_lounge_temperature_humidity
+          - sensor.sensor_server_temperature_humidity
+          - sensor.sensor_kitchen_temperature_humidity
+          - sensor.sensor_salon_temperature_humidity
+      - trigger: homeassistant
+        event: start
+    sensor:
+      - name: "Average House Humidity"
+        unique_id: "average_house_humidity"
+        unit_of_measurement: '%'
+        state: >-
+            {{ expand(
+              'sensor.sensor_outside_temperature_humidity',
+              'sensor.sensor_stove_temperature_humidity',
+              'sensor.sensor_closet_temperature_humidity',
+              'sensor.sensor_bedroom_temperature_humidity',
+              'sensor.sensor_workshop_temperature_humidity',
+              'sensor.sensor_hotbox_down_temperature_humidity',
+              'sensor.sensor_bathroom_temperature_humidity',
+              'sensor.sensor_lounge_temperature_humidity',
+              'sensor.sensor_server_temperature_humidity',
+              'sensor.sensor_kitchen_temperature_humidity',
+              'sensor.sensor_salon_temperature_humidity')
+              | rejectattr('state', 'in', ['unavailable', 'unknown'])
+              | map(attribute='state')
+              | map('float')
+              | list
+              | average(default=0)
+              | round(2) }}
+
+  # Media sensors - triggers on universal chromecast + MASS speaker state changes
+  - trigger:
+      - trigger: state
+        entity_id:
+          - media_player.universal_bedroom_chromecast
+          - media_player.universal_salon_chromecast
+          - media_player.universal_kitchen_chromecast
+          - media_player.universal_hotbox_top_chromecast
+          - media_player.universal_patio_chromecast
+          - media_player.universal_workshop_chromecast
+          - media_player.universal_tablet_myriam_s8
+          - media_player.mass_bathroom_vpe_speaker
+          - media_player.mass_bedroom_wiim_speaker
+          - media_player.mass_closet_wiim_speaker
+          - media_player.mass_lounge_wiim_speaker
+          - media_player.mass_kitchen_wiim_speaker
+          - media_player.mass_hallway_wiim_speaker
+          - media_player.mass_salon_wiim_speaker
+          - media_player.mass_workshop_wiim_speaker
+      - trigger: homeassistant
+        event: start
+    sensor:
+      - name: "active_chromecast_rooms"
+        unique_id: "active_chromecast_rooms"
+        state: >-
+            {% set playing = expand(
+              'media_player.universal_bedroom_chromecast',
+              'media_player.universal_salon_chromecast',
+              'media_player.universal_kitchen_chromecast',
+              'media_player.universal_hotbox_top_chromecast',
+              'media_player.universal_patio_chromecast',
+              'media_player.universal_workshop_chromecast')
+              | selectattr('state', 'eq', 'playing') %}
+            {{ playing
+              | map(attribute='entity_id')
+              | map('regex_replace', 'media_player.universal_', '')
+              | map('regex_replace', '_chromecast', '')
+              | list }}
+        attributes:
+          muted_rooms: >-
+              {% set playing = expand(
+                'media_player.universal_bedroom_chromecast',
+                'media_player.universal_salon_chromecast',
+                'media_player.universal_kitchen_chromecast',
+                'media_player.universal_hotbox_top_chromecast',
+                'media_player.universal_patio_chromecast',
+                'media_player.universal_workshop_chromecast')
+                | selectattr('state', 'eq', 'playing')
+                | selectattr('attributes.is_volume_muted', 'eq', true) %}
+              {{ playing
+                | map(attribute='entity_id')
+                | map('regex_replace', 'media_player.universal_', '')
+                | map('regex_replace', '_chromecast', '')
+                | list }}
+          unmuted_rooms: >-
+              {% set playing = expand(
+                'media_player.universal_bedroom_chromecast',
+                'media_player.universal_salon_chromecast',
+                'media_player.universal_kitchen_chromecast',
+                'media_player.universal_hotbox_top_chromecast',
+                'media_player.universal_patio_chromecast',
+                'media_player.universal_workshop_chromecast')
+                | selectattr('state', 'eq', 'playing')
+                | selectattr('attributes.is_volume_muted', 'eq', false) %}
+              {{ playing
+                | map(attribute='entity_id')
+                | map('regex_replace', 'media_player.universal_', '')
+                | map('regex_replace', '_chromecast', '')
+                | list }}
+
+      - name: "active_speakers_rooms"
+        unique_id: "active_speakers_rooms"
+        state: >-
+            {% set playing = expand(
+              'media_player.mass_bathroom_vpe_speaker',
+              'media_player.mass_bedroom_wiim_speaker',
+              'media_player.mass_closet_wiim_speaker',
+              'media_player.mass_lounge_wiim_speaker',
+              'media_player.mass_kitchen_wiim_speaker',
+              'media_player.mass_hallway_wiim_speaker',
+              'media_player.mass_salon_wiim_speaker',
+              'media_player.mass_workshop_wiim_speaker')
+              | selectattr('state', 'eq', 'playing') %}
+            {{ playing
+              | map(attribute='entity_id')
+              | map('regex_replace', 'media_player.mass_', '')
+              | map('regex_replace', '_wiim_speaker', '')
+              | map('regex_replace', '_vpe_speaker', '')
+              | list }}
+        attributes:
+          muted_rooms: >-
+              {% set playing = expand(
+                'media_player.mass_bathroom_vpe_speaker',
+                'media_player.mass_bedroom_wiim_speaker',
+                'media_player.mass_closet_wiim_speaker',
+                'media_player.mass_lounge_wiim_speaker',
+                'media_player.mass_kitchen_wiim_speaker',
+                'media_player.mass_hallway_wiim_speaker',
+                'media_player.mass_salon_wiim_speaker',
+                'media_player.mass_workshop_wiim_speaker')
+                | selectattr('state', 'eq', 'playing')
+                | selectattr('attributes.is_volume_muted', 'eq', true) %}
+              {{ playing
+                | map(attribute='entity_id')
+                | map('regex_replace', 'media_player.mass_', '')
+                | map('regex_replace', '_wiim_speaker', '')
+                | map('regex_replace', '_vpe_speaker', '')
+                | list }}
+          unmuted_rooms: >-
+              {% set playing = expand(
+                'media_player.mass_bathroom_vpe_speaker',
+                'media_player.mass_bedroom_wiim_speaker',
+                'media_player.mass_closet_wiim_speaker',
+                'media_player.mass_lounge_wiim_speaker',
+                'media_player.mass_kitchen_wiim_speaker',
+                'media_player.mass_hallway_wiim_speaker',
+                'media_player.mass_salon_wiim_speaker',
+                'media_player.mass_workshop_wiim_speaker')
+                | selectattr('state', 'eq', 'playing')
+                | selectattr('attributes.is_volume_muted', 'eq', false) %}
+              {{ playing
+                | map(attribute='entity_id')
+                | map('regex_replace', 'media_player.mass_', '')
+                | map('regex_replace', '_wiim_speaker', '')
+                | map('regex_replace', '_vpe_speaker', '')
+                | list }}
+
+      - name: "active_media_playback"
+        unique_id: "active_media_playback"
+        state: >-
+            {% set speakers = expand(
+              'media_player.mass_bathroom_vpe_speaker',
+              'media_player.mass_bedroom_wiim_speaker',
+              'media_player.mass_closet_wiim_speaker',
+              'media_player.mass_lounge_wiim_speaker',
+              'media_player.mass_kitchen_wiim_speaker',
+              'media_player.mass_hallway_wiim_speaker',
+              'media_player.mass_salon_wiim_speaker',
+              'media_player.mass_workshop_wiim_speaker')
+              | selectattr('state', 'eq', 'playing')
+              | map(attribute='entity_id')
+              | map('regex_replace', 'media_player.mass_', '')
+              | map('regex_replace', '_wiim_speaker', '')
+              | map('regex_replace', '_vpe_speaker', '')
+              | list %}
+            {% set chromecasts = expand(
+              'media_player.universal_bedroom_chromecast',
+              'media_player.universal_salon_chromecast',
+              'media_player.universal_kitchen_chromecast',
+              'media_player.universal_hotbox_top_chromecast',
+              'media_player.universal_patio_chromecast',
+              'media_player.universal_workshop_chromecast')
+              | selectattr('state', 'eq', 'playing')
+              | map(attribute='entity_id')
+              | map('regex_replace', 'media_player.universal_', '')
+              | map('regex_replace', '_chromecast', '')
+              | map('regex_replace', '_top', '')
+              | map('regex_replace', '_bottom', '')
+              | list %}
+            {{ (speakers + chromecasts) | unique | list | length > 0 }}
+        attributes:
+          speakers: >-
+              {{ expand(
+                'media_player.mass_bathroom_vpe_speaker',
+                'media_player.mass_bedroom_wiim_speaker',
+                'media_player.mass_closet_wiim_speaker',
+                'media_player.mass_lounge_wiim_speaker',
+                'media_player.mass_kitchen_wiim_speaker',
+                'media_player.mass_hallway_wiim_speaker',
+                'media_player.mass_salon_wiim_speaker',
+                'media_player.mass_workshop_wiim_speaker')
+                | selectattr('state', 'eq', 'playing')
+                | map(attribute='entity_id')
+                | map('regex_replace', 'media_player.mass_', '')
+                | map('regex_replace', '_wiim_speaker', '')
+                | map('regex_replace', '_vpe_speaker', '')
+                | list }}
+          chromecasts: >-
+              {{ expand(
+                'media_player.universal_bedroom_chromecast',
+                'media_player.universal_salon_chromecast',
+                'media_player.universal_kitchen_chromecast',
+                'media_player.universal_hotbox_top_chromecast',
+                'media_player.universal_patio_chromecast',
+                'media_player.universal_workshop_chromecast')
+                | selectattr('state', 'eq', 'playing')
+                | map(attribute='entity_id')
+                | map('regex_replace', 'media_player.universal_', '')
+                | map('regex_replace', '_chromecast', '')
+                | list }}
+
+  # Motion & room sensors - triggers on per-room occupancy group state changes
+  - trigger:
+      - trigger: state
+        entity_id:
+          - binary_sensor.group_bedroom_motion_occupancy
+          - binary_sensor.group_closet_motion_occupancy
+          - binary_sensor.group_lounge_motion_occupancy
+          - binary_sensor.group_hallway_motion_occupancy
+          - binary_sensor.group_kitchen_motion_occupancy
+          - binary_sensor.group_entrance_motion_occupancy
+          - binary_sensor.group_workshop_motion_occupancy
+          - binary_sensor.group_workstation_motion_occupancy
+          - binary_sensor.group_salon_motion_occupancy
+          - binary_sensor.group_hotbox_motion_occupancy
+          - binary_sensor.group_patio_motion_occupancy
+          - binary_sensor.group_server_motion_occupancy
+          - binary_sensor.group_bathroom_motion_occupancy
+      - trigger: homeassistant
+        event: start
+    sensor:
+      - name: "active_motion_rooms"
+        unique_id: "active_motion_rooms"
+        state: >-
+            {% set ns = namespace(mediaactiverooms = []) %}
+            {% for motion_sensor in expand('binary_sensor.group_security_occupancy_sensors') -%}
+              {%- if motion_sensor.state == 'on' -%}
+                {% set currentroomname = area_name(motion_sensor.entity_id) %}
+                {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname] -%}
+              {%- endif -%}
+            {% endfor %}
+            {{ ns.mediaactiverooms | unique | list }}
+      - name: "last active room"
+        unique_id: last_active_room
+        state: >-
+            {% set groups = [
+              'binary_sensor.group_bedroom_motion_occupancy',
+              'binary_sensor.group_closet_motion_occupancy',
+              'binary_sensor.group_lounge_motion_occupancy',
+              'binary_sensor.group_hallway_motion_occupancy',
+              'binary_sensor.group_kitchen_motion_occupancy',
+              'binary_sensor.group_entrance_motion_occupancy',
+              'binary_sensor.group_workshop_motion_occupancy',
+              'binary_sensor.group_workstation_motion_occupancy',
+              'binary_sensor.group_salon_motion_occupancy',
+              'binary_sensor.group_patio_motion_occupancy',
+              'binary_sensor.group_server_motion_occupancy',
+              'binary_sensor.group_bathroom_motion_occupancy'
+            ] %}
+            {% set active = expand(groups)
+              | selectattr('state', 'eq', 'on')
+              | sort(reverse=true, attribute='last_changed')
+              | map(attribute='entity_id')
+              | first | default(none) %}
+            {{ area_name(active) | lower if active else this.state | default('unknown') }}
 
   # Myriam Location by petro - triggers on specific entities instead of constant re-rendering
   - trigger:
