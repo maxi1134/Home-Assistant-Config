@@ -4437,12 +4437,12 @@
     - sensor.front_door_camera_person_count
     above: 0
   conditions:
-  - condition: numeric_state
-    entity_id: sensor.template_average_unmuted_speakers_volume
-    above: 0.4
   - condition: state
     entity_id: input_boolean.party_mode
     state: 'on'
+  - condition: numeric_state
+    entity_id: sensor.template_average_unmuted_speakers_volume
+    above: 0.4
   actions:
   - alias: Analyse if a cop is present
     action: llmvision.image_analyzer
@@ -11790,24 +11790,25 @@
       hours: 0
       minutes: 0
       seconds: 0
+  - trigger: state
+    entity_id:
+    - input_boolean.live_concert
+    from:
+    - 'on'
+    - 'off'
   conditions:
   - condition: state
     entity_id: input_boolean.live_concert
     state:
     - 'off'
+  - condition: state
+    entity_id: input_boolean.party_mode
+    state:
+    - 'on'
   actions:
-  - action: fully_kiosk.load_url
-    data:
-      url: http://192.168.0.15:8095/#/party
-      device_id: 3855559a40e217d20c661fd5e6e1b452
-  - action: fully_kiosk.load_url
-    data:
-      url: http://192.168.0.15:8095/#/party
-      device_id: ea5d6e406b53af2043a0e3e21444f36e
-  - action: fully_kiosk.load_url
-    data:
-      url: http://192.168.0.15:8095/#/party
-      device_id: a94170d4bf7a596defcb763eda129822
+  - action: script.launch_party_mode_on_all_kiosks
+    metadata: {}
+    data: {}
   mode: single
 - id: '1760286041191'
   alias: Ring parking horn on actionnable notification from mobile
@@ -12086,40 +12087,12 @@
     metadata: {}
     data:
       area: workshop
-  - wait_for_trigger:
-    - trigger: state
-      entity_id:
-      - input_boolean.live_concert
-      id: '`'
-      to:
-      - 'off'
-      from:
-      - 'on'
-      for:
-        hours: 0
-        minutes: 0
-        seconds: 20
+  - wait_for_trigger: []
     timeout:
       hours: 5
       minutes: 0
       seconds: 0
       milliseconds: 0
-  - condition: state
-    state:
-    - 'on'
-    entity_id: input_boolean.party_mode
-  - action: fully_kiosk.load_url
-    data:
-      url: http://192.168.0.15:8095/#/party
-      device_id: ea5d6e406b53af2043a0e3e21444f36e
-  - action: fully_kiosk.load_url
-    data:
-      url: http://192.168.0.15:8095/#/party
-      device_id: a94170d4bf7a596defcb763eda129822
-  - action: fully_kiosk.load_url
-    data:
-      url: http://192.168.0.15:8095/#/party
-      device_id: 3855559a40e217d20c661fd5e6e1b452
   mode: restart
 - id: '1763156136004'
   alias: Dial Bedroom automation
@@ -15118,10 +15091,8 @@
     entity_id:
     - media_player.mass_bathroom_vpe_speaker
     attribute: is_volume_muted
-    from:
-    - true
-    to:
-    - false
+    from: 'true'
+    to: 'false'
   conditions: []
   actions:
   - variables:
@@ -15759,3 +15730,22 @@
         target:
           entity_id: '{{ playing_speakers | list }}'
   mode: restart
+- id: '1773975525008'
+  alias: Nanoleaf actions control automation
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - event.kitchen_nanoleaf_light_touch_gesture
+    attribute: event_type
+    from:
+    - swipe_up
+    - swipe_down
+  conditions: []
+  actions:
+  - action: script.change_lights_in_an_area_to_a_random_fake_white
+    metadata: {}
+    data:
+      area:
+      - kitchen
+  mode: single
