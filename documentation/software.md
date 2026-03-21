@@ -64,9 +64,9 @@ Not all subtitles are created equal, I *HIGHLY* recommend streamlining your subt
 
 ##### On downloads caching
 You may wonder why I have a 500SDD sitting empty 99% of the time. Well, there is an actual reason behind this! 
-The reason being that continious low-speed writes to a drive will keep the read/write heads always busy during the downloads. This in return will make read access slower, which would increase buffering for the plex Users. 
+The reason being that continuous low-speed writes to a drive will keep the read/write heads always busy during the downloads. This in return will make read access slower, which would increase buffering for the plex Users. 
 To mitigate this, all downloads are initially saved to the SSD cache drive, before being copied over the mechanical drives at full speed.
-Since adding the SSD cache drive, the IoWait issues on my plex VMs have greatly dimisnished.
+Since adding the SSD cache drive, the IoWait issues on my plex VMs have greatly diminished.
 
 
 

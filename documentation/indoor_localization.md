@@ -14,7 +14,7 @@ This allows for a high level of precisions when it comes to knowing in which roo
   
 As for the the software used for this, it is [free and open source](https://espresense.com/).
 
-### The ESP32s are located as follow in the appartment, offering good detection in "main" rooms, and being less precise with others. <br>
+### The ESP32s are located as follow in the apartment, offering good detection in "main" rooms, and being less precise with others. <br>
 <p align="middle">
   <img src="/assets/misc/esp32map.png" width="90%" />
 <p>
