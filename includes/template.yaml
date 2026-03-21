@@ -1,9 +1,29 @@
+# ─── Template Sensors & Binary Sensors Configuration ───
+# This file defines all Jinja2 template-based sensors for the smart home.
+# It is split into two main sections:
+#   1. Polling templates (binary_sensor/sensor blocks) - re-evaluated on every state change
+#   2. Trigger-based templates - only re-evaluated when specific entities change (more efficient)
+#
+# Key functional areas covered:
+#   - Presence & occupancy detection (who is home, which room)
+#   - Sleep state inference (combining phone sensors, BLE trackers, room activity)
+#   - Activity detection (gaming, showering, cooking, watching TV, etc.)
+#   - Security status (locks, alarm state)
+#   - Media playback tracking (what is playing where)
+#   - People counting (friends, partners, crashers via WiFi hotspot)
+#   - Room-level motion aggregation
+
+  # ─── Polling Binary Sensors ───
+  # These re-evaluate whenever any referenced entity changes state.
   - binary_sensor:
+      # Returns true when 2+ security occupancy sensors detect motion simultaneously
       - name: 'Multi Room Security Motion Occupancy'
         unique_id: multi_room_security_motion_occupancy
         state: >
           {{ expand('binary_sensor.group_security_occupancy_sensors') | selectattr('state', 'eq', 'on') | list | count >= 2 }}
 
+      # ─── Presence Binary Sensors ───
+      # Determines if a person is the only one home (zone count == 1, no hotspot clients)
       - name: "Maxi is Alone"
         unique_id: maxi_alone
         delay_off:
@@ -27,11 +47,15 @@
              and is_state('zone.home', '1')
              and is_state('sensor.chilling_hotspot_client_count', '0') }}
 
+      # ─── Sleep Detection Binary Sensors ───
+      # Simple wrapper: true if the "where is maxi sleeping" sensor has a value
       - name: "Maxi is sleeping"
         unique_id: maxi_sleeping
         state: >-
           {{ not is_state('sensor.where_is_maxi_sleeping', '') }}
 
+      # ─── Bathroom & Utility Binary Sensors ───
+      # Detects showering: bathroom door closed AND humidity 15% above house average
       - name: "Shower in Usage"
         unique_id: shower_in_usage
         delay_off:
@@ -39,6 +63,7 @@
         state: >
           {{( states('binary_sensor.sensor_bathroom_door_contact') == 'off' and (states('sensor.sensor_bathroom_temperature_humidity') | float  ) > (states('sensor.average_house_humidity') | float + 15 )) }}
 
+      # True when all present household members are asleep (Maxi must be home and asleep)
       - name: "All Present Sleeping"
         unique_id: all_present_sleeping
         delay_off:
@@ -51,6 +76,7 @@
           {% endif %}
 
 
+      # Detects indoor motion only (excludes parking, patio, and door sensors)
       - name: "Motion Inside Home"
         unique_id: motion_inside_home
         delay_off:
@@ -79,6 +105,8 @@
             %}
             {{ asleep_count >= 2 }}
 
+      # ─── Communication Detection Binary Sensors ───
+      # Detects if someone is on a call (mic active, phone not idle, or audio mode changed)
       - name: "maxi is talking"
         unique_id: "maxi_is_talking" 
         state: >-
@@ -106,7 +134,10 @@
             {{ (( is_state('sensor.phone_maxi_media_session', "playing")
               or not is_state('sensor.phone_maxi_phone_state', "idle")
               or states('sensor.phone_maxi_audio_mode') != 'normal') and states('person.maximiliano') == 'home' ) }}
+  # ─── Polling Sensors ───
   - sensor:
+      # ─── Environment Sensors ───
+      # Falls back through local outdoor sensor -> Montreal weather -> forecast_home
       - name: "Outside Temperature with Fallback"
         unique_id: "outside_temperature_with_fallback"
         state: >-
@@ -119,6 +150,8 @@
                 {% endif %}
         unit_of_measurement: degrees
 
+      # ─── Security Status Sensor ───
+      # Aggregates lock and alarm states into a human-readable security status
       - name: "Security All Clear"
         unique_id: security_all_clear
         state: >-
@@ -154,7 +187,9 @@
           
 
         
-      - name: 'Bathroom Usage' 
+      # ─── Room Usage Sensors ───
+      # Reports bathroom status: Showering > Occupied (door closed) > Detected (motion) > Clear
+      - name: 'Bathroom Usage'
         state: >-
           {% if states('binary_sensor.shower_in_usage') == "on" %}
             Showering
@@ -188,6 +223,8 @@
 
 
 
+      # ─── Location Sensors ───
+      # Determines Maxi's location by prioritizing: watch (if on body) > bracelet > phone > GPS
       - name: "Maxi Location"
         unique_id: "maxi_location" 
         state: >-            
@@ -210,6 +247,8 @@
               {% endif %}
               {{ location }}
 
+      # ─── Gaming & Activity Sensors ───
+      # Reports current game from Discord or Steam, preferring Discord
       - name: "Maxis Current Game"
         unique_id: "maxi_current_game" 
         state: >-
