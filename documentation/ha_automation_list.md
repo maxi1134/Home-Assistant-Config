@@ -12,7 +12,7 @@
 
   
 
-<p  align="center">  <a  href="/automations.yaml><img  src="https://img.shields.io/badge/Automations-purple"  alt="The automations!"></p> 
+<p  align="center">  <a  href="/automations.yaml"><img  src="https://img.shields.io/badge/Automations-purple"  alt="The automations!"></a></p> 
 
 - [Maxi](/automations.yaml):
    - Start rain sounds where maxi is sleeping

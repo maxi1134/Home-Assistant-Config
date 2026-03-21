@@ -48,7 +48,7 @@ No more Zigbee drops, no more Z-Wave issues — just smooth, unified device mana
 | [Voice Assistant/LLM (Guide)](documentation/guides/voice_assistance_guide.md) | How to install and use voice assistant stack (Ollama,  ESPHOME) |
 | [General Thoughts](documentation/general_thoughts.md) | Lessons learned, network/POS planning, VLANs, and rants |
 | [Floorplan Creator for ESPresense](espresense/floorplan_creator/Readme.md) | A GUI tool and workflow for producing floorplans for ESP-based indoor localization |
-| [Work-in-Progress List](wip%20list.md) | Experiments, project backlog, and automation ideas |
+| [Work-in-Progress List](wip list.md) | Experiments, project backlog, and automation ideas |
 
 ---
 ### A Few Screenshots;

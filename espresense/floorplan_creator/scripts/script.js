@@ -1372,6 +1372,8 @@ function getDeviceById(id) {
 }
 
 function saveMqtt() {
+    // TODO: This preserves the existing UX by storing the MQTT password locally,
+    // but localStorage is not a secure place for credentials.
     window.localStorage.setItem("mqttSettings", JSON.stringify(mqttInitData));
 }
 

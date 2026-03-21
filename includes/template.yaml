@@ -110,14 +110,21 @@
       - name: "Outside Temperature with Fallback"
         unique_id: "outside_temperature_with_fallback"
         state: >-
-                {% if states('sensor.sensor_outside_temperature_temperature') not in ['unavailable', 'unknown'] %}
-                {{ states('sensor.sensor_outside_temperature_temperature') }}
-                {% elif  states('weather.weather_montreal_forecast') not in ['unavailable', 'unknown'] %}
-                  {{ state_attr('weather.weather_montreal_forecast','temperature') }}
-                {% elif  states('weather.forecast_home') not in ['unavailable', 'unknown'] %}
-                  {{ state_attr('weather.forecast_home','temperature') }}
-                {% endif %}
-        unit_of_measurement: degrees
+          {% set outside = states('sensor.sensor_outside_temperature_temperature') %}
+          {% set montreal = state_attr('weather.weather_montreal_forecast', 'temperature') %}
+          {% set home = state_attr('weather.forecast_home', 'temperature') %}
+          {% if outside not in ['unavailable', 'unknown', 'none', ''] %}
+            {{ outside }}
+          {% elif montreal is number %}
+            {{ montreal }}
+          {% elif home is number %}
+            {{ home }}
+          {% else %}
+            unknown
+          {% endif %}
+        device_class: temperature
+        state_class: measurement
+        unit_of_measurement: "°C"
 
       - name: "Security All Clear"
         unique_id: security_all_clear
@@ -436,7 +443,7 @@
             {% set is_maxi_home = states("person.maximiliano") == "home" %}
             {% set is_maxi_alone = states("binary_sensor.maxi_alone") %}
             {% set party_mode = states("input_boolean.party_mode") %}
-            {% set vacuum_cleaning = states("vacuum.xiaomi_vacuum_cleaner") != 'docked' %}
+            {% set vacuum_cleaning = is_state("binary_sensor.roborock_qrevo_curv_series_cleaning", "on") %}
             {% set kink_mode = states("input_boolean.kink_party") %}
             {% set phone_in_use = states('binary_sensor.phone_maxi_device_locked') == 'off' %}
             {% set cooking_mode = states("input_boolean.cooking_mode") %}
@@ -447,8 +454,8 @@
             {% set ns.active_sleepers_amount = states("sensor.active_sleeper_amount") | int %}
             {% set is_maxi_sleeping = states("sensor.is_maxi_asleep") %}
             {% set maxis_current_game = states("sensor.maxis_current_game") %}
-            {% set ns.active_chromecasts_room = state_attr("sensor.active_media_playback", "chromecasts")  %} 
-            {% set ns.active_speakers_room = state_attr('sensor.active_media_playback', 'speakers')  %}   
+            {% set ns.active_chromecasts_room = state_attr("sensor.active_media_playback", "chromecasts") or [] %} 
+            {% set ns.active_speakers_room = state_attr('sensor.active_media_playback', 'speakers') or [] %}   
             {# code down here, variables up there #}
             {% if is_maxi_sleeping  == "asleep" %}  {# if the maxi_alone sensor is on, indicating there is only maxi present #}
               {%set ns.activityname = "Sleeping"%}
@@ -593,13 +600,11 @@
               {% endif %}
             {% endif %}
             {{ns.activityname }}            
+      # TODO: This preserves existing behavior for the dashboard, but it exposes the
+      # Plex token via Home Assistant state and should be replaced with a safer local-only path.
       - name: "plex token"
         unique_id: plex_token
         state: !secret plex_token
-
-
-
-
 #     - name: "Maxi Location v4"
 #       unique_id: maxi_location_v4
 #       state: >-
@@ -1046,7 +1051,6 @@
   - trigger:
       - trigger: state
         entity_id:
-          - sensor.sensor_outside_temperature_humidity
           - sensor.sensor_stove_temperature_humidity
           - sensor.sensor_closet_temperature_humidity
           - sensor.sensor_bedroom_temperature_humidity
@@ -1065,7 +1069,6 @@
         unit_of_measurement: '%'
         state: >-
             {{ expand(
-              'sensor.sensor_outside_temperature_humidity',
               'sensor.sensor_stove_temperature_humidity',
               'sensor.sensor_closet_temperature_humidity',
               'sensor.sensor_bedroom_temperature_humidity',

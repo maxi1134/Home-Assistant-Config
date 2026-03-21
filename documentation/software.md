@@ -108,7 +108,7 @@ Since adding the SSD cache drive, the IoWait issues on my plex VMs have greatly 
 Have you ever wondered what it would be to let your guests in during a party without actually having to go to the door, or click a button? *Well I did!*
 
 This lead me to many trial and errors with "Facebox", "Double-Take" and the likes.
-Which can be found in the "Face-reco" flows under /node-red/flows/.
+Which can be found in the archived "Face-reco" notes under [/node-red/README.md](/node-red/README.md).
 
 During a whole summer, the door would let people in. But always with hiccups, such as the photo not being taken in time, either too late or too soon. Or the pictures being simply too blurry.
 
