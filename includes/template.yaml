@@ -650,6 +650,7 @@
               {% endif %}
             {% endif %}
             {{ns.activityname }}            
+      # Stores the Plex authentication token as a sensor (loaded from secrets)
       - name: "plex token"
         unique_id: plex_token
         state: !secret plex_token
@@ -708,7 +709,9 @@
   # Converted from polling templates to reduce constant domain-wide iterations
   #############################################################################
 
-  # Friends & Hotspot - triggers on hotspot client count changes instead of scanning all device_trackers
+  # ─── Friends & Hotspot Tracking ───
+  # Counts guests by checking which phones are connected to the "Chilling Hotspot" WiFi.
+  # Subtracts known partners and crashers to get the friend count.
   - trigger:
       - trigger: state
         entity_id:
@@ -754,7 +757,9 @@
             {% endfor %}
             {{ ns.friends }}
 
-  # Sleeper sensors - triggers on specific sleeper input_booleans instead of scanning all input_booleans
+  # ─── Sleeper Room Tracking ───
+  # Tracks which rooms have active "sleeper" flags (input_booleans toggled by
+  # automations when a room is detected as having someone sleeping in it).
   - trigger:
       - trigger: state
         entity_id:
@@ -793,7 +798,8 @@
             {% set active = expand('input_boolean.sleeper_in_bedroom', 'input_boolean.sleeper_in_closet', 'input_boolean.sleeper_in_workshop', 'input_boolean.sleeper_in_patio', 'input_boolean.sleeper_in_hotbox', 'input_boolean.sleeper_in_salon', 'input_boolean.sleeper_in_lounge') | selectattr('state','eq','on') | list %}
             {{ active | count }}
 
-  # Existing Rooms - triggers on time pattern instead of iterating ALL states
+  # ─── Available Rooms Discovery ───
+  # Periodically scans all entities to build a list of known area IDs.
   - trigger:
       - trigger: time_pattern
         minutes: "/30"
@@ -806,7 +812,10 @@
           {% set areas = states | selectattr('attributes.device_class', 'defined') | map(attribute='entity_id') | map('area_id') | unique | reject('none') | list %}
           {{ areas }}
 
-  # Maxi Location by petro - triggers on specific BLE tracker entities instead of constant re-rendering
+  # ─── Maxi Indoor Location (Petro Algorithm) ───
+  # Fuses BLE data from watch, bracelet, and phone with GPS and motion sensors.
+  # Uses a voting system: each device reports a room, and the room with the most
+  # votes wins. Filters out devices that are charging or not on the body.
   - trigger:
       - trigger: state
         entity_id:
@@ -861,7 +870,9 @@
               not_home
             {% endif %}
 
-  # Playing on X sensors - trigger-based on each media player's state changes
+  # ─── "Now Playing" Per-Device Sensors ───
+  # Extracts human-readable "now playing" text for each Chromecast and speaker.
+  # Shows series/episode info for TV, or artist/album for music.
   - trigger:
       - trigger: state
         entity_id:
@@ -1015,7 +1026,9 @@
             {{ state_attr(e, 'app_name') }}
           {% endif %}
 
-  # Person counting sensors - triggers on person state changes instead of iterating states.person every minute
+  # ─── Person Counting & Presence Sensors ───
+  # Counts partners, crashers, and residents at home using HA labels on person entities.
+  # Also provides a "Users Present" binary sensor with a 7-minute delay-off.
   - trigger:
       - trigger: state
         entity_id:
@@ -1099,7 +1112,9 @@
               '{{ room }}': {{ devices | tojson | replace('[','(') | replace(']',')') }}{{ ',' if not loop.last }}
             {%- endfor %}
 
-  # Average House Humidity - triggers on humidity sensor state changes instead of scanning all MQTT entities
+  # ─── Average House Humidity ───
+  # Computes the mean humidity across all room temperature/humidity sensors.
+  # Used by the shower detection binary sensor to identify humidity spikes.
   - trigger:
       - trigger: state
         entity_id:
