@@ -1,11 +1,16 @@
+# ─── Home Assistant Main Configuration ───
+# Central configuration file that sets up core components and includes
+# domain-specific config from the /config/includes/ directory.
+# Each include file handles one integration domain (sensors, lights, etc.).
 
 # Configure a default setup of Home Assistant (frontend, api, etc)
 default_config:
 
-# Text to speech
+# Text to speech (disabled - using alternative TTS solutions)
 #tts:
 #  - platform: google_translate
 
+# ─── HTTP / Reverse Proxy Settings ───
 http:
   # For extra security set this to only accept connections on localhost if NGINX is on the same machine
   # Uncommenting this will mean that you can only reach Home Assistant using the proxy, not directly via IP from other clients.
@@ -18,13 +23,21 @@ http:
      - 192.168.0.5
      - 192.168.0.1
 ######################################################################
+# ─── Recorder ───
+# Stores entity state history in an external database (e.g., MariaDB/PostgreSQL).
+# Keeps 100 days of history before purging old records.
 recorder:
   purge_keep_days: 100
   db_url: !secret db_url
 ######################################################################
-frontend:    
+# ─── Frontend ───
+# Loads custom themes from the /config/themes/ directory.
+frontend:
   themes: !include_dir_merge_named themes
 ######################################################################
+# ─── Logger ───
+# Controls log verbosity. Set to 'warning' to reduce noise.
+# Uncomment specific component loggers below for debugging.
 logger:
   default: warning
 #  logs:
@@ -40,10 +53,14 @@ logger:
       # - "unit_of_measurement"
       # - ".*LOCAL.*"
 ######################################################################
+# ─── Media Source ───
+# Enables the media source integration for browsing local media files.
 media_source:
 
 ######################################################################
-#includes
+# ─── Include Files ───
+# Each line below pulls in a separate YAML file for a specific domain.
+# This keeps the main config clean and each domain independently editable.
 notify: !include /config/includes/notify.yaml
 input_text: !include /config/includes/input_text.yaml
 mqtt: !include /config/includes/mqtt.yaml
@@ -66,18 +83,20 @@ camera: !include /config/includes/cameras.yaml
 template: !include /config/includes/template.yaml
 shell_command: !include /config/includes/shell_command.yaml
 ######################################################################
+# ─── Home Assistant Core Settings ───
+# Defines media directories, authentication providers, and filesystem access.
 homeassistant:
   media_dirs:
-    local: /media
-    llmvision: /config/media/llmvision
+    local: /media                        # General media files
+    llmvision: /config/media/llmvision   # LLM Vision camera snapshots
   auth_providers:
-    - type: homeassistant
-    - type: trusted_networks
+    - type: homeassistant                # Standard username/password auth
+    - type: trusted_networks             # Auto-login from trusted device IPs
       trusted_networks:
-        - 192.168.0.40
-        - 192.168.0.45
+        - 192.168.0.40                   # Wall-mounted tablet / kiosk
+        - 192.168.0.45                   # Wall-mounted tablet / kiosk
   allowlist_external_dirs:
-    - '/config'
+    - '/config'                          # Allow scripts to read files from /config
 #######################################################################
 #lovelace_gen:
 ######################################################################

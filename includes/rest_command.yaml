@@ -1,12 +1,21 @@
+# ─── REST Command Configuration ───
+# HTTP-based commands called from automations and scripts to interact
+# with local services (cameras, AI, media servers) and external APIs.
+
+# ─── Reolink Camera PTZ Control ───
+# Moves the Reolink camera to a preset position by ID
 ptz_reolink:
     url: http://192.168.0.210/cgi-bin/api.cgi?cmd=PtzCtrl&token={{token}}
-    method: POST       
+    method: POST
     payload: '[{"cmd":"PtzCtrl","action":0,"param":{"channel":0,"op":"ToPos","speed":32,"id":{{ptz_id}}}}]'
+# Sends a raw PTZ command payload to the Reolink camera
 ptz_reolink_var:
     url: http://192.168.0.210/cgi-bin/api.cgi?cmd=PtzCtrl&token={{token}}
-    method: POST       
+    method: POST
     payload: '{{command}}'
 
+# ─── Local AI (LocalAI) Image Generation ───
+# Calls LocalAI's Stable Diffusion endpoint to generate images from text prompts
 local_ai_generate_image:
     url: http://192.168.0.14:8080/v1/images/generations
     method: POST
@@ -20,6 +29,8 @@ local_ai_generate_image:
       "size": "{% if size %}{{size}}{%else%}1024x1024{%endif%}",
       "backend": "cuda12-stablediffusion-ggml"
       }
+# ─── Local AI Media Type Classification ───
+# Asks LocalAI's LLM whether a given title is a movie or TV show
 local_ai_describe_media:
     url: http://192.168.0.14:8080/v1/chat/completions
     method: POST
@@ -30,6 +41,8 @@ local_ai_describe_media:
       "messages": [{"role": "user", "content": "Is {{prompt}} a movie or a tv show? Just answer with one or two words", "temperature": 0.1}] ,
       "model": "gpt-4"
       }
+# ─── Open WebUI Media Type Classification ───
+# Same as above but routes through Open WebUI with a local Llama model
 open_webui_describe_media:
     url: http://192.168.0.14:3000/api/chat/completions
     method: POST
@@ -42,6 +55,8 @@ open_webui_describe_media:
       "messages": [{"role": "user", "content": "Is {{prompt}} a movie or a tv show? Just answer with one or two words", "temperature": 0.1}] ,
       "model": "maxi_llama32:latest"
       }
+# ─── Open WebUI Vision / Image Description ───
+# Sends an image URL + text prompt to the Llama 3.2 Vision model for analysis
 open_webui_describe_image:
     url: http://192.168.0.14:3000/api/chat/completions
     method: POST
@@ -70,19 +85,27 @@ open_webui_describe_image:
       ],
       "model": "maxi_llama32-vision:latest"
          }
+# ─── Willow Voice Assistant Notification ───
+# Sends TTS audio notifications to Willow satellite devices via their API
 willow_notify:
     url: http://192.168.0.14:8502/api/client?action=notify
     method: POST
     content_type: application/json
     payload: '{"cmd":"notify","data":{"backlight":"{{backlight}}","backlight_max":"{{backlightMax}}","repeat":"{{repeat}}","audio_url":"https://192.168.0.14:19000/api/tts?speaker=nicolascage&text={{text | replace(" ","+")}}","volume":"{{volume}}"}}'
 
+# ─── Jellyfin Media Search ───
+# Searches the local Jellyfin media server library by title and media type
 jellyfin_search:
   url: "http://192.168.0.20:8096/Items?api_key={{user_API_KEY}}&searchTerm={{ search_string }}&Recursive=true&IncludeMedia=true&IncludeItemTypes={{ type }}"
 
+# ─── MusicBrainz Artist Lookup ───
+# Queries the MusicBrainz API to find an artist's foreign ID for Lidarr import
 music_brainz_artist_query:
   url: "https://musicbrainz.org/ws/2/artist/?query=name:{{artist}}&fmt=json"
   method: GET
 
+# ─── Lidarr Artist Import ───
+# Adds a new artist to Lidarr (music management) for automatic download
 lidarr_add_artist:
   url: http://192.168.0.20:8686/api/v1/artist
   method: post

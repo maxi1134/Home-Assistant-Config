@@ -1,9 +1,29 @@
+# ─── Template Sensors & Binary Sensors Configuration ───
+# This file defines all Jinja2 template-based sensors for the smart home.
+# It is split into two main sections:
+#   1. Polling templates (binary_sensor/sensor blocks) - re-evaluated on every state change
+#   2. Trigger-based templates - only re-evaluated when specific entities change (more efficient)
+#
+# Key functional areas covered:
+#   - Presence & occupancy detection (who is home, which room)
+#   - Sleep state inference (combining phone sensors, BLE trackers, room activity)
+#   - Activity detection (gaming, showering, cooking, watching TV, etc.)
+#   - Security status (locks, alarm state)
+#   - Media playback tracking (what is playing where)
+#   - People counting (friends, partners, crashers via WiFi hotspot)
+#   - Room-level motion aggregation
+
+  # ─── Polling Binary Sensors ───
+  # These re-evaluate whenever any referenced entity changes state.
   - binary_sensor:
+      # Returns true when 2+ security occupancy sensors detect motion simultaneously
       - name: 'Multi Room Security Motion Occupancy'
         unique_id: multi_room_security_motion_occupancy
         state: >
           {{ expand('binary_sensor.group_security_occupancy_sensors') | selectattr('state', 'eq', 'on') | list | count >= 2 }}
 
+      # ─── Presence Binary Sensors ───
+      # Determines if a person is the only one home (zone count == 1, no hotspot clients)
       - name: "Maxi is Alone"
         unique_id: maxi_alone
         delay_off:
@@ -27,11 +47,15 @@
              and is_state('zone.home', '1')
              and is_state('sensor.chilling_hotspot_client_count', '0') }}
 
+      # ─── Sleep Detection Binary Sensors ───
+      # Simple wrapper: true if the "where is maxi sleeping" sensor has a value
       - name: "Maxi is sleeping"
         unique_id: maxi_sleeping
         state: >-
           {{ not is_state('sensor.where_is_maxi_sleeping', '') }}
 
+      # ─── Bathroom & Utility Binary Sensors ───
+      # Detects showering: bathroom door closed AND humidity 15% above house average
       - name: "Shower in Usage"
         unique_id: shower_in_usage
         delay_off:
@@ -39,6 +63,7 @@
         state: >
           {{( states('binary_sensor.sensor_bathroom_door_contact') == 'off' and (states('sensor.sensor_bathroom_temperature_humidity') | float  ) > (states('sensor.average_house_humidity') | float + 15 )) }}
 
+      # True when all present household members are asleep (Maxi must be home and asleep)
       - name: "All Present Sleeping"
         unique_id: all_present_sleeping
         delay_off:
@@ -51,6 +76,7 @@
           {% endif %}
 
 
+      # Detects indoor motion only (excludes parking, patio, and door sensors)
       - name: "Motion Inside Home"
         unique_id: motion_inside_home
         delay_off:
@@ -79,6 +105,8 @@
             %}
             {{ asleep_count >= 2 }}
 
+      # ─── Communication Detection Binary Sensors ───
+      # Detects if someone is on a call (mic active, phone not idle, or audio mode changed)
       - name: "maxi is talking"
         unique_id: "maxi_is_talking" 
         state: >-
@@ -106,7 +134,10 @@
             {{ (( is_state('sensor.phone_maxi_media_session', "playing")
               or not is_state('sensor.phone_maxi_phone_state', "idle")
               or states('sensor.phone_maxi_audio_mode') != 'normal') and states('person.maximiliano') == 'home' ) }}
+  # ─── Polling Sensors ───
   - sensor:
+      # ─── Environment Sensors ───
+      # Falls back through local outdoor sensor -> Montreal weather -> forecast_home
       - name: "Outside Temperature with Fallback"
         unique_id: "outside_temperature_with_fallback"
         state: >-
@@ -119,6 +150,8 @@
                 {% endif %}
         unit_of_measurement: degrees
 
+      # ─── Security Status Sensor ───
+      # Aggregates lock and alarm states into a human-readable security status
       - name: "Security All Clear"
         unique_id: security_all_clear
         state: >-
@@ -154,7 +187,9 @@
           
 
         
-      - name: 'Bathroom Usage' 
+      # ─── Room Usage Sensors ───
+      # Reports bathroom status: Showering > Occupied (door closed) > Detected (motion) > Clear
+      - name: 'Bathroom Usage'
         state: >-
           {% if states('binary_sensor.shower_in_usage') == "on" %}
             Showering
@@ -188,6 +223,8 @@
 
 
 
+      # ─── Location Sensors ───
+      # Determines Maxi's location by prioritizing: watch (if on body) > bracelet > phone > GPS
       - name: "Maxi Location"
         unique_id: "maxi_location" 
         state: >-            
@@ -210,6 +247,8 @@
               {% endif %}
               {{ location }}
 
+      # ─── Gaming & Activity Sensors ───
+      # Reports current game from Discord or Steam, preferring Discord
       - name: "Maxis Current Game"
         unique_id: "maxi_current_game" 
         state: >-
@@ -234,6 +273,8 @@
             {% else %}idle
             {% endif %} 
 
+      # ─── People Counting Sensors ───
+      # Lists friends currently at home (derived from hotspot client tracking)
       - name: "which friends home"
         unique_id: "which_friends_home"
         state: >-
@@ -259,6 +300,8 @@
 
       
 
+      # ─── Active Microphone Tracking ───
+      # Lists rooms where microphones are active (PC mic, phone call, audio mode)
       - name: "active microphones rooms"
         unique_id: "active_microphones_rooms"
         state: >-
@@ -273,6 +316,8 @@
               {% set ns.active_micro_room = ns.active_micro_room + [ states('sensor.maxi_location_by_petro')] %}
             {% endif %}
             {{ ns.active_micro_room | unique | list }}
+      # ─── Sleep Detection Sensors ───
+      # Determines Lylou's sleep state using phone interactivity, sleep confidence, lights, and PC state
       - name: Is lylou asleep?
         unique_id: "is_lylou_asleep"
         state: >
@@ -294,6 +339,7 @@
             {{ sleepingstate }}
 
 
+      # Determines Myriam's sleep state using room location, sleeper booleans, and phone confidence
       - name: Is myriam asleep?
         unique_id: "is_myriam_asleep"
         state: >
@@ -340,6 +386,8 @@
                   awake                  
                 {% endif %}
 
+      # Determines Maxi's sleep state using room location, sleeper booleans, and phone confidence
+      # Also exposes a 'location' attribute indicating where Maxi is sleeping
       - name: Is maxi asleep?
         unique_id: "is_maxi_asleep"
         state: >
@@ -418,6 +466,8 @@
         state: >-
           {{ state_attr('sensor.is_maxi_asleep', "location") | default('nowhere') }}
 
+      # ─── Computer & Activity Sensors ───
+      # True if Maxi's PC reported activity within the last ~7 minutes
       - name: "Is the computer active?"
         unique_id: is_computer_active
         state: >-
@@ -426,6 +476,10 @@
           {% else %}
             false
           {% endif %}
+      # ─── Maxi Activity Detection (V2) ───
+      # Comprehensive activity sensor that considers: sleep, location, computer use,
+      # gaming, TV, showering, music, cooking, phone use, vacuuming, parties, and guests.
+      # Priority order changes based on whether Maxi is alone, with partners, or with friends.
       - name: "Maxi current Activity V2"
         unique_id: maxi_current_activity_v2
         state: >-  
@@ -526,6 +580,9 @@
              {% endif %} 
             {% endif %}
             {{ns.activityname }}                   
+      # ─── Maxi Activity Detection (V1 - Legacy) ───
+      # Earlier version of activity detection, kept for backward compatibility.
+      # Uses simpler logic focused on gaming, TV, and social activities.
       - name: "Maxi current Activity"
         unique_id: maxi_current_activity
         state: >-
@@ -593,6 +650,7 @@
               {% endif %}
             {% endif %}
             {{ns.activityname }}            
+      # Stores the Plex authentication token as a sensor (loaded from secrets)
       - name: "plex token"
         unique_id: plex_token
         state: !secret plex_token
@@ -651,7 +709,9 @@
   # Converted from polling templates to reduce constant domain-wide iterations
   #############################################################################
 
-  # Friends & Hotspot - triggers on hotspot client count changes instead of scanning all device_trackers
+  # ─── Friends & Hotspot Tracking ───
+  # Counts guests by checking which phones are connected to the "Chilling Hotspot" WiFi.
+  # Subtracts known partners and crashers to get the friend count.
   - trigger:
       - trigger: state
         entity_id:
@@ -697,7 +757,9 @@
             {% endfor %}
             {{ ns.friends }}
 
-  # Sleeper sensors - triggers on specific sleeper input_booleans instead of scanning all input_booleans
+  # ─── Sleeper Room Tracking ───
+  # Tracks which rooms have active "sleeper" flags (input_booleans toggled by
+  # automations when a room is detected as having someone sleeping in it).
   - trigger:
       - trigger: state
         entity_id:
@@ -736,7 +798,8 @@
             {% set active = expand('input_boolean.sleeper_in_bedroom', 'input_boolean.sleeper_in_closet', 'input_boolean.sleeper_in_workshop', 'input_boolean.sleeper_in_patio', 'input_boolean.sleeper_in_hotbox', 'input_boolean.sleeper_in_salon', 'input_boolean.sleeper_in_lounge') | selectattr('state','eq','on') | list %}
             {{ active | count }}
 
-  # Existing Rooms - triggers on time pattern instead of iterating ALL states
+  # ─── Available Rooms Discovery ───
+  # Periodically scans all entities to build a list of known area IDs.
   - trigger:
       - trigger: time_pattern
         minutes: "/30"
@@ -749,7 +812,10 @@
           {% set areas = states | selectattr('attributes.device_class', 'defined') | map(attribute='entity_id') | map('area_id') | unique | reject('none') | list %}
           {{ areas }}
 
-  # Maxi Location by petro - triggers on specific BLE tracker entities instead of constant re-rendering
+  # ─── Maxi Indoor Location (Petro Algorithm) ───
+  # Fuses BLE data from watch, bracelet, and phone with GPS and motion sensors.
+  # Uses a voting system: each device reports a room, and the room with the most
+  # votes wins. Filters out devices that are charging or not on the body.
   - trigger:
       - trigger: state
         entity_id:
@@ -804,7 +870,9 @@
               not_home
             {% endif %}
 
-  # Playing on X sensors - trigger-based on each media player's state changes
+  # ─── "Now Playing" Per-Device Sensors ───
+  # Extracts human-readable "now playing" text for each Chromecast and speaker.
+  # Shows series/episode info for TV, or artist/album for music.
   - trigger:
       - trigger: state
         entity_id:
@@ -958,7 +1026,9 @@
             {{ state_attr(e, 'app_name') }}
           {% endif %}
 
-  # Person counting sensors - triggers on person state changes instead of iterating states.person every minute
+  # ─── Person Counting & Presence Sensors ───
+  # Counts partners, crashers, and residents at home using HA labels on person entities.
+  # Also provides a "Users Present" binary sensor with a 7-minute delay-off.
   - trigger:
       - trigger: state
         entity_id:
@@ -1042,7 +1112,9 @@
               '{{ room }}': {{ devices | tojson | replace('[','(') | replace(']',')') }}{{ ',' if not loop.last }}
             {%- endfor %}
 
-  # Average House Humidity - triggers on humidity sensor state changes instead of scanning all MQTT entities
+  # ─── Average House Humidity ───
+  # Computes the mean humidity across all room temperature/humidity sensors.
+  # Used by the shower detection binary sensor to identify humidity spikes.
   - trigger:
       - trigger: state
         entity_id:
@@ -1083,7 +1155,9 @@
               | average(default=0)
               | round(2) }}
 
-  # Media sensors - triggers on universal chromecast + MASS speaker state changes
+  # ─── Active Media Playback Tracking ───
+  # Tracks which rooms have active Chromecast or speaker playback.
+  # Provides muted/unmuted room lists as attributes for volume-aware automations.
   - trigger:
       - trigger: state
         entity_id:
@@ -1274,7 +1348,9 @@
                 | map('regex_replace', '_chromecast', '')
                 | list }}
 
-  # Motion & room sensors - triggers on per-room occupancy group state changes
+  # ─── Motion & Last Active Room Tracking ───
+  # Aggregates per-room motion group sensors into a list of active rooms
+  # and determines the most recently active room by last_changed timestamp.
   - trigger:
       - trigger: state
         entity_id:
@@ -1329,7 +1405,8 @@
               | first | default(none) %}
             {{ area_name(active) | lower if active else this.state | default('unknown') }}
 
-  # Myriam Location by petro - triggers on specific entities instead of constant re-rendering
+  # ─── Myriam Indoor Location (Petro Algorithm) ───
+  # Same voting-based location algorithm as Maxi's, but using Myriam's phone tracker.
   - trigger:
       - trigger: state
         entity_id:
