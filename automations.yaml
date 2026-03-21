@@ -54,7 +54,8 @@
   mode: single
 - id: '1708472370553'
   alias: Stop bedroom speaker when bedroom sleeper awake
-  description: ''
+  description: >-
+    Stops the bedroom speaker when the sleeper boolean turns off, preventing music from continuing when someone wakes up.
   triggers:
   - entity_id:
     - input_boolean.sleeper_in_bedroom
@@ -81,47 +82,82 @@
 - id: '1711565389493'
   alias: Assist Restart Music Assistant
   description: ''
-  trigger:
-  - platform: conversation
+  triggers:
+  - trigger: conversation
     command: Restart Music Assistant
-  condition: []
-  action:
+  conditions: []
+  actions:
   - service: hassio.addon_restart
     metadata: {}
     data:
       addon: d5369777_music_assistant_beta
   mode: single
 - id: '1713378517441'
-  alias: Lock front door when it is closed for 5 seconds
-  description: ''
-  trigger:
-  - platform: state
+  alias: Auto-lock doors when closed for 5 seconds
+  description: >-
+    Locks the front or back door 5 seconds after the outside contact
+    sensor reports the door is shut, but only if the lock is not
+    already in the locked state.
+  triggers:
+  - trigger: state
     entity_id:
     - binary_sensor.sensor_front_outside_door_contact
-    from:
     to: 'off'
     for:
       hours: 0
       minutes: 0
       seconds: 5
-  condition:
-  - condition: not
-    conditions:
-    - condition: state
-      entity_id: lock.lock_front_door
-      state: locked
-  action:
-  - service: lock.lock
-    metadata: {}
-    data: {}
-    target:
-      entity_id: lock.lock_front_door
-  mode: single
+    id: front_door_closed
+  - trigger: state
+    entity_id:
+    - binary_sensor.sensor_back_outside_door_contact
+    to: 'off'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 5
+    id: back_door_closed
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id: front_door_closed
+      - condition: not
+        conditions:
+        - condition: state
+          entity_id: lock.lock_front_door
+          state: locked
+      sequence:
+      - alias: Lock the front door
+        action: lock.lock
+        data: {}
+        target:
+          entity_id: lock.lock_front_door
+    - conditions:
+      - condition: trigger
+        id: back_door_closed
+      - condition: not
+        conditions:
+        - condition: state
+          entity_id: lock.back_door
+          state: locked
+      sequence:
+      - alias: Lock the back door
+        action: lock.lock
+        data: {}
+        target:
+          entity_id: lock.back_door
+  mode: parallel
+  max: 2
 - id: '1713378679048'
-  alias: Lock front door 5 minutes after unlocking
-  description: ''
-  trigger:
-  - platform: state
+  alias: Re-lock doors 5 minutes after unlocking if door is shut
+  description: >-
+    Safety net that re-locks the front or back door if it has been
+    unlocked for 5 minutes and the door is currently closed.
+    Prevents doors from staying unlocked indefinitely.
+  triggers:
+  - trigger: state
     entity_id:
     - lock.lock_front_door
     to: unlocked
@@ -129,20 +165,49 @@
       hours: 0
       minutes: 5
       seconds: 0
-  condition:
-  - condition: state
-    entity_id: binary_sensor.sensor_front_outside_door_contact
-    state: 'off'
-  action:
-  - service: lock.lock
-    metadata: {}
-    data: {}
-    target:
-      entity_id: lock.lock_front_door
-  mode: single
+    id: front_door_unlocked
+  - trigger: state
+    entity_id:
+    - lock.back_door
+    to: unlocked
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+    id: back_door_unlocked
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id: front_door_unlocked
+      - condition: state
+        entity_id: binary_sensor.sensor_front_outside_door_contact
+        state: 'off'
+      sequence:
+      - alias: Re-lock the front door
+        action: lock.lock
+        data: {}
+        target:
+          entity_id: lock.lock_front_door
+    - conditions:
+      - condition: trigger
+        id: back_door_unlocked
+      - condition: state
+        entity_id: binary_sensor.sensor_back_outside_door_contact
+        state: 'off'
+      sequence:
+      - alias: Re-lock the back door
+        action: lock.lock
+        data: {}
+        target:
+          entity_id: lock.back_door
+  mode: parallel
+  max: 2
 - id: '1713378916074'
   alias: Alert that the front door remained open
-  description: ''
+  description: >-
+    Repeatedly broadcasts an alert every 5 minutes while the front door contact sensor reports open, unless the apartment is being aired out.
   triggers:
   - entity_id:
     - binary_sensor.sensor_front_door_contact
@@ -154,7 +219,7 @@
     trigger: state
   conditions:
   - condition: state
-    entity_id: input_boolean.aerating_appartment
+    entity_id: input_boolean.aerating_apartment
     state: 'off'
   actions:
   - repeat:
@@ -172,13 +237,14 @@
         entity_id: binary_sensor.sensor_front_door_contact
         state: 'on'
       - condition: state
-        entity_id: input_boolean.aerating_appartment
+        entity_id: input_boolean.aerating_apartment
         state: 'off'
     enabled: true
   mode: restart
 - id: '1713399927983'
   alias: Alert that the vacuum is stuck
-  description: ''
+  description: >-
+    Notifies when the robot vacuum enters an error state and repeatedly alerts until the error is resolved.
   triggers:
   - entity_id:
     - vacuum.roborock_qrevo_curv_series
@@ -208,59 +274,14 @@
           entity_id: vacuum.roborock_qrevo_curv_series
           state: error
   mode: single
-- id: '1713407734344'
-  alias: Lock back door when it is closed for 5 seconds
-  description: ''
-  trigger:
-  - platform: state
-    entity_id:
-    - binary_sensor.sensor_back_outside_door_contact
-    from:
-    to: 'off'
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 5
-  condition:
-  - condition: not
-    conditions:
-    - condition: state
-      entity_id: lock.back_door
-      state: locked
-  action:
-  - service: lock.lock
-    metadata: {}
-    data: {}
-    target:
-      entity_id: lock.back_door
-  mode: single
-- id: '1713407853586'
-  alias: Lock back door 5 minutes after unlocking
-  description: ''
-  triggers:
-  - entity_id:
-    - lock.back_door
-    to: unlocked
-    for:
-      hours: 0
-      minutes: 5
-      seconds: 0
-    trigger: state
-  conditions:
-  - condition: state
-    entity_id: binary_sensor.sensor_back_outside_door_contact
-    state: 'off'
-    enabled: true
-  actions:
-  - metadata: {}
-    data: {}
-    target:
-      entity_id: lock.back_door
-    action: lock.lock
-  mode: single
+# REMOVED: "Lock back door when it is closed for 5 seconds" (id: 1713407734344)
+# Merged into "Auto-lock doors when closed for 5 seconds" (id: 1713378517441)
+# REMOVED: "Lock back door 5 minutes after unlocking" (id: 1713407853586)
+# Merged into "Re-lock doors 5 minutes after unlocking if door is shut" (id: 1713378679048)
 - id: '1713408006382'
   alias: Turn back door lights on when someone is detected
-  description: ''
+  description: >-
+    Turns on the back door light at full brightness and warm temperature when any person sensor near the back entrance detects someone.
   triggers:
   - entity_id:
     - binary_sensor.back_entrance_presence_person_occupancy
@@ -394,18 +415,19 @@
   mode: single
 - id: '1713533595890'
   alias: Disarm alarm-away when "User Home" turns on
-  description: ''
-  trigger:
-  - platform: state
+  description: >-
+    Automatically disarms the away-alarm when a tracked user arrives home, based on the 'User Home' input boolean.
+  triggers:
+  - trigger: state
     entity_id:
     - binary_sensor.user_home
     to: 'on'
     from: 'off'
-  condition:
+  conditions:
   - condition: state
     entity_id: alarm_control_panel.home_alarm
     state: armed_away
-  action:
+  actions:
   - service: alarm_control_panel.alarm_disarm
     metadata: {}
     data: {}
@@ -414,7 +436,8 @@
   mode: single
 - id: '1713533768680'
   alias: Arm Alarm-Away when "User home" is off for 10 minutes
-  description: ''
+  description: >-
+    Arms the alarm in away mode after nobody has been home for 10 minutes, providing a buffer to avoid false triggers.
   triggers:
   - entity_id:
     - binary_sensor.user_home
@@ -444,7 +467,8 @@
   mode: single
 - id: '1713534223873'
   alias: Turn ACs on and Off  depending on house occupancy
-  description: ''
+  description: >-
+    Manages air conditioning based on whether anyone is home. Turns AC off when house is vacant and back on when someone returns.
   triggers:
   - entity_id:
     - binary_sensor.user_home
@@ -481,7 +505,8 @@
   mode: single
 - id: '1713535684569'
   alias: Play Muzak in the bathroom when someone enters
-  description: ''
+  description: >-
+    Starts background music in the bathroom when the occupancy sensor detects someone, for a more pleasant experience.
   triggers:
   - entity_id:
     - binary_sensor.sensor_bathroom_motion_occupancy
@@ -551,7 +576,8 @@
   mode: restart
 - id: '1713536409397'
   alias: Raise music on the playing speaker when the Bathroom fans goes on
-  description: ''
+  description: >-
+    Raises the volume of any currently-playing bathroom speaker when the fan turns on, so music is still audible over fan noise.
   triggers:
   - entity_id:
     - switch.bathroom_fan
@@ -574,7 +600,8 @@
   mode: single
 - id: '1713536741103'
   alias: Start bathroom fan when Shower in Usage turns on
-  description: ''
+  description: >-
+    Automatically starts the bathroom exhaust fan when the shower usage sensor activates, to control humidity.
   triggers:
   - entity_id:
     - binary_sensor.shower_in_usage
@@ -594,7 +621,8 @@
   mode: restart
 - id: '1713538197256'
   alias: Control Hallway Tablet charging
-  description: ''
+  description: >-
+    Manages the hallway tablet's charging plug to maintain healthy battery levels — charges when low, stops when full.
   triggers:
   - entity_id:
     - sensor.hallway_tablet_battery
@@ -645,7 +673,8 @@
   mode: single
 - id: '1713574201448'
   alias: Turn lights to white when we stop a movie
-  description: ''
+  description: >-
+    Resets room lights to white after a Plex movie ends or is stopped, restoring normal lighting from movie-mode dimming.
   triggers:
   - entity_id:
     - media_player.universal_salon_chromecast
@@ -784,7 +813,8 @@
   max: 6
 - id: '1713631370622'
   alias: Turn off Closet fan after 5 minutes of non occupancy
-  description: ''
+  description: >-
+    Saves energy by automatically turning off the closet fan when no occupancy is detected for 5 minutes.
   triggers:
   - entity_id:
     - binary_sensor.group_closet_motion_occupancy
@@ -880,14 +910,15 @@
   max: 10
 - id: '1713723493265'
   alias: Start visuals on all inactive TVs
-  description: ''
-  trigger:
-  - platform: state
+  description: >-
+    Starts screensaver/ambient visuals on TVs that are currently idle, keeping them from displaying blank screens.
+  triggers:
+  - trigger: state
     entity_id:
     - input_button.start_visuals
     to:
-  condition: []
-  action:
+  conditions: []
+  actions:
   - service: script.start_visual_playlist_on_plex
     metadata: {}
     data:
@@ -895,7 +926,8 @@
   mode: single
 - id: '1713813890992'
   alias: Reload tablets 4 minutes after HA restarts
-  description: ''
+  description: >-
+    Reloads all wall-mounted tablet browsers 4 minutes after Home Assistant starts, ensuring dashboards reflect the latest config.
   triggers:
   - entity_id:
     - sensor.bootminutes
@@ -1024,7 +1056,8 @@
   max: 10
 - id: '1714054125770'
   alias: Alert when dryer finishes!
-  description: ''
+  description: >-
+    Sends a notification when the dryer power consumption drops, indicating the cycle is complete.
   triggers:
   - entity_id:
     - binary_sensor.dryer_dry_completed
@@ -1064,7 +1097,8 @@
   mode: restart
 - id: '1714058481200'
   alias: Alert when Microwave finishes
-  description: ''
+  description: >-
+    Sends a notification when the microwave power consumption drops, indicating cooking is complete.
   triggers:
   - entity_id:
     - sensor.plug_kitchen_microwave_electric_consumption_w
@@ -1108,7 +1142,8 @@
   mode: restart
 - id: '1714058675432'
   alias: Alert when Washer finishes
-  description: ''
+  description: >-
+    Sends a notification when the washing machine power consumption drops, indicating the cycle is complete.
   triggers:
   - entity_id:
     - sensor.plug_kitchen_washer_electric_consumption_a
@@ -1139,7 +1174,8 @@
   mode: single
 - id: '1714077180427'
   alias: Change light to random colors on press
-  description: ''
+  description: >-
+    Changes lights to random colors when a button is pressed, for fun ambient lighting effects.
   triggers:
   - entity_id:
     - input_boolean.random_colors
@@ -1195,7 +1231,8 @@
   mode: single
 - id: '1714150045572'
   alias: Mute chromecasts when they play PLEX visuals
-  description: ''
+  description: >-
+    Auto-mutes Chromecast devices when they start playing Plex ambient visuals to avoid unwanted audio.
   triggers:
   - entity_id:
     - media_player.universal_workshop_chromecast
@@ -1244,7 +1281,8 @@
   mode: restart
 - id: '1714151063007'
   alias: Turn off speakers after 15 minutes of pause
-  description: ''
+  description: >-
+    Stops speakers that have been paused for 15 minutes, freeing them from stale sessions.
   triggers:
   - entity_id:
     - media_player.mass_lounge_wiim_speaker
@@ -1278,7 +1316,8 @@
   max: 25
 - id: '1714321256821'
   alias: Mute speakers in the room if maxi uses a microphone
-  description: ''
+  description: >-
+    Auto-mutes nearby speakers when a microphone is in use to prevent feedback and echo during calls.
   triggers:
   - entity_id:
     - binary_sensor.maxi_is_talking
@@ -1318,7 +1357,8 @@
   max: 10
 - id: '1714403972538'
   alias: Mute speakers when unmuted chromecast plays in the same room
-  description: ''
+  description: >-
+    Auto-mutes speakers in a room when a Chromecast in the same room starts playing, preventing audio overlap.
   triggers:
   - alias: Chromecasts
     entity_id:
@@ -1403,8 +1443,8 @@
 - id: '1714497353040'
   alias: Turn off lights when the house is empty
   description: Turn off lights
-  trigger:
-  - platform: numeric_state
+  triggers:
+  - trigger: numeric_state
     entity_id:
     - zone.home
     for:
@@ -1412,8 +1452,8 @@
       minutes: 5
       seconds: 0
     below: 0.9
-  condition: []
-  action:
+  conditions: []
+  actions:
   - service: light.turn_off
     metadata: {}
     data: {}
@@ -1423,15 +1463,15 @@
 - id: '1714668230697'
   alias: Turn off lights colors adaptation when an event is ongoing
   description: ''
-  trigger:
-  - platform: state
+  triggers:
+  - trigger: state
     entity_id:
     - input_boolean.kink_party
     - input_boolean.party_mode
     - input_boolean.acid_time
     to: 'on'
-  condition: []
-  action:
+  conditions: []
+  actions:
   - service: switch.turn_off
     metadata: {}
     data: {}
@@ -1441,14 +1481,14 @@
 - id: '1714668294513'
   alias: Turn on color adaptation when events end
   description: ''
-  trigger:
-  - platform: state
+  triggers:
+  - trigger: state
     entity_id:
     - input_boolean.kink_party
     - input_boolean.party_mode
     - input_boolean.acid_time
     to: 'off'
-  condition:
+  conditions:
   - condition: state
     state: 'off'
     entity_id: input_boolean.acid_time
@@ -1458,7 +1498,7 @@
   - condition: state
     state: 'off'
     entity_id: input_boolean.kink_party
-  action:
+  actions:
   - service: switch.turn_on
     metadata: {}
     data: {}
@@ -1813,14 +1853,14 @@
 - id: '1715791112355'
   alias: Doorbell Show received notification answer on phone
   description: ''
-  trigger:
-  - platform: event
+  triggers:
+  - trigger: event
     event_type: mobile_app_notification_action
     event_data:
       action: REPLY
       title: Doorbell Alert
-  condition: []
-  action:
+  conditions: []
+  actions:
   - service: input_text.set_value
     metadata: {}
     data:
@@ -1918,13 +1958,13 @@
 - id: '1716566146304'
   alias: Assist play next song
   description: ''
-  trigger:
-  - platform: conversation
+  triggers:
+  - trigger: conversation
     command:
     - '[Play] [the] next song'
     - Skip [this/the] song
-  condition: []
-  action:
+  conditions: []
+  actions:
   - metadata: {}
     data: {}
     target:
@@ -2374,14 +2414,14 @@
 - id: '1717284957489'
   alias: Turn on sleeper in bedroom boolean when sensor turns to on
   description: ''
-  trigger:
-  - platform: state
+  triggers:
+  - trigger: state
     entity_id:
     - binary_sensor.sleeper_in_bedroom
     to: 'on'
     from: 'off'
-  condition: []
-  action:
+  conditions: []
+  actions:
   - service: input_boolean.turn_on
     metadata: {}
     data: {}
@@ -2642,34 +2682,22 @@
         entity_id: alarm_control_panel.home_alarm
       action: alarm_control_panel.alarm_trigger
   mode: single
-- id: '1717355119853'
-  alias: Turn on light automation once alarm is disarmed
-  description: ''
-  triggers:
-  - entity_id:
-    - alarm_control_panel.home_alarm
-    from: triggered
-    to: disarmed
-    trigger: state
-  conditions: []
-  actions:
-  - metadata: {}
-    data: {}
-    action: automation.turn_on
-    target:
-      entity_id: automation.turn_on_lights_automatically
-  mode: single
+  ####################################################################
+  # ALARM DISARM RECOVERY
+  # 'Turn on light automation once alarm is disarmed' was merged into
+  # 'Post-alarm disarm recovery actions' below.
+  ####################################################################
 - id: '1717355583664'
   alias: Trigger front horn through phone notification
   description: ''
-  trigger:
-  - platform: event
+  triggers:
+  - trigger: event
     event_type: mobile_app_notification_action
     context: {}
     event_data:
       action: blow_front_horn
-  condition: []
-  action:
+  conditions: []
+  actions:
   - service: switch.turn_on
     metadata: {}
     data: {}
@@ -2677,8 +2705,11 @@
       entity_id: switch.plug_front_door_horn
   mode: single
 - id: '1717356233481'
-  alias: Stop speakers on disarm
-  description: ''
+  alias: Post-alarm disarm recovery actions
+  description: >-
+    Runs when the alarm transitions from triggered to disarmed.
+    Stops all speakers, clears playlists, turns off horns, and
+    re-enables the automatic light automation.
   triggers:
   - entity_id:
     - alarm_control_panel.home_alarm
@@ -2687,24 +2718,9 @@
     trigger: state
   conditions: []
   actions:
-  - metadata: {}
-    data: {}
+  - alias: Stop all speakers (de-escalation audio etc.)
     action: media_player.media_stop
-    target:
-      entity_id:
-      - media_player.group_mass_home_group_speakers
-      - media_player.mass_bathroom_vpe_speaker
-      - media_player.mass_bedroom_wiim_speaker
-      - media_player.mass_closet_wiim_speaker
-      - media_player.mass_lounge_wiim_speaker
-      - media_player.mass_kitchen_wiim_speaker
-      - media_player.mass_hallway_wiim_speaker
-      - media_player.mass_salon_wiim_speaker
-      - media_player.mass_workshop_wiim_speaker
-    continue_on_error: true
-  - metadata: {}
     data: {}
-    action: media_player.clear_playlist
     target:
       entity_id:
       - media_player.group_mass_home_group_speakers
@@ -2717,6 +2733,33 @@
       - media_player.mass_salon_wiim_speaker
       - media_player.mass_workshop_wiim_speaker
     continue_on_error: true
+  - alias: Clear all playlists
+    action: media_player.clear_playlist
+    data: {}
+    target:
+      entity_id:
+      - media_player.group_mass_home_group_speakers
+      - media_player.mass_bathroom_vpe_speaker
+      - media_player.mass_bedroom_wiim_speaker
+      - media_player.mass_closet_wiim_speaker
+      - media_player.mass_lounge_wiim_speaker
+      - media_player.mass_kitchen_wiim_speaker
+      - media_player.mass_hallway_wiim_speaker
+      - media_player.mass_salon_wiim_speaker
+      - media_player.mass_workshop_wiim_speaker
+    continue_on_error: true
+  - alias: Turn off all security horns
+    action: switch.turn_off
+    data: {}
+    target:
+      entity_id:
+      - switch.plug_back_door_horn
+      - switch.plug_front_door_horn
+  - alias: Re-enable automatic light automation
+    action: automation.turn_on
+    data: {}
+    target:
+      entity_id: automation.turn_on_lights_automatically
   mode: single
 - id: '1717358289455'
   alias: Trigger in-home defense script after the alarm is triggered for 3 continious
@@ -2925,14 +2968,14 @@
 - id: '1717359724027'
   alias: Trigger all home defense script through notification
   description: ''
-  trigger:
-  - platform: event
+  triggers:
+  - trigger: event
     event_type: mobile_app_notification_action
     context: {}
     event_data:
       action: trigger_all_alerts
-  condition: []
-  action:
+  conditions: []
+  actions:
   - service: script.in_home_defense_script
     data: {}
   mode: single
@@ -2958,7 +3001,8 @@
   mode: single
 - id: '1717360231281'
   alias: Unlock tablets on disarmed alarm
-  description: ''
+  description: >-
+    Unlocks all wall-mounted tablets/kiosks when the alarm system is disarmed, restoring normal dashboard access.
   triggers:
   - entity_id:
     - alarm_control_panel.home_alarm
@@ -3030,8 +3074,8 @@
 - id: '1719366196396'
   alias: Close bedroom cover when sleeper turns on
   description: ''
-  trigger:
-  - platform: state
+  triggers:
+  - trigger: state
     entity_id:
     - input_boolean.sleeper_in_bedroom
     from:
@@ -3040,8 +3084,8 @@
       hours: 0
       minutes: 1
       seconds: 0
-  condition: []
-  action:
+  conditions: []
+  actions:
   - service: cover.close_cover
     target:
       entity_id:
@@ -3149,12 +3193,12 @@
 - id: '1722263369374'
   alias: assist Stop home group music
   description: ''
-  trigger:
-  - platform: conversation
+  triggers:
+  - trigger: conversation
     command:
     - stop [the] music
-  condition: []
-  action:
+  conditions: []
+  actions:
   - service: media_player.media_stop
     metadata: {}
     data: {}
@@ -3229,17 +3273,17 @@
 - id: '1723530969899'
   alias: 'Turn off workshop lights when bedroom Sleeper turns on '
   description: 'Check also that the workshop is empty '
-  trigger:
-  - platform: state
+  triggers:
+  - trigger: state
     entity_id:
     - binary_sensor.sleeper_in_bedroom
     to: 'on'
     from: 'off'
-  condition:
+  conditions:
   - condition: state
     entity_id: binary_sensor.group_workshop_motion_occupancy
     state: 'off'
-  action:
+  actions:
   - action: light.turn_off
     metadata: {}
     data:
@@ -3993,7 +4037,8 @@
   mode: single
 - id: '1731345211107'
   alias: Alert if the front door remains unlocked for too long
-  description: ''
+  description: >-
+    Sends a notification if the front door lock stays unlocked for an extended period, as a security reminder.
   triggers:
   - entity_id:
     - lock.lock_front_door
@@ -4312,25 +4357,8 @@
     target:
       entity_id: switch.plug_back_door_horn
   mode: single
-- id: '1731942818929'
-  alias: Turn off Horns on Alarm disarm
-  description: ''
-  triggers:
-  - entity_id:
-    - alarm_control_panel.home_alarm
-    from: triggered
-    to: disarmed
-    trigger: state
-  conditions: []
-  actions:
-  - action: switch.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id:
-      - switch.plug_back_door_horn
-      - switch.plug_front_door_horn
-  mode: single
+# REMOVED: "Turn off Horns on Alarm disarm" (id: 1731942818929)
+# Merged into "Post-alarm disarm recovery actions" (id: 1717356233481)
 - id: '1732291871329'
   alias: Sleep actions when "maxi is sleeping" is turned on anywhere
   description: Close the blinds, turn off the lights and turn on the sleep mode of
@@ -5051,8 +5079,9 @@
               entity_id: media_player.mass_bathroom_vpe_speaker
   mode: restart
 - id: '1734912412449'
-  alias: Turn off BAthroom fan when humidity falls
-  description: ''
+  alias: Turn off Bathroom fan when humidity falls
+  description: >-
+    Turns off the bathroom exhaust fan once humidity drops back to normal levels after a shower.
   triggers:
   - trigger: numeric_state
     entity_id:
@@ -5579,9 +5608,19 @@
       entity_id: input_boolean.acid_time
     data: {}
   mode: single
+####################################################################
+  # AUTO-TIMEOUT BOOLEANS
+  # These automations automatically turn off input_booleans after a
+  # set duration to prevent stale states. Each trigger has a unique
+  # ID matching its entity, and the choose block routes to the
+  # correct turn_off action.
+  ####################################################################
 - id: '1740934326306'
-  alias: 'Disable Waiting someone after an hour '
-  description: ''
+  alias: Auto-timeout safety net for temporary input booleans
+  description: >-
+    Automatically turns off temporary mode booleans after their maximum
+    expected duration. Prevents stale states if someone forgets to
+    turn them off. Each boolean has its own timeout duration.
   triggers:
   - trigger: state
     entity_id:
@@ -5592,36 +5631,105 @@
       hours: 1
       minutes: 0
       seconds: 0
-  conditions: []
-  actions:
-  - action: input_boolean.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: input_boolean.waiting_someone
-  mode: single
-- id: '1740934447857'
-  alias: Turn off sleeper in closet after 10 hours
-  description: ''
-  triggers:
+    id: waiting_someone
   - trigger: state
     entity_id:
     - input_boolean.sleeper_in_closet
-    to:
-    - 'on'
+    from: 'off'
+    to: 'on'
     for:
       hours: 10
       minutes: 0
       seconds: 0
+    id: sleeper_in_closet
+  - trigger: state
+    entity_id:
+    - input_boolean.sleeper_in_workshop
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 10
+      minutes: 0
+      seconds: 0
+    id: sleeper_in_workshop
+  - trigger: state
+    entity_id:
+    - input_boolean.party_mode
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 16
+      minutes: 0
+      seconds: 0
+    id: party_mode
+  - trigger: state
+    entity_id:
+    - input_boolean.acid_time
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 16
+      minutes: 0
+      seconds: 0
+    id: acid_time
+  - trigger: state
+    entity_id:
+    - input_boolean.aerating_apartment
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 4
+      minutes: 0
+      seconds: 0
+    id: aerating_apartment
+  - trigger: state
+    entity_id:
+    - input_boolean.waiting_uber
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 1
+      minutes: 30
+      seconds: 0
+    id: waiting_uber
+  - trigger: state
+    entity_id:
+    - input_boolean.party_in_the_back_yard
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 2
+      minutes: 0
+      seconds: 0
+    id: party_in_the_back_yard
+  - trigger: state
+    entity_id:
+    - input_boolean.neighbours_having_a_party
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 8
+      minutes: 0
+      seconds: 0
+    id: neighbours_having_a_party
+  - trigger: state
+    entity_id:
+    - input_boolean.cooking_mode
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 4
+      minutes: 0
+      seconds: 0
+    id: cooking_mode
   conditions: []
   actions:
   - action: input_boolean.turn_off
-    metadata: {}
     data: {}
     target:
-      entity_id:
-      - input_boolean.sleeper_in_closet
-  mode: single
+      entity_id: '{{ trigger.entity_id }}'
+  mode: parallel
+  max: 10
 - id: '1740934578627'
   alias: Automatically Turn off sleeper in patio
   description: ''
@@ -5660,116 +5768,10 @@
     target:
       entity_id: input_boolean.sleeper_in_patio
   mode: single
-- id: '1740934632114'
-  alias: Automatically turn off sleeper in workshop
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - input_boolean.sleeper_in_workshop
-    from: 'off'
-    to: 'on'
-    for:
-      hours: 10
-      minutes: 0
-      seconds: 0
-  conditions: []
-  actions:
-  - action: input_boolean.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id:
-      - input_boolean.sleeper_in_workshop
-  mode: single
-- id: '1740934675324'
-  alias: Automatically turn off party mode
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - input_boolean.party_mode
-    from: 'off'
-    to: 'on'
-    for:
-      hours: 16
-      minutes: 0
-      seconds: 0
-  conditions: []
-  actions:
-  - action: input_boolean.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id:
-      - input_boolean.party_mode
-  mode: single
-- id: '1740934697660'
-  alias: Automatically turn off acid time mode
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - input_boolean.acid_time
-    from: 'off'
-    to: 'on'
-    for:
-      hours: 16
-      minutes: 0
-      seconds: 0
-  conditions: []
-  actions:
-  - action: input_boolean.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id:
-      - input_boolean.acid_time
-  mode: single
-- id: '1740934738782'
-  alias: Automatically turn off aerating appartment
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - input_boolean.aerating_appartment
-    from: 'off'
-    to: 'on'
-    for:
-      hours: 4
-      minutes: 0
-      seconds: 0
-  conditions: []
-  actions:
-  - action: input_boolean.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id:
-      - input_boolean.aerating_appartment
-  mode: single
-- id: '1740934774262'
-  alias: Automatically turn off waiting uber
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - input_boolean.waiting_uber
-    from: 'off'
-    to: 'on'
-    for:
-      hours: 1
-      minutes: 30
-      seconds: 0
-  conditions: []
-  actions:
-  - action: input_boolean.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id:
-      - input_boolean.waiting_uber
-  mode: single
+  ####################################################################
+  # END AUTO-TIMEOUT BOOLEANS - remaining individual automations were
+  # merged into 'Auto-timeout safety net for temporary input booleans'
+  ####################################################################
 - id: '1740935035535'
   alias: Automatically turn off bathroom light
   description: ''
@@ -6001,9 +6003,14 @@
       entity_id: media_player.group_mass_home_group_speakers
   mode: single
 - id: '1742862883906'
-  alias: Turn on parking light on person occupancy
-  description: ''
+  alias: Turn on parking light on any parking/balcony activity
+  description: >-
+    Turns on the parking lamp when a person is detected in the parking
+    area, a person is detected on the back balcony, or a car starts
+    moving in the parking. Consolidates three separate trigger sources
+    into one automation. Car detection has a 3-second debounce.
   triggers:
+  # Person detected in parking area
   - trigger: state
     entity_id:
     - binary_sensor.parking_exit_camera_person_occupancy
@@ -6011,18 +6018,35 @@
     - binary_sensor.reolink_parking_camera_person
     - binary_sensor.reolink_parking_exit_camera_person
     to: 'on'
-    from:
+  # Person detected on back balcony
+  - trigger: state
+    entity_id:
+    - binary_sensor.back_entrance_presence_person_occupancy
+    - binary_sensor.reolink_back_door_camera_person
+    to: 'on'
+  # Car moving in parking (3s debounce to avoid flicker)
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_camera_car_occupancy
+    - binary_sensor.parking_exit_camera_car_occupancy
+    from: 'off'
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 3
   conditions: []
   actions:
-  - action: light.turn_on
-    metadata: {}
+  - alias: Turn on the parking lamp
+    action: light.turn_on
     data: {}
     target:
       entity_id: light.plug_parking_lamp
   mode: single
 - id: '1742862955443'
-  alias: Turn off Parking light on 5 minuts of no occupancy
-  description: ''
+  alias: Turn off Parking light on 5 minutes of no occupancy
+  description: >-
+    Turns off the parking lamp after 5 minutes of no occupancy detected by the parking group sensor, saving energy.
   triggers:
   - trigger: state
     entity_id:
@@ -6180,48 +6204,10 @@
         image: api/camera_proxy/camera.parking_exit_camera
     action: notify.maxi_notification_group
   mode: single
-- id: '1743014018855'
-  alias: Turn on parking light when someone is detected in the back balcony
-  description: ''
-  triggers:
-  - entity_id:
-    - binary_sensor.back_entrance_presence_person_occupancy
-    - binary_sensor.reolink_back_door_camera_person
-    to:
-    - 'on'
-    trigger: state
-  conditions: []
-  actions:
-  - metadata: {}
-    target:
-      entity_id: light.plug_parking_lamp
-    action: light.turn_on
-    data: {}
-  mode: single
-- id: '1743016095414'
-  alias: Turn on parking light when a car is moving
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - binary_sensor.parking_camera_car_occupancy
-    - binary_sensor.parking_exit_camera_car_occupancy
-    from:
-    - 'off'
-    to:
-    - 'on'
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 3
-  conditions: []
-  actions:
-  - metadata: {}
-    target:
-      entity_id: light.plug_parking_lamp
-    action: light.turn_on
-    data: {}
-  mode: single
+# REMOVED: "Turn on parking light when someone is detected in the back balcony" (id: 1743014018855)
+# REMOVED: "Turn on parking light when a car is moving" (id: 1743016095414)
+# Both merged into "Turn on parking light on any parking/balcony activity" (id: 1742862883906)
+
 - id: '1743179648448'
   alias: Alert when someone is in the parking
   description: ''
@@ -6866,26 +6852,17 @@
           entity_id: light.plug_parking_lamp
   mode: single
 - id: '1744572056958'
-  alias: Turn off parking audio detection when patio is occupied
-  description: ''
+  alias: Toggle parking audio detection based on patio occupancy
+  description: >-
+    Disables parking camera audio detection when patio is occupied
+    (to avoid false alerts from patio activity). Re-enables it
+    1 minute after patio clears.
   triggers:
   - trigger: state
     entity_id:
     - binary_sensor.group_patio_motion_occupancy
     to: 'on'
-  conditions: []
-  actions:
-  - action: switch.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id:
-      - switch.parking_exit_camera_audio_detection
-  mode: single
-- id: '1744572115522'
-  alias: Turn on parking audio detection when patio occupancy is off
-  description: ''
-  triggers:
+    id: patio_occupied
   - trigger: state
     entity_id:
     - binary_sensor.group_patio_motion_occupancy
@@ -6894,14 +6871,28 @@
       hours: 0
       minutes: 1
       seconds: 0
+    id: patio_clear
   conditions: []
   actions:
-  - action: switch.turn_on
-    metadata: {}
-    data: {}
-    target:
-      entity_id:
-      - switch.parking_exit_camera_audio_detection
+  - choose:
+    - conditions:
+      - condition: trigger
+        id: patio_occupied
+      sequence:
+      - alias: Disable audio detection to avoid false alerts from patio
+        action: switch.turn_off
+        data: {}
+        target:
+          entity_id: switch.parking_exit_camera_audio_detection
+    - conditions:
+      - condition: trigger
+        id: patio_clear
+      sequence:
+      - alias: Re-enable audio detection now that patio is clear
+        action: switch.turn_on
+        data: {}
+        target:
+          entity_id: switch.parking_exit_camera_audio_detection
   mode: single
 - id: '1744744086412'
   alias: 'Frigate back Doors Notifications '
@@ -7061,36 +7052,43 @@
       entity_id: light.reolink_back_door_camera_floodlight
   mode: single
 - id: '1744811034444'
-  alias: Set back door camera floodlight to auto during night time
-  description: ''
+  alias: Back door floodlight auto-mode on sunset, off on sunrise
+  description: >-
+    Sets the back door camera floodlight to 'auto' at sunset so it
+    activates on motion during the night, then switches it off at
+    sunrise to save power and avoid daytime triggers.
   triggers:
   - trigger: sun
     event: sunset
     offset: 0
-  conditions: []
-  actions:
-  - action: select.select_option
-    metadata: {}
-    data:
-      option: auto
-    target:
-      entity_id: select.reolink_back_door_camera_floodlight_mode
-  mode: single
-- id: '1744811074820'
-  alias: Turn off automatic back door floodlight whrn sun rises
-  description: ''
-  triggers:
+    id: sunset
   - trigger: sun
     event: sunrise
     offset: 0
+    id: sunrise
   conditions: []
   actions:
-  - action: select.select_option
-    metadata: {}
-    data:
-      option: 'off'
-    target:
-      entity_id: select.reolink_back_door_camera_floodlight_mode
+  - choose:
+    - conditions:
+      - condition: trigger
+        id: sunset
+      sequence:
+      - alias: Enable auto-mode for night-time motion detection
+        action: select.select_option
+        data:
+          option: auto
+        target:
+          entity_id: select.reolink_back_door_camera_floodlight_mode
+    - conditions:
+      - condition: trigger
+        id: sunrise
+      sequence:
+      - alias: Disable floodlight during daytime
+        action: select.select_option
+        data:
+          option: 'off'
+        target:
+          entity_id: select.reolink_back_door_camera_floodlight_mode
   mode: single
 - id: '1744811669242'
   alias: Automatically turn off Back door light when there is no motion
@@ -7173,26 +7171,8 @@
       entity_id: switch.plug_back_door_horn
     action: switch.turn_on
   mode: restart
-- id: '1745168989088'
-  alias: Turn off 'Party in the back yard' after 2 hours on
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - input_boolean.party_in_the_back_yard
-    to: 'on'
-    for:
-      hours: 2
-      minutes: 0
-      seconds: 0
-  conditions: []
-  actions:
-  - action: input_boolean.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: input_boolean.party_in_the_back_yard
-  mode: single
+  # 'Party in the back yard' auto-timeout merged into
+  # 'Auto-timeout safety net for temporary input booleans'
 - id: '1745368052673'
   alias: Turn on Parking Infrared when Parking Exit infrared goes off
   description: ''
@@ -8524,8 +8504,9 @@
         entity_id: '{{playing_speakers | list}}'
   mode: restart
 - id: '1748932635965'
-  alias: Mute chromecats when unmuted speakers plays in the same room
-  description: ''
+  alias: Mute Chromecasts when unmuted speakers plays in the same room
+  description: >-
+    Auto-mutes Chromecasts in a room when a speaker in the same room starts playing, preventing audio conflicts.
   triggers:
   - alias: Chromecasts
     entity_id:
@@ -8723,27 +8704,8 @@
     target:
       entity_id: cover.cover_hotbox_blinds
   mode: single
-- id: '1749101141819'
-  alias: Turn off neighbours party off after 8 hours
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - input_boolean.neighbours_having_a_party
-    from: 'off'
-    to: 'on'
-    for:
-      hours: 8
-      minutes: 0
-      seconds: 0
-  conditions: []
-  actions:
-  - action: input_boolean.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: input_boolean.neighbours_having_a_party
-  mode: single
+  # 'Neighbours having a party' auto-timeout merged into
+  # 'Auto-timeout safety net for temporary input booleans'
 - id: '1749235496765'
   alias: Skips song's myriam don't like whe she is home
   description: ''
@@ -8809,28 +8771,8 @@
     target:
       entity_id: media_player.mass_bedroom_wiim_speaker
   mode: single
-- id: '1749320320984'
-  alias: Turn off cooking mode after 4 hours
-  description: ''
-  triggers:
-  - trigger: state
-    entity_id:
-    - input_boolean.cooking_mode
-    from: 'off'
-    to: 'on'
-  conditions: []
-  actions:
-  - delay:
-      hours: 4
-      minutes: 0
-      seconds: 0
-      milliseconds: 0
-  - action: input_boolean.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: input_boolean.cooking_mode
-  mode: single
+  # 'Cooking mode' auto-timeout merged into
+  # 'Auto-timeout safety net for temporary input booleans'
 - id: '1749333714992'
   alias: Sleeper actions when salon sleeper turns on
   description: ''
@@ -11488,7 +11430,8 @@
           entity_id: media_player.mass_lounge_wiim_speaker
 - id: '1757350225543'
   alias: Turn off cameras on screens when door is locked back
-  description: ''
+  description: >-
+    Removes the doorbell camera feed from tablet screens once the front door is locked again after being opened.
   triggers:
   - entity_id:
     - lock.lock_front_door
