@@ -4596,6 +4596,7 @@
                 '
           for_each: '{{ unmuted_speakers }}'
   mode: single
+# Voice command: changes lights in the caller's room to a spoken color name
 - id: '1733533239694'
   alias: Assist quick color change phrase
   description: Changes the light color in the room of the requesting voice assistant device using a quick voice command like 'red lights' or 'set lights to blue'.
@@ -4617,6 +4618,7 @@
     target:
       area_id: '{{room }}'
   mode: single
+# ─── Display & Dashboard Management ───
 - id: '1733597890338'
   alias: kitchen google display automation
   description: Resets the kitchen Google Hub display to its dashboard view when it idles away from the intended app, keeping the kitchen display always showing useful information.
@@ -4676,6 +4678,7 @@
     target:
       entity_id: media_player.kitchen_google_hub
   mode: single
+# ─── Front Door Light & Display ───
 - id: '1733789430500'
   alias: Turn on the front door light in relation to the sun position
   description: Turns on the front door light at full brightness when the sun goes below the horizon, and periodically re-checks to ensure it stays on through the night.
@@ -4820,6 +4823,10 @@
         {{green}} {{blue}}"})~END'
     enabled: true
   mode: restart
+# ─── ESP32 Voice Assistant Endpoint Management ───
+# These automations manage the wall-mounted ESP32 voice assistant endpoints throughout the house.
+# They mute/unmute microphones and toggle screens based on room occupancy to save power
+# and avoid accidental wake-word activations in empty rooms.
 - id: '1734282252470'
   alias: Assist Unmute ESP32 endpoints when room is occupied
   description: 'This one uses motion groups '
@@ -4998,6 +5005,9 @@
       for_each: '{{esp32_screens_entities}}'
   mode: parallel
   max: 25
+# ─── Bathroom Speaker & Fan Logic (Extended) ───
+# Additional bathroom automations that complement the main Bathroom Automations section above.
+# Handles muting/unmuting the speaker based on door state and adjusting volume contextually.
 - id: '1734911416848'
   alias: Mute bathroom speaker when door opens
   description: Mutes or lowers the bathroom speaker volume when the door opens, depending on whether the bathroom is occupied, to avoid disturbing other rooms.
@@ -5175,6 +5185,10 @@
     data:
       received_speaker: media_player.mass_bathroom_vpe_speaker
   mode: restart
+# When a speaker transitions from idle/off to playing, calls the volume adjustment
+# script to set its volume based on context (time of day, sleepers, etc.).
+# Only triggers if "Following Music" mode is on and the content isn't thunderstorm sounds.
+# The 300-second check prevents re-triggering on brief playback interruptions.
 - id: '1737729890470'
   alias: Speaker Automatic Volume v4
   description: Uses the script 'Speaker Automatic Volume Adjustment script'
@@ -5234,6 +5248,7 @@
   trace:
     stored_traces: 30
   max: 10
+# ─── Party & Event Security Alerts ───
 - id: '1737850261149'
   alias: alert maxi if someone goes into the hotbox during a party
   description: Sends a security alert notification to Maxi when motion or door activity is detected in the hotbox while the home alarm is in armed-home (party) mode.
@@ -5380,6 +5395,8 @@
             channel: laptop_notifications
           message: LOW BATTERY!
   mode: single
+# ─── Party & Ambiance Mode Triggers ───
+# These automations fire ambiance scripts when party/psychedelic/kinky mode toggles turn on.
 - id: '1739316122149'
   alias: Trigger party script when party mode turns on
   description: Runs the whole-house party ambiance script when the party mode input boolean is toggled on.
@@ -5425,6 +5442,9 @@
     metadata: {}
     data: {}
   mode: single
+# ─── Hotbox Room Sleep Management ───
+# The "hotbox" is a room used as a bedroom / hangout space.
+# These automations prepare it for sleep and manage the sleeper boolean.
 - id: '1739631004694'
   alias: Sleep actions when "sleeper in hotbox" is turned on
   description: Prepares the hotbox for sleep by turning off the Roku, closing the blinds, and fading out all lights when the sleeper-in-hotbox toggle is activated.
@@ -5456,6 +5476,9 @@
       entity_id:
       - light.group_hotbox_lights
   mode: single
+# ─── Front Door Phone/Tablet Management ───
+# The front door has a wall-mounted phone/tablet used as a doorbell display.
+# These automations manage its screen brightness, on/off state, and battery health.
 - id: '1740690697244'
   alias: Control brightness of Front door Phone to avoid discharge
   description: Manages the front door phone screen brightness and power based on battery level -- dims or turns off the screen below 50% and 15%, and restores full brightness when charged above 90%.
@@ -5596,6 +5619,9 @@
     target:
       entity_id: switch.front_door_phone_screen
   mode: single
+# ─── Safety Nets & Auto-Timeout Automations ───
+# These automations automatically disable temporary modes (party, acid, kink, cooking, etc.)
+# and clean up stale input_booleans after timeouts or when everyone goes to sleep.
 - id: '1740934084849'
   alias: Turn off acid time when everyone goes to bed
   description: Automatically disables acid time mode 30 minutes after all residents are detected as sleeping, ending the psychedelic lighting effects.
@@ -5622,12 +5648,18 @@
       entity_id: input_boolean.acid_time
     data: {}
   mode: single
+# This automation is a universal safety net that prevents "zombie" modes.
+# Each trigger watches one input_boolean and fires after a maximum duration.
+# The 'for:' parameter on each trigger acts as the timeout — e.g. party_mode
+# auto-turns-off after 16 hours, waiting_someone after 1 hour, sleepers after 10 hours.
+# The action simply turns off whichever boolean triggered it using trigger.entity_id.
 - id: '1740934326306'
   alias: Auto-timeout safety net for temporary input booleans
   description: Automatically turns off temporary mode booleans after their maximum
     expected duration. Prevents stale states if someone forgets to turn them off.
     Each boolean has its own timeout duration.
   triggers:
+  # "Waiting for someone" flag — max 1 hour (e.g., expecting a delivery person)
   - trigger: state
     entity_id:
     - input_boolean.waiting_someone
@@ -5638,6 +5670,7 @@
       minutes: 0
       seconds: 0
     id: waiting_someone
+  # Sleeper flags — max 10 hours (nobody sleeps longer than that, right?)
   - trigger: state
     entity_id:
     - input_boolean.sleeper_in_closet
@@ -5658,6 +5691,7 @@
       minutes: 0
       seconds: 0
     id: sleeper_in_workshop
+  # Party/event modes — max 16 hours
   - trigger: state
     entity_id:
     - input_boolean.party_mode
@@ -5678,6 +5712,7 @@
       minutes: 0
       seconds: 0
     id: acid_time
+  # Utility modes with shorter timeouts
   - trigger: state
     entity_id:
     - input_boolean.aerating_apartment
@@ -5708,6 +5743,7 @@
       minutes: 0
       seconds: 0
     id: party_in_the_back_yard
+  # Neighbour party flag — suppresses some security alerts for up to 8 hours
   - trigger: state
     entity_id:
     - input_boolean.neighbours_having_a_party
@@ -5736,6 +5772,9 @@
       entity_id: '{{ trigger.entity_id }}'
   mode: parallel
   max: 10
+# ─── Per-Room Sleeper & Light Cleanup ───
+# Automatically turns off sleeper booleans and lights in specific rooms
+# based on timeouts, motion, or other conditions.
 - id: '1740934578627'
   alias: Automatically Turn off sleeper in patio
   description: Turns off the sleeper-in-patio toggle after 50 minutes, waiting for sustained motion (25 minutes) as a sign the person has woken up, with a maximum 3-hour timeout.
@@ -5830,6 +5869,8 @@
     target:
       entity_id: number.closet_tablet_screen_brightness
   mode: restart
+# ─── Closet Room Sleep Management ───
+# The "closet" is a repurposed room used as a sleeping/private space.
 - id: '1740935638351'
   alias: Execute sleep actions when "Sleeper in closet" turns on
   description: Sleeper actions for cloet
@@ -5909,6 +5950,7 @@
           seconds: 2
           milliseconds: 0
   mode: single
+# ─── Personal Notifications & Alerts ───
 - id: '1740953881544'
   alias: Alert maxi in the room where he is when his phone rings
   description: Detects an incoming phone call on Maxi's phone and plays a TTS alert through the nearest speaker based on his current room location.
@@ -6004,6 +6046,9 @@
     target:
       entity_id: media_player.group_mass_home_group_speakers
   mode: single
+# ─── Parking & Vehicle Security ───
+# Automations that manage parking lights, detect people near the car,
+# trigger alerts for potential burglary, and control parking camera sirens/horns.
 - id: '1742862883906'
   alias: Turn on parking light on any parking/balcony activity
   description: Turns on the parking lamp when a person is detected in the parking
@@ -6063,10 +6108,15 @@
     target:
       entity_id: light.plug_parking_lamp
   mode: single
+# AI-powered car break-in detection: when a person is detected near the car,
+# a local AI vision model (Qwen3-VL) analyzes the camera feed to determine
+# if they're trying to enter the vehicle. If YES, it sends an actionable
+# notification with a "Ring the siren!" button.
 - id: '1742998769189'
   alias: Analyze person in the parking when car is present to detect burglary
   description: Uses AI vision to analyze parking camera footage when a person is detected near the car, sending an alert and offering a siren activation option if a potential break-in is detected.
   triggers:
+  # Trigger 1: Person detected for 1 minute (sustained presence = suspicious)
   - trigger: state
     entity_id:
     - binary_sensor.parking_exit_camera_person_occupancy
@@ -6076,6 +6126,7 @@
       seconds: 0
     to:
     - 'on'
+  # Trigger 2: Person detected for 15 seconds (quicker check)
   - trigger: state
     entity_id:
     - binary_sensor.parking_exit_camera_person_occupancy
@@ -6085,6 +6136,7 @@
       seconds: 15
     to:
     - 'on'
+  # Trigger 3: Any parking motion group activity for 15 seconds
   - trigger: state
     entity_id:
     - binary_sensor.group_parking_occupancy
@@ -6095,6 +6147,7 @@
       minutes: 0
       seconds: 15
   conditions:
+  # Only run if Myriam's car is parked (she's home) OR the camera sees a car
   - condition: or
     conditions:
     - condition: state
@@ -6105,6 +6158,7 @@
       state:
       - 'on'
   actions:
+  # Step 1: Send 6 seconds of camera footage to local AI model for analysis
   - action: llmvision.stream_analyzer
     metadata: {}
     data:
@@ -6120,6 +6174,7 @@
       image_entity:
       - camera.parking_exit_camera
     response_variable: answer
+  # Step 2: Abort if AI says "NO" — this prevents false alarm notifications
   - alias: Stop if no one is trying to break in
     condition: template
     value_template: '{{ "YES" in answer.response_text | upper }}'
@@ -6381,6 +6436,9 @@
     action: switch.turn_on
   mode: parallel
   max: 4
+# ─── Security Horn & Siren Alerts ───
+# Handles horn/siren activation alerts, offering mobile notification actions
+# to silence them. Works with both parking and back door horns.
 - id: '1743281098829'
   alias: Alert when back horns rings and offer to turn it off
   description: Sends a security breach notification with a camera snapshot to Maxi and Myriam when the back door horn turns on, and waits for a notification action to turn it off after up to 3 minutes.
@@ -6755,6 +6813,7 @@
       seconds: 10
       milliseconds: 0
   mode: single
+# ─── Network & Infrastructure ───
 - id: '1743869107759'
   alias: Update cloudflare when IP changes
   description: Updates Cloudflare DNS records whenever the public IP address of the network gateway changes.
@@ -6769,6 +6828,7 @@
     metadata: {}
     data: {}
   mode: single
+# ─── Back Door & Exterior Light Management ───
 - id: '1743954245142'
   alias: Turn on back door light when door opens
   description: Turns on the back door light at full brightness with a neutral white color temperature when the back outside door contact sensor detects the door opening.
@@ -6886,6 +6946,10 @@
         target:
           entity_id: switch.parking_exit_camera_audio_detection
   mode: single
+# ─── Frigate NVR Camera Notifications ───
+# Sends actionable mobile notifications with camera snapshots when Frigate detects
+# people at the front door, back door, or parking. Includes cooldown periods to
+# avoid notification spam and conditions to suppress alerts when residents are home.
 - id: '1744744086412'
   alias: 'Frigate back Doors Notifications '
   description: Always run, even if maxi is sleeping
@@ -7301,6 +7365,10 @@
         entity_id: input_boolean.neighbours_having_a_party
         state: 'off'
       loiter_timer: 12
+# ─── Automatic Back Door Horn Management ───
+# Controls the automatic back door horn/siren: enables it when residents are
+# sleeping or alone, disables it when someone arrives or disarms the alarm,
+# and provides notification actions to toggle it remotely.
 - id: '1747066080524'
   alias: Turn off Back camera siren when back horn goes off
   description: Automatically turns off the back door camera siren when the back door horn switch is turned off, keeping the two deterrents synchronized.
@@ -7446,6 +7514,9 @@
     target:
       entity_id: switch.plug_back_door_horn
   mode: single
+# ─── Blind & AC Coordination ───
+# Opens/closes blinds in coordination with AC units to ensure airflow, and
+# automatically closes blinds at sunset for privacy/insulation.
 - id: '1747423390465'
   alias: Open Salon Blind in relation to AC
   description: Opens the salon blinds to at least 29% position when the salon AC is on and the blinds are below that threshold, ensuring adequate airflow for the air conditioner.
@@ -7525,6 +7596,9 @@
     target:
       entity_id: cover.cover_salon_blinds
   mode: single
+# ─── Music Playback Management ───
+# Handles automatic playlist replacement, following-music mode,
+# and speaker volume initialization.
 - id: '1747558481492'
   alias: Replace Spotify with Muzak playlist after 3.5 minutes
   description: Replaces the current bathroom speaker playlist with the Bathroom Muzak playlist after the bathroom door has been open for 5 minutes, the speaker is muted, and no one is in the bathroom, waiting for 10 minutes of no motion before switching.
@@ -7616,6 +7690,9 @@
     target:
       entity_id: cover.cover_salon_blinds
   mode: single
+# ─── "Maxi is Scared" Security Mode ───
+# A heightened security mode activated at night when residents are sleeping.
+# Enables camera floodlights, sirens, and parking detection to deter intruders.
 - id: '1747633994244'
   alias: Turn on Maxi is scared when All Residents are sleeping
   description: Activates the "maxi is scared" security mode 5 minutes after all residents are detected as sleeping, but only during nighttime hours (9:30 PM to 8:00 AM).
@@ -7794,6 +7871,9 @@
     target:
       entity_id: number.workshop_tablet_screen_brightness
   mode: restart
+# ─── Automatic Room Light Management ───
+# Turns off lights in rooms when they become unoccupied, using motion groups
+# and area-based targeting. Has separate logic for sleep mode on vs off.
 - id: '1747973723106'
   alias: Turn off lights when a room is empty and sleep mode is off V2
   description: This one uses motion groups and area calls. this one acts slower
@@ -8154,6 +8234,9 @@
         target:
           entity_id: media_player.mass_bedroom_wiim_speaker
   mode: single
+# ─── Bedroom Sleep Management ───
+# Handles bedroom sleep/wake sequences: fading lights, playing thunderstorm sounds,
+# controlling the TV/tablet, managing the AC thermostat, and closing blinds.
 - id: '1748845278340'
   alias: execute Sleep actions when "sleeper in bedroom" is turned on
   description: Prepares the bedroom for sleep by turning off the tablet, fading out all lights, playing thunderstorm sounds on the bedroom speaker, turning off the TV, and disabling the voice assistant LED ring.
@@ -8251,6 +8334,9 @@
       data:
         command: Power off bedroom TV
   mode: single
+# ─── Child/Lylou Room Quiet Hours ───
+# Reduces kitchen speaker volume and manages the hotbox sleeper boolean
+# to avoid waking a child sleeping in the adjacent room.
 - id: '1748845695784'
   alias: Control volume of kitchen to prevent noise in children room while she sleeps
   description: Caps the kitchen speaker volume at 29% during nighttime hours (9:30 PM to 9:00 AM) when a child is sleeping in the hotbox, preventing loud audio from disturbing their sleep.
@@ -8306,6 +8392,10 @@
     target:
       entity_id: input_boolean.sleeper_in_hotbox
   mode: single
+# ─── Speaker/Chromecast Mutual Mute Coordination ───
+# Ensures only one audio source (speaker OR Chromecast) is unmuted per room.
+# When a speaker starts playing, the Chromecast in that room gets muted, and vice versa.
+# This prevents audio overlap from two sources in the same physical space.
 - id: '1748927820689'
   alias: UnMute chromecasts when no unmuted speakers in the same room
   description: Unmutes and adjusts the volume of Chromecasts in a room when no unmuted speakers are playing in the same room, ensuring at least one audio output is active when someone is present and no one is sleeping.
@@ -8558,6 +8648,8 @@
       target:
         entity_id: '{{player_chromecasts | list}}'
   mode: restart
+# ─── Computer Power Management ───
+# Hibernates Maxi's PC when sleeping or away from the salon to save power.
 - id: '1748938722404'
   alias: Hibernate Maxi Desktop when he sleeps for over 40 minutes
   description: Hibernates Maxi's desktop PC after he has been sleeping for 40 minutes to save power.
@@ -8693,6 +8785,7 @@
     target:
       entity_id: cover.cover_hotbox_blinds
   mode: single
+# ─── Music Preferences & Auto-Skip ───
 - id: '1749235496765'
   alias: Skips song's myriam don't like whe she is home
   description: Automatically skips songs from a disliked list (e.g., "Mr. Blue Sky") on any playing speaker when Myriam is home.
@@ -8758,6 +8851,8 @@
     target:
       entity_id: media_player.mass_bedroom_wiim_speaker
   mode: single
+# ─── Salon Sleep Management ───
+# Prepares the salon for sleep: dims lights, closes blinds, plays thunderstorm sounds.
 - id: '1749333714992'
   alias: Sleeper actions when salon sleeper turns on
   description: Prepares the salon for sleep by fading out lights, closing blinds, turning off the lounge TV, dimming nearby rooms if empty, and playing thunderstorm sounds if someone is located in the salon.
@@ -8887,6 +8982,10 @@
     target:
       entity_id: light.group_salon_lights
   mode: single
+# ─── Hue Dial Remote Automations ───
+# Each room has a Hue Dial physical remote that maps button presses and dial rotation
+# to light controls (toggle, brightness, color, effects) and media playback controls.
+# These are complex automations using choose blocks to handle different button events.
 - id: '1749521213239'
   alias: Bedroom Hue Dial Automation
   description: Maps the bedroom Hue dial remote buttons and rotation to control bedroom lights (toggle, brightness, color temperature, random colors, dim), and manage bedroom media playback.
@@ -9218,6 +9317,9 @@
     target:
       entity_id: cover.cover_bedroom_blinds
   mode: single
+# ─── Back Door Lock & Keypad Codes ───
+# Identifies which person unlocked the back door by matching keypad codes,
+# then broadcasts a welcome announcement through the house.
 - id: '1749940499172'
   alias: Back lock automation on main codes
   description: Identifies who unlocked the back door via keypad code and broadcasts an alert throughout the house announcing which resident has entered.
@@ -9317,6 +9419,9 @@
       target:
         entity_id: light.back_door_light
   mode: restart
+# ─── Myriam-Specific Automations ───
+# Automations tailored to Myriam's presence, wake/sleep routines,
+# phone call muting, and tablet media management.
 - id: '1750025216771'
   alias: Mute speaker in room if Myriam receives or makes call
   description: Mutes the speaker in Myriam's current room when she starts a phone call and unmutes it when the call ends, preventing music from interfering with conversations.
@@ -9529,6 +9634,8 @@
     target:
       entity_id: input_boolean.maxi_is_scared
   mode: single
+# ─── AI Camera Event Analysis ───
+# Uses AI vision models to analyze camera footage and generate event summaries.
 - id: '1751133520036'
   alias: AI Event Summary (v1.4.3) (Front and Back Door)
   description: Uses AI vision to generate event summaries from the front and back door cameras when person occupancy is detected, sending notifications with snapshots and analysis.
@@ -9619,6 +9726,7 @@
 
         '
   mode: single
+# ─── Camera PTZ & Monitoring ───
 - id: '1751650700641'
   alias: Return PTZ to doorway after 10 minutes
   description: Resets the front door PTZ camera back to its default "Doorway" preset 10 minutes after any manual PTZ preset change, ensuring the main entry point remains monitored.
@@ -10802,6 +10910,8 @@
         data: {}
         target:
           entity_id: media_player.mass_lounge_wiim_speaker
+# ─── Movie & TV Viewing Light Control ───
+# Dims lights when a movie starts on a Chromecast and restores them when it ends.
 - id: '1752801417034'
   alias: Lower lights to 30% when a movie is played
   description: Dims lights in a room to 30% brightness when a movie starts playing on any Chromecast, only if the content is from the Movies library and is not a TV series episode.
@@ -10870,6 +10980,7 @@
     path: music-assistant/mass_assist_blueprint_en.yaml
     input:
       default_player_entity_id_input: media_player.group_mass_home_group_speakers
+# ─── Physical Remote Controls (Philips Dimmer, IKEA SYMFONISK) ───
 - id: '1753137946773'
   alias: Remote Phillip Dimmer Automation
   description: Controls hotbox lights using a Philips dimmer remote via Zigbee2MQTT, supporting on/off, brightness up/down, and full brightness on hold.
@@ -11065,6 +11176,7 @@
       area_id: '{{ area_id(trigger.entity_id) }}'
   mode: parallel
   max: 10
+# ─── Vacuum & Cleaning Automations ───
 - id: '1753986114116'
   alias: Raise volume of speakers in a room when the vacuum is cleaning it
   description: Temporarily raises the volume of speakers in whatever room the Roborock vacuum is currently cleaning, then lowers it back when the vacuum moves to a different room.
@@ -11097,6 +11209,8 @@
       entity_id: '{{ media_players}}'
   mode: parallel
   max: 2
+# ─── UV Lamp & Blue Light Effects ───
+# Coordinates UV lamps with blue ambient lighting in the same room.
 - id: '1754679794287'
   alias: Turn on Blue Light with UV Lamps in Same Area
   description: When any UV lamp in the hallway, kitchen, lounge, patio, or workshop
@@ -11211,6 +11325,8 @@
         transition: '1'
   mode: parallel
   max: 10
+# ─── Decorative Light Effects ───
+# Controls animated light effects on decorative fixtures like the lounge door arch.
 - id: '1754715205053'
   alias: revert Lounge Door Arch effect to solid color when All residents Present
     Sleeping is on for 4 hours
@@ -11533,6 +11649,8 @@
     target:
       entity_id: input_boolean.sleeper_in_hotbox
   mode: single
+# ─── Music Library Management ───
+# Automatically adds artists from streaming services to Lidarr for local library tracking.
 - id: '1757814887686'
   alias: Add playing Spotify or tidal artist to Lidarr
   description: Automatically adds the currently playing Spotify or Tidal artist to Lidarr for library monitoring by querying MusicBrainz for the artist ID and then submitting it to Lidarr.
@@ -11651,6 +11769,7 @@
     target:
       entity_id: input_boolean.maxi_is_scared
   mode: single
+# ─── Arrival & Departure Notifications ───
 - id: '1759251745280'
   alias: Notify maxi when myriam arrives at home
   description: Sends a mobile notification to Maxi when Myriam arrives home, but only if she has been away for at least 4 minutes to avoid false triggers from brief location changes.
@@ -11702,6 +11821,9 @@
       title: Lylou is nearing home!
     action: notify.myriam_notification_group
   mode: restart
+# ─── Jukebox & Party Kiosk ───
+# Manages the tablet-based jukebox interface during party mode,
+# allowing guests to queue songs from their devices.
 - id: '1759518333967'
   alias: Turn on Jukebox Public queue when party mode turns on
   description: Launches party mode on all tablet kiosks when party mode is turned on or when a live concert ends while party mode is still active, enabling the jukebox public queue interface.
@@ -11863,6 +11985,7 @@
         target:
           entity_id: siren.parking_exit_camera_siren
   mode: restart
+# ─── Morning Alarm & Wake Routines ───
 - id: '1760963671925'
   alias: Disarm alarm when sun rises if everyone present is awake
   description: Disarms the home alarm when the sun rises above the horizon, but only if the alarm is in armed-night mode and not all residents are still sleeping.
@@ -11890,6 +12013,9 @@
     data: {}
     action: alarm_control_panel.alarm_disarm
   mode: single
+# ─── Live Concert Mode ───
+# Special mode that mutes voice assistants, puts tablets in maintenance mode,
+# and disables jukebox access during live music performances at home.
 - id: '1761366181983'
   alias: Mute all voice assistants while a concert is happening
   description: Mutes all voice assistants 5 minutes after live concert mode is enabled and unmutes them 5 minutes after concert mode is disabled, preventing accidental voice activations during performances.
@@ -14526,6 +14652,10 @@
       seconds: 0
       milliseconds: 0
   mode: single
+# ─── Trippy & Vibrating Light Effects ───
+# These automations cycle all color-capable lights through random or warm hues
+# when the trippy/vibrating effects are toggled on. They include safety timeouts
+# (16 hours max) and mutual exclusion (only one effect active at a time).
 - id: '1766696453789'
   alias: Trippy Light Random Colors Effect automation
   description: Cycles all color-capable lights through random hues at a configurable speed and saturation while the trippy lights effect toggle is on, then restores adaptive lighting when turned off.
@@ -15097,6 +15227,9 @@
       entity_id: light.group_patio_lights
     data: {}
   mode: single
+# ─── Salon Bed Zone & Buddha Light Management ───
+# Dims the decorative Buddha statue light when someone is watching TV from the
+# salon bed area, and restores it when they get up or the media stops.
 - id: '1769570875542'
   alias: Dim budha if someone is watching TV in salon from bed
   description: Dims the salon Buddha statue lights to 1% brightness when someone is detected lying in the salon bed zone while a TV or Chromecast is actively playing.
@@ -15287,6 +15420,9 @@
       data:
         message: The Toaster has finished
   mode: restart
+# ─── Air Quality & Smoke Management ───
+# Detects active smoking via air quality sensors and responds by closing
+# room dividers to contain smoke and activating the air purifier.
 - id: '1772244438943'
   alias: Isolate front salon when active smoking is present
   description: Closes the lounge door cover to isolate the front salon area when active smoking is detected by the air quality sensor, unless the vacuum is currently cleaning in the salon or lounge.
@@ -15658,6 +15794,7 @@
         target:
           entity_id: '{{ playing_speakers | list }}'
   mode: restart
+# ─── Nanoleaf Touch Gestures ───
 - id: '1773975525008'
   alias: Nanoleaf actions control automation
   description: Triggers the kitchen lights to change to a random fake-white color when a touch gesture is detected on the kitchen Nanoleaf panel.
