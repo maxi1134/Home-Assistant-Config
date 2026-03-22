@@ -88,6 +88,8 @@
           last_active: "{{ states('sensor.last_active_room') }}"
         
 
+      # True when at least 2 of the 3 residents (Maxi, Myriam, Lylou) are asleep at home.
+      # Used by automations to enter "night mode" (dim lights, lower speaker volumes, etc.)
       - name: "All residents Sleeping"
         unique_id: all_residents_sleeping
         delay_off:
@@ -114,22 +116,27 @@
               or states('sensor.phone_maxi_audio_mode') != 'normal') and states('person.maximiliano') == 'home'
             ) }}
 
+      # Detects if Myriam is listening to media or on a call at home
+      # (phone media session playing OR phone audio mode not normal)
       - name: "myriam_is_listening_at_home"
-        unique_id: "myriam_is_listening_at_home" 
+        unique_id: "myriam_is_listening_at_home"
         state: >-
            {{ ( ( ( is_state('sensor.phone_myriam_media_session', "playing") and states('person.myriam') == 'home' ) 
               or states('sensor.phone_myriam_audio_mode') != 'normal' ) and states('person.myriam') == 'home'
             ) }}
 
+      # Detects if Myriam is on a phone call (phone not idle or audio mode changed)
       - name: "myriam is talking"
-        unique_id: "myriam_is_talking" 
+        unique_id: "myriam_is_talking"
         state: >-
            {{ ( (not is_state('sensor.phone_myriam_phone_state', "idle")
               or states('sensor.phone_myriam_audio_mode') != 'normal') and states('person.myriam') == 'home'
             ) }}
 
+      # Detects if Maxi is listening to media, on a call, or in a non-normal audio mode at home.
+      # Used to avoid broadcasting announcements when someone is on a call or listening to something.
       - name: "maxi_is_listening_at_home"
-        unique_id: "maxi_is_listening_at_home" 
+        unique_id: "maxi_is_listening_at_home"
         state: >-
             {{ (( is_state('sensor.phone_maxi_media_session', "playing")
               or not is_state('sensor.phone_maxi_phone_state', "idle")
@@ -258,6 +265,7 @@
             {{state_attr('sensor.steam_maxi', 'game')}}
             {% else %} idle
             {% endif %}
+      # Reports current game from Discord only (via Discord integration sensor)
       - name: "Maxis Current Discord Game"
         unique_id: "maxi_current_discord_game" 
         state: >-
@@ -265,6 +273,7 @@
             {{ state_attr('sensor.maxi1134_8202', 'game') }}
             {% else %}idle
             {% endif %}
+      # Reports current game from Steam only (via Steam integration sensor)
       - name: "Maxis Current Steam Game"
         unique_id: "maxi_current_steam_game" 
         state: >-
@@ -280,6 +289,7 @@
         state: >-
           {{ state_attr('sensor.amount_friends_home', "friends") | list  }}
 
+      # Total non-resident people at home: friends + partners + crashers (excludes Maxi)
       - name: "amount people home"
         unique_id: amount_people_home
         state: >-
@@ -288,6 +298,8 @@
              {{peoplehome}}
         unit_of_measurement: "person(s)"
         
+      # Same as "amount people home" but INCLUDES Maxi in the count if he's home.
+      # Used by automations that need the true total headcount (e.g. party detection).
       - name: "total amount people home"
         unique_id: total_amount_people_home
         state: >-                     
@@ -375,6 +387,8 @@
             {{ sleepingstate }}
 
 
+      # Combines Myriam's sleep state with her home/away status.
+      # Only reports "asleep" if she is BOTH asleep AND physically at home.
       - name: Myriam is sleeping at home?
         unique_id: "myriam_is_sleeping_at_home"
         state: >            
@@ -461,6 +475,8 @@
               {% endif %}
             {{ sleepingspot }}
             
+      # Simple wrapper: extracts the 'location' attribute from "Is maxi asleep?" sensor.
+      # Returns the room name where Maxi fell asleep (bedroom, closet, hotbox, etc.)
       - name: "Where is maxi sleeping?"
         unique_id: where_is_maxi_sleeping
         state: >-
@@ -745,6 +761,9 @@
             {% endfor %}
             {{ ns.friends }}
 
+      # Lists ALL device_trackers connected to the "Chilling Hotspot" WiFi network.
+      # Unlike "amount friends home", this includes partners and crashers too.
+      # Useful for debugging which devices are on the guest network.
       - name: "Chilling Hotspot devices"
         unique_id: "which_devices_hotspot"
         state: >-
@@ -773,12 +792,14 @@
       - trigger: homeassistant
         event: start
     sensor:
+      # Returns a list of room names (e.g. ['bedroom', 'closet']) where sleeper flags are on
       - name: "active_sleeper_rooms"
         unique_id: "active_sleeper_rooms"
         state: >-
             {% set sleepers = expand('input_boolean.sleeper_in_bedroom', 'input_boolean.sleeper_in_closet', 'input_boolean.sleeper_in_workshop', 'input_boolean.sleeper_in_patio', 'input_boolean.sleeper_in_hotbox', 'input_boolean.sleeper_in_salon', 'input_boolean.sleeper_in_lounge') | selectattr('state','eq','on') | map(attribute='entity_id') | map('replace', 'input_boolean.sleeper_in_', '') | list %}
             {{ sleepers }}
 
+      # Count of active sleeper flags + a 'rooms' attribute mapping index → room name
       - name: "active_sleepers"
         unique_id: "active_sleepers"
         state: >-
@@ -792,6 +813,7 @@
             {% endfor %}
             {{ dict(ns.items) }}
 
+      # Simple count of how many rooms currently have sleeper flags active
       - name: "active_sleeper_amount"
         unique_id: "active_sleeper_amount"
         state: >-
@@ -891,6 +913,10 @@
       - trigger: homeassistant
         event: start
     sensor:
+      # ── Chromecast "Now Playing" Sensors ──
+      # Each sensor below extracts a human-readable "now playing" string from a Chromecast.
+      # Priority: TV show (Series S##E##) > Music (Title - Album by Artist) > generic title.
+      # These are displayed on wall-mounted tablet dashboards.
       - name: "Playing on Hotbox TV"
         unique_id: playing_on_hotbox_tv
         state: >-
@@ -924,6 +950,9 @@
           {% elif state_attr(e, 'media_title') %}
             {{ state_attr(e, 'media_title') }}
           {% endif %}
+      # ── Speaker "Now Playing" Sensors ──
+      # Same concept as Chromecast sensors above, but for Music Assistant WiiM/VPE speakers.
+      # Priority: TV series > Music (Title - Album by Artist) > generic title > app name.
       - name: "Playing on Home Group Speaker"
         unique_id: playing_on_home_group_speaker
         state: >-
@@ -1179,6 +1208,8 @@
       - trigger: homeassistant
         event: start
     sensor:
+      # Lists room names where a universal Chromecast media player is currently playing.
+      # Also provides muted_rooms/unmuted_rooms attributes for volume-aware automations.
       - name: "active_chromecast_rooms"
         unique_id: "active_chromecast_rooms"
         state: >-
@@ -1227,6 +1258,8 @@
                 | map('regex_replace', '_chromecast', '')
                 | list }}
 
+      # Same as active_chromecast_rooms but for Music Assistant WiiM/VPE speakers.
+      # Provides muted_rooms/unmuted_rooms attributes for speaker-specific volume control.
       - name: "active_speakers_rooms"
         unique_id: "active_speakers_rooms"
         state: >-
@@ -1284,6 +1317,9 @@
                 | map('regex_replace', '_vpe_speaker', '')
                 | list }}
 
+      # Master "is anything playing?" sensor. Combines both speakers AND chromecasts.
+      # State is true/false; attributes 'speakers' and 'chromecasts' list room names.
+      # Used by the activity detection sensor to determine if someone is watching/listening.
       - name: "active_media_playback"
         unique_id: "active_media_playback"
         state: >-
@@ -1370,6 +1406,8 @@
       - trigger: homeassistant
         event: start
     sensor:
+      # Lists rooms with currently active motion sensors (using area_name lookup).
+      # Iterates over the security occupancy sensor group and returns unique area names.
       - name: "active_motion_rooms"
         unique_id: "active_motion_rooms"
         state: >-
@@ -1381,6 +1419,9 @@
               {%- endif -%}
             {% endfor %}
             {{ ns.mediaactiverooms | unique | list }}
+      # Determines the most recently active room by sorting motion group sensors
+      # by last_changed timestamp. Falls back to current state if no motion is active.
+      # Used by sleep detection and activity sensors as a tie-breaker for room location.
       - name: "last active room"
         unique_id: last_active_room
         state: >-
