@@ -1,0 +1,111 @@
+blueprint:
+  name: Random Dissimilar Colors
+  description: >
+    Changes selected lights or areas to a random color that is guaranteed 
+    to be different from its current color by a specific hue degree.
+  domain: script
+  input:
+    target_areas:
+      name: Areas
+      description: The area(s) to target.
+      default: []
+      selector:
+        area:
+          multiple: true
+    target_lights:
+      name: Lights
+      description: Specific light entity (or entities) to target.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          domain: light
+    saturation_level:
+      name: Saturation
+      description: The saturation level (0-100) to apply.
+      default: 100
+      selector:
+        number:
+          min: 0
+          max: 100
+    transition_time:
+      name: Transition Speed
+      description: The speed (in seconds) to transition to the new color.
+      default: 1
+      selector:
+        number:
+          min: 0
+          max: 30
+    hue_buffer:
+      name: Color Difference Buffer
+      description: Minimum degrees of separation on the color wheel (0-180).
+      default: 25
+      selector:
+        number:
+          min: 10
+          max: 180
+
+mode: restart
+icon: mdi:palette-swatch
+
+sequence:
+  - variables:
+      # Map blueprint inputs to internal variables
+      input_areas: !input target_areas
+      input_lights: !input target_lights
+      saturation: !input saturation_level
+      transition_speed: !input transition_time
+      buffer: !input hue_buffer
+
+      # Calculate the list of light entities
+      lights: >
+        {% set area_list = [] %}
+        {% if input_areas %}
+          {% set area_list = input_areas 
+            | map('area_entities') 
+            | sum(start=[]) 
+            | select('search', '^light\.')
+            | list %}
+        {% endif %}
+
+        {% set manual_list = input_lights if input_lights else [] %}
+        {% set combined = (area_list + manual_list) | unique | list %}
+
+        {{ expand(combined)
+          | selectattr('domain', 'eq', 'light')
+          | selectattr('attributes.supported_color_modes', 'defined')
+          | selectattr('attributes.supported_color_modes', 'search', 'hs|rgb|xy')
+          | rejectattr('attributes.entity_id', 'defined')
+          | map(attribute='entity_id')
+          | reject('search', 'decorative')
+          | reject('search', 'main')
+          | unique | list }}
+
+  - repeat:
+      for_each: "{{ lights }}"
+      sequence:
+        - variables:
+            wanted_hue: >
+              {% set hs = state_attr(repeat.item, 'hs_color') %}
+              {% set current_hue = hs[0] | float if hs else 0 %}
+              {% set all_hues = range(0, 360) | list %}
+              {% set ns = namespace(valid=[]) %}
+
+              {% for h in all_hues %}
+                {% set raw_diff = (h - current_hue) | abs %}
+                {% set diff = raw_diff if raw_diff <= 180 else 360 - raw_diff %}
+                {% if diff >= buffer %}
+                  {% set ns.valid = ns.valid + [h] %}
+                {% endif %}
+              {% endfor %}
+
+              {{ ns.valid | random if ns.valid | count > 0 else all_hues | random }}
+        - action: light.turn_on
+          target:
+            entity_id: "{{ repeat.item }}"
+          data:
+            hs_color:
+              - "{{ wanted_hue }}"
+              - "{{ saturation }}"
+            transition: "{{ transition_speed }}"
+          continue_on_error: true

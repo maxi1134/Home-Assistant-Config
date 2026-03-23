@@ -1,11 +1,10 @@
-# ─── Broadcast and Notification Scripts ───
 broadcast_alert_in_the_house:
   alias: important broadcast alert in the house
-  description: >-
-    Sends an important broadcast alert throughout the house using multiple channels
-    simultaneously: flashes notification lights (with optional color), announces a TTS
-    message or audio URL on all speakers, sends phone notifications, and displays images
-    or URLs on idle Chromecast TVs. Supports Lylou-alone mode for hotbox-specific alerts.
+  description: 'Sends an important broadcast alert throughout the house using multiple
+    channels simultaneously: flashes notification lights (with optional color), announces
+    a TTS message or audio URL on all speakers, sends phone notifications, and displays
+    images or URLs on idle Chromecast TVs. Supports Lylou-alone mode for hotbox-specific
+    alerts.'
   sequence:
   - variables:
       playing_chromecasts: '{{ integration_entities(''cast'') |  select(''search'',
@@ -174,7 +173,7 @@ broadcast_alert_in_the_house:
               alias: Turn off lights back to off
             count: '{{ light_entity_ids | length }}'
       enabled: true
-    - alias: 'music assistant Announcements'
+    - alias: music assistant Announcements
       if:
       - condition: template
         value_template: '{% if message is defined %}
@@ -237,7 +236,7 @@ broadcast_alert_in_the_house:
               target:
                 entity_id: tts.piper_2
       enabled: true
-    - alias: 'music assistant Announcements'
+    - alias: music assistant Announcements
       if:
       - condition: template
         value_template: '{% if broadcast_url is defined %}
@@ -469,79 +468,83 @@ broadcast_alert_in_the_house:
   mode: queued
   icon: mdi:speaker-message
   max: 3
-# ─── Light Color Control Scripts ───
 change_received_lights_to_random_colors:
-  alias: Change received lights to random color
-  description: >-
-    Changes each light in a specified area or light group to a random color, ensuring
-    the new hue is sufficiently different from the current one by at least 25 degrees
-    on the color wheel. Accepts an area or a selected_group parameter to target lights.
+  alias: Change received lights or area to dissimilar warm color
+  description: Changes each light to a random color, ensuring the new hue is at least
+    25 degrees away from the current one. Consolidates areas and manual light selections.
   sequence:
   - variables:
-      lights: "{% if area is defined and area %}\n  {{ [area | first]\n    | map('area_entities')\n
-        \   | sum(start=[])\n    | select('search', 'group_')\n    | select('search',
-        '_lights')\n    | expand\n    | selectattr('attributes.supported_color_modes',
-        'defined')\n    | selectattr('attributes.supported_color_modes', 'search',
-        'hs|xy|rgb')\n    | reject('search', 'decorative')\n    | reject('search',
-        'main')\n    | list | expand | map(attribute='entity_id') | list }}\n    {%
-        elif selected_group is defined and selected_group %}\n      {{ selected_group
-        | expand\n        | selectattr('attributes.supported_color_modes', 'defined')\n
-        \       | selectattr('attributes.supported_color_modes', 'search', 'hs|xy|rgb')\n
-        \       | expand | map(attribute='entity_id') | list }}\n    {% else %}\n
-        \     {{ [] }}\n  {% endif %}\n"
+      lights: "{# 1. Get entities from the selected areas #}\n{% set area_list = []
+        %}\n{% if area is defined and area %}\n  {% set area_list = area \n    | map('area_entities')
+        \n    | sum(start=[]) \n    | select('search', '^light\\.')\n    | list %}\n{%
+        endif %}\n\n{# 2. Get entities from the manual 'light' field #}\n{% set manual_list
+        = light if light is defined and light else [] %}\n\n{# 3. Combine, expand
+        groups to find hidden members, and filter #}\n{% set combined = (area_list
+        + manual_list) | unique | list %}\n\n{# 4. Final filter: Expand all to get
+        raw entities, filter keywords, and ensure unique IDs #}\n{{ expand(combined)\n
+        \     | selectattr('domain', 'eq', 'light')\n      | selectattr('attributes.supported_color_modes',
+        'defined')\n      | selectattr('attributes.supported_color_modes', 'search',
+        'hs|rgb|xy')\n      | rejectattr('attributes.entity_id', 'defined')\n      |
+        map(attribute='entity_id')\n      | reject('search', 'decorative')\n      |
+        reject('search', 'main')\n      | unique | list }}\n"
   - repeat:
+      for_each: '{{ lights }}'
       sequence:
       - variables:
-          current_hue: '{% set hs = state_attr(repeat.item, ''hs_color'') %}
-
-            {{ hs[0] if hs else 0 }}
+          current_hue: '{% set hs = state_attr(repeat.item, ''hs_color'') %} {{ hs[0]
+            | float if hs else 0 }}
 
             '
-          wanted_hue: "{# Assuming current_hue is already defined, e.g., set current_hue
-            =\nstate_attr('light.living_room', 'hs_color')[0] #}\n{% set buffer =
-            25 %}\n{% set random_hue = range(0, 360) | random %}\n{# Logic: Check
-            if the absolute difference is > 15 AND < 345 (to handle the\n0/360 wrap-around)
-            #} \n{% set diff = (random_hue - current_hue) | abs %}\n{% if diff > buffer
-            and diff < (360 - buffer) %}\n  {% set wanted_hue_not_near_original =
-            random_hue %}\n{% else %}\n  {# If it's too close, we shift it by 180
-            degrees to the opposite side of the wheel #}\n  {% set wanted_hue_not_near_original
-            = (random_hue + 180) % 360 %}\n{% endif %}\n{{ wanted_hue_not_near_original
-            \ }}\n"
-      - metadata: {}
-        data:
-          hs_color: '{{ wanted_hue | string + '','' + saturation | string }}'
-          transition: 1
+          wanted_hue: "{% set buffer = 25 %} {% set random_hue = range(0, 360) | random
+            %} {% set diff = (random_hue - current_hue) | abs %} {% if diff > buffer
+            and diff < (360 - buffer) %}\n  {{ random_hue }}\n{% else %}\n  {{ (random_hue
+            + 180) % 360 }}\n{% endif %}\n"
+      - action: light.turn_on
         target:
-          entity_id: '{{repeat.item}}'
-        action: light.turn_on
+          entity_id: '{{ repeat.item }}'
+        data:
+          hs_color:
+          - '{{ wanted_hue }}'
+          - '{{ saturation | default(100) }}'
+          transition: '{{ transition_speed }}'
         continue_on_error: true
-      for_each: '{{ lights }}'
   mode: restart
-  icon: mdi:sale
+  icon: mdi:palette-swatch
   fields:
     area:
+      name: Area
+      description: The area(s) to target.
       selector:
         area:
-          entity:
-            integration: group
-            domain: light
           multiple: true
-      name: Area
-      description: 'The area or areas for which the music is requested. If the request
-        does not mention a target (either an area or a player), use the area the request
-        cames from.
-
-        If the area can not be determined from the request, or the device the request
-        comes from, do not use this parameter.
-
-        Only use the "area" parameter when no media player name is specified'
-# ─── Plex and Media Playback Scripts ───
+    light:
+      name: Light
+      description: Specific light entity (or entities) to target.
+      selector:
+        entity:
+          multiple: true
+          domain: light
+    saturation:
+      selector:
+        number:
+          min: 20
+          max: 100
+      default: 100
+    transition_speed:
+      name: Transition Speed
+      description: The speed (in seconds) at which transition the lights to their
+        new color
+      default: 1
+      selector:
+        number:
+          min: 0
+          max: 30
 start_visual_playlist_on_plex:
   alias: Start requsted Playlist on plex for all unplaying chromecasts
-  description: >-
-    Starts a requested Plex playlist in shuffle mode on all idle Chromecast devices
-    (excluding hotbox and bedroom), muting their audio. Skips rooms where someone is
-    sleeping and waits for playback to begin before moving to the next device.
+  description: Starts a requested Plex playlist in shuffle mode on all idle Chromecast
+    devices (excluding hotbox and bedroom), muting their audio. Skips rooms where
+    someone is sleeping and waits for playback to begin before moving to the next
+    device.
   sequence:
   - variables:
       chromecasts: '{{(integration_entities(''cast'')  |  select(''search'', ''chromecast'')|
@@ -594,8 +597,7 @@ start_visual_playlist_on_plex:
   icon: mdi:led-strip-variant
 non_important_broadcast_alert_in_the_house:
   alias: non-important broadcast alert in the house
-  description: >-
-    Sends a low-priority broadcast alert through the house by briefly flashing
+  description: Sends a low-priority broadcast alert through the house by briefly flashing
     notification lights to an optional color and restoring them, playing TTS announcements
     on speakers (skipping bedrooms with sleepers and suppressing during party mode),
     and optionally displaying images or URLs on idle Chromecast TVs.
@@ -907,18 +909,14 @@ change_all_on_lights_to_random_pastel_colors:
   mode: restart
   icon: mdi:sale
   fields: {}
-  description: >-
-    Changes all currently turned-on inside lights to random pastel colors by setting
-    each light to a random hue with low saturation (40%), creating a soft, muted
-    color palette throughout the home.
-
-# ─── Image Generation Scripts ───
+  description: Changes all currently turned-on inside lights to random pastel colors
+    by setting each light to a random hue with low saturation (40%), creating a soft,
+    muted color palette throughout the home.
 generate_and_save_localai_image:
   alias: Generate and save LocalAI image
-  description: >-
-    Generates an image using LocalAI's image generation API with the specified prompt,
-    model, size, and steps parameters, then downloads and saves the result as
-    stable_diffusion.jpg.
+  description: Generates an image using LocalAI's image generation API with the specified
+    prompt, model, size, and steps parameters, then downloads and saves the result
+    as stable_diffusion.jpg.
   sequence:
   - service: rest_command.local_ai_generate_image
     metadata: {}
@@ -938,9 +936,8 @@ generate_and_save_localai_image:
   icon: mdi:image-frame
 generate_and_save_sd_image:
   alias: Generate and save SD image
-  description: >-
-    Generates an image using the Stability AI API by obtaining a session ID, then
-    downloads and saves the resulting image as stable_diffusion.jpg.
+  description: Generates an image using the Stability AI API by obtaining a session
+    ID, then downloads and saves the resulting image as stable_diffusion.jpg.
   sequence:
   - service: rest_command.stability_ai_get_session_id
     metadata: {}
@@ -956,10 +953,9 @@ generate_and_save_sd_image:
   icon: mdi:image-frame
 changes_all_on_lights_to_warm_colors:
   alias: Changes all on lights to warm colors
-  description: >-
-    Sets all currently turned-on inside lights to random warm colors by choosing hues
-    in the red/orange range (0-20) or pink/magenta range (260-360) at full saturation,
-    creating a warm ambient atmosphere.
+  description: Sets all currently turned-on inside lights to random warm colors by
+    choosing hues in the red/orange range (0-20) or pink/magenta range (260-360) at
+    full saturation, creating a warm ambient atmosphere.
   sequence:
   - variables:
       on_lights: '{{ integration_entities(''group'')|  select(''search'', ''light.group_all_inside_lights'')   |
@@ -985,10 +981,10 @@ changes_all_on_lights_to_warm_colors:
   fields: {}
 '1716330781093':
   alias: Changes all on lights to warm pale colors
-  description: >-
-    Sets all currently turned-on inside lights to warm pale colors by choosing hues
-    in the red/orange range (0-20) or pink/magenta range (260-360) with reduced
-    saturation (55%), producing a softer, more muted warm tone than the fully saturated version.
+  description: Sets all currently turned-on inside lights to warm pale colors by choosing
+    hues in the red/orange range (0-20) or pink/magenta range (260-360) with reduced
+    saturation (55%), producing a softer, more muted warm tone than the fully saturated
+    version.
   sequence:
   - variables:
       on_lights: '{{ integration_entities(''group'')|  select(''search'', ''light.group_all_inside_lights'')   |
@@ -1014,10 +1010,10 @@ changes_all_on_lights_to_warm_colors:
   fields: {}
 generate_fake_white_colors:
   alias: Generate fake white colors
-  description: >-
-    Sets all turned-on lights across every light group to low-saturation warm hues,
-    creating an effect that approximates white light using colored bulbs. Each light
-    gets a random warm hue at 30% saturation, producing a "fake white" appearance.
+  description: Sets all turned-on lights across every light group to low-saturation
+    warm hues, creating an effect that approximates white light using colored bulbs.
+    Each light gets a random warm hue at 30% saturation, producing a "fake white"
+    appearance.
   sequence:
   - variables:
       on_lights: "{% set ns = namespace(lights=[]) %} {% set groups = integration_entities('group')|
@@ -1043,15 +1039,13 @@ generate_fake_white_colors:
   mode: restart
   icon: mdi:sale
   fields: {}
-# ─── Security and Defense Scripts ───
 in_home_defense_script:
   alias: All on defense script
-  description: >-
-    Activates a full home defense response: stops following music, triggers physical
-    horns at front and back doors, plays a civil defense siren at maximum volume on
-    all speakers, sends a security notification with the latest Frigate camera snapshot,
-    and rings the phone. Automatically stops after occupancy clears for 3 minutes or
-    after a 10-minute timeout.
+  description: 'Activates a full home defense response: stops following music, triggers
+    physical horns at front and back doors, plays a civil defense siren at maximum
+    volume on all speakers, sends a security notification with the latest Frigate
+    camera snapshot, and rings the phone. Automatically stops after occupancy clears
+    for 3 minutes or after a 10-minute timeout.'
   sequence:
   - metadata: {}
     action: input_boolean.turn_off
@@ -1254,10 +1248,10 @@ changes_all_on_lights_to_fake_white:
         comes from, do not use this parameter.
 
         Only use both the "area" parameter'
-  description: >-
-    Distributes evenly-spaced hues across all lights in a selected group, then shuffles
-    the assignments randomly so each bulb gets a unique color at full saturation. This
-    creates an ordered rainbow-like "fake white" effect when viewed together.
+  description: Distributes evenly-spaced hues across all lights in a selected group,
+    then shuffles the assignments randomly so each bulb gets a unique color at full
+    saturation. This creates an ordered rainbow-like "fake white" effect when viewed
+    together.
 inside_only_home_defense_script:
   alias: Inside only home defense script
   sequence:
@@ -1351,11 +1345,10 @@ inside_only_home_defense_script:
     target:
       entity_id: input_boolean.following_music
   mode: restart
-  description: >-
-    Activates an indoor-only defense response by stopping music playback, clearing
-    playlists, and playing a burglar alarm sound at maximum volume on all home speakers.
-    Waits up to 40 minutes for security occupancy sensors to clear for 5 minutes
-    before stopping the alarm and restoring normal music following behavior.
+  description: Activates an indoor-only defense response by stopping music playback,
+    clearing playlists, and playing a burglar alarm sound at maximum volume on all
+    home speakers. Waits up to 40 minutes for security occupancy sensors to clear
+    for 5 minutes before stopping the alarm and restoring normal music following behavior.
 start_plex_media_on_requested_player:
   alias: Start plex media on requested player
   sequence:
@@ -1388,12 +1381,9 @@ start_plex_media_on_requested_player:
       for_each: '{{ chromecasts }}'
   mode: single
   icon: mdi:audio-video
-  description: >-
-    Starts a requested Plex playlist in shuffle mode on all idle Chromecast devices,
-    skipping devices that are already playing content. Iterates through available
+  description: Starts a requested Plex playlist in shuffle mode on all idle Chromecast
+    devices, skipping devices that are already playing content. Iterates through available
     chromecasts and initiates playback with a 15-second delay between each.
-
-# ─── Whole-House Ambiance Scripts ───
 set_whole_house_to_cozy_ambiance_2:
   alias: Set whole house to cozy ambiance
   sequence:
@@ -1475,13 +1465,10 @@ changes_selected_light_group_to_random_fake_white:
   mode: parallel
   icon: mdi:sale
   fields: {}
-  description: >-
-    Distributes evenly-spaced hues across the lights in a selected group with shuffled
-    assignments, creating a randomized rainbow "fake white" effect where no single
-    bulb is actually white but the combined output approximates white light.
+  description: Distributes evenly-spaced hues across the lights in a selected group
+    with shuffled assignments, creating a randomized rainbow "fake white" effect where
+    no single bulb is actually white but the combined output approximates white light.
   max: 2
-
-# ─── Speaker and Volume Management Scripts ───
 equalize_home_group_volume:
   alias: Equalize Home GRoup volume
   sequence:
@@ -2110,7 +2097,6 @@ find_phone:
 
 
     This makes the phone ring for him.'
-# ─── Camera Description Scripts (LLM Vision) ───
 generate_front_door_person_description:
   sequence:
   - action: llmvision.image_analyzer
@@ -2177,7 +2163,6 @@ generate_back_door_camera_description:
   alias: 'Generate back door camera description  '
   description: This script can be used by the LLM to describe the current situation
     at the back door
-# ─── Tablet and Interface Management Scripts ───
 reset_tablet_endpoint_interface:
   sequence:
   - variables:
@@ -2370,7 +2355,6 @@ changes_all_existing_lights_to_white:
 
 
     Take note that it excludes the Hotbox And the Bedroom lights'
-# ─── Chromecast Volume Management Scripts ───
 chromecast_automatic_volume_adjustment_script:
   sequence:
   - variables:
@@ -2601,7 +2585,6 @@ generate_back_yard_camera_description:
   alias: Generate back yard camera description
   description: This script can be used by the LLM to describe the current situation
     at the back yard
-# ─── Security Camera Streaming Scripts ───
 this_script_can_be_used_to_show_the_cameras_on_all_tvs:
   sequence:
   - variables:
@@ -2620,7 +2603,6 @@ this_script_can_be_used_to_show_the_cameras_on_all_tvs:
   alias: This script can be used to show the cameras on all TVs
   description: This security audit script allows the LLM to get all the TVs to showing
     the camera feeds.
-# ─── LLM-Powered Voice and Media Request Scripts ───
 llm_script_for_music_assistant_voice_requests:
   alias: LLM Script for Music Assistant voice requests
   use_blueprint:
@@ -2638,7 +2620,6 @@ llm_script_for_music_assistant_voice_requests:
 
 
     !!! This Script should never be used when Youtube is mentioned!!'
-# ─── Jellyfin Media Scripts ───
 script_to_launch_movie_from_jellyfin_on_a_tv:
   sequence:
   - variables:
@@ -2657,10 +2638,9 @@ script_to_launch_movie_from_jellyfin_on_a_tv:
 
         '
   alias: Script to launch Movie from Jellyfin on a TV
-  description: >-
-    Browses the Jellyfin movie library on a Chromecast and attempts to find and launch
-    a requested movie by searching the browse results for a matching title. This is
-    an experimental script for Jellyfin media playback.
+  description: Browses the Jellyfin movie library on a Chromecast and attempts to
+    find and launch a requested movie by searching the browse results for a matching
+    title. This is an experimental script for Jellyfin media playback.
   fields:
     request:
       selector:
@@ -2713,7 +2693,6 @@ changes_selected_light_group_to_single_warm_colors:
         with an s
   description: This script can be used by the LLM to set a specific group of lights
     to random warm colors
-# ─── Music Playlist Scripts ───
 start_a_random_maxi_playlist:
   sequence:
   - variables:
@@ -2780,8 +2759,7 @@ start_a_random_maxi_playlist:
       description: Use this if a specific playlist is requested
       default: none
   alias: Start a random maxi playlist
-  description: >-
-    Starts music playback on a specified player by either playing a specifically
+  description: Starts music playback on a specified player by either playing a specifically
     requested playlist or randomly selecting from a curated list of Maxi's favorite
     playlists. Enables shuffle mode and retries with a fallback playlist if playback
     fails to start within 15 seconds.
@@ -2808,10 +2786,9 @@ change_received_lights_to_random_pastel_colors:
   mode: parallel
   icon: mdi:sale
   fields: {}
-  description: >-
-    Changes the lights in a specified group to random pastel colors by setting each
-    light to a random hue with low saturation (30%), producing soft, muted tones
-    suitable for a gentle ambient effect.
+  description: Changes the lights in a specified group to random pastel colors by
+    setting each light to a random hue with low saturation (30%), producing soft,
+    muted tones suitable for a gentle ambient effect.
   max: 10
 changes_selected_lights_to_warm_pale_colors:
   sequence:
@@ -2910,52 +2887,82 @@ change_lights_in_an_area_to_a_random_fake_white:
     white bulb present
   max: 10
 change_lights_in_an_area_to_warm_saturated_colors:
+  alias: Change lights or area to dissimilar random color
+  description: Changes each light to a completely random color. Consolidates areas
+    and manual light selections.
+  mode: restart
+  icon: mdi:palette-swatch
   sequence:
   - variables:
-      lights: "{% if area %}  {{ [area | first]\n  | map('area_entities')\n  | sum(start=[])\n
-        \ | select('search', 'group_')\n  | select('search', '_lights')\n  | reject('search',
-        'decorative')\n  | reject('search', 'main')\n  | list | expand | map(attribute='entity_id')
-        | list  }}   \n\n{% else %}  {{ selected_group | expand | map(attribute='entity_id')
-        | list  }}  {% endif %}"
+      lights: "{# 1. Get entities from the selected areas #} {% set area_list = []
+        %} {% if area is defined and area %}\n  {% set area_list = area \n    | map('area_entities')
+        \n    | sum(start=[]) \n    | select('search', '^light\\.')\n    | list %}\n{%
+        endif %}\n{# 2. Get entities from the manual 'light' field #} {% set manual_list
+        = light if light is defined and light else [] %}\n{# 3. Combine #} {% set
+        combined = (area_list + manual_list) | unique | list %}\n{# 4. Final filter:
+        Expand, ensure it supports color, remove groups, filter keywords #} {{ expand(combined)\n
+        \ | selectattr('domain', 'eq', 'light')\n  | selectattr('attributes.supported_color_modes',
+        'defined')\n  | selectattr('attributes.supported_color_modes', 'search', 'hs|rgb|xy')\n
+        \ | rejectattr('attributes.entity_id', 'defined')\n  | map(attribute='entity_id')\n
+        \ | reject('search', 'decorative')\n  | reject('search', 'main')\n  | unique
+        | list }}\n  \n"
   - repeat:
-      sequence:
-      - metadata: {}
-        data:
-          hs_color: "{% set hue_under_20 = range(1, 20) | random | string + ',' +
-            100 | string %} {% set hue_over_260 = range(260, 360) | random | string
-            + ',' + 100 | string %} {% set random = range(1, 3) | random %}           {%
-            if random == 1 %}\n {{hue_under_20 }}\n{% elif random > 1 %}           {{hue_over_260}}
-            {%endif%}\n"
-          transition: 1
-        target:
-          entity_id: '{{lights[repeat.index - 1]}}'
-        action: light.turn_on
       for_each: '{{ lights }}'
-  - set_conversation_response: Lights changed to warm saturated colors!
-  alias: Change lights in an area to warm saturated colors
-  mode: parallel
-  icon: mdi:invert-colors
+      sequence:
+      - variables:
+          wanted_hue: "{# Get current hue, default to 0 #} {% set hs = state_attr(repeat.item,
+            'hs_color') %} {% set current_hue = hs[0] | float if hs else 0 %} {% set
+            buffer = 25 %}\n{# Generate the full 0-360 color wheel #} {% set all_hues
+            = range(0, 360) | list %}\n{# Create a namespace to build a list of valid,
+            dissimilar hues #} {% set ns = namespace(valid=[]) %}\n{% for h in all_hues
+            %}\n  {# Calculate true distance, considering the 360/0 wrap-around #}\n
+            \ {% set raw_diff = (h - current_hue) | abs %}\n  {% set diff = raw_diff
+            if raw_diff <= 180 else 360 - raw_diff %}\n  \n  {# Keep it only if it's
+            outside the 25-degree buffer #}\n  {% if diff >= buffer %}\n    {% set
+            ns.valid = ns.valid + [h] %}\n  {% endif %}\n{% endfor %}\n{# Pick a truly
+            random hue from the valid list #} {% if ns.valid | count > 0 %}\n  {{
+            ns.valid | random }}\n{% else %}\n  {{ all_hues | random }}\n{% endif
+            %}\n"
+      - action: light.turn_on
+        target:
+          entity_id: '{{ repeat.item }}'
+        data:
+          hs_color:
+          - '{{ wanted_hue }}'
+          - '{{ saturation | default(100) }}'
+          transition: '{{ transition_speed | default(1) }}'
+        continue_on_error: true
   fields:
     area:
+      name: Area
+      description: The area(s) to target.
       selector:
         area:
-          entity:
-            integration: group
-            domain: light
           multiple: true
-      name: Area
-      description: 'The area or areas for which the music is requested. If the request
-        does not mention a target (either an area or a player), use the area the request
-        comes from.
-
-        If the area can not be determined from the request, or the device the request
-        comes from, do not use this parameter.
-
-        Only use both the "area" parameter'
-  description: 'This script allows the LLM to change the lights within an area to
-    warm saturated colors. '
-  max: 10
-# ─── Camera-to-TV Streaming Scripts ───
+    light:
+      name: Light
+      description: Specific light entity (or entities) to target.
+      selector:
+        entity:
+          multiple: true
+          domain: light
+    saturation:
+      name: Saturation
+      description: The saturation level (20-100) to apply.
+      default: 100
+      selector:
+        number:
+          min: 20
+          max: 100
+    transition_speed:
+      name: Transition Speed
+      description: The speed (in seconds) at which transition the lights to their
+        new color
+      default: 1
+      selector:
+        number:
+          min: 0
+          max: 30
 stream_a_specific_security_camera_on_a_specific_tv_chromecast:
   sequence:
   - variables:
@@ -3012,7 +3019,6 @@ stream_a_specific_security_camera_on_a_specific_tv_chromecast:
   alias: Stream a security camera on a Chromecast
   description: This script allows the LLM to start the stream for a security camera
     on a specific chromecast
-# ─── Doorbell and Notification Display Scripts ───
 quickbars_display_notification:
   alias: QuickBars - Show Front door Camera on TVs
   use_blueprint:
@@ -3070,11 +3076,10 @@ quickbars_display_notification:
             value: Empty
           target:
             entity_id: input_text.front_door_phone_text
-  description: >-
-    Displays a front door camera notification on all tablet kiosks using QuickBars
-    blueprint, showing a camera feed with a doorbell sound and providing an action
-    button to unlock the front door. After unlocking, it displays a welcome message
-    and automatically clears it once the door is locked again.
+  description: Displays a front door camera notification on all tablet kiosks using
+    QuickBars blueprint, showing a camera feed with a doorbell sound and providing
+    an action button to unlock the front door. After unlocking, it displays a welcome
+    message and automatically clears it once the door is locked again.
 trippy_lights_effect_script:
   sequence:
   - variables:
@@ -3112,13 +3117,10 @@ trippy_lights_effect_script:
       adapt_color: true
       turn_on_lights: true
   alias: Trippy Lights Effect script
-  description: >-
-    Continuously cycles all turned-on lights through random colors at a configurable
-    speed and saturation while the trippy lights effect boolean is enabled. When the
-    effect is disabled, it restores all affected lights to their adaptive lighting
-    settings with a smooth 3-second transition.
-
-# ─── Network and Infrastructure Scripts ───
+  description: Continuously cycles all turned-on lights through random colors at a
+    configurable speed and saturation while the trippy lights effect boolean is enabled.
+    When the effect is disabled, it restores all affected lights to their adaptive
+    lighting settings with a smooth 3-second transition.
 restart_all_network_equipment:
   sequence:
   - action: button.press
@@ -3138,12 +3140,9 @@ restart_all_network_equipment:
       - button.ucg_ultra_restart
     data: {}
   alias: Restart all network equipment
-  description: >-
-    Restarts all UniFi network infrastructure devices simultaneously, including all
-    access points (hotbox, workshop, patio, salon), all network switches (desktop,
+  description: Restarts all UniFi network infrastructure devices simultaneously, including
+    all access points (hotbox, workshop, patio, salon), all network switches (desktop,
     server, salon, workshop, library, TV mini), and the UCG Ultra gateway.
-
-# ─── Kiosk and Tablet Scripts ───
 launch_party_mode_on_all_kiosks:
   sequence:
   - action: fully_kiosk.load_url
@@ -3162,3 +3161,33 @@ launch_party_mode_on_all_kiosks:
   description: This script loads the party interface on all configured kiosks, creating
     a unified party experience across multiple devices. It ensures all kiosks display
     the party screen simultaneously, ideal for hosting events or gatherings.
+apply_random_existing_effect_to_a_light_entity:
+  alias: Apply random existing effect to a light entity
+  description: Applies a random effect to lights, ensuring the new effect is different
+    from the current one.
+  fields:
+    light:
+      name: light
+      description: The light entity (or entities) to apply a random effect to.
+      required: true
+      selector:
+        entity:
+          multiple: true
+          filter:
+            domain: light
+  sequence:
+  - repeat:
+      for_each: '{{ light }}'
+      sequence:
+      - variables:
+          current_eff: '{{ state_attr(repeat.item, ''effect'') | default('''', true)
+            }}'
+          all_effs: '{{ state_attr(repeat.item, ''effect_list'') | default([], true)
+            }}'
+          filtered_effs: '{{ all_effs | reject(''eq'', current_eff) | list }}'
+      - action: light.turn_on
+        target:
+          entity_id: '{{ repeat.item }}'
+        data:
+          effect: "{% if filtered_effs | count > 0 %}\n  {{ filtered_effs | random
+            }}\n{% else %}\n  {{ all_effs | random }}\n{% endif %}\n"

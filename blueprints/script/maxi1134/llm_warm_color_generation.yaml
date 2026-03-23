@@ -1,0 +1,168 @@
+blueprint:
+  name: LLM Dissimilar Color Palette Script
+  description: >-
+    Creates a script that allows an LLM to change lights in an area to randomized 
+    dissimilar colors within specific hue ranges (Perect to exclude unwanted color-ranges)
+  domain: script
+  input:
+    buffer:
+      name: Color Difference Buffer
+      description: Minimum degrees on the color wheel the new color must be from the current color.
+      default: 25
+      selector:
+        number:
+          min: 0
+          max: 180
+    range_1_start:
+      name: Hue Range 1 - Start
+      description: Start of the primary color hue range (0-360). (e.g., 0 for Red/Orange)
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 360
+    range_1_end:
+      name: Hue Range 1 - End
+      description: End of the primary color hue range. (e.g., 20 for Red/Orange)
+      default: 20
+      selector:
+        number:
+          min: 0
+          max: 360
+    range_2_start:
+      name: Hue Range 2 - Start
+      description: Start of a secondary color hue range (useful for wrap-around colors like pink/purple). 
+      default: 260
+      selector:
+        number:
+          min: 0
+          max: 360
+    range_2_end:
+      name: Hue Range 2 - End
+      description: End of the secondary color hue range.
+      default: 360
+      selector:
+        number:
+          min: 0
+          max: 360
+
+mode: parallel
+max: 10
+icon: mdi:palette-swatch
+
+fields:
+  area:
+    name: Area
+    description: The area(s) to target. If the request does not mention a target, use the area the request comes from.
+    selector:
+      area:
+        multiple: true
+  light:
+    name: Light
+    description: Specific light entity (or entities) to target.
+    selector:
+      entity:
+        multiple: true
+        domain: light
+    default: []
+  saturation:
+    name: Saturation
+    description: The saturation level (0-100) to apply.
+    default: 100
+    selector:
+      number:
+        min: 0
+        max: 100
+  transition_speed:
+    name: Transition Speed
+    description: The speed (in seconds) at which transition the lights to their new color.
+    default: 1
+    selector:
+      number:
+        min: 0
+        max: 30
+
+sequence:
+  - variables:
+      # Map Blueprint inputs to Jinja variables for use in the template
+      buffer: !input buffer
+      r1_start: !input range_1_start
+      r1_end: !input range_1_end
+      r2_start: !input range_2_start
+      r2_end: !input range_2_end
+
+      lights: >
+        {# 1. Get entities from the selected areas #} 
+        {% set area_list = [] %}
+        {% if area is defined and area %}
+          {% set area_list = area 
+            | map('area_entities') 
+            | sum(start=[]) 
+            | select('search', '^light\.')
+            | list %}
+        {% endif %}
+
+        {# 2. Get entities from the manual 'light' field #} 
+        {% set manual_list = light if light is defined and light else [] %}
+
+        {# 3. Combine #} 
+        {% set combined = (area_list + manual_list) | unique | list %}
+
+        {# 4. Final filter: Expand, ensure it supports color, remove groups, and filter keywords #} 
+        {{ expand(combined)
+          | selectattr('domain', 'eq', 'light')
+          | selectattr('attributes.supported_color_modes', 'defined')
+          | selectattr('attributes.supported_color_modes', 'search', 'hs|rgb|xy')
+          | rejectattr('attributes.entity_id', 'defined')
+          | map(attribute='entity_id')
+          | reject('search', 'decorative')
+          | reject('search', 'main')
+          | unique | list }}
+
+  - repeat:
+      for_each: "{{ lights }}"
+      sequence:
+        - variables:
+            wanted_hue: >
+              {# Get current hue, default to 0 #}
+              {% set hs = state_attr(repeat.item, 'hs_color') %}
+              {% set current_hue = hs[0] | float if hs else 0 %}
+              
+              {# Generate the valid ranges based on blueprint inputs #}
+              {% set range1 = range(r1_start, r1_end + 1) | list %}
+              {# Only add range2 if it's different from range1 to prevent doubling up #}
+              {% set range2 = range(r2_start, r2_end + 1) | list if r2_start != r1_start else [] %}
+              {% set target_hues = (range1 + range2) | unique | list %}
+              
+              {# Create a namespace to build a list of valid hues #}
+              {% set ns = namespace(valid=[]) %}
+              
+              {% for h in target_hues %}
+                {# Calculate distance, considering the 360/0 wrap-around #}
+                {% set raw_diff = (h - current_hue) | abs %}
+                {% set diff = raw_diff if raw_diff <= 180 else 360 - raw_diff %}
+                
+                {# Keep it only if it's far enough away #}
+                {% if diff >= buffer %}
+                  {% set ns.valid = ns.valid + [h] %}
+                {% endif %}
+              {% endfor %}
+              
+              {# Pick a random hue from our valid list, fallback to any target hue if list is empty #}
+              {% if ns.valid | count > 0 %}
+                {{ ns.valid | random }}
+              {% else %}
+                {{ target_hues | random }}
+              {% endif %}
+
+        - action: light.turn_on
+          target:
+            entity_id: "{{ repeat.item }}"
+          data:
+            hs_color:
+              - "{{ wanted_hue }}"
+              - "{{ saturation | default(100) }}"
+            transition: "{{ transition_speed | default(1) }}"
+          continue_on_error: true
+
+  - set_conversation_response: "Lights changed to the requested a warm palette!"
