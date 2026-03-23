@@ -6,4 +6,9 @@
 
 # Blueprints
 ##### In this folder, you will find documentation regarding my blueprints!
-
+- ##### Light effects
+    - ###### Random Color Generation
+        This blueprint allows the creation of a script with a selector for an `Area` or an `Entity` that should be switched to a random color. It also offers a setable `Saturation` and `Transition speed`  A `Color buffer` value can selected upon importing the blueprint, to avoid generating a color close to the actual one.
+    - ###### Ranged Color Generation
+        This blueprint allows the creation of a script with a selector for an `Area` or an `Entity` that should be switched to a 'ranged' random color. It also offers a setable `Saturation` and `Transition speed`.
+         A `Color buffer` value can also selected upon importing the blueprint, as well two `Ranges` of color. Helping avoid a specific color ranges. Settings this to `1->20` and `300->360` would mean that no blue is ever selected per instance.
