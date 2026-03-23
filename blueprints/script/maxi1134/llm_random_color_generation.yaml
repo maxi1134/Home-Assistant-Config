@@ -1,41 +1,10 @@
 blueprint:
-  name: Random Dissimilar Colors
+  name: LLM Random Dissimilar Colors Script
   description: >
-    Changes selected lights or areas to a random color that is guaranteed 
-    to be different from its current color by a specific hue degree.
+    Creates a script that allows an LLM to change selected lights or areas to a random color 
+    that is guaranteed to be noticeably different from its current color.
   domain: script
   input:
-    target_areas:
-      name: Areas
-      description: The area(s) to target.
-      default: []
-      selector:
-        area:
-          multiple: true
-    target_lights:
-      name: Lights
-      description: Specific light entity (or entities) to target.
-      default: []
-      selector:
-        entity:
-          multiple: true
-          domain: light
-    saturation_level:
-      name: Saturation
-      description: The saturation level (0-100) to apply.
-      default: 100
-      selector:
-        number:
-          min: 0
-          max: 100
-    transition_time:
-      name: Transition Speed
-      description: The speed (in seconds) to transition to the new color.
-      default: 1
-      selector:
-        number:
-          min: 0
-          max: 30
     hue_buffer:
       name: Color Difference Buffer
       description: Minimum degrees of separation on the color wheel (0-180).
@@ -48,27 +17,55 @@ blueprint:
 mode: restart
 icon: mdi:palette-swatch
 
+fields:
+  area:
+    name: Area
+    description: The area(s) to target. If the request does not mention a target, use the area the request comes from.
+    selector:
+      area:
+        multiple: true
+  light:
+    name: Light
+    description: Specific light entity (or entities) to target.
+    default: []
+    selector:
+      entity:
+        multiple: true
+        domain: light
+  saturation:
+    name: Saturation
+    description: The saturation level (0-100) to apply.
+    default: 100
+    selector:
+      number:
+        min: 0
+        max: 100
+  transition_speed:
+    name: Transition Speed
+    description: The speed (in seconds) to transition to the new color.
+    default: 1
+    selector:
+      number:
+        min: 0
+        max: 30
+
 sequence:
   - variables:
-      # Map blueprint inputs to internal variables
-      input_areas: !input target_areas
-      input_lights: !input target_lights
-      saturation: !input saturation_level
-      transition_speed: !input transition_time
+      # Map blueprint configuration input
       buffer: !input hue_buffer
 
-      # Calculate the list of light entities
+      # Calculate the list of light entities dynamically from fields
       lights: >
         {% set area_list = [] %}
-        {% if input_areas %}
-          {% set area_list = input_areas 
+        {% if area is defined and area %}
+          {% set area_list = area 
             | map('area_entities') 
             | sum(start=[]) 
             | select('search', '^light\.')
             | list %}
         {% endif %}
 
-        {% set manual_list = input_lights if input_lights else [] %}
+        {% set manual_list = light if light is defined and light else [] %}
         {% set combined = (area_list + manual_list) | unique | list %}
 
         {{ expand(combined)
@@ -94,7 +91,7 @@ sequence:
               {% for h in all_hues %}
                 {% set raw_diff = (h - current_hue) | abs %}
                 {% set diff = raw_diff if raw_diff <= 180 else 360 - raw_diff %}
-                {% if diff >= buffer %}
+                {% if diff >= (buffer | int) %}
                   {% set ns.valid = ns.valid + [h] %}
                 {% endif %}
               {% endfor %}
@@ -106,6 +103,8 @@ sequence:
           data:
             hs_color:
               - "{{ wanted_hue }}"
-              - "{{ saturation }}"
-            transition: "{{ transition_speed }}"
+              - "{{ saturation | default(100) }}"
+            transition: "{{ transition_speed | default(1) }}"
           continue_on_error: true
+
+  - set_conversation_response: "Lights have been randomized to new, distinct colors!"
