@@ -7,7 +7,7 @@
 # Blueprints
 ##### In this folder, you will find documentation regarding my blueprints!
 - ##### Light effects
-    -   [Random Colors Generation](../blueprints/script/maxi1134/light_effects/llm_random_color_generation.yaml)
+    -   [Random Colors Generation](../../blueprints/script/maxi1134/light_effects/llm_random_color_generation.yaml)
         This blueprint allows the creation of a script with a selector for an `Area` or an `Entity` that should be switched to a random color. It also offers a setable `Saturation` and `Transition speed`  A `Color buffer` value can selected upon importing the blueprint, to avoid generating a color close to the actual one.
 
     -  [Ranged Colors Generation](../../blueprints/script/maxi1134/light_effects/llm_ranged_color_generation.yaml)
