@@ -469,7 +469,7 @@ broadcast_alert_in_the_house:
   icon: mdi:speaker-message
   max: 3
 change_received_lights_to_random_colors:
-  alias: Change received lights or area to dissimilar warm color
+  alias: Change received lights or area to dissimilar random color
   description: Changes each light to a random color, ensuring the new hue is at least
     25 degrees away from the current one. Consolidates areas and manual light selections.
   sequence:
@@ -506,7 +506,7 @@ change_received_lights_to_random_colors:
           hs_color:
           - '{{ wanted_hue }}'
           - '{{ saturation | default(100) }}'
-          transition: '{{ transition_speed }}'
+          transition: '{{ transition_speed | default(''1'') }}'
         continue_on_error: true
   mode: restart
   icon: mdi:palette-swatch
@@ -530,15 +530,13 @@ change_received_lights_to_random_colors:
           min: 20
           max: 100
       default: 100
+      required: false
     transition_speed:
-      name: Transition Speed
-      description: The speed (in seconds) at which transition the lights to their
-        new color
-      default: 1
       selector:
         number:
-          min: 0
-          max: 30
+          min: 2
+          max: 200
+      default: 1
 start_visual_playlist_on_plex:
   alias: Start requsted Playlist on plex for all unplaying chromecasts
   description: Starts a requested Plex playlist in shuffle mode on all idle Chromecast
@@ -2886,83 +2884,6 @@ change_lights_in_an_area_to_a_random_fake_white:
     'random fake white' where all colors somewhat equate to white not having a single
     white bulb present
   max: 10
-change_lights_in_an_area_to_warm_saturated_colors:
-  alias: Change lights or area to dissimilar random color
-  description: Changes each light to a completely random color. Consolidates areas
-    and manual light selections.
-  mode: restart
-  icon: mdi:palette-swatch
-  sequence:
-  - variables:
-      lights: "{# 1. Get entities from the selected areas #} {% set area_list = []
-        %} {% if area is defined and area %}\n  {% set area_list = area \n    | map('area_entities')
-        \n    | sum(start=[]) \n    | select('search', '^light\\.')\n    | list %}\n{%
-        endif %}\n{# 2. Get entities from the manual 'light' field #} {% set manual_list
-        = light if light is defined and light else [] %}\n{# 3. Combine #} {% set
-        combined = (area_list + manual_list) | unique | list %}\n{# 4. Final filter:
-        Expand, ensure it supports color, remove groups, filter keywords #} {{ expand(combined)\n
-        \ | selectattr('domain', 'eq', 'light')\n  | selectattr('attributes.supported_color_modes',
-        'defined')\n  | selectattr('attributes.supported_color_modes', 'search', 'hs|rgb|xy')\n
-        \ | rejectattr('attributes.entity_id', 'defined')\n  | map(attribute='entity_id')\n
-        \ | reject('search', 'decorative')\n  | reject('search', 'main')\n  | unique
-        | list }}\n  \n"
-  - repeat:
-      for_each: '{{ lights }}'
-      sequence:
-      - variables:
-          wanted_hue: "{# Get current hue, default to 0 #} {% set hs = state_attr(repeat.item,
-            'hs_color') %} {% set current_hue = hs[0] | float if hs else 0 %} {% set
-            buffer = 25 %}\n{# Generate the full 0-360 color wheel #} {% set all_hues
-            = range(0, 360) | list %}\n{# Create a namespace to build a list of valid,
-            dissimilar hues #} {% set ns = namespace(valid=[]) %}\n{% for h in all_hues
-            %}\n  {# Calculate true distance, considering the 360/0 wrap-around #}\n
-            \ {% set raw_diff = (h - current_hue) | abs %}\n  {% set diff = raw_diff
-            if raw_diff <= 180 else 360 - raw_diff %}\n  \n  {# Keep it only if it's
-            outside the 25-degree buffer #}\n  {% if diff >= buffer %}\n    {% set
-            ns.valid = ns.valid + [h] %}\n  {% endif %}\n{% endfor %}\n{# Pick a truly
-            random hue from the valid list #} {% if ns.valid | count > 0 %}\n  {{
-            ns.valid | random }}\n{% else %}\n  {{ all_hues | random }}\n{% endif
-            %}\n"
-      - action: light.turn_on
-        target:
-          entity_id: '{{ repeat.item }}'
-        data:
-          hs_color:
-          - '{{ wanted_hue }}'
-          - '{{ saturation | default(100) }}'
-          transition: '{{ transition_speed | default(1) }}'
-        continue_on_error: true
-  fields:
-    area:
-      name: Area
-      description: The area(s) to target.
-      selector:
-        area:
-          multiple: true
-    light:
-      name: Light
-      description: Specific light entity (or entities) to target.
-      selector:
-        entity:
-          multiple: true
-          domain: light
-    saturation:
-      name: Saturation
-      description: The saturation level (20-100) to apply.
-      default: 100
-      selector:
-        number:
-          min: 20
-          max: 100
-    transition_speed:
-      name: Transition Speed
-      description: The speed (in seconds) at which transition the lights to their
-        new color
-      default: 1
-      selector:
-        number:
-          min: 0
-          max: 30
 stream_a_specific_security_camera_on_a_specific_tv_chromecast:
   sequence:
   - variables:
@@ -3191,13 +3112,14 @@ apply_random_existing_effect_to_a_light_entity:
         data:
           effect: "{% if filtered_effs | count > 0 %}\n  {{ filtered_effs | random
             }}\n{% else %}\n  {{ all_effs | random }}\n{% endif %}\n"
-llm_ranged_dissimilar_colors_generation_script_test:
-  alias: LLM Ranged Dissimilar colors generation script TEST
+llm_ranged_dissimilar_colors_generation_script:
+  alias: LLM Ranged Dissimilar Colors Generation Script
   use_blueprint:
-    path: maxi1134/llm_ranged_color_generation.yaml
-  description: ''
-llm_random_dissimilar_colors_script_test:
-  alias: LLM Random Dissimilar Colors Script TEST
+    path: maxi1134/light_effects/llm_ranged_color_generation.yaml
+  description: Generates and applies dissimilar, ranged random colors to selected
+    lights
+llm_random_dissimilar_colors_script:
+  alias: LLM Random Dissimilar Colors Script
   use_blueprint:
-    path: maxi1134/llm_random_color_generation.yaml
+    path: maxi1134/light_effects/llm_random_color_generation.yaml
   description: ''
