@@ -4333,8 +4333,8 @@
   mode: restart
 - id: '1731611467781'
   alias: Alert Housewide when Kitchen timer is finished
-  description: Broadcasts a non-important alert throughout the house when the kitchen
-    cooking timer finishes.
+  description: Broadcasts a repeating non-important alert throughout the house when
+    the kitchen cooking timer finishes, until motion is detected in the kitchen.
   triggers:
   - trigger: state
     entity_id:
@@ -4347,9 +4347,25 @@
     - active
   conditions: []
   actions:
-  - action: script.non_important_broadcast_alert_in_the_house
-    data:
-      message: Kitchen Timer Finished!
+  - repeat:
+      sequence:
+      - action: script.non_important_broadcast_alert_in_the_house
+        data:
+          message: Kitchen Timer Finished!
+      - wait_for_trigger:
+        - trigger: state
+          entity_id:
+          - binary_sensor.group_kitchen_motion_occupancy
+          to: 'on'
+        timeout:
+          minutes: 5
+      until:
+      - condition: or
+        conditions:
+        - condition: state
+          entity_id: binary_sensor.group_kitchen_motion_occupancy
+          state: 'on'
+        - "{{ wait.trigger != none }}"
   mode: single
 - id: '1731941986104'
   alias: Trigger back horn when someone loiters for too long at the door
