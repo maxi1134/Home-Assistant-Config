@@ -186,55 +186,48 @@ broadcast_alert_in_the_house:
 
           {% endif %}'
       then:
-      - alias: Announcements
+      - alias: Announcements via Music Assistant
         parallel:
-        - alias: TTS in the home
+        - alias: Announce in the home group
+          action: music_assistant.play_announcement
+          data:
+            url: media-source://tts/tts.piper_2?message={{ message | urlencode }}&cache=true
+            announce_volume: 35
+          target:
+            entity_id: media_player.group_mass_home_group_speakers
+          continue_on_error: true
+        - action: tts.speak
           metadata: {}
+          target:
+            entity_id: tts.piper_2
           data:
             cache: true
             media_player_entity_id: media_player.group_mass_home_group_speakers
             message: '{{ message }}'
-          action: tts.speak
-          enabled: true
-          target:
-            entity_id: tts.piper_2
-        - alias: TTS in the bedroom
-          metadata: {}
-          data:
-            cache: true
-            media_player_entity_id: media_player.mass_bedroom_wiim_speaker
-            message: '{{ message }}'
-          target:
-            entity_id:
-            - tts.piper_2
-          action: tts.speak
-        - alias: TTS in the home
-          metadata: {}
-          data:
-            cache: true
-            media_player_entity_id: media_player.mass_bathroom_speaker
-            message: '{{ message }}'
-          action: tts.speak
-          enabled: true
-          target:
-            entity_id: tts.piper_2
+          continue_on_error: true
         - if:
           - condition: state
-            entity_id: binary_sensor.lylou_alone
-            state: 'on'
+            entity_id: input_boolean.sleeper_in_bedroom
+            state: 'off'
           then:
-          - alias: Announcements
-            parallel:
-            - alias: TTS in the hotbox
-              metadata: {}
-              data:
-                cache: true
-                media_player_entity_id: media_player.mass_hotbox_wiim_speaker
-                message: '{{ message }}'
-              action: tts.speak
-              enabled: true
-              target:
-                entity_id: tts.piper_2
+          - action: tts.speak
+            metadata: {}
+            target:
+              entity_id: tts.piper_2
+            data:
+              cache: true
+              media_player_entity_id: media_player.mass_bedroom_wiim_speaker
+              message: '{{ message }}'
+            continue_on_error: true
+        - action: tts.speak
+          metadata: {}
+          target:
+            entity_id: tts.piper_2
+          data:
+            cache: true
+            media_player_entity_id: media_player.mass_bathroom_vpe_speaker
+            message: '{{ message }}'
+          continue_on_error: true
       enabled: true
     - alias: music assistant Announcements
       if:
@@ -249,7 +242,7 @@ broadcast_alert_in_the_house:
 
           {% endif %}'
       then:
-      - alias: Announcements
+      - alias: Announcements via Music Assistant
         parallel:
         - action: music_assistant.play_announcement
           data:
@@ -257,50 +250,43 @@ broadcast_alert_in_the_house:
             announce_volume: 35
           target:
             entity_id: media_player.group_mass_home_group_speakers
+          continue_on_error: true
         - action: music_assistant.play_announcement
           data:
             url: '{{ broadcast_url }}'
             announce_volume: 35
           target:
             entity_id: media_player.mass_bedroom_wiim_speaker
-          enabled: true
-        - metadata: {}
+          continue_on_error: true
+        - alias: Announce in the closet
+          action: music_assistant.play_announcement
           data:
-            cache: true
-            media_player_entity_id: media_player.mass_closet_wiim_speaker
-            message: '{{ message }}'
+            url: '{{ broadcast_url }}'
+            announce_volume: 35
           target:
-            entity_id: tts.piper_2
-          alias: TTS in the closet
-          action: tts.speak
-          enabled: true
-        - alias: TTS in the home
-          metadata: {}
+            entity_id: media_player.mass_closet_wiim_speaker
+          continue_on_error: true
+        - alias: Announce in the bathroom
+          action: music_assistant.play_announcement
           data:
-            cache: true
-            media_player_entity_id: media_player.mass_bathroom_speaker
-            message: '{{ broadcast_url }}'
-          action: tts.speak
-          enabled: true
+            url: '{{ broadcast_url }}'
+            announce_volume: 35
           target:
-            entity_id: tts.piper_2
+            entity_id: media_player.mass_bathroom_speaker
+          continue_on_error: true
         - if:
           - condition: state
             entity_id: binary_sensor.lylou_alone
             state: 'on'
           then:
-          - alias: Announcements
-            parallel:
-            - alias: TTS in the hotbox
-              metadata: {}
-              data:
-                cache: true
-                media_player_entity_id: media_player.mass_hotbox_wiim_speaker
-                message: '{{ broadcast_url }}'
-              action: tts.speak
-              enabled: true
-              target:
-                entity_id: tts.piper_2
+          - alias: Announce in the hotbox
+            action: music_assistant.play_announcement
+            data:
+              url: '{{ broadcast_url }}'
+              announce_volume: 35
+            target:
+              entity_id: media_player.mass_hotbox_wiim_speaker
+            continue_on_error: true
       enabled: true
     - alias: 'Notifications '
       if:
@@ -698,38 +684,48 @@ non_important_broadcast_alert_in_the_house:
         state:
         - 'off'
       then:
-      - alias: Announcements
+      - alias: Announcements via Music Assistant
         parallel:
-        - alias: TTS in the home group
-          metadata: {}
+        - alias: Announce in the home group
+          action: music_assistant.play_announcement
           data:
-            media_player_entity_id: media_player.group_mass_home_group_speakers
-            message: '{{ message }}'
-          action: tts.speak
+            url: media-source://tts/tts.piper_2?message={{ message | urlencode }}&cache=true
+            announce_volume: 35
+          target:
+            entity_id: media_player.group_mass_home_group_speakers
+          continue_on_error: true
+        - action: tts.speak
+          metadata: {}
           target:
             entity_id: tts.piper_2
+          data:
+            cache: true
+            media_player_entity_id: media_player.group_mass_home_group_speakers
+            message: '{{ message }}'
+          continue_on_error: true
         - if:
           - condition: state
             entity_id: input_boolean.sleeper_in_bedroom
             state: 'off'
           then:
-          - alias: TTS in the bedroom
+          - action: tts.speak
             metadata: {}
-            data:
-              media_player_entity_id: media_player.mass_bedroom_airplay_wiim_speaker
-              message: '{{ message }}'
             target:
-              entity_id:
-              - tts.piper_2
-            action: tts.speak
-        - alias: TTS in the home group
+              entity_id: tts.piper_2
+            data:
+              cache: true
+              media_player_entity_id: media_player.mass_bedroom_wiim_speaker
+              message: '{{ message }}'
+            continue_on_error: true
+        - action: tts.speak
           metadata: {}
-          data:
-            media_player_entity_id: media_player.mass_bathroom_speaker
-            message: '{{ message }}'
-          action: tts.speak
           target:
             entity_id: tts.piper_2
+          data:
+            cache: true
+            media_player_entity_id: media_player.mass_bathroom_vpe_speaker
+            message: '{{ message }}'
+          continue_on_error: true
       enabled: true
     - alias: TVs
       parallel:
@@ -3123,3 +3119,193 @@ llm_random_dissimilar_colors_script:
   use_blueprint:
     path: maxi1134/light_effects/llm_random_color_generation.yaml
   description: ''
+vibe_arc_gathering:
+  alias: Vibe Arc - Gathering Phase
+  description: Cozy warm ambiance for 1-4 guests arriving. Warm lights, calm atmosphere,
+    conversation-friendly.
+  icon: mdi:account-group-outline
+  mode: single
+  sequence:
+  - action: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.vibe_arc_acting
+  - parallel:
+    - action: script.set_whole_house_to_cozy_ambiance_2
+    - action: light.turn_off
+      target:
+        entity_id: light.all_uv_lamps
+    - action: input_boolean.turn_off
+      target:
+        entity_id:
+        - input_boolean.trippy_lights_effect
+        - input_boolean.vibrating_colors_effect
+        - input_boolean.trippy_warm_colors_effect
+  - delay:
+      seconds: 3
+  - action: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.vibe_arc_acting
+vibe_arc_warming_up:
+  alias: Vibe Arc - Warming Up Phase
+  description: Colors start appearing as 5-7 guests arrive. Decorative lights activate,
+    warm random colors on some fixtures, energy builds.
+  icon: mdi:thermometer-chevron-up
+  mode: single
+  sequence:
+  - action: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.vibe_arc_acting
+  - parallel:
+    - action: light.turn_on
+      target:
+        entity_id: light.group_all_inside_lights
+      data:
+        brightness: 200
+        transition: 90
+    - action: light.turn_on
+      target:
+        entity_id: light.group_salon_decorative_lights
+      data:
+        brightness: 255
+        transition: 30
+    - action: light.turn_on
+      target:
+        entity_id: light.group_lounge_decorative_lamp
+      data:
+        brightness: 255
+        transition: 30
+    - action: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.warm_colors
+      data: {}
+    - action: input_boolean.turn_off
+      target:
+        entity_id:
+        - input_boolean.trippy_lights_effect
+        - input_boolean.vibrating_colors_effect
+      data: {}
+  - delay:
+      seconds: 5
+  - action: script.1716330781093
+    data: {}
+  - action: lifx.effect_morph
+    metadata: {}
+    target:
+      entity_id:
+      - light.kitchen_ceiling
+      - light.salon_wall_light
+      - light.lounge_ceiling_light
+      - light.workshop_wall_light
+    data:
+      speed: 3
+      power_on: true
+  - delay:
+      seconds: 2
+  - action: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.vibe_arc_acting
+vibe_arc_peak_party:
+  alias: Vibe Arc - Peak Party Phase
+  description: Full party mode for 8+ guests or loud & crowded. Random colors, UV
+    lamps, party visuals on TVs, maximum energy.
+  icon: mdi:party-popper
+  mode: single
+  sequence:
+  - action: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.vibe_arc_acting
+  - parallel:
+    - action: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.party_mode
+    - action: script.set_whole_house_to_party_ambiance
+  - delay:
+      seconds: 3
+  - action: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.vibe_arc_acting
+vibe_arc_late_night:
+  alias: Vibe Arc - Late Night Phase
+  description: Psychedelic drift for after 1AM with 5-8 guests still going. Slower
+    color transitions, deeper music vibes, trippy warm effects.
+  icon: mdi:weather-night
+  mode: single
+  sequence:
+  - action: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.vibe_arc_acting
+    data: {}
+  - parallel:
+    - action: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.acid_time
+    - action: script.set_whole_house_to_psychedelic_ambiance
+    - action: input_boolean.turn_on
+      target:
+        entity_id: input_boolean.trippy_warm_colors_effect
+  - delay:
+      seconds: 3
+  - action: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.vibe_arc_acting
+vibe_arc_wind_down:
+  alias: Vibe Arc - Wind Down Phase
+  description: Party winding down after 3AM or under 4 guests. Return to cozy warmth,
+    lower volume, turn off party effects and UV.
+  icon: mdi:weather-sunset-down
+  mode: single
+  sequence:
+  - action: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.vibe_arc_acting
+  - parallel:
+    - action: input_boolean.turn_off
+      target:
+        entity_id:
+        - input_boolean.party_mode
+        - input_boolean.acid_time
+        - input_boolean.kink_party
+        - input_boolean.trippy_lights_effect
+        - input_boolean.vibrating_colors_effect
+        - input_boolean.trippy_warm_colors_effect
+    - action: script.set_whole_house_to_cozy_ambiance_2
+    - action: light.turn_on
+      target:
+        entity_id: light.group_all_inside_lights
+      data:
+        brightness: 100
+        kelvin: 2200
+        transition: 120
+  - delay:
+      seconds: 3
+  - action: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.vibe_arc_acting
+vibe_arc_after_party:
+  alias: Vibe Arc - After Party Phase
+  description: Intimate ambiance for when the party is over and 2 or fewer people
+    remain. Sexy ambiance, very low lights, personal atmosphere.
+  icon: mdi:heart
+  mode: single
+  sequence:
+  - action: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.vibe_arc_acting
+  - parallel:
+    - action: input_boolean.turn_off
+      target:
+        entity_id:
+        - input_boolean.party_mode
+        - input_boolean.acid_time
+        - input_boolean.kink_party
+        - input_boolean.trippy_lights_effect
+        - input_boolean.vibrating_colors_effect
+        - input_boolean.trippy_warm_colors_effect
+      data: {}
+    - action: script.set_whole_house_tonsexy_ambiance
+      data: {}
+  - delay:
+      seconds: 3
+  - action: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.vibe_arc_acting

@@ -5291,10 +5291,17 @@
   - condition: state
     entity_id: input_boolean.following_music
     state: 'on'
-  - alias: Only continue if non-playing for over 300 seconds
+  - alias: Not during an active broadcast announcement
     condition: template
-    value_template: '{{ (trigger.id != ''from_idle_to_play'') or ((trigger.id == ''from_idle_to_play'')  and  ((as_timestamp((now())
-      )   - (as_timestamp(trigger.from_state.last_changed)))) | float > 300 )}}'
+    value_template: '{{ is_state(''script.broadcast_alert_in_the_house'', ''off'')
+      and is_state(''script.non_important_broadcast_alert_in_the_house'', ''off'')
+      }}'
+  - alias: Only continue if the previous state lasted long enough (300s for idle-to-play,
+      30s for unmute/off transitions - prevents announcement state churn)
+    condition: template
+    value_template: '{{ (trigger.id == ''from_idle_to_play'' and (now() - trigger.from_state.last_changed)
+      > timedelta(seconds=300)) or (trigger.id != ''from_idle_to_play'' and (now()
+      - trigger.from_state.last_changed) > timedelta(seconds=30)) }}'
     enabled: true
   actions:
   - variables:
@@ -8823,6 +8830,11 @@
     value_template: '{{ trigger.from_state.attributes.is_volume_muted == true and
       trigger.to_state.attributes.is_volume_muted == false }}'
     alias: If volume went from muted to unmuted
+  - alias: Not during an active broadcast announcement
+    condition: template
+    value_template: '{{ is_state(''script.broadcast_alert_in_the_house'', ''off'')
+      and is_state(''script.non_important_broadcast_alert_in_the_house'', ''off'')
+      }}'
   actions:
   - action: script.speaker_automatic_volume_adjustment_script
     metadata: {}
@@ -15183,7 +15195,16 @@
     attribute: is_volume_muted
     from: 'true'
     to: 'false'
-  conditions: []
+  conditions:
+  - alias: Not during an active broadcast announcement
+    condition: template
+    value_template: '{{ is_state(''script.broadcast_alert_in_the_house'', ''off'')
+      and is_state(''script.non_important_broadcast_alert_in_the_house'', ''off'')
+      }}'
+  - alias: Only continue if muted for over 30 seconds (prevents announcement churn)
+    condition: template
+    value_template: '{{ (now() - trigger.from_state.last_changed) > timedelta(seconds=30)
+      }}'
   actions:
   - variables:
       trigger_speaker: '{{ trigger.entity_id }}
@@ -16049,3 +16070,267 @@
     target:
       entity_id: media_player.mass_bathroom_vpe_speaker
   mode: restart
+- id: vibe_arc_phase_controller
+  alias: Vibe Arc - Phase Controller
+  description: The brain of the Vibe Arc. Evaluates guest count, time of night, and
+    noise levels to determine which party phase the house should be in. Uses mode:restart
+    for natural hysteresis — if conditions change rapidly, the 3-minute delay restarts.
+  triggers:
+  - trigger: state
+    entity_id: input_boolean.vibe_arc_enabled
+    to: 'on'
+    id: enabled
+  - trigger: state
+    entity_id: sensor.total_amount_people_home
+    id: people_change
+  - trigger: time
+    at: 01:00:00
+    id: time_1am
+  - trigger: time
+    at: 02:00:00
+    id: time_2am
+  - trigger: time
+    at: 03:00:00
+    id: time_3am
+  - trigger: numeric_state
+    entity_id:
+    - sensor.patio_camera_sound_level
+    above: -40
+    for:
+      minutes: 2
+    id: noise_high
+  - trigger: state
+    entity_id: binary_sensor.patio_camera_crowd_sound
+    to: 'on'
+    for:
+      minutes: 1
+    id: crowd
+  - trigger: state
+    entity_id: binary_sensor.patio_camera_yell_sound
+    to: 'on'
+    for:
+      minutes: 1
+    id: yell
+  conditions:
+  - condition: state
+    entity_id: input_boolean.vibe_arc_enabled
+    state: 'on'
+  - condition: state
+    entity_id: input_boolean.vibe_arc_paused
+    state: 'off'
+  actions:
+  - if:
+    - condition: trigger
+      id:
+      - people_change
+      - noise_high
+      - crowd
+      - yell
+    then:
+    - delay:
+        minutes: 3
+  - variables:
+      guests: '{{ states(''sensor.total_amount_people_home'') | int(0) }}'
+      hour: '{{ now().hour }}'
+      is_late: '{{ hour >= 1 and hour < 6 }}'
+      is_very_late: '{{ hour >= 2 and hour < 6 }}'
+      is_noisy: '{{ states(''sensor.patio_camera_sound_level'') | float(-100) > -30
+        or is_state(''binary_sensor.patio_camera_crowd_sound'', ''on'') or is_state(''binary_sensor.patio_camera_yell_sound'',
+        ''on'') }}'
+      current_phase: '{{ states(''input_select.vibe_arc_phase'') }}'
+  - choose:
+    - conditions:
+      - condition: template
+        value_template: '{{ guests <= 2 and is_late }}'
+      sequence:
+      - condition: '{{ current_phase != ''After Party'' }}'
+      - action: input_select.select_option
+        target:
+          entity_id: input_select.vibe_arc_phase
+        data:
+          option: After Party
+    - conditions:
+      - condition: template
+        value_template: '{{ guests <= 4 and guests > 2 and is_very_late }}'
+      sequence:
+      - condition: '{{ current_phase != ''Wind Down'' }}'
+      - action: input_select.select_option
+        target:
+          entity_id: input_select.vibe_arc_phase
+        data:
+          option: Wind Down
+    - conditions:
+      - condition: template
+        value_template: '{{ guests >= 9 }}'
+      sequence:
+      - condition: '{{ current_phase != ''Peak Party'' }}'
+      - action: input_select.select_option
+        target:
+          entity_id: input_select.vibe_arc_phase
+        data:
+          option: Peak Party
+    - conditions:
+      - condition: template
+        value_template: '{{ guests >= 5 and is_noisy }}'
+      sequence:
+      - condition: '{{ current_phase != ''Peak Party'' }}'
+      - action: input_select.select_option
+        target:
+          entity_id: input_select.vibe_arc_phase
+        data:
+          option: Peak Party
+    - conditions:
+      - condition: template
+        value_template: '{{ guests >= 5 and guests <= 8 and is_late }}'
+      sequence:
+      - condition: '{{ current_phase != ''Late Night'' }}'
+      - action: input_select.select_option
+        target:
+          entity_id: input_select.vibe_arc_phase
+        data:
+          option: Late Night
+    - conditions:
+      - condition: template
+        value_template: '{{ guests >= 5 and guests <= 8 }}'
+      sequence:
+      - condition: '{{ current_phase != ''Warming Up'' }}'
+      - action: input_select.select_option
+        target:
+          entity_id: input_select.vibe_arc_phase
+        data:
+          option: Warming Up
+    default:
+    - condition: '{{ current_phase != ''Gathering'' and guests > 0 }}'
+    - action: input_select.select_option
+      target:
+        entity_id: input_select.vibe_arc_phase
+      data:
+        option: Gathering
+  mode: restart
+- id: vibe_arc_phase_executor
+  alias: Vibe Arc - Phase Executor
+  description: When the Vibe Arc phase changes, this automation calls the appropriate
+    phase transition script to set the ambiance.
+  triggers:
+  - trigger: state
+    entity_id: input_select.vibe_arc_phase
+  conditions:
+  - condition: state
+    entity_id: input_boolean.vibe_arc_enabled
+    state: 'on'
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: input_select.vibe_arc_phase
+      state: 'Off'
+  actions:
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: input_select.vibe_arc_phase
+        state: Gathering
+      sequence:
+      - action: script.vibe_arc_gathering
+    - conditions:
+      - condition: state
+        entity_id: input_select.vibe_arc_phase
+        state: Warming Up
+      sequence:
+      - action: script.vibe_arc_warming_up
+    - conditions:
+      - condition: state
+        entity_id: input_select.vibe_arc_phase
+        state: Peak Party
+      sequence:
+      - action: script.vibe_arc_peak_party
+    - conditions:
+      - condition: state
+        entity_id: input_select.vibe_arc_phase
+        state: Late Night
+      sequence:
+      - action: script.vibe_arc_late_night
+    - conditions:
+      - condition: state
+        entity_id: input_select.vibe_arc_phase
+        state: Wind Down
+      sequence:
+      - action: script.vibe_arc_wind_down
+    - conditions:
+      - condition: state
+        entity_id: input_select.vibe_arc_phase
+        state: After Party
+      sequence:
+      - action: script.vibe_arc_after_party
+  mode: restart
+- id: vibe_arc_override_detection
+  alias: Vibe Arc - Override Detection
+  description: Detects when Maxi manually toggles an ambiance mode (party, kink, acid)
+    while the Vibe Arc is running. Pauses the arc for 15 minutes so manual control
+    takes precedence.
+  triggers:
+  - trigger: state
+    entity_id:
+    - input_boolean.party_mode
+    - input_boolean.kink_party
+    - input_boolean.acid_time
+  conditions:
+  - condition: state
+    entity_id: input_boolean.vibe_arc_enabled
+    state: 'on'
+  - condition: state
+    entity_id: input_boolean.vibe_arc_acting
+    state: 'off'
+  actions:
+  - action: input_boolean.turn_on
+    target:
+      entity_id: input_boolean.vibe_arc_paused
+  - action: timer.start
+    target:
+      entity_id: timer.vibe_arc_override
+    data:
+      duration: 00:15:00
+  mode: single
+- id: vibe_arc_override_release
+  alias: Vibe Arc - Override Release
+  description: Resumes the Vibe Arc automatically when the 15-minute override timer
+    expires. The arc will re-evaluate conditions and transition to the appropriate
+    phase.
+  triggers:
+  - trigger: event
+    event_type: timer.finished
+    event_data:
+      entity_id: timer.vibe_arc_override
+  conditions:
+  - condition: state
+    entity_id: input_boolean.vibe_arc_enabled
+    state: 'on'
+  actions:
+  - action: input_boolean.turn_off
+    target:
+      entity_id: input_boolean.vibe_arc_paused
+  mode: single
+- id: vibe_arc_enable_disable
+  alias: Vibe Arc - Enable/Disable Handler
+  description: Handles the Vibe Arc master toggle. When disabled, resets phase to
+    Off and cleans up all internal state (paused flag, acting flag, override timer).
+  triggers:
+  - trigger: state
+    entity_id: input_boolean.vibe_arc_enabled
+    to: 'off'
+    id: disabled
+  conditions: []
+  actions:
+  - action: input_select.select_option
+    target:
+      entity_id: input_select.vibe_arc_phase
+    data:
+      option: 'Off'
+  - action: input_boolean.turn_off
+    target:
+      entity_id:
+      - input_boolean.vibe_arc_paused
+      - input_boolean.vibe_arc_acting
+  - action: timer.cancel
+    target:
+      entity_id: timer.vibe_arc_override
+  mode: single
