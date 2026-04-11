@@ -272,7 +272,7 @@ broadcast_alert_in_the_house:
             url: '{{ broadcast_url }}'
             announce_volume: 35
           target:
-            entity_id: media_player.mass_bathroom_speaker
+            entity_id: media_player.mass_bathroom_vpe_speaker
           continue_on_error: true
         - if:
           - condition: state
@@ -886,7 +886,7 @@ change_all_on_lights_to_random_pastel_colors:
   - variables:
       on_lights: '
 
-        {{ integration_entities(''group'')|  select(''search'', ''light.group_all_inside_lights'')   |
+        {{ integration_entities(''group'')|  select(''search'', ''light.group_all_lights'')   |
         expand | selectattr("attributes.rgb_color", "defined") |  selectattr("state",
         "eq", "on") | map(attribute=''entity_id'')  | list }}
 
@@ -998,6 +998,7 @@ changes_all_on_lights_to_warm_colors:
         target:
           entity_id: '{{on_lights[repeat.index - 1]}}'
         action: light.turn_on
+        continue_on_error: true
       for_each: '{{ on_lights }}'
   mode: restart
   icon: mdi:sale
@@ -2080,17 +2081,33 @@ find_phone:
   sequence:
   - action: notify.mobile_app_phone_maxi
     data:
+      message: command_volume_level
+      data:
+        media_stream: ring_stream
+        command: 100
+  - action: notify.mobile_app_phone_maxi
+    data:
+      message: command_dnd
+      data:
+        command: 'off'
+  - action: notify.mobile_app_phone_maxi
+    data:
       title: Phone Lost?
       message: Phone Found!
       data:
         ttl: 0
         priority: high
+        tag: Find
+        importance: high
         channel: alarm_stream
   alias: Find phone
   description: 'This script can be used by an LLM in order to help Maxi find his phone.
 
 
-    This makes the phone ring for him.'
+    This makes the phone ring for him.
+
+
+    You can then TELL HIM WHERE THE PHONE IS, by looking for ''  {{states(''device_tracker.espresense_phone_maxi'')}}'''
 generate_front_door_person_description:
   sequence:
   - action: llmvision.image_analyzer
@@ -2161,7 +2178,8 @@ reset_tablet_endpoint_interface:
   sequence:
   - variables:
       load_url: "{{  integration_entities('fully_kiosk')     \n        | select('search',
-        'start_url') \n        | select('search',  area )\n        | list \n        }}\n"
+        'restart_browser') \n        | select('search',  area )\n        | list \n
+        \       }}\n"
   - action: button.press
     metadata: {}
     data: {}
@@ -2539,7 +2557,7 @@ chromecast_automatic_volume_adjustment_script:
       if:
       - alias: Is the speaker room occupied?
         condition: template
-        value_template: '{{ area_id(chromecast_id | string) | string | lower not in
+        value_template: '{{ area_id(chromecast_id | first) | string | lower not in
           states(''sensor.active_motion_rooms'') | string | lower }}
 
           '
@@ -2645,15 +2663,15 @@ script_to_launch_movie_from_jellyfin_on_a_tv:
 changes_selected_light_group_to_single_warm_colors:
   sequence:
   - variables:
-      on_lights: '{{ integration_entities(''group'')|  select(''search'',
-
-        selected_group)   | expand |
-
-        selectattr("attributes.rgb_color", "defined") |  selectattr("state", "eq",
-
-        "on") | map(attribute=''entity_id'')  | list }}
-
-        '
+      on_lights: "{% set ns = namespace()  %}  \n{% set ns.entity_ids = [] %}  \n{%
+        if area %}  \n{% for a in area %}  \n{% set ns.entity_ids = [a] | map('area_entities')\n
+        \ | sum(start=[])\n  | select('search', 'group_')\n  | select('search', '_lights')\n
+        \ | reject('search', 'decorative')\n  | reject('search', 'main')\n  | list
+        + ns.entity_ids %} \n {% endfor %}\n{% else %}  {%- set lights = states.light
+        | selectattr('entity_id', 'in', \nstate_attr(selected_group, 'entity_id'))
+        \ | list -%}\n\n{%- set ns.entity_ids = lights | map(attribute='entity_id')
+        | list -%}    \n\n {% endif %}\n {{ ns.entity_ids | expand |  map(attribute='entity_id')
+        \ | list }}\n"
   - repeat:
       sequence:
       - metadata: {}
@@ -2691,10 +2709,10 @@ start_a_random_maxi_playlist:
   sequence:
   - variables:
       maxi_playlists:
-      - local maxi
-      - New Maxi Playlist
+      - ❤️ Tracks
+      - New Local Maxi Playlist
       - All favorited tracks
-      requested_playlist: '{% if requested_playlist %}
+      requested_playlist: '{% if requested_playlist is defined %}
 
         {{ requested_playlist }}
 
@@ -2705,14 +2723,19 @@ start_a_random_maxi_playlist:
         {% endif %}
 
         '
+      player_entity: '{% if player_entity %}  {{ player_entity.entity_id }} {% else
+        %} {% set player_entity =  {''entity_id'':''media_player.group_mass_home_group_speakers''}
+        %} {{ player_entity }} {% endif %}
+
+        '
   - action: media_player.shuffle_set
     metadata: {}
     data:
       shuffle: true
     target:
-      entity_id: '{{player_entity}}'
+      entity_id: '{{player_entity.entity_id}}'
   - target:
-      entity_id: '{{player_entity}}'
+      entity_id: '{{player_entity.entity_id}}'
     data:
       media:
         media_content_id: "{% if requested_playlist != 'none' %}\n  {{ requested_playlist
@@ -2727,10 +2750,10 @@ start_a_random_maxi_playlist:
       milliseconds: 0
   - if:
     - condition: template
-      value_template: '{{ states(player_entity) != ''playing'' }}'
+      value_template: '{{ states(player_entity.entity_id) != ''playing'' }}'
     then:
     - target:
-        entity_id: '{{player_entity}}'
+        entity_id: '{{player_entity.entity_id}}'
       data:
         media:
           media_content_id: New Maxi Playlist
@@ -2787,12 +2810,15 @@ change_received_lights_to_random_pastel_colors:
 changes_selected_lights_to_warm_pale_colors:
   sequence:
   - variables:
-      lights: "{% if area %} {{ [area | first]\n  | map('area_entities')\n  | sum(start=[])\n
-        \ | select('search', 'group_')\n  | select('search', '_lights')\n  | reject('search',
-        'decorative')\n  | reject('search', 'main')\n  | list }}   \n{% else %} {%-
-        set lights = states.light | selectattr('entity_id', 'in', state_attr(selected_group,
-        'entity_id'))  | list -%}\n{%- set entity_ids = lights | map(attribute='entity_id')
-        | list -%}    \n\n{{ entity_ids }} {% endif %}"
+      lights: "{% set ns = namespace()  %}   {% set ns.entity_ids = [] %}   {% if
+        area %}   {% for a in area %}   {% set ns.entity_ids = [a] | map('area_entities')\n
+        \ | sum(start=[])\n  | select('search', 'group_')\n  | select('search', '_lights')\n
+        \ | reject('search', 'decorative')\n  | reject('search', 'main')\n  | list
+        + ns.entity_ids %} \n {% endfor %}\n{% else %}  {%- set lights = states.light
+        | selectattr('entity_id', 'in',  state_attr(selected_group, 'entity_id'))
+        \ | list -%}\n{%- set ns.entity_ids = lights | map(attribute='entity_id')
+        | list -%}    \n\n {% endif %}\n {{ ns.entity_ids | expand |  map(attribute='entity_id')
+        \ | list }}"
   - repeat:
       sequence:
       - metadata: {}
@@ -3062,19 +3088,23 @@ restart_all_network_equipment:
     server, salon, workshop, library, TV mini), and the UCG Ultra gateway.
 launch_party_mode_on_all_kiosks:
   sequence:
-  - action: fully_kiosk.load_url
-    data:
-      url: http://192.168.0.15:8095/#/party
-      device_id: 3855559a40e217d20c661fd5e6e1b452
-  - action: fully_kiosk.load_url
-    data:
-      url: http://192.168.0.15:8095/#/party
-      device_id: a94170d4bf7a596defcb763eda129822
-  - action: fully_kiosk.load_url
-    data:
-      url: http://192.168.0.15:8095/#/party
-      device_id: ea5d6e406b53af2043a0e3e21444f36e
-  alias: Launch Party Mode on All Kiosks
+  - parallel:
+    - action: fully_kiosk.load_url
+      data:
+        url: http://192.168.0.15:8095/#/party?frameless=true
+        device_id: 3855559a40e217d20c661fd5e6e1b452
+      continue_on_error: true
+    - action: fully_kiosk.load_url
+      data:
+        url: http://192.168.0.15:8095/#/party?frameless=true
+        device_id: a94170d4bf7a596defcb763eda129822
+      continue_on_error: true
+    - action: fully_kiosk.load_url
+      data:
+        url: http://192.168.0.15:8095/#/party?frameless=true
+        device_id: ea5d6e406b53af2043a0e3e21444f36e
+      continue_on_error: true
+  alias: Launch Party Mode Jukebox on All Kiosks
   description: This script loads the party interface on all configured kiosks, creating
     a unified party experience across multiple devices. It ensures all kiosks display
     the party screen simultaneously, ideal for hosting events or gatherings.
@@ -3309,3 +3339,49 @@ vibe_arc_after_party:
   - action: input_boolean.turn_off
     target:
       entity_id: input_boolean.vibe_arc_acting
+jellyfin_play_random_episode_of_a_selected_tv_show:
+  alias: 'Jellyfin: Play Random Episode'
+  description: Searches for a TV show and plays a random episode from the results.
+  fields:
+    show_name:
+      name: Show Name
+      description: The title of the TV show (e.g., The Office)
+      example: The Office
+      required: true
+      selector:
+        text:
+    target_player:
+      name: Target Player
+      description: The Jellyfin media player entity to play on.
+      example: media_player.jellyfin_living_room
+      required: true
+      selector:
+        entity:
+          domain: media_player
+  sequence:
+  - action: media_player.search_media
+    target:
+      entity_id: '{{ target_player }}'
+    data:
+      search_query: '{{ show_name }}'
+    response_variable: search_results
+  - variables:
+      episodes: '{{ search_results[target_player].result }}'
+      random_episode: '{{ episodes | random }}'
+  - if:
+    - condition: template
+      value_template: '{{ episodes | count > 0 }}'
+    then:
+    - action: media_player.play_media
+      target:
+        entity_id: '{{ target_player }}'
+      data:
+        media:
+          media_content_id: '{{ random_episode.media_content_id }}'
+          media_content_type: episode
+          metadata: {}
+    else:
+    - action: notify.persistent_notification
+      data:
+        title: Jellyfin Search Failed
+        message: No episodes found for '{{ show_name }}'.

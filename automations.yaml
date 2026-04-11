@@ -1052,9 +1052,11 @@
     the cycle is complete.
   triggers:
   - entity_id:
-    - binary_sensor.dryer_dry_completed
-    from: 'off'
-    to: 'on'
+    - sensor.dryer_current_status
+    from:
+    - running
+    to:
+    - end
     trigger: state
   conditions:
   - condition: state
@@ -1154,7 +1156,7 @@
       - sensor.plug_kitchen_washer_electric_consumption_a
       for:
         hours: 0
-        minutes: 10
+        minutes: 5
         seconds: 0
       below: 0.01
       trigger: numeric_state
@@ -1286,6 +1288,7 @@
     - media_player.group_mass_home_group_speakers
     to:
     - paused
+    - idle
     for:
       hours: 0
       minutes: 15
@@ -1303,7 +1306,7 @@
     target:
       entity_id: '{{ trigger.entity_id }}'
     action: media_player.turn_off
-    enabled: false
+    enabled: true
   mode: parallel
   max: 25
 - id: '1714321256821'
@@ -1929,6 +1932,7 @@
       entity_id: select.front_door_ptz_camera_ptz_preset
     data:
       option: Package
+    alias: Set Camera focus on the package zone
   - delay:
       hours: 0
       minutes: 0
@@ -1947,9 +1951,11 @@
       - camera.front_door_camera
       model: qwen3-vl:2b-instruct-q4_K_M
     response_variable: answer
+    alias: Perform LLM vision to analyse to see if a Package or delivery guy is present
   - if:
     - condition: template
       value_template: '{{ "YES" in answer.response_text | upper }}'
+      alias: 'Continue if a delivery man or a package is present '
     then:
     - metadata: {}
       data:
@@ -3164,7 +3170,7 @@
           - action: light.toggle
             metadata: {}
             data:
-              kelvin: 3167
+              color_temp_kelvin: 3167
               brightness_pct: 20
               transition: 2
             target:
@@ -3177,7 +3183,7 @@
           - action: light.toggle
             metadata: {}
             data:
-              kelvin: 3167
+              color_temp_kelvin: 3167
               brightness_pct: 100
               transition: 2
             target:
@@ -3645,7 +3651,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - binary_sensor.everything_presence_lite_ef3b6c_zone_1_occupancy
+    - binary_sensor.workshop_radarr_occupancy_sensor_radar_zone_2_occupancy
     to:
     - 'on'
   - trigger: state
@@ -3667,7 +3673,7 @@
     - condition: state
       state:
       - 'on'
-      entity_id: binary_sensor.everything_presence_lite_ef3b6c_zone_1_occupancy
+      entity_id: binary_sensor.workshop_radarr_occupancy_sensor_radar_zone_2_occupancy
   actions:
   - action: light.turn_on
     metadata: {}
@@ -3684,7 +3690,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - binary_sensor.everything_presence_lite_ef3b6c_zone_1_occupancy
+    - binary_sensor.workshop_radarr_occupancy_sensor_radar_zone_2_occupancy
     to:
     - 'off'
   - trigger: state
@@ -3701,7 +3707,7 @@
     - condition: and
       conditions:
       - condition: state
-        entity_id: binary_sensor.everything_presence_lite_ef3b6c_zone_1_occupancy
+        entity_id: binary_sensor.workshop_radarr_occupancy_sensor_radar_zone_2_occupancy
         state:
         - 'off'
     - condition: state
@@ -3731,9 +3737,13 @@
     - assist_satellite.bedroom_assistant_assist_satellite
     - assist_satellite.desktop_assistant_assist_satellite
     - assist_satellite.lounge_assistant_assist_satellite
+    - assist_satellite.bathroom_assistant_assist_satellite
+    - assist_satellite.patio_assistant_assist_satellite
+    - assist_satellite.server_assistant_assist_satellite
     from:
     trigger: state
-    to: listening
+    to:
+    - listening
   conditions:
   - alias: Make sure no sleeper is present
     condition: template
@@ -9910,20 +9920,22 @@
     - assist_satellite.lounge_assistant_assist_satellite
     - assist_satellite.bedroom_assistant_assist_satellite
     - assist_satellite.home_assistant_voice_09ee99_assist_satellite
+    - assist_satellite.patio_assistant_assist_satellite
+    - assist_satellite.server_assistant_assist_satellite
+    - assist_satellite.workshop_window_assistant_assist_satellite
     from:
-    to: responding
+    to:
+    - responding
   conditions: []
   actions:
   - variables:
-      mediaplayers: '{{ area_entities(area_name(trigger.entity_id)) | select(''match'',''.*assistant_media_player'')
-        | expand | selectattr(''entity_id'') | map(attribute=''entity_id'') | list
-        }}
-
-        '
+      target_device: '{{ device_id(trigger.entity_id) }}'
+      mediaplayers: "{{ device_entities(target_device) \n       | select('match',
+        'media_player\\\\.') \n       | list }}\n"
   - action: media_player.volume_set
     metadata: {}
     data:
-      volume_level: 0.9
+      volume_level: 1
     target:
       entity_id: '{{ mediaplayers}}
 
@@ -10085,96 +10097,90 @@
       controller_device: 72b74294a3a7ebd904b6ae64f2eb5260
       helper_last_controller_event: input_text.dial_salon_helper
       action_rotate_left:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.salon_chromecast''
+              %}
 
-            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
+              {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
-            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
 
-            {{ ''true''  | bool }}
+              {{ ''true''  | bool }}
 
-            {% else %}
+              {% else %}
 
-            {{ ''false'' | bool }}
+              {{ ''false'' | bool }}
 
-            {% endif %}'
-        then:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.salon_chromecast
-        else:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_salon_wiim_speaker
+              {% endif %}'
+          then:
+          - action: media_player.volume_down
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.salon_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_salon_wiim_speaker'',
+                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+            target:
+              entity_id: media_player.mass_salon_wiim_speaker
         - delay:
             hours: 0
             minutes: 0
             seconds: 0
-            milliseconds: 20
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_salon_wiim_speaker
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_salon_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 100
+            milliseconds: 150
       action_rotate_left_stop: []
       rotate_right_loop: true
       rotate_left_loop: true
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       action_rotate_right:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.salon_chromecast''
+              %}
 
-            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
+              {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
-            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
 
-            {{ ''true''  | bool }}
+              {{ ''true''  | bool }}
 
-            {% else %}
+              {% else %}
 
-            {{ ''false'' | bool }}
+              {{ ''false'' | bool }}
 
-            {% endif %}'
-        then:
-        - action: media_player.volume_up
-          target:
-            entity_id: media_player.salon_chromecast
-          data: {}
-        else:
-        - action: media_player.volume_up
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_salon_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 200
+              {% endif %}'
+          then:
+          - action: media_player.volume_up
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.salon_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_salon_wiim_speaker'',
+                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
+            target:
+              entity_id: media_player.mass_salon_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       helper_debounce_delay: 0
       action_click_triple:
       - if:
@@ -10281,77 +10287,90 @@
       controller_device: c037740c2e0b3d6a363a80d1403a9a07
       helper_last_controller_event: input_text.dial_workshop_library_helper
       action_rotate_left:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-            %}
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.workshop_chromecast''
+              %}
 
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
+              {% set speaker = ''media_player.mass_workshop_wiim_speaker'' %}
 
-            {{ ''true''  | bool }}
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
 
-            {% else %}
+              {{ ''true''  | bool }}
 
-            {{ ''false'' | bool }}
+              {% else %}
 
-            {% endif %}'
-        then:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.workshop_chromecast
-        else:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_workshop_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 201
+              {{ ''false'' | bool }}
+
+              {% endif %}'
+          then:
+          - action: media_player.volume_down
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.workshop_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
+                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+            target:
+              entity_id: media_player.mass_workshop_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       action_rotate_left_stop: []
       rotate_right_loop: true
       rotate_left_loop: true
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       action_rotate_right:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-            %}
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.workshop_chromecast''
+              %}
 
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
+              {% set speaker = ''media_player.mass_workshop_wiim_speaker'' %}
 
-            {{ ''true''  | bool }}
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
 
-            {% else %}
+              {{ ''true''  | bool }}
 
-            {{ ''false'' | bool }}
+              {% else %}
 
-            {% endif %}'
-        then:
-        - action: media_player.volume_up
-          data: {}
-          target:
-            entity_id: media_player.workshop_chromecast
-        else:
-        - action: media_player.volume_up
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_workshop_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 200
+              {{ ''false'' | bool }}
+
+              {% endif %}'
+          then:
+          - action: media_player.volume_up
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.workshop_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
+                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
+            target:
+              entity_id: media_player.mass_workshop_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       helper_debounce_delay: 0
       action_click_triple:
       - if:
@@ -10452,77 +10471,90 @@
       controller_device: 2a1d46c1ebb44f95879f61adf6e04454
       helper_last_controller_event: input_text.dial_workshop_helper
       action_rotate_left:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-            %}
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.workshop_chromecast''
+              %}
 
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
+              {% set speaker = ''media_player.mass_workshop_wiim_speaker'' %}
 
-            {{ ''true''  | bool }}
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
 
-            {% else %}
+              {{ ''true''  | bool }}
 
-            {{ ''false'' | bool }}
+              {% else %}
 
-            {% endif %}'
-        then:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.workshop_chromecast
-        else:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_workshop_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 201
+              {{ ''false'' | bool }}
+
+              {% endif %}'
+          then:
+          - action: media_player.volume_down
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.workshop_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
+                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+            target:
+              entity_id: media_player.mass_workshop_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       action_rotate_left_stop: []
       rotate_right_loop: true
       rotate_left_loop: true
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       action_rotate_right:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-            %}
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.workshop_chromecast''
+              %}
 
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
+              {% set speaker = ''media_player.mass_workshop_wiim_speaker'' %}
 
-            {{ ''true''  | bool }}
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
 
-            {% else %}
+              {{ ''true''  | bool }}
 
-            {{ ''false'' | bool }}
+              {% else %}
 
-            {% endif %}'
-        then:
-        - action: media_player.volume_up
-          data: {}
-          target:
-            entity_id: media_player.workshop_chromecast
-        else:
-        - action: media_player.volume_up
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_workshop_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 200
+              {{ ''false'' | bool }}
+
+              {% endif %}'
+          then:
+          - action: media_player.volume_up
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.workshop_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
+                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
+            target:
+              entity_id: media_player.mass_workshop_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       helper_debounce_delay: 0
       action_click_triple:
       - if:
@@ -10623,81 +10655,90 @@
       controller_device: 13115e527748ca9f6b53b4e217f5afac
       helper_last_controller_event: input_text.dial_salon_window_helper
       action_rotate_left:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.salon_chromecast''
+              %}
 
-            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
+              {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
-            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
 
-            {{ ''true''  | bool }}
+              {{ ''true''  | bool }}
 
-            {% else %}
+              {% else %}
 
-            {{ ''false'' | bool }}
+              {{ ''false'' | bool }}
 
-            {% endif %}'
-        then:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.salon_chromecast
-        else:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_salon_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 201
+              {% endif %}'
+          then:
+          - action: media_player.volume_up
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.salon_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_salon_wiim_speaker'',
+                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+            target:
+              entity_id: media_player.mass_salon_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       action_rotate_left_stop: []
       rotate_right_loop: true
       rotate_left_loop: true
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       action_rotate_right:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.salon_chromecast''
+              %}
 
-            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
+              {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
-            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
 
-            {{ ''true''  | bool }}
+              {{ ''true''  | bool }}
 
-            {% else %}
+              {% else %}
 
-            {{ ''false'' | bool }}
+              {{ ''false'' | bool }}
 
-            {% endif %}'
-        then:
-        - action: media_player.volume_up
-          target:
-            entity_id: media_player.salon_chromecast
-          data: {}
-        else:
-        - action: media_player.volume_up
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_salon_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 200
+              {% endif %}'
+          then:
+          - action: media_player.volume_up
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.salon_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_salon_wiim_speaker'',
+                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
+            target:
+              entity_id: media_player.mass_salon_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       helper_debounce_delay: 0
       action_click_triple:
       - if:
@@ -10804,90 +10845,90 @@
       controller_device: 1b66acbe5c380073052ae7bc44586e5a
       helper_last_controller_event: input_text.dial_kitchen_helper
       action_rotate_left:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-            %}
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
+              %}
 
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused''))
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') and not
-            is_state_attr(chromecast,''app_id'', ''A078F6B0'') %}
+              {% set speaker = ''media_player.mass_kitchen_wiim_speaker'' %}
 
-            {{ ''true''  | bool }}
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
 
-            {% else %}
+              {{ ''true''  | bool }}
 
-            {{ ''false'' | bool }}
+              {% else %}
 
-            {% endif %}
+              {{ ''false'' | bool }}
 
-
-            '
-          enabled: true
-        then:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.universal_kitchen_chromecast
-          enabled: true
-        else:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_kitchen_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 201
+              {% endif %}'
+          then:
+          - action: media_player.volume_down
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.universal_kitchen_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_kitchen_wiim_speaker'',
+                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+            target:
+              entity_id: media_player.mass_kitchen_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       action_rotate_left_stop: []
       rotate_right_loop: true
       rotate_left_loop: true
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       action_rotate_right:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-            %}
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
+              %}
 
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused''))
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') and not
-            is_state_attr(chromecast,''app_id'', ''A078F6B0'') %}
+              {% set speaker = ''media_player.mass_kitchen_wiim_speaker'' %}
 
-            {{ ''true''  | bool }}
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
 
-            {% else %}
+              {{ ''true''  | bool }}
 
-            {{ ''false'' | bool }}
+              {% else %}
 
-            {% endif %}
+              {{ ''false'' | bool }}
 
-
-            '
-          enabled: true
-        then:
-        - action: media_player.volume_up
-          data: {}
-          target:
-            entity_id: media_player.universal_kitchen_chromecast
-          enabled: true
-        else:
-        - action: media_player.volume_up
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_kitchen_wiim_speaker
-        enabled: true
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 200
+              {% endif %}'
+          then:
+          - action: media_player.volume_up
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.universal_kitchen_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_kitchen_wiim_speaker'',
+                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
+            target:
+              entity_id: media_player.mass_kitchen_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       helper_debounce_delay: 0
       action_click_triple:
       - if:
@@ -11006,32 +11047,36 @@
       controller_device: 9bcfd547e63075f4af73f86b67ccaacb
       helper_last_controller_event: input_text.dial_lounge_helper
       action_rotate_left:
-      - action: media_player.volume_down
-        metadata: {}
-        data: {}
-        target:
-          entity_id: media_player.mass_lounge_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 201
+      - sequence:
+        - action: media_player.volume_set
+          data:
+            volume_level: '{{ [(state_attr(''media_player.mass_lounge_wiim_speaker'',
+              ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+          target:
+            entity_id: media_player.mass_lounge_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       action_rotate_left_stop: []
       rotate_right_loop: true
       rotate_left_loop: true
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       action_rotate_right:
-      - action: media_player.volume_up
-        metadata: {}
-        data: {}
-        target:
-          entity_id: media_player.mass_lounge_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 200
+      - sequence:
+        - action: media_player.volume_set
+          data:
+            volume_level: '{{ [(state_attr(''media_player.mass_lounge_wiim_speaker'',
+              ''volume_level'') | float(0)) + 0.06, 0] | max }}'
+          target:
+            entity_id: media_player.mass_lounge_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       helper_debounce_delay: 0
       action_click_triple:
       - action: media_player.turn_off
@@ -11631,33 +11676,37 @@
       integration: Zigbee2MQTT
       controller_device: 9f0122be5a3a1abef7162715c8a4214a
       helper_last_controller_event: input_text.dial_lounge_desk_helper
-      action_rotate_left:
-      - action: media_player.volume_down
-        metadata: {}
-        data: {}
-        target:
-          entity_id: media_player.mass_lounge_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 201
-      action_rotate_left_stop: []
+      action_rotate_left: []
+      action_rotate_left_stop:
+      - sequence:
+        - action: media_player.volume_set
+          data:
+            volume_level: '{{ [(state_attr(''media_player.mass_lounge_wiim_speaker'',
+              ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+          target:
+            entity_id: media_player.mass_lounge_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       rotate_right_loop: true
       rotate_left_loop: true
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       action_rotate_right:
-      - action: media_player.volume_up
-        metadata: {}
-        data: {}
-        target:
-          entity_id: media_player.mass_lounge_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 200
+      - sequence:
+        - action: media_player.volume_set
+          data:
+            volume_level: '{{ [(state_attr(''media_player.mass_lounge_wiim_speaker'',
+              ''volume_level'') | float(0)) + 0.06, 0] | max }}'
+          target:
+            entity_id: media_player.mass_lounge_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       helper_debounce_delay: 0
       action_click_triple:
       - action: media_player.turn_off
@@ -11870,17 +11919,20 @@
   - alias: When bathroom radarr shower occupancy clears for 5 seconds
     trigger: state
     entity_id:
-    - binary_sensor.everything_presence_lite_e01590_zone_2_occupancy
-    from: 'on'
-    to: 'off'
+    - binary_sensor.bathroom_radarr_occupancy_sensor_zone_2_occupancy
+    from:
+    - 'on'
+    to:
+    - 'off'
     for:
       hours: 0
       minutes: 0
       seconds: 5
   conditions:
   - condition: state
-    entity_id: binary_sensor.everything_presence_lite_e01590_occupancy
-    state: 'on'
+    entity_id: binary_sensor.bathroom_radarr_occupancy_sensor_zone_1_occupancy
+    state:
+    - 'on'
   - condition: state
     entity_id: binary_sensor.shower_in_usage
     state: 'on'
@@ -12321,83 +12373,90 @@
       controller_device: c217fcfa7eb3f5dd20f8fe49ace44a6f
       helper_last_controller_event: input_text.dial_bedroom_helper
       action_rotate_left:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
-            %}
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
+              %}
 
-            {% set speaker = ''media_player.mass_bedroom_wiim_speaker'' %}
+              {% set speaker = ''media_player.mass_bedroom_wiim_speaker'' %}
 
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
-            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
 
-            {{ ''true''  | bool }}
+              {{ ''true''  | bool }}
 
-            {% else %}
+              {% else %}
 
-            {{ ''false'' | bool }}
+              {{ ''false'' | bool }}
 
-            {% endif %}'
-        then:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.bedroom_chromecast
-        else:
-        - action: media_player.volume_down
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_bedroom_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 201
+              {% endif %}'
+          then:
+          - action: media_player.volume_down
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.bedroom_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_bedroom_wiim_speaker'',
+                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+            target:
+              entity_id: media_player.mass_bedroom_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       action_rotate_left_stop: []
       rotate_right_loop: true
       rotate_left_loop: true
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       action_rotate_right:
-      - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
-            %}
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.universal_bedroom_chromecast''
+              %}
 
-            {% set speaker = ''media_player.mass_bedroom_wiim_speaker'' %}
+              {% set speaker = ''media_player.mass_bedroom_wiim_speaker'' %}
 
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
-            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
 
-            {{ ''true''  | bool }}
+              {{ ''true''  | bool }}
 
-            {% else %}
+              {% else %}
 
-            {{ ''false'' | bool }}
+              {{ ''false'' | bool }}
 
-            {% endif %}'
-        then:
-        - action: media_player.volume_up
-          target:
-            entity_id: media_player.bedroom_chromecast
-          data: {}
-        else:
-        - action: media_player.volume_up
-          metadata: {}
-          data: {}
-          target:
-            entity_id: media_player.mass_bedroom_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 200
+              {% endif %}'
+          then:
+          - action: media_player.volume_up
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.universal_bedroom_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_bedroom_wiim_speaker'',
+                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
+            target:
+              entity_id: media_player.mass_bedroom_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       helper_debounce_delay: 0
       action_click_triple:
       - if:
@@ -15542,32 +15601,36 @@
       controller_device: 83c6d6773874bd6654223d9e400b0b86
       helper_last_controller_event: input_text.dial_hallway_helper
       action_rotate_left:
-      - action: media_player.volume_down
-        metadata: {}
-        data: {}
-        target:
-          entity_id: media_player.mass_hallway_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 201
+      - sequence:
+        - action: media_player.volume_set
+          data:
+            volume_level: '{{ [(state_attr(''media_player.mass_hallway_wiim_speaker'',
+              ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+          target:
+            entity_id: media_player.mass_hallway_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       action_rotate_left_stop: []
       rotate_right_loop: true
       rotate_left_loop: true
       rotate_left_max_loop_repeats: 60
       rotate_right_max_loop_repeats: 60
       action_rotate_right:
-      - action: media_player.volume_up
-        metadata: {}
-        data: {}
-        target:
-          entity_id: media_player.mass_hallway_wiim_speaker
-      - delay:
-          hours: 0
-          minutes: 0
-          seconds: 0
-          milliseconds: 200
+      - sequence:
+        - action: media_player.volume_set
+          data:
+            volume_level: '{{ [(state_attr(''media_player.mass_hallway_wiim_speaker'',
+              ''volume_level'') | float(0)) + 0.06, 0] | max }}'
+          target:
+            entity_id: media_player.mass_hallway_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
       helper_debounce_delay: 0
       action_click_triple:
       - action: media_player.turn_off
@@ -15738,7 +15801,7 @@
     then:
     - variables:
         playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-          \ | sum(start=[])\n  | select('search', 'speakers')\n  | select('is_state',
+          \ | sum(start=[])\n  | select('search', 'speaker')\n  | select('is_state',
           'playing')\n  | unique\n  | list }}\n"
         unmuted_player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
           \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
@@ -15747,7 +15810,7 @@
           false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
     - if:
       - condition: template
-        value_template: '{{ unmuted_player_chromecasts != [] }}'
+        value_template: '{{ unmuted_player_chromecasts != []   }}'
       then:
       - action: media_player.volume_mute
         data:
@@ -15762,7 +15825,7 @@
     then:
     - variables:
         unmuted_playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-          \ | sum(start=[])\n  | select('search', 'speakers')\n  | select('is_state',
+          \ | sum(start=[])\n  | select('search', 'speaker')\n  | select('is_state',
           'playing')\n  | expand\n  | selectattr('attributes.is_volume_muted', 'eq',
           false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
         player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
@@ -15784,9 +15847,10 @@
     - alias: Time-gate for cc_to_playing / cc_to_idle (60 s)
       condition: template
       value_template: "{% if trigger.id in ['cc_to_playing', 'cc_to_idle'] %}\n  {{
-        (now() - trigger.from_state.last_changed) > timedelta(seconds=60) }}\n{% elif
-        trigger.id == 'spk_from_playing' %}\n  {{ trigger.to_state.state != 'unavailable'
+        (now() - trigger.from_state.last_changed) > timedelta(seconds=600) }}\n{%
+        elif trigger.id == 'spk_from_playing' %}\n  {{ trigger.to_state.state != 'unavailable'
         }}\n{% else %}\n  true\n{% endif %}\n"
+      enabled: true
     - alias: No sleeper present
       condition: template
       value_template: "{{ area_id(trigger.entity_id)\n   | replace('_top','') | replace('_down','')\n
@@ -15798,8 +15862,8 @@
     then:
     - variables:
         unmuted_playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-          \ | sum(start=[])\n  | select('search', 'speakers')\n  | select('search',
-          'universal')\n  | select('is_state', 'playing')\n  | expand\n  | selectattr('attributes.is_volume_muted',
+          \ | sum(start=[])\n  | select('search', 'speaker')\n  | select('search',
+          'mass')\n  | select('is_state', 'playing')\n  | expand\n  | selectattr('attributes.is_volume_muted',
           'eq', false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
         playing_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
           \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
@@ -15837,8 +15901,8 @@
     then:
     - variables:
         playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-          \ | sum(start=[])\n  | select('search', 'speakers')\n  | select('search',
-          'universal')\n  | select('is_state', 'playing')\n  | unique\n  | list }}\n"
+          \ | sum(start=[])\n  | select('search', 'speaker')\n  | select('search',
+          'mass')\n  | select('is_state', 'playing')\n  | unique\n  | list }}\n"
         unmuted_player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
           \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
           'universal')\n  | select('is_state', 'playing')\n  | expand\n  | selectattr('attributes.is_volume_muted',
@@ -16081,7 +16145,8 @@
     to: 'on'
     id: enabled
   - trigger: state
-    entity_id: sensor.total_amount_people_home
+    entity_id:
+    - sensor.total_of_persons_in_the_appartment
     id: people_change
   - trigger: time
     at: 01:00:00
@@ -16130,7 +16195,7 @@
     - delay:
         minutes: 3
   - variables:
-      guests: '{{ states(''sensor.total_amount_people_home'') | int(0) }}'
+      guests: '{{ states(''sensor.total_of_persons_in_the_appartment'') | int(0) }}'
       hour: '{{ now().hour }}'
       is_late: '{{ hour >= 1 and hour < 6 }}'
       is_very_late: '{{ hour >= 2 and hour < 6 }}'
@@ -16333,4 +16398,327 @@
   - action: timer.cancel
     target:
       entity_id: timer.vibe_arc_override
+  mode: single
+- id: '1711648800000'
+  alias: Control workshop secondary tablet screen to avoid full discharge
+  description: Manages workshop secondary tablet screen to preserve battery life by
+    reducing brightness to 25% below 50% charge and turning the screen off below 15%
+    charge.
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - sensor.workshop_secondary_tablet_battery
+    above: 50
+    below: 55
+  - trigger: numeric_state
+    entity_id:
+    - sensor.workshop_secondary_tablet_battery
+    below: 15
+  - trigger: numeric_state
+    entity_id:
+    - sensor.workshop_secondary_tablet_battery
+    above: 70
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.workshop_secondary_tablet_battery
+        below: 15
+      - condition: state
+        entity_id: switch.workshop_secondary_tablet_screen
+        state: 'on'
+      sequence:
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: '1'
+        target:
+          entity_id: number.workshop_secondary_tablet_screen_brightness
+      - action: switch.turn_off
+        metadata: {}
+        data: {}
+        target:
+          entity_id: switch.workshop_secondary_tablet_screen
+        enabled: true
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.workshop_secondary_tablet_battery
+        below: 50
+      - condition: state
+        entity_id: switch.workshop_secondary_tablet_screen
+        state: 'on'
+      sequence:
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: '25'
+        target:
+          entity_id: number.workshop_secondary_tablet_screen_brightness
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.workshop_secondary_tablet_battery
+        above: 70
+      - condition: state
+        entity_id: switch.workshop_secondary_tablet_screen
+        state: 'on'
+      sequence:
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: '99'
+        target:
+          entity_id: number.workshop_secondary_tablet_screen_brightness
+  mode: single
+- id: '1774748550086'
+  alias: Workshop Tablet dial automation
+  description: Handles an IKEA SYMFONISK dial in the workshop, routing volume, play/pause,
+    next track, and stop commands to either the Chromecast or the WiiM speaker depending
+    on which is actively playing.
+  use_blueprint:
+    path: EPMatt/ikea_e1744.yaml
+    input:
+      integration: Zigbee2MQTT
+      controller_device: 9d9748cd89c9e4b3a75fe13d8b2d461a
+      helper_last_controller_event: input_text.dial_workshop_tablet_helper
+      action_rotate_left:
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.workshop_chromecast''
+              %}
+
+              {% set speaker = ''media_player.mass_workshop_wiim_speaker'' %}
+
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
+
+              {{ ''true''  | bool }}
+
+              {% else %}
+
+              {{ ''false'' | bool }}
+
+              {% endif %}'
+          then:
+          - action: media_player.volume_down
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.workshop_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
+                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+            target:
+              entity_id: media_player.mass_workshop_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
+      action_rotate_left_stop: []
+      rotate_right_loop: true
+      rotate_left_loop: true
+      rotate_left_max_loop_repeats: 60
+      rotate_right_max_loop_repeats: 60
+      action_rotate_right:
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.universal_workshop_chromecast''
+              %}
+
+              {% set speaker = ''media_player.mass_workshop_wiim_speaker'' %}
+
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
+
+              {{ ''true''  | bool }}
+
+              {% else %}
+
+              {{ ''false'' | bool }}
+
+              {% endif %}'
+          then:
+          - action: media_player.volume_up
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.universal_workshop_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
+                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
+            target:
+              entity_id: media_player.mass_workshop_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
+      helper_debounce_delay: 0
+      action_click_triple:
+      - if:
+        - alias: 'If a chromecast is present '
+          condition: template
+          value_template: '{% set chromecast = ''media_player.workshop_chromecast''
+            %}
+
+            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
+
+            {{ ''true''  | bool }}
+
+            {% else %}
+
+            {{ ''false'' | bool }}
+
+            {% endif %}'
+        then:
+        - action: media_player.turn_off
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.workshop_chromecast
+        else:
+        - action: media_player.turn_off
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.mass_workshop_wiim_speaker
+      action_click_double:
+      - if:
+        - alias: 'If a chromecast is present '
+          condition: template
+          value_template: '{% set chromecast = ''media_player.workshop_chromecast''
+            %}
+
+            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
+
+            {{ ''true''  | bool }}
+
+            {% else %}
+
+            {{ ''false'' | bool }}
+
+            {% endif %}'
+        then:
+        - action: media_player.media_next_track
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.workshop_chromecast
+        else:
+        - action: media_player.media_next_track
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.mass_workshop_wiim_speaker
+      action_click_short:
+      - if:
+        - alias: 'If a chromecast is present '
+          condition: template
+          value_template: '{% set chromecast = ''media_player.workshop_chromecast''
+            %}
+
+            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
+
+            {{ ''true''  | bool }}
+
+            {% else %}
+
+            {{ ''false'' | bool }}
+
+            {% endif %}'
+        then:
+        - action: media_player.media_play_pause
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.workshop_chromecast
+        else:
+        - action: media_player.media_play_pause
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.mass_workshop_wiim_speaker
+- id: '1775146719220'
+  alias: Unmute patio assistant when people are present
+  description: Unmute the patio assistant microphone when motion or person detection
+    is confirmed in the patio
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - sensor.patio_camera_person_count
+    above: 0
+  - trigger: state
+    entity_id:
+    - binary_sensor.group_patio_motion_occupancy
+    from:
+    - 'on'
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.group_patio_motion_occupancy
+    state:
+    - 'on'
+  - condition: numeric_state
+    entity_id: sensor.patio_camera_person_count
+    above: 0
+  actions:
+  - action: switch.turn_off
+    metadata: {}
+    target:
+      entity_id: switch.patio_assistant_mute
+    data: {}
+  mode: single
+- id: '1775146849950'
+  alias: mute patio assistant when people are absent
+  description: mute the patio assistant microphone when motion or person detection
+    is absent in the patio
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.group_patio_motion_occupancy
+    from:
+    - 'on'
+    - 'off'
+  - trigger: state
+    entity_id:
+    - sensor.patio_camera_person_count
+    to: '0'
+  - trigger: state
+    entity_id:
+    - switch.patio_assistant_mute
+    from:
+    - 'on'
+    - 'off'
+  conditions:
+  - condition: and
+    conditions:
+    - condition: state
+      entity_id: binary_sensor.group_patio_motion_occupancy
+      state:
+      - 'off'
+    - condition: state
+      entity_id: sensor.patio_camera_person_count
+      state:
+      - '0'
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    target:
+      entity_id: switch.patio_assistant_mute
+    data: {}
   mode: single

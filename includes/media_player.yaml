@@ -1079,68 +1079,78 @@
       state: media_player.workshop_chromecast
 
 
-  ##########################  following speaker ########################## 
+  ##########################  following speaker ##########################
 
-#  - platform: universal
-#    name: Universal following media
-#    unique_id: universal_following_media
-#    children:     
-#      - media_player.universal_home_speakers
-#      - media_player.universal_salon_speakers
-#      - media_player.universal_bedroom_speakers
-#      - media_player.universal_workshop_speakers
-#      - media_player.universal_kitchen_speakers
-#      - media_player.universal_bathroom_speakers
-#      - media_player.universal_lounge_speakers
-#      - media_player.universal_hallway_speakers
-#      - media_player.universal_bedroom_chromecast
-#      - media_player.universal_salon_chromecast
-#      - media_player.universal_hotbox_down_chromecast
-#      - media_player.universal_hotbox_top_chromecast
-#      - media_player.universal_patio_chromecast
-#      - media_player.universal_workshop_chromecast
-#    active_child_template: >-
-#      {% set location = states('sensor.maxi_location_by_petro') %}
-#      {% set candidates = states.media_player
-#        | selectattr('entity_id', 'contains', location)
-#        | selectattr('entity_id', 'contains', 'universal')
-#        | rejectattr('state', 'in', ['unavailable', 'off'])
-#        | map(attribute='entity_id') | list %}
-#      {% set chromecasts = candidates
-#        | select('contains', 'chromecast')
-#        | select('is_state_attr', 'is_volume_muted', false)
-#        | rejectattr_state('in', ['unknown', 'unavailable']) if false else
-#        candidates | select('search', 'chromecast')
-#        | reject('is_state', 'unknown')
-#        | reject('is_state', 'unavailable')
-#        | select('is_state_attr', 'is_volume_muted', false)
-#        | list %}
-#      {% set speakers = candidates
-#        | select('search', 'speaker')
-#        | reject('is_state', 'unknown')
-#        | reject('is_state', 'unavailable')
-#        | list %}
-#      {% set active = chromecasts if chromecasts | length > 0 else speakers %}
-#      {{ active[0] if active | length > 0 else 'media_player.group_mass_home_group_speakers' }}
-#    state_template: >-
-#      {% set location = states('sensor.maxi_location_by_petro') %}
-#      {% set candidates = states.media_player
-#        | selectattr('entity_id', 'contains', location)
-#        | selectattr('entity_id', 'contains', 'universal')
-#        | rejectattr('state', 'in', ['unavailable', 'off'])
-#        | map(attribute='entity_id') | list %}
-#      {% set chromecasts = candidates
-#        | select('search', 'chromecast')
-#        | reject('is_state', 'unknown')
-#        | reject('is_state', 'unavailable')
-#        | select('is_state_attr', 'is_volume_muted', false)
-#        | list %}
-#      {% set speakers = candidates
-#        | select('search', 'speaker')
-#        | reject('is_state', 'unknown')
-#        | reject('is_state', 'unavailable')
-#        | list %}
-#      {% set active = chromecasts if chromecasts | length > 0 else speakers %}
-#      {{ states(active[0]) if active | length > 0 else 'off' }}
-#    attributes:
-#      position: ENTITY_ID|ATTRIBUTE
+  - platform: universal
+    name: Universal following media
+    unique_id: universal_following_media
+    children:
+      - media_player.group_mass_home_group_speakers
+      - media_player.mass_bedroom_wiim_speaker
+      - media_player.mass_bathroom_vpe_speaker
+      - media_player.mass_workshop_wiim_speaker
+      - media_player.mass_kitchen_wiim_speaker
+      - media_player.mass_lounge_wiim_speaker
+      - media_player.mass_hallway_wiim_speaker
+      - media_player.mass_salon_wiim_speaker
+      - media_player.mass_closet_wiim_speaker
+      - media_player.universal_bedroom_chromecast
+      - media_player.universal_salon_chromecast
+      - media_player.universal_kitchen_chromecast
+      - media_player.universal_hotbox_top_chromecast
+      - media_player.universal_patio_chromecast
+      - media_player.universal_workshop_chromecast
+    active_child_template: >-
+      {% set location = states('sensor.maxi_location_by_petro') %}
+      {% set room_children = {
+        'bedroom': ['media_player.universal_bedroom_chromecast', 'media_player.mass_bedroom_wiim_speaker'],
+        'workshop': ['media_player.universal_workshop_chromecast', 'media_player.mass_workshop_wiim_speaker'],
+        'kitchen': ['media_player.universal_kitchen_chromecast', 'media_player.mass_kitchen_wiim_speaker'],
+        'lounge': ['media_player.mass_lounge_wiim_speaker'],
+        'hallway': ['media_player.mass_hallway_wiim_speaker'],
+        'salon': ['media_player.universal_salon_chromecast', 'media_player.mass_salon_wiim_speaker'],
+        'closet': ['media_player.mass_closet_wiim_speaker'],
+        'patio': ['media_player.universal_patio_chromecast'],
+        'hotbox_top': ['media_player.universal_hotbox_top_chromecast'],
+        'bathroom': ['media_player.mass_bathroom_vpe_speaker']
+      } %}
+      {% set candidates = room_children.get(location, []) %}
+      {% set ns = namespace(active='') %}
+      {% for entity_id in candidates if not ns.active %}
+        {% if states(entity_id) == 'playing' and state_attr(entity_id, 'is_volume_muted') != true %}
+          {% set ns.active = entity_id %}
+        {% endif %}
+      {% endfor %}
+      {% for entity_id in candidates if not ns.active %}
+        {% if states(entity_id) not in ['unknown', 'unavailable', 'off', 'idle'] and state_attr(entity_id, 'is_volume_muted') != true %}
+          {% set ns.active = entity_id %}
+        {% endif %}
+      {% endfor %}
+      {{ ns.active if ns.active else 'media_player.group_mass_home_group_speakers' }}
+    state_template: >-
+      {% set location = states('sensor.maxi_location_by_petro') %}
+      {% set room_children = {
+        'bedroom': ['media_player.universal_bedroom_chromecast', 'media_player.mass_bedroom_wiim_speaker'],
+        'workshop': ['media_player.universal_workshop_chromecast', 'media_player.mass_workshop_wiim_speaker'],
+        'kitchen': ['media_player.universal_kitchen_chromecast', 'media_player.mass_kitchen_wiim_speaker'],
+        'lounge': ['media_player.mass_lounge_wiim_speaker'],
+        'hallway': ['media_player.mass_hallway_wiim_speaker'],
+        'salon': ['media_player.universal_salon_chromecast', 'media_player.mass_salon_wiim_speaker'],
+        'closet': ['media_player.mass_closet_wiim_speaker'],
+        'patio': ['media_player.universal_patio_chromecast'],
+        'hotbox_top': ['media_player.universal_hotbox_top_chromecast'],
+        'bathroom': ['media_player.mass_bathroom_vpe_speaker']
+      } %}
+      {% set candidates = room_children.get(location, []) %}
+      {% set ns = namespace(active='') %}
+      {% for entity_id in candidates if not ns.active %}
+        {% if states(entity_id) == 'playing' and state_attr(entity_id, 'is_volume_muted') != true %}
+          {% set ns.active = entity_id %}
+        {% endif %}
+      {% endfor %}
+      {% for entity_id in candidates if not ns.active %}
+        {% if states(entity_id) not in ['unknown', 'unavailable', 'off', 'idle'] and state_attr(entity_id, 'is_volume_muted') != true %}
+          {% set ns.active = entity_id %}
+        {% endif %}
+      {% endfor %}
+      {{ states(ns.active if ns.active else 'media_player.group_mass_home_group_speakers') }}
