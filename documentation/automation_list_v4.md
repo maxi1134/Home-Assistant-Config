@@ -5,7 +5,7 @@
 <a href="/documentation/software.md"><img src="https://img.shields.io/badge/Software%20Usage-cyan" alt="Some deets on the softs"></a> <a href="/documentation/wifi.md"><img src="https://img.shields.io/badge/Networking-violet" alt="Some deets on the softs"></a> <br></p></p>
 
 <a id="top"></a>
-# Grouped automation analysis
+# Grouped automation listing
 
 Total automations: 313
 
