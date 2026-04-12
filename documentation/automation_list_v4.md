@@ -9,8 +9,6 @@
 
 Total automations: 313
 
-These categories are based on the actual trigger/condition/action logic of each automation, not the YAML `description` field.
-
 ## Jump menu
 
 - [Security & Access (85)](#security-access-85)
