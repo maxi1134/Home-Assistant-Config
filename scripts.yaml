@@ -453,7 +453,7 @@ broadcast_alert_in_the_house:
       milliseconds: 0
   mode: queued
   icon: mdi:speaker-message
-  max: 3
+  max: 10
 change_received_lights_to_random_colors:
   alias: Change received lights or area to dissimilar random color
   description: Changes each light to a random color, ensuring the new hue is at least
@@ -1057,11 +1057,28 @@ in_home_defense_script:
     enabled: true
     action: switch.turn_on
     continue_on_error: true
+  - action: media_player.volume_set
+    metadata: {}
+    data:
+      volume_level: 1
+    target:
+      entity_id:
+      - media_player.mass_bedroom_wiim_speaker
+      - media_player.mass_closet_wiim_speaker
+      - media_player.mass_hallway_wiim_speaker
+      - media_player.mass_kitchen_wiim_speaker
+      - media_player.mass_workshop_wiim_speaker
+      - media_player.mass_salon_wiim_speaker
+      - media_player.mass_lounge_wiim_speaker
+      - media_player.mass_bathroom_vpe_speaker
+      - media_player.group_mass_home_group_speakers
+    continue_on_error: true
   - data:
       media:
-        media_content_id: http://192.168.0.15:8123/local/civil-defense-siren.wav
+        media_content_id: media-source://media_source/local/burglar_alarm.mp3
         media_content_type: music
         metadata: {}
+      enqueue: replace
     action: media_player.play_media
     target:
       entity_id:
@@ -1073,6 +1090,7 @@ in_home_defense_script:
       - media_player.mass_salon_wiim_speaker
       - media_player.mass_lounge_wiim_speaker
       - media_player.mass_bathroom_vpe_speaker
+      - media_player.group_mass_home_group_speakers
     continue_on_error: true
   - action: media_player.volume_set
     metadata: {}
@@ -1158,6 +1176,7 @@ in_home_defense_script:
           - media_player.mass_salon_wiim_speaker
           - media_player.mass_lounge_wiim_speaker
           - media_player.mass_bathroom_vpe_speaker
+          - media_player.group_mass_home_group_speakers
         continue_on_error: true
       - metadata: {}
         action: input_boolean.turn_on
@@ -1260,11 +1279,13 @@ inside_only_home_defense_script:
     data: {}
     target:
       entity_id: media_player.group_mass_home_group_speakers
+    continue_on_error: true
   - action: media_player.turn_off
     metadata: {}
     data: {}
     target:
       entity_id: media_player.group_mass_home_group_speakers
+    continue_on_error: true
   - action: media_player.volume_set
     metadata: {}
     data:
@@ -1278,10 +1299,15 @@ inside_only_home_defense_script:
       - media_player.mass_lounge_wiim_speaker
       - media_player.mass_salon_wiim_speaker
       - media_player.mass_hallway_wiim_speaker
+    continue_on_error: true
   - action: media_player.play_media
     metadata: {}
     target:
-      entity_id: media_player.group_mass_home_group_speakers
+      entity_id:
+      - media_player.group_mass_home_group_speakers
+      - media_player.mass_bathroom_vpe_speaker
+      - media_player.mass_bedroom_wiim_speaker
+      - media_player.mass_closet_wiim_speaker
     data:
       media:
         media_content_id: media-source://media_source/local/burglar_alarm.mp3
@@ -1298,6 +1324,7 @@ inside_only_home_defense_script:
           - media_content_type: ''
             media_content_id: media-source://media_source/local/.
           browse_entity_id: media_player.group_mass_home_group_speakers
+    continue_on_error: true
   - action: media_player.volume_set
     metadata: {}
     data:
@@ -1311,6 +1338,9 @@ inside_only_home_defense_script:
       - media_player.mass_lounge_wiim_speaker
       - media_player.mass_salon_wiim_speaker
       - media_player.mass_hallway_wiim_speaker
+      - media_player.mass_bathroom_vpe_speaker
+      - media_player.mass_closet_wiim_speaker
+    continue_on_error: true
   - wait_for_trigger:
     - entity_id:
       - binary_sensor.group_security_occupancy_sensors
@@ -1329,16 +1359,23 @@ inside_only_home_defense_script:
       seconds: 0
       milliseconds: 0
     continue_on_timeout: false
+    continue_on_error: true
   - action: media_player.media_stop
     metadata: {}
     data: {}
     target:
-      entity_id: media_player.group_mass_home_group_speakers
+      entity_id:
+      - media_player.group_mass_home_group_speakers
+      - media_player.mass_bathroom_vpe_speaker
+      - media_player.mass_bedroom_wiim_speaker
+      - media_player.mass_closet_wiim_speaker
+    continue_on_error: true
   - action: input_boolean.turn_on
     metadata: {}
     data: {}
     target:
       entity_id: input_boolean.following_music
+    continue_on_error: true
   mode: restart
   description: Activates an indoor-only defense response by stopping music playback,
     clearing playlists, and playing a burglar alarm sound at maximum volume on all
@@ -1508,9 +1545,9 @@ equalize_home_group_volume:
 speaker_automatic_volume_adjustment_script:
   sequence:
   - variables:
-      speaker_id: '{{ received_speaker }}
-
-        '
+      speaker_id: "{% if received_speaker is iterable and received_speaker is not
+        string %}\n  {{ received_speaker[0] }}\n{% else %}\n  {{ received_speaker
+        }}\n{% endif %}\n"
   - condition: template
     value_template: '{{ speaker_id != ''[]'' }}'
   - condition: template
@@ -1860,6 +1897,11 @@ set_whole_house_tonsexy_ambiance:
 set_whole_house_to_party_ambiance:
   sequence:
   - parallel:
+    - action: cover.close_cover
+      metadata: {}
+      target:
+        entity_id: cover.group_all_blinds
+      data: {}
     - metadata: {}
       data:
         requested_playlist: Colorful Backgrounds Visuals
@@ -2112,16 +2154,20 @@ generate_front_door_person_description:
   sequence:
   - action: llmvision.image_analyzer
     data:
+      store_in_timeline: false
+      use_memory: false
       include_filename: false
-      target_width: 1024
-      max_tokens: 100
-      temperature: 0.1
-      model: qwen3-vl:2b-instruct-q4_K_M
+      target_width: 1280
+      max_tokens: 3000
       generate_title: false
       expose_images: false
-      provider: 01K9337G97H1HC11NBFD4HF7JQ
-      message: 'Describe in one sentence the human activities in this image, if there
-        is any. '
+      response_format: text
+      title_field: title
+      description_field: description
+      provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
+      model: Qwen3.5-4B-UD-Q4_K_XL-with-draft
+      message: Describe in one sentence the human activities in this image, if there
+        is any.
       image_entity:
       - camera.front_door_camera
     response_variable: answer
@@ -2138,10 +2184,10 @@ generate_patio_camera_description:
       target_width: 1024
       max_tokens: 100
       temperature: 0.1
-      model: qwen3-vl:2b-instruct-q4_K_M
+      provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
+      model: Qwen3.5-4B-UD-Q4_K_XL-with-draft
       generate_title: false
       expose_images: false
-      provider: 01K9337G97H1HC11NBFD4HF7JQ
       message: 'Describe in one sentence the human activities in this image, if there
         is any. '
       image_entity:
@@ -2160,10 +2206,10 @@ generate_back_door_camera_description:
       target_width: 1024
       max_tokens: 100
       temperature: 0.1
-      model: qwen3-vl:2b-instruct-q4_K_M
+      provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
+      model: Qwen3.5-4B-UD-Q4_K_XL-with-draft
       generate_title: false
       expose_images: false
-      provider: 01K9337G97H1HC11NBFD4HF7JQ
       message: 'Describe in one sentence the human activities in this image, if there
         is any. '
       image_entity:
@@ -2280,8 +2326,8 @@ generate_parking_camera_description:
       response_format: text
       title_field: title
       description_field: description
-      provider: 01K9337G97H1HC11NBFD4HF7JQ
-      model: qwen3-vl:2b-instruct-q4_K_M
+      provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
+      model: Qwen3.5-4B-UD-Q4_K_XL-with-draft
       message: Describe in one sentence the human activities in this image, if there
         is any.
       image_entity:
@@ -2584,20 +2630,25 @@ chromecast_automatic_volume_adjustment_script:
   max: 10
 generate_back_yard_camera_description:
   sequence:
-  - action: llmvision.image_analyzer
+  - action: llmvision.stream_analyzer
     data:
+      duration: 5
       include_filename: false
-      target_width: 1024
-      max_tokens: 100
-      temperature: 0.1
-      model: qwen3-vl:2b-instruct-q4_K_M
+      target_width: 1280
       generate_title: false
-      expose_images: false
-      provider: 01K9337G97H1HC11NBFD4HF7JQ
-      message: 'Describe in one sentence the human activities in this image, if there
-        is any. '
+      response_format: text
+      provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
+      model: Qwen3.5-4B-UD-Q4_K_XL-with-draft
+      message: Describe in one sentence the human activities in this image, if there
+        is any.
+      use_memory: false
+      store_in_timeline: false
       image_entity:
       - camera.back_yard_camera
+      max_frames: 10
+      max_tokens: 3000
+      expose_images: false
+      description_field: description
     response_variable: answer
   - stop: Finished
     response_variable: answer
@@ -2730,19 +2781,21 @@ start_a_random_maxi_playlist:
         {% endif %}
 
         '
-      player_entity: '{% if player_entity %}  {{ player_entity.entity_id }} {% else
-        %} {% set player_entity =  {''entity_id'':''media_player.group_mass_home_group_speakers''}
-        %} {{ player_entity }} {% endif %}
-
-        '
+      player_entity: "{% if area is defined and area is iterable %}\n  {{ area_entities(area
+        | first ) | select('search', 'media_player.mass.*_speaker') | list | first
+        }}\n{% elif area is defined and area is not iterable %}    \n  {{ area_entities(area
+        | string ) | select('search', 'media_player.mass.*_speaker') | list | first}}\n{%
+        elif player_entity is defined%}  \n   {{ player_entity }}\n {% else %}\n   {%
+        set player_entity = 'media_player.group_mass_home_group_speakers' %} \n   {{player_entity
+        }}\n{% endif %}\n"
   - action: media_player.shuffle_set
     metadata: {}
     data:
       shuffle: true
     target:
-      entity_id: '{{player_entity.entity_id}}'
+      entity_id: '{{player_entity}}'
   - target:
-      entity_id: '{{player_entity.entity_id}}'
+      entity_id: '{{player_entity}}'
     data:
       media:
         media_content_id: "{% if requested_playlist != 'none' %}\n  {{ requested_playlist
@@ -2750,23 +2803,6 @@ start_a_random_maxi_playlist:
         media_content_type: playlist
         metadata: {}
     action: media_player.play_media
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 15
-      milliseconds: 0
-  - if:
-    - condition: template
-      value_template: '{{ states(player_entity.entity_id) != ''playing'' }}'
-    then:
-    - target:
-        entity_id: '{{player_entity.entity_id}}'
-      data:
-        media:
-          media_content_id: New Maxi Playlist
-          media_content_type: playlist
-          metadata: {}
-      action: media_player.play_media
   fields:
     player_entity:
       selector:
@@ -2782,6 +2818,26 @@ start_a_random_maxi_playlist:
       name: Requested Playlist
       description: Use this if a specific playlist is requested
       default: none
+    field:
+      selector:
+        text:
+    area:
+      selector:
+        area:
+          entity:
+            integration: music_assistant
+            domain: media_player
+          multiple: true
+      name: Area
+      description: 'The area or areas for which the music is requested. If the request
+        does not mention a target (either an area or a player), use the area the request
+        comes from.
+
+        If the area can not be determined from the request, or the device the request
+        comes from, do not use this parameter.
+
+        Only use both the "area" parameter and the "media_player" parameter together
+        if both are specifically used in the request.'
   alias: Start a random maxi playlist
   description: Starts music playback on a specified player by either playing a specifically
     requested playlist or randomly selecting from a curated list of Maxi's favorite
@@ -3392,3 +3448,169 @@ jellyfin_play_random_episode_of_a_selected_tv_show:
       data:
         title: Jellyfin Search Failed
         message: No episodes found for '{{ show_name }}'.
+llm_script_to_start_tv_shows_and_movies_on_tvs_duplicate:
+  sequence:
+  - action: ai_task.generate_data
+    data:
+      task_name: media name lookup
+      instructions: 'The user has asked to watch "{{ media_id }}", but he is unsure
+        about the actual name of the media. Look it up online with a web search tool
+        call to make confirm the name. If it does not seem to exist, output the most
+        probable match.
+
+
+        Return the result only in the requested structured field.'
+      structure:
+        media_id_name:
+          description: The confirmed name/title for the requested media ID, or the
+            most probable match if no exact result exists.
+          required: true
+          selector:
+            text:
+      entity_id: ai_task.qwen3_5_9b_iq4_xs_4_20bpw_ai_task
+    response_variable: media_lookup
+    alias: Confirm Title through LLM/WebSearch
+  - if:
+    - condition: template
+      value_template: '{{ library_name is not defined }}'
+    then:
+    - alias: Confirm media library through LLM/WebSearch
+      action: ai_task.generate_data
+      data:
+        task_name: media library lookup
+        instructions: 'The user has asked to watch "{{ media_lookup.data.media_id_name
+          if media_lookup is defined else media_id }}", but he is unsure about the
+          actual type of the media that it is. Look that up online with a web search
+          tool call to make confirm the type.
+
+
+          The answer can only be either ''TV Shows'' or ''Movies''!
+
+
+          Return the result only in the requested structured field.'
+        structure:
+          media_library_name:
+            description: The library where this media is located; The answer can only
+              be either 'TV Shows' or 'Movies'!
+            required: true
+            selector:
+              text:
+        entity_id: ai_task.qwen3_5_9b_iq4_xs_4_20bpw_ai_task
+      response_variable: media_lookup_library_name
+      enabled: true
+  - if:
+    - condition: template
+      value_template: '{{ media_type is not defined }}'
+    then:
+    - alias: Confirm media type through LLM/WebSearch
+      action: ai_task.generate_data
+      data:
+        task_name: media type lookup
+        instructions: 'The user has asked to watch "{{ media_lookup.data.media_id_name
+          if media_lookup is defined else media_id  }}", but he is unsure about the
+          actual type of the media. Look that up online with a web search tool call
+          to make confirm the type.
+
+
+          The answer can only be either ''tvshow'' or  ''movie''!
+
+
+          Return the result only in the requested structured field.'
+        structure:
+          media_type_name:
+            description: The confirmed media typee for the requested media ID, or
+              the most probable match if no exact result exists. The answer can only
+              be either 'tvshow' or  'movie'!
+            required: true
+            selector:
+              text:
+        entity_id: ai_task.qwen3_5_9b_iq4_xs_4_20bpw_ai_task
+      response_variable: media_lookup_type
+  - variables:
+      resolved_media_id: '{{ media_lookup.data.media_id_name if media_lookup is defined
+        else media_id }}'
+      resolved_media_type: '{{ media_lookup_type.data.media_type_name if media_lookup_type
+        else media_type }}'
+      resolved_media_library_name: "{% if resolved_media_type == 'movie' %}\n  Movies\n{%
+        elif resolved_media_type == 'tvshow' %} TV Shows {% else %} {{ media_lookup_library_name.data.media_library_name
+        if media_lookup_library_name else library_name }} {% endif %}"
+  - variables:
+      player_data: "{% if media_player | first %} \n{% set media_player_no_space =
+        (media_player | lower).replace('universal_','').replace('universal ','').replace('media_player.','').replace('chromecast','').replace('_chromecast','').replace('tv','').replace('_tv','').split('
+        ') | first%}  \n{{integration_entities('universal') \n | expand\n | selectattr('entity_id',
+        'search', 'chromecast')\n | selectattr('entity_id', 'search', media_player_no_space
+        | lower)\n | map(attribute='entity_id') | list }}\n\n \n{% elif area | first
+        %} \n{{ integration_entities('cast') \n | expand\n | selectattr('entity_id',
+        'search', 'chromecast')\n | selectattr('entity_id', 'search', area | first
+        | lower)\n | map(attribute='entity_id') | list }} \n{% endif %}\n"
+      target_data:
+        entity_id: '{{ (player_data ) | default(''NA'', true) }}'
+      invalid_target:
+        response: Unable to find valid target
+    enabled: true
+  - variables:
+      action_data:
+        media_content_type: '{{resolved_media_type}}'
+        media_content_id: 'plex://{"library_name": "{{resolved_media_library_name}}",
+          "title":"{{ resolved_media_id }}", "shuffle": 1, "allow_multiple": 1}'
+  - action: media_player.play_media
+    data: '{{ dict(action_data.items() | rejectattr(''1'', ''eq'', ''NA'')) }}'
+    target: '{{ dict(target_data.items() | rejectattr(''1'', ''eq'', ''NA'')) }}'
+  - stop: Playback started!
+    response_variable: target_data
+    enabled: true
+  mode: single
+  max_exceeded: silent
+  description: This script must be used by the LLM to initiate a Movie or Show playback
+    on a TV or a chromecast. The script uses AI tasks to look up the confirmed media
+    name and type, then plays the content on the selected Chromecast or TV. This script
+    should never be used when Youtube is mentioned.
+  fields:
+    media_type:
+      selector:
+        select:
+          options:
+          - tvshow
+          - movie
+      name: Media Type
+      description: 'This argument is mandatory and must always be provided no matter
+        what! "media_type" can only be one of 2 different values: "movie" if the search
+        is about a specific movie.- "tvshow" if the search is about a tv show serie.media_type
+        is mandatory and must always be provided. In case a request does not match
+        any of these types, for example when music from a specific genre is requested,
+        then use "tvshow".'
+      required: false
+      default: tvshow
+    library_name:
+      selector:
+        select:
+          options:
+          - TV Shows
+          - Movies
+      name: Library Name
+      description: '"library_name" is the library the user wants to play the media
+        from. ''Movies'' for movies and ''TV Shows'' for TV series'
+      required: false
+    media_id:
+      selector:
+        text:
+      name: Media ID
+      description: 'This argument is mandatory and must always be provided no matter
+        what! media_id is the queried name- If the search is about a tv show: Then
+        media_id is the tv show title - If the search is about a movie: Then media_id
+        is the movie title This is a mandatory argument and must always be provided.'
+      required: true
+    media_player:
+      selector:
+        entity: {}
+      name: Media Player
+      required: true
+      description: This argument allows the LLM to select the right CHROMECAST  TV
+        to use. A speaker should NEVER be used. An entity containing "Speaker" is
+        INCORRECT
+    area:
+      selector:
+        area: {}
+      name: area
+      description: This argument allows the LLM to select the right area to use
+  alias: LLM Script to start TV SHOWS and MOVIES on TVs

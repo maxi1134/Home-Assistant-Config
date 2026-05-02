@@ -29,8 +29,6 @@ wifi:
 
 captive_portal:
 
-
-
 globals:
   - id: weigth_tare_top_left
     type: float
@@ -64,9 +62,147 @@ globals:
     type: unsigned long
     restore_value: false
     initial_value: '0'
+  # Mattress spill-aware calibration matrix.
+  # m_<sensor>_<load> stores the response of a bridge sensor for 1 lb placed
+  # in a specific bed quarter. inv_<quarter>_<sensor> stores the inverse matrix
+  # used to estimate actual quarter loads from the 4 live bridge readings.
+  - id: m_tl_tl
+    type: float
+    restore_value: true
+    initial_value: '1.0'
+  - id: m_tl_tr
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: m_tl_bl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: m_tl_br
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+
+  - id: m_tr_tl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: m_tr_tr
+    type: float
+    restore_value: true
+    initial_value: '1.0'
+  - id: m_tr_bl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: m_tr_br
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+
+  - id: m_bl_tl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: m_bl_tr
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: m_bl_bl
+    type: float
+    restore_value: true
+    initial_value: '1.0'
+  - id: m_bl_br
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+
+  - id: m_br_tl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: m_br_tr
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: m_br_bl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: m_br_br
+    type: float
+    restore_value: true
+    initial_value: '1.0'
+
+  - id: inv_tl_tl
+    type: float
+    restore_value: true
+    initial_value: '1.0'
+  - id: inv_tl_tr
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: inv_tl_bl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: inv_tl_br
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+
+  - id: inv_tr_tl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: inv_tr_tr
+    type: float
+    restore_value: true
+    initial_value: '1.0'
+  - id: inv_tr_bl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: inv_tr_br
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+
+  - id: inv_bl_tl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: inv_bl_tr
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: inv_bl_bl
+    type: float
+    restore_value: true
+    initial_value: '1.0'
+  - id: inv_bl_br
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+
+  - id: inv_br_tl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: inv_br_tr
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: inv_br_bl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: inv_br_br
+    type: float
+    restore_value: true
+    initial_value: '1.0'
 
 sensor:
-
   - platform: hx711
     internal: false
     accuracy_decimals: 2
@@ -83,7 +219,8 @@ sensor:
           - 13000 -> 8
       - lambda: |-
           id(weigth_no_tare_top_left).publish_state(x);
-          return (x - id(weigth_tare_top_left));
+          const float untared = x - id(weigth_tare_top_left);
+          return untared;
     on_value:
       then:
         - lambda: |-
@@ -123,7 +260,8 @@ sensor:
           - 13000 -> 8
       - lambda: |-
           id(weigth_no_tare_top_right).publish_state(x);
-          return (x - id(weigth_tare_top_right));
+          const float untared = x - id(weigth_tare_top_right);
+          return untared;
     on_value:
       then:
         - lambda: |-
@@ -163,7 +301,8 @@ sensor:
           - 13000 -> 8
       - lambda: |-
           id(weigth_no_tare_bottom_right).publish_state(x);
-          return (x - id(weigth_tare_bottom_right));
+          const float untared = x - id(weigth_tare_bottom_right);
+          return untared;
     on_value:
       then:
         - lambda: |-
@@ -203,7 +342,8 @@ sensor:
           - 13000 -> 8
       - lambda: |-
           id(weigth_no_tare_bottom_left).publish_state(x);
-          return (x - id(weigth_tare_bottom_left));
+          const float untared = x - id(weigth_tare_bottom_left);
+          return untared;
     on_value:
       then:
         - lambda: |-
@@ -240,21 +380,230 @@ sensor:
     id: weigth_no_tare_bottom_right
     internal: True
 
+  - platform: template
+    id: estimated_weight_top_left
+    name: "Estimated Weight Top Left Quarter"
+    unit_of_measurement: lb
+    accuracy_decimals: 2
+    update_interval: 1s
+    lambda: |-
+      return
+        id(inv_tl_tl) * id(weight_top_left).state +
+        id(inv_tl_tr) * id(weight_top_right).state +
+        id(inv_tl_bl) * id(weight_bottom_left).state +
+        id(inv_tl_br) * id(weight_bottom_right).state;
+
+  - platform: template
+    id: estimated_weight_top_right
+    name: "Estimated Weight Top Right Quarter"
+    unit_of_measurement: lb
+    accuracy_decimals: 2
+    update_interval: 1s
+    lambda: |-
+      return
+        id(inv_tr_tl) * id(weight_top_left).state +
+        id(inv_tr_tr) * id(weight_top_right).state +
+        id(inv_tr_bl) * id(weight_bottom_left).state +
+        id(inv_tr_br) * id(weight_bottom_right).state;
+
+  - platform: template
+    id: estimated_weight_bottom_left
+    name: "Estimated Weight Bottom Left Quarter"
+    unit_of_measurement: lb
+    accuracy_decimals: 2
+    update_interval: 1s
+    lambda: |-
+      return
+        id(inv_bl_tl) * id(weight_top_left).state +
+        id(inv_bl_tr) * id(weight_top_right).state +
+        id(inv_bl_bl) * id(weight_bottom_left).state +
+        id(inv_bl_br) * id(weight_bottom_right).state;
+
+  - platform: template
+    id: estimated_weight_bottom_right
+    name: "Estimated Weight Bottom Right Quarter"
+    unit_of_measurement: lb
+    accuracy_decimals: 2
+    update_interval: 1s
+    lambda: |-
+      return
+        id(inv_br_tl) * id(weight_top_left).state +
+        id(inv_br_tr) * id(weight_top_right).state +
+        id(inv_br_bl) * id(weight_bottom_left).state +
+        id(inv_br_br) * id(weight_bottom_right).state;
+
   - platform: combination
     id: total_weight
-    type: linear
+    type: sum
     name: "Total Weight"
     sources:
-      - source: weight_top_left
-        coeffecient: 1.0
-      - source: weight_top_right
-        coeffecient: 1.0
-      - source: weight_bottom_left
-        coeffecient: 1.0
-      - source: weight_bottom_right
-        coeffecient: 1.0
+      - source: estimated_weight_top_left
+      - source: estimated_weight_top_right
+      - source: estimated_weight_bottom_left
+      - source: estimated_weight_bottom_right
     filters:
-        - delta: 0.005
+      - delta: 0.005
+
+# Mattress-aware calibration:
+# place the known weight near the center of the target quarter.
+# Each capture stores the response of all 4 bridge sensors.
+number:
+  - platform: template
+    id: calibration_known_weight_lb
+    name: "Calibration Known Weight"
+    unit_of_measurement: lb
+    optimistic: true
+    restore_value: true
+    initial_value: 50
+    min_value: 1
+    max_value: 400
+    step: 0.5
+
+script:
+  - id: recompute_calibration_inverse
+    mode: restart
+    then:
+      - lambda: |-
+          float a[4][8] = {
+            {id(m_tl_tl), id(m_tl_tr), id(m_tl_bl), id(m_tl_br), 1.0f, 0.0f, 0.0f, 0.0f},
+            {id(m_tr_tl), id(m_tr_tr), id(m_tr_bl), id(m_tr_br), 0.0f, 1.0f, 0.0f, 0.0f},
+            {id(m_bl_tl), id(m_bl_tr), id(m_bl_bl), id(m_bl_br), 0.0f, 0.0f, 1.0f, 0.0f},
+            {id(m_br_tl), id(m_br_tr), id(m_br_bl), id(m_br_br), 0.0f, 0.0f, 0.0f, 1.0f},
+          };
+
+          for (int col = 0; col < 4; col++) {
+            int pivot_row = col;
+            float pivot_abs = fabsf(a[col][col]);
+
+            for (int row = col + 1; row < 4; row++) {
+              const float candidate_abs = fabsf(a[row][col]);
+              if (candidate_abs > pivot_abs) {
+                pivot_abs = candidate_abs;
+                pivot_row = row;
+              }
+            }
+
+            if (pivot_abs < 0.000001f) {
+              ESP_LOGW("bed_scale", "Inverse update failed: calibration matrix is singular or incomplete");
+              return;
+            }
+
+            if (pivot_row != col) {
+              for (int j = 0; j < 8; j++) {
+                const float tmp = a[col][j];
+                a[col][j] = a[pivot_row][j];
+                a[pivot_row][j] = tmp;
+              }
+            }
+
+            const float pivot = a[col][col];
+            for (int j = 0; j < 8; j++) {
+              a[col][j] /= pivot;
+            }
+
+            for (int row = 0; row < 4; row++) {
+              if (row == col) {
+                continue;
+              }
+              const float factor = a[row][col];
+              if (fabsf(factor) < 0.000001f) {
+                continue;
+              }
+              for (int j = 0; j < 8; j++) {
+                a[row][j] -= factor * a[col][j];
+              }
+            }
+          }
+
+          id(inv_tl_tl) = a[0][4];
+          id(inv_tl_tr) = a[0][5];
+          id(inv_tl_bl) = a[0][6];
+          id(inv_tl_br) = a[0][7];
+
+          id(inv_tr_tl) = a[1][4];
+          id(inv_tr_tr) = a[1][5];
+          id(inv_tr_bl) = a[1][6];
+          id(inv_tr_br) = a[1][7];
+
+          id(inv_bl_tl) = a[2][4];
+          id(inv_bl_tr) = a[2][5];
+          id(inv_bl_bl) = a[2][6];
+          id(inv_bl_br) = a[2][7];
+
+          id(inv_br_tl) = a[3][4];
+          id(inv_br_tr) = a[3][5];
+          id(inv_br_bl) = a[3][6];
+          id(inv_br_br) = a[3][7];
+
+          ESP_LOGI("bed_scale", "Calibration matrix inverse updated successfully");
+
+  - id: capture_quarter_calibration
+    mode: restart
+    parameters:
+      quarter_name: string
+    then:
+      - lambda: |-
+          const float known = id(calibration_known_weight_lb).state;
+          const float s_tl = id(weight_top_left).state;
+          const float s_tr = id(weight_top_right).state;
+          const float s_bl = id(weight_bottom_left).state;
+          const float s_br = id(weight_bottom_right).state;
+
+          if (known <= 0.0f) {
+            ESP_LOGW("bed_scale", "Calibration aborted: known weight must be > 0");
+            return;
+          }
+
+          if (isnan(s_tl) || isnan(s_tr) || isnan(s_bl) || isnan(s_br)) {
+            ESP_LOGW("bed_scale", "Calibration aborted: one or more bridge readings are invalid");
+            return;
+          }
+
+          if ((fabsf(s_tl) + fabsf(s_tr) + fabsf(s_bl) + fabsf(s_br)) < 0.01f) {
+            ESP_LOGW("bed_scale", "Calibration aborted: total bridge response is too small");
+            return;
+          }
+
+          const float c_tl = s_tl / known;
+          const float c_tr = s_tr / known;
+          const float c_bl = s_bl / known;
+          const float c_br = s_br / known;
+
+          if (quarter_name == "top_left") {
+            id(m_tl_tl) = c_tl;
+            id(m_tr_tl) = c_tr;
+            id(m_bl_tl) = c_bl;
+            id(m_br_tl) = c_br;
+          } else if (quarter_name == "top_right") {
+            id(m_tl_tr) = c_tl;
+            id(m_tr_tr) = c_tr;
+            id(m_bl_tr) = c_bl;
+            id(m_br_tr) = c_br;
+          } else if (quarter_name == "bottom_left") {
+            id(m_tl_bl) = c_tl;
+            id(m_tr_bl) = c_tr;
+            id(m_bl_bl) = c_bl;
+            id(m_br_bl) = c_br;
+          } else if (quarter_name == "bottom_right") {
+            id(m_tl_br) = c_tl;
+            id(m_tr_br) = c_tr;
+            id(m_bl_br) = c_bl;
+            id(m_br_br) = c_br;
+          } else {
+            ESP_LOGW("bed_scale", "Calibration aborted: unknown quarter '%s'", quarter_name.c_str());
+            return;
+          }
+
+          ESP_LOGI(
+            "bed_scale",
+            "Captured calibration column for %s. Per-lb bridge responses: TL=%.6f TR=%.6f BL=%.6f BR=%.6f",
+            quarter_name.c_str(),
+            c_tl,
+            c_tr,
+            c_bl,
+            c_br
+          );
+      - script.execute: recompute_calibration_inverse
 
 binary_sensor:
   - platform: template
@@ -272,6 +621,85 @@ button:
       - lambda: id(weigth_tare_top_right) = id(weigth_no_tare_top_right).state;
       - lambda: id(weigth_tare_bottom_left) = id(weigth_no_tare_bottom_left).state;
       - lambda: id(weigth_tare_bottom_right) = id(weigth_no_tare_bottom_right).state;
+
+  - platform: template
+    id: calibrate_top_left_quarter_button
+    name: "Capture Top Left Quarter"
+    on_press:
+      - script.execute:
+          id: capture_quarter_calibration
+          quarter_name: "top_left"
+
+  - platform: template
+    id: calibrate_top_right_quarter_button
+    name: "Capture Top Right Quarter"
+    on_press:
+      - script.execute:
+          id: capture_quarter_calibration
+          quarter_name: "top_right"
+
+  - platform: template
+    id: calibrate_bottom_left_quarter_button
+    name: "Capture Bottom Left Quarter"
+    on_press:
+      - script.execute:
+          id: capture_quarter_calibration
+          quarter_name: "bottom_left"
+
+  - platform: template
+    id: calibrate_bottom_right_quarter_button
+    name: "Capture Bottom Right Quarter"
+    on_press:
+      - script.execute:
+          id: capture_quarter_calibration
+          quarter_name: "bottom_right"
+
+  - platform: template
+    id: reset_quarter_calibration
+    name: "Reset Matrix Calibration"
+    on_press:
+      - lambda: |-
+          id(m_tl_tl) = 1.0f;
+          id(m_tl_tr) = 0.0f;
+          id(m_tl_bl) = 0.0f;
+          id(m_tl_br) = 0.0f;
+
+          id(m_tr_tl) = 0.0f;
+          id(m_tr_tr) = 1.0f;
+          id(m_tr_bl) = 0.0f;
+          id(m_tr_br) = 0.0f;
+
+          id(m_bl_tl) = 0.0f;
+          id(m_bl_tr) = 0.0f;
+          id(m_bl_bl) = 1.0f;
+          id(m_bl_br) = 0.0f;
+
+          id(m_br_tl) = 0.0f;
+          id(m_br_tr) = 0.0f;
+          id(m_br_bl) = 0.0f;
+          id(m_br_br) = 1.0f;
+
+          id(inv_tl_tl) = 1.0f;
+          id(inv_tl_tr) = 0.0f;
+          id(inv_tl_bl) = 0.0f;
+          id(inv_tl_br) = 0.0f;
+
+          id(inv_tr_tl) = 0.0f;
+          id(inv_tr_tr) = 1.0f;
+          id(inv_tr_bl) = 0.0f;
+          id(inv_tr_br) = 0.0f;
+
+          id(inv_bl_tl) = 0.0f;
+          id(inv_bl_tr) = 0.0f;
+          id(inv_bl_bl) = 1.0f;
+          id(inv_bl_br) = 0.0f;
+
+          id(inv_br_tl) = 0.0f;
+          id(inv_br_tr) = 0.0f;
+          id(inv_br_bl) = 0.0f;
+          id(inv_br_br) = 1.0f;
+
+          ESP_LOGI("bed_scale", "Calibration matrix and inverse reset to identity");
 
 interval:
   - interval: 1s

@@ -841,11 +841,13 @@
     - binary_sensor.group_workshop_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
     - binary_sensor.group_hotbox_motion_occupancy
+    - binary_sensor.group_patio_motion_occupancy
     for:
       hours: 0
       minutes: 0
       seconds: 0
-    to: 'on'
+    to:
+    - 'on'
     trigger: state
   conditions:
   - condition: state
@@ -869,8 +871,8 @@
   actions:
   - variables:
       playing_speakers: '{{ [area_id(trigger.entity_id)]   | map(''area_entities'')
-        | sum(start=[]) |    select(''search'', ''universal'') |    select(''search'',
-        ''speakers'') | select(''is_state'',''playing'') | unique | list }}
+        | sum(start=[]) |    select(''search'', ''mass'') |    select(''search'',
+        ''speaker'') | select(''is_state'',''playing'') | unique | list }}
 
         '
       average_volume: '{{ states(''sensor.template_average_unmuted_speakers_volume'')}}
@@ -1026,7 +1028,7 @@
   actions:
   - variables:
       playing_speakers: '{{ [area_id(trigger.entity_id)]   | map(''area_entities'')
-        | sum(start=[]) |    select(''search'', ''universal'') | select(''is_state'',''playing'')
+        | sum(start=[]) |    select(''search'', ''mass'') | select(''is_state'',''playing'')
         | unique | list }}
 
         '
@@ -1274,8 +1276,8 @@
     action: media_player.volume_mute
   mode: restart
 - id: '1714151063007'
-  alias: Turn off speakers after 15 minutes of pause
-  description: Stops speakers that have been paused for 15 minutes, freeing them from
+  alias: Turn off speakers after 1 minutes of pause
+  description: Stops speakers that have been paused for 1 minutes, freeing them from
     stale sessions.
   triggers:
   - entity_id:
@@ -1291,7 +1293,7 @@
     - idle
     for:
       hours: 0
-      minutes: 15
+      minutes: 1
       seconds: 0
     trigger: state
   conditions: []
@@ -1308,7 +1310,7 @@
     action: media_player.turn_off
     enabled: true
   mode: parallel
-  max: 8
+  max: 20
 - id: '1714321256821'
   alias: Mute speakers in the room if maxi uses a microphone
   description: Auto-mutes nearby speakers when a microphone is in use to prevent feedback
@@ -1741,6 +1743,10 @@
     - condition: state
       entity_id: binary_sensor.sensor_front_outside_door_contact
       state: 'on'
+  - condition: state
+    entity_id: input_boolean.door_rang
+    state:
+    - 'off'
   actions:
   - target:
       entity_id: input_boolean.door_rang
@@ -1938,20 +1944,20 @@
       minutes: 0
       seconds: 3
       milliseconds: 0
-  - action: llmvision.image_analyzer
+  - alias: Perform LLM vision to analyse to see if a Package or delivery guy is present
+    action: llmvision.image_analyzer
     data:
       include_filename: false
       target_width: 720
       max_tokens: 30
       temperature: 0.2
-      provider: 01K9337G97H1HC11NBFD4HF7JQ
       message: Answer with yes or no, is there a package or a delivery man on this
         picture? Do not use an other word than  yes or no
       image_entity:
       - camera.front_door_camera
-      model: qwen3-vl:2b-instruct-q4_K_M
+      model: Qwen3.5-4B-UD-Q4_K_XL-with-draft
+      provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
     response_variable: answer
-    alias: Perform LLM vision to analyse to see if a Package or delivery guy is present
   - if:
     - condition: template
       value_template: '{{ "YES" in answer.response_text | upper }}'
@@ -1964,6 +1970,22 @@
         message: Package is being delivered
         title: Package Detected
       action: notify.maxi_notification_group
+    - delay:
+        hours: 0
+        minutes: 5
+        seconds: 5
+        milliseconds: 0
+    - repeat:
+        sequence:
+        - action: script.non_important_broadcast_alert_in_the_house
+          data:
+            message: A package has been delivered! Go check the door
+        - delay:
+            minutes: 5
+        until:
+        - condition: template
+          value_template: '{{ (now() - state_attr(''lock.lock_front_door'', ''last_changed'')).total_seconds()
+            < 300 }}'
   mode: single
 - id: '1716566146304'
   alias: Assist play next song
@@ -3417,7 +3439,7 @@
     a voice assistant begins listening, then restores volume after processing completes.
   triggers:
   - entity_id:
-    - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
+    - assist_satellite.kitchen_assistant_assist_satellite
     - assist_satellite.saloon_assistant_assist_satellite
     - assist_satellite.lv_assistant_assist_satellite
     - assist_satellite.bathroom_assistant_assist_satellite
@@ -3527,8 +3549,7 @@
               '
           target:
             entity_id: '{{playing_chromecasts.0}}'
-  mode: parallel
-  max: 10
+  mode: single
 - id: '1727273501229'
   alias: Assist Play random music
   description: Starts a shuffled playlist of 500 random tracks on the home group speakers
@@ -3731,7 +3752,7 @@
     when it starts listening, unless a sleeper is present in that room.
   triggers:
   - entity_id:
-    - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
+    - assist_satellite.kitchen_assistant_assist_satellite
     - assist_satellite.saloon_assistant_assist_satellite
     - assist_satellite.lv_assistant_assist_satellite
     - assist_satellite.bedroom_assistant_assist_satellite
@@ -3765,21 +3786,23 @@
     processing, but only in rooms where a sleeper is present.
   triggers:
   - entity_id:
-    - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
+    - assist_satellite.kitchen_assistant_assist_satellite
     - assist_satellite.saloon_assistant_assist_satellite
     - assist_satellite.lv_assistant_assist_satellite
     - assist_satellite.bedroom_assistant_assist_satellite
     - assist_satellite.desktop_assistant_assist_satellite
-    from: processing
+    from:
+    - processing
     trigger: state
   - entity_id:
-    - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
+    - assist_satellite.kitchen_assistant_assist_satellite
     - assist_satellite.saloon_assistant_assist_satellite
     - assist_satellite.lv_assistant_assist_satellite
     - assist_satellite.bedroom_assistant_assist_satellite
     - assist_satellite.desktop_assistant_assist_satellite
     trigger: state
-    to: idle
+    to:
+    - idle
     from:
   conditions:
   - condition: template
@@ -4388,13 +4411,21 @@
     - condition: state
       entity_id: alarm_control_panel.home_alarm
       state: disarmed
+    - condition: state
+      entity_id: alarm_control_panel.home_alarm
+      state:
+      - armed_home
+  - condition: state
+    entity_id: input_boolean.party_in_the_back_yard
+    state:
+    - 'off'
   actions:
   - action: switch.turn_on
     metadata: {}
     data: {}
     target:
       entity_id: switch.plug_back_door_horn
-    enabled: false
+    enabled: true
   - action: script.find_phone
     metadata: {}
     data: {}
@@ -4656,28 +4687,6 @@
 
                 '
           for_each: '{{ unmuted_speakers }}'
-  mode: single
-- id: '1733533239694'
-  alias: Assist quick color change phrase
-  description: Changes the light color in the room of the requesting voice assistant
-    device using a quick voice command like 'red lights' or 'set lights to blue'.
-  triggers:
-  - command:
-    - '[set] [turn] [the] lights [to] {color}'
-    - '{color} lights'
-    trigger: conversation
-  conditions: []
-  actions:
-  - variables:
-      room: '{{area_name(trigger.device_id) | lower}}
-
-        '
-  - action: light.turn_on
-    metadata: {}
-    data:
-      color_name: '{{trigger.slots.color}}'
-    target:
-      area_id: '{{room }}'
   mode: single
 - id: '1733597890338'
   alias: kitchen google display automation
@@ -5227,28 +5236,6 @@
     target:
       entity_id: light.back_door_light
   mode: single
-- id: '1735682831028'
-  alias: Raise bathroom volume when door closes
-  description: Triggers the automatic volume adjustment script for the bathroom speaker
-    when the bathroom door closes, ensuring appropriate audio levels for an occupied
-    bathroom.
-  triggers:
-  - entity_id:
-    - binary_sensor.sensor_bathroom_door_contact
-    to: 'off'
-    from: 'on'
-    trigger: state
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 0
-  conditions: []
-  actions:
-  - action: script.speaker_automatic_volume_adjustment_script
-    metadata: {}
-    data:
-      received_speaker: media_player.mass_bathroom_vpe_speaker
-  mode: restart
 - id: '1737729890470'
   alias: Speaker Automatic Volume v4
   description: Uses the script 'Speaker Automatic Volume Adjustment script'
@@ -5267,6 +5254,7 @@
     - idle
     trigger: state
     id: from_idle_to_play
+    enabled: true
   - entity_id:
     - media_player.mass_bedroom_wiim_speaker
     - media_player.mass_salon_wiim_speaker
@@ -5444,7 +5432,7 @@
       - variables:
           in_room_speakers: "{% set area = area_id(states('sensor.maxi_location_by_petro'))
             %} {% if area %}\n  {% set mass_speakers = [area] | map('area_entities')
-            | sum(start=[]) | select('search', 'speakers') | select('search', 'universal')
+            | sum(start=[]) | select('search', 'speaker') | select('search', 'mass')
             | unique | list %}\n  {% if mass_speakers %}\n    {{ mass_speakers }}\n
             \ {% else %}\n    {{ [area] | map('area_entities') | sum(start=[]) | select('search',
             'speaker') | unique | list }}\n  {% endif %}\n{% else %}\n  []\n{% endif
@@ -6190,6 +6178,24 @@
     for:
       hours: 0
       minutes: 1
+      seconds: 30
+    to:
+    - 'on'
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 30
+    to:
+    - 'on'
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    for:
+      hours: 0
+      minutes: 1
       seconds: 0
     to:
     - 'on'
@@ -6217,6 +6223,7 @@
     - condition: state
       entity_id: person.myriam
       state: home
+      enabled: false
     - condition: state
       entity_id: binary_sensor.parking_camera_car_occupancy
       state:
@@ -6231,8 +6238,8 @@
       target_width: 1280
       max_tokens: 100
       temperature: 0.1
-      provider: 01K9337G97H1HC11NBFD4HF7JQ
-      model: qwen3-vl:2b-instruct-q4_K_M
+      provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
+      model: Qwen3.5-9B-IQ4_XS-4.20bpw
       message: Answer only with yes or no; Is this person trying to enter the car?
       image_entity:
       - camera.parking_exit_camera
@@ -6302,9 +6309,10 @@
     - binary_sensor.parking_exit_camera_person_occupancy
     for:
       hours: 0
-      minutes: 4
+      minutes: 1
       seconds: 30
-    to: 'on'
+    to:
+    - 'on'
   conditions:
   - condition: state
     entity_id: binary_sensor.parking_exit_camera_car_occupancy
@@ -6331,14 +6339,14 @@
     from:
     to: 'on'
     id: parking_exit
-    enabled: false
+    enabled: true
   - trigger: state
     entity_id:
     - binary_sensor.parking_camera_person_occupancy
     from:
     to: 'on'
     id: parking
-    enabled: false
+    enabled: true
   - trigger: state
     entity_id:
     - binary_sensor.reolink_parking_camera_person
@@ -6358,6 +6366,7 @@
   - condition: state
     entity_id: binary_sensor.maxi_sleeping
     state: 'off'
+    enabled: false
   - condition: not
     conditions:
     - condition: state
@@ -6386,7 +6395,7 @@
             priority: high
             image: /media/local/parking_exit_movement.png
             actions:
-            - action: blow_horn_back
+            - action: blow_parking_horn
               title: Blow the horn for 2 minutes?
             - action: URI
               title: Open Camera
@@ -6415,7 +6424,7 @@
             priority: high
             image: /media/local/parking_movement.png
             actions:
-            - action: blow_horn_back
+            - action: blow_parking_horn
               title: Blow the horn for 2 minutes?
             - action: URI
               title: Open Camera
@@ -6443,7 +6452,7 @@
             priority: high
             image: /media/local/reolink_parking_movement.png
             actions:
-            - action: blow_horn_back
+            - action: blow_parking_horn
               title: Blow the horn for 2 minutes?
             - action: URI
               title: Open Camera
@@ -6471,7 +6480,7 @@
             priority: high
             image: /media/local/reolink_parking_exit_movement.png
             actions:
-            - action: blow_horn_back
+            - action: blow_parking_horn
               title: Blow the horn for 2 minutes?
             - action: URI
               title: Open Camera
@@ -6485,7 +6494,7 @@
         user_id:
         - 7f1de31122574f6fa2215e519d6083ea
       event_data:
-        action: blow_horn_back
+        action: blow_parking_horn
       trigger: event
     continue_on_timeout: false
     timeout:
@@ -6495,9 +6504,9 @@
       milliseconds: 0
   - metadata: {}
     data: {}
-    target:
-      entity_id: switch.plug_back_door_horn
     action: switch.turn_on
+    target:
+      entity_id: switch.plug_parking_horn
   mode: parallel
   max: 4
 - id: '1743281098829'
@@ -8035,10 +8044,10 @@
   conditions: []
   actions:
   - variables:
-      trigger_speaker: "{{integration_entities('universal') \n | expand\n | selectattr('entity_id',
-        'search', 'speakers')\n | rejectattr('entity_id', 'search', 'home')\n | selectattr('state',
-        'eq', 'playing' )\n | selectattr('attributes.is_volume_muted', 'eq', false
-        )\n | map(attribute='entity_id') | list }}    \n"
+      trigger_speaker: "{{integration_entities('music_assistant') \n | expand\n |
+        selectattr('entity_id', 'search', 'speaker')\n | rejectattr('entity_id', 'search',
+        'home')\n | selectattr('state', 'eq', 'playing' )\n | selectattr('attributes.is_volume_muted',
+        'eq', false )\n | map(attribute='entity_id') | list }}    \n"
   - action: script.speaker_automatic_volume_adjustment_script
     metadata: {}
     data:
@@ -8584,8 +8593,8 @@
   actions:
   - variables:
       unmuted_playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-        \ | sum(start=[])\n  | select('search', 'speakers')\n  | select('search',
-        'universal')\n  | select('is_state','playing')\n  | expand\n  | selectattr('attributes.is_volume_muted',
+        \ | sum(start=[])\n  | select('search', 'speaker')\n  | select('search', 'mass')\n
+        \ | select('is_state','playing')\n  | expand\n  | selectattr('attributes.is_volume_muted',
         'eq', false)\n  | map(attribute='entity_id')\n  | unique\n  | list \n}}\n"
       playing_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
         \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
@@ -8662,8 +8671,8 @@
   actions:
   - variables:
       playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-        \ | sum(start=[])\n  | select('search', 'speakers')\n  | select('search',
-        'universal')\n  | select('is_state','playing')\n  | unique\n  | list \n}}\n"
+        \ | sum(start=[])\n  | select('search', 'speaker')\n  | select('search', 'mass')\n
+        \ | select('is_state','playing')\n  | unique\n  | list \n}}\n"
       unmuted_player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
         \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
         'universal')\n  | select('is_state','playing')\n  | expand\n  | selectattr('attributes.is_volume_muted',
@@ -9704,9 +9713,9 @@
       | float > 600 and trigger.from_state.state == ''not_home'' }}'
   actions:
   - variables:
-      playing_speakers: '{{ integration_entities(''universal'')|select(''contains'',
+      playing_speakers: '{{ integration_entities(''music_assistant'')|select(''contains'',
 
-        ''speakers'') | reject(''contains'',
+        ''speaker'') | reject(''contains'',
 
         ''home'')  | select(''is_state'',''playing'')| list }}
 
@@ -9911,7 +9920,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - assist_satellite.esp32_s3_box_kitchen_assistant_assist_satellite
+    - assist_satellite.kitchen_assistant_assist_satellite
     - assist_satellite.saloon_assistant_assist_satellite
     - assist_satellite.lv_assistant_assist_satellite
     - assist_satellite.bathroom_assistant_assist_satellite
@@ -11330,12 +11339,6 @@
   - condition: template
     value_template: '{{ states(''sensor.myriam_location_by_petro'') | lower not in
       [area_id(trigger.entity_id)] | lower }}'
-    enabled: false
-  - alias: Stop if myriam's phone is active in the room
-    condition: template
-    value_template: '{% if (states(''binary_sensor.phone_myriam_interactive'') ==
-      on and states(''sensor.bermuda_myriam_phone_area'') | lower in [area_id(trigger.entity_id)]
-      | lower) %} false {% else %} true {%endif%}'
     enabled: false
   - alias: Stop if myriam's tablet is active in the room
     condition: template
@@ -14767,14 +14770,14 @@
   - trigger: numeric_state
     entity_id:
     - sensor.closet_tablet_battery
-    below: 15
+    below: 30
   conditions: []
   actions:
   - choose:
     - conditions:
       - condition: numeric_state
         entity_id: sensor.closet_tablet_battery
-        below: 15
+        below: 30
       - condition: state
         entity_id: switch.closet_tablet_screen
         state: 'on'
@@ -15765,6 +15768,9 @@
     - media_player.mass_salon_wiim_speaker
     - media_player.mass_bedroom_wiim_speaker
     - media_player.mass_kitchen_wiim_speaker
+    - media_player.mass_closet_wiim_speaker
+    - media_player.mass_hallway_wiim_speaker
+    - media_player.mass_lounge_wiim_speaker
   - alias: Speakers from playing (1 s)
     trigger: state
     id: spk_from_playing
@@ -15778,6 +15784,10 @@
     - media_player.mass_workshop_wiim_speaker
     - media_player.mass_salon_wiim_speaker
     - media_player.mass_bedroom_wiim_speaker
+    - media_player.mass_kitchen_wiim_speaker
+    - media_player.mass_closet_wiim_speaker
+    - media_player.mass_hallway_wiim_speaker
+    - media_player.mass_lounge_wiim_speaker
   - alias: Speakers mute status (1 s)
     trigger: state
     id: spk_mute_status
@@ -15788,9 +15798,19 @@
     - media_player.mass_workshop_wiim_speaker
     - media_player.mass_salon_wiim_speaker
     - media_player.mass_bedroom_wiim_speaker
+    - media_player.mass_kitchen_wiim_speaker
+    - media_player.mass_closet_wiim_speaker
+    - media_player.mass_hallway_wiim_speaker
+    - media_player.mass_lounge_wiim_speaker
   conditions:
   - condition: template
     value_template: '{{ trigger.to_state.state != ''unavailable'' }}'
+  - condition: state
+    entity_id: input_boolean.following_music
+    state:
+    - 'off'
+  - condition: template
+    value_template: ''
   actions:
   - if:
     - condition: template
@@ -15867,7 +15887,8 @@
           'eq', false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
         playing_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
           \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
-          'universal')\n  | select('is_state', 'playing')\n  | unique\n  | list }}\n"
+          'universal')\n  | select('is_state', ['playing', 'idle'])\n  | unique\n
+          \ | list }}\n"
     - if:
       - condition: template
         value_template: '{{ unmuted_playing_speakers == [] }}'
@@ -15890,6 +15911,7 @@
       condition: template
       value_template: "{% if trigger.id == 'spk_to_playing' %}\n  {{ (now() - trigger.from_state.last_changed)
         > timedelta(seconds=600) }}\n{% else %}\n  true\n{% endif %}\n"
+      enabled: true
     - alias: No sleeper present
       condition: template
       value_template: "{{ area_id(trigger.entity_id) | string | lower\n   not in states('sensor.active_sleeper_rooms')
@@ -15905,8 +15927,9 @@
           'mass')\n  | select('is_state', 'playing')\n  | unique\n  | list }}\n"
         unmuted_player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
           \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
-          'universal')\n  | select('is_state', 'playing')\n  | expand\n  | selectattr('attributes.is_volume_muted',
-          'eq', false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
+          'universal')\n  | select('is_state', ['playing', 'idle'])\n  | expand\n
+          \ | selectattr('attributes.is_volume_muted', 'eq', false)\n  | map(attribute='entity_id')\n
+          \ | unique\n  | list }}\n"
     - if:
       - condition: template
         value_template: '{{ unmuted_player_chromecasts == [] }}'
@@ -16722,3 +16745,195 @@
       entity_id: switch.patio_assistant_mute
     data: {}
   mode: single
+- id: '1777060060076'
+  alias: Alert when parking horn starts and offer to turn it off
+  description: Sends a security breach notification with a camera snapshot to Maxi
+    and Myriam when the back door horn turns on, and waits for a notification action
+    to turn it off after up to 3 minutes.
+  triggers:
+  - entity_id:
+    - switch.plug_parking_horn
+    to:
+    - 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+    trigger: state
+  conditions: []
+  actions:
+  - metadata: {}
+    data:
+      filename: /media/parking_horn_check.png
+    action: camera.snapshot
+    target:
+      entity_id:
+      - camera.reolink_parking_exit_camera_fluent
+  - if:
+    - condition: state
+      entity_id: person.myriam
+      state: home
+    then:
+    - metadata: {}
+      data:
+        message: Back horn started
+        data:
+          image: /media/local/parking_horn_check.png
+          actions:
+          - action: stop_parking_horn
+            title: Stop the horn?
+          channel: security_alerts_notifications
+          ttl: 0
+          priority: high
+        title: Security breach
+      action: notify.mobile_app_phone_myriam
+  - metadata: {}
+    data:
+      message: Back horn started
+      data:
+        image: /media/local/parking_horn_check.png
+        actions:
+        - action: stop_parking_horn
+          title: Stop the horn?
+        channel: security_alerts_notifications
+        ttl: 0
+        priority: high
+      title: Security breach
+    action: notify.maxi_notification_group
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 3
+      milliseconds: 0
+  - action: notify.mobile_app_phone_maxi
+    data:
+      data:
+        image: /media/local/parking_horn_check.png
+        actions:
+        - action: stop_parking_horn
+          title: Stop the horn?
+        channel: security_alerts_notifications
+        ttl: 0
+        priority: high
+      title: Security breach
+      message: Back horn started
+  - wait_for_trigger:
+    - event_type: mobile_app_notification_action
+      context: {}
+      event_data:
+        action: stop_parking_horn
+      trigger: event
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 3
+      seconds: 0
+      milliseconds: 0
+  - data: {}
+    action: switch.turn_off
+    target:
+      entity_id:
+      - switch.plug_parking_horn
+  mode: restart
+- id: '1777219194598'
+  alias: Turn on strobe light if someone enters through the kitchen door while alarm
+    is engaged
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.sensor_back_outside_door_contact
+    from:
+    - 'off'
+    to:
+    - 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 1
+  conditions:
+  - condition: or
+    conditions:
+    - condition: state
+      entity_id: alarm_control_panel.home_alarm
+      state:
+      - armed_away
+      - armed_night
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    target:
+      entity_id: switch.plug_kitchen_strobe_lamp
+    data: {}
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - alarm_control_panel.home_alarm
+      to:
+      - disarmed
+  - action: switch.turn_off
+    metadata: {}
+    target:
+      entity_id: switch.plug_kitchen_strobe_lamp
+    data: {}
+  mode: single
+- id: '1777475716412'
+  alias: Turn off sleeper in salon when lights are bright
+  description: Turns off the salon sleeper boolean when the salon lights brightness
+    exceeds 80% for 2 minutes, indicating the occupant is awake.
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - light.group_salon_lights
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 0
+    attribute: brightness
+    above: 80
+  conditions: []
+  actions:
+  - metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.sleeper_in_salon
+    action: input_boolean.turn_off
+  mode: single
+- id: '1777650153570'
+  alias: Mute patio speaker when occupancy ends
+  description: Mutes the patio speaker when motion is no longer detected and Maxi
+    is not present in the patio area
+  triggers:
+  - entity_id:
+    - binary_sensor.group_patio_motion_occupancy
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 0
+    trigger: state
+    to:
+    - 'off'
+  - trigger: state
+    entity_id:
+    - media_player.mass_patio_wiim_speaker
+  conditions:
+  - condition: template
+    value_template: '{{ states(''sensor.maxi_location_by_petro'') not in [area_id(trigger.entity_id)]
+      | string  }}'
+  - condition: state
+    entity_id: binary_sensor.group_patio_motion_occupancy
+    state:
+    - 'off'
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 0
+  actions:
+  - metadata: {}
+    data:
+      is_volume_muted: true
+    action: media_player.volume_mute
+    target:
+      entity_id: media_player.mass_patio_wiim_speaker
+  mode: parallel
+  max: 10
