@@ -1,0 +1,303 @@
+# =============================================================================
+# GENERIC ESP32-S3 INTERCOM (DUPLEX) - Single I2S bus, no hardware codec
+# =============================================================================
+# Simple intercom-only config. No media player, no mixer, no VA/MWW.
+# For ESP32 boards where mic and speaker share the SAME I2S bus.
+#
+# Audio pipeline:
+#   MEMS mic → i2s_audio_duplex (48kHz) → FIR x3 → esp_aec → mic_main → intercom TX
+#   Intercom RX (16kHz) → resampler → hw_speaker (48kHz) → class-D amp
+#
+# AEC defaults validated for single-bus MEMS+amp (intercom-only, no MWW):
+#   mode: voip_high_perf            residual echo suppressor for human ears
+#   filter_length: 8                ~128 ms tail at voip 16 ms/frame
+#   aec_reference: previous_frame   default, ~16 ms latency, no extra buffer
+#
+# 48kHz bus + FIR decimation is required on no-codec MEMS+amp setups; 16kHz
+# native gives significantly worse AEC. Codec devices with hardware digital
+# loopback (ES8311 stereo / ES7210 TDM) can run at 16kHz native instead.
+#
+# HARDWARE (adapt GPIOs to YOUR board):
+#   - Board: Any ESP32-S3 with PSRAM
+#   - Microphone: Any I2S MEMS mic on DIN pin
+#   - Speaker: Any I2S class-D amp on DOUT pin
+#   - Mic and speaker SHARE BCLK + LRCLK (same I2S bus, full-duplex)
+#   - LED: SK6812/WS2812 RGB (optional)
+#
+# GPIO PINOUT (example, change to match your wiring):
+#   Shared I2S:  BCLK=GPIO36, LRCLK=GPIO37, DIN=GPIO35 (mic), DOUT=GPIO7 (speaker)
+#   LED:         DATA=GPIO33
+#
+# =============================================================================
+
+substitutions:
+  # Hardware-shared identity: any firmware variant for this generic S3 board
+  # uses the same name so HA reuses the device entity and ESPHome reuses the
+  # build cache (.esphome/build/${name}).
+  name: generic-s3
+  friendly_name: Generic S3
+
+  ext_components_source: "github://n-IA-hane/esphome-intercom@main"
+
+# =============================================================================
+# Package: shared intercom state machine
+# =============================================================================
+packages:
+  core: github://n-IA-hane/esphome-intercom/packages/intercom_only.yaml@main
+  s3_base: github://n-IA-hane/esphome-intercom/packages/platform/esp32s3_base.yaml@main
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  platformio_options:
+    board_build.flash_mode: dio
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: esp-idf
+    advanced:
+      compiler_optimization: PERF
+    sdkconfig_options:
+      # Allow mbedtls to allocate its working buffers in PSRAM.
+      CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"
+      # Route ESP-IDF stdout (and ESPHome logger when hardware_uart=USB_SERIAL_JTAG)
+      # to the built-in USB-Serial-JTAG peripheral. Required on boards where the
+      # USB-C connector is wired to the S3's native USB-Serial-JTAG (e.g. Freenove,
+      # bare ESP32-S3-DevKitC-1) rather than to an external USB-UART chip.
+      CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG: "y"
+      CONFIG_ESP_CONSOLE_SECONDARY_NONE: "y"
+
+psram:
+  mode: quad
+  speed: 80MHz
+
+preferences:
+  flash_write_interval: 5min
+
+api:
+  on_client_connected:
+    - lambda: |-
+        static bool published = false;
+        if (!published) {
+          published = true;
+          id(intercom).publish_entity_states();
+        }
+
+ota:
+  - platform: esphome
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+  level: INFO
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+external_components:
+  - source: ${ext_components_source}
+    components: [intercom_api, i2s_audio_duplex, esp_aec, audio_processor]
+
+# =============================================================================
+# AEC
+# =============================================================================
+esp_aec:
+  id: aec_processor
+  sample_rate: 16000
+  filter_length: 8
+  mode: voip_high_perf
+
+# =============================================================================
+# I2S Audio Duplex
+# =============================================================================
+i2s_audio_duplex:
+  id: i2s_duplex
+  i2s_lrclk_pin: GPIO37
+  i2s_bclk_pin: GPIO36
+  i2s_din_pin: GPIO35
+  i2s_dout_pin: GPIO7
+  sample_rate: 48000
+  output_sample_rate: 16000
+  slot_bit_width: 32
+  correct_dc_offset: true
+  processor_id: aec_processor
+  buffers_in_psram: true
+
+# =============================================================================
+# Microphone
+# =============================================================================
+microphone:
+  - platform: i2s_audio_duplex
+    id: mic_main
+    i2s_audio_duplex_id: i2s_duplex
+
+# =============================================================================
+# Speaker
+# =============================================================================
+speaker:
+  - platform: i2s_audio_duplex
+    id: hw_speaker
+    i2s_audio_duplex_id: i2s_duplex
+    sample_rate: 48000
+
+  - platform: resampler
+    id: intercom_speaker
+    output_speaker: hw_speaker
+    bits_per_sample: 16
+
+# =============================================================================
+# Intercom API: Device part (merged with package callbacks)
+# =============================================================================
+intercom_api:
+  frame_buffers_in_psram: true # Processor frame buffers (mic/ref/out, ~3 KB) in PSRAM
+  mode: full
+  microphone: mic_main
+  speaker: intercom_speaker
+  dc_offset_removal: false
+  ringing_timeout: 30s
+
+# =============================================================================
+# Switches (device-specific)
+# =============================================================================
+switch:
+  - platform: intercom_api
+    intercom_api_id: intercom
+    auto_answer:
+      id: auto_answer_switch
+      name: Auto Answer
+      icon: mdi:phone-in-talk
+      restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: i2s_audio_duplex
+    i2s_audio_duplex_id: i2s_duplex
+    aec:
+      id: aec_switch
+      name: Echo Cancellation
+      icon: mdi:ear-hearing
+      restore_mode: RESTORE_DEFAULT_ON
+
+# =============================================================================
+# AEC Mode Select
+# =============================================================================
+select:
+  - platform: template
+    name: AEC Mode
+    id: aec_mode_select
+    icon: mdi:tune-vertical
+    # Intercom-only standard: stay inside the dios_ssp_aec engine. The two
+    # VOIP modes share the same engine, so a runtime switch never triggers
+    # an esp_aec3 FFT alloc and avoids the silent calloc-fail bug observed
+    # at filter_length>4 on cross-engine transitions. SR modes are not
+    # offered here because no MWW is present in this configuration.
+    options:
+      - "voip_low_cost"
+      - "voip_high_perf"
+    initial_option: "voip_high_perf"
+    # Non-optimistic: HA reflects the live component mode, not the value the
+    # user clicked. If the switch is rejected (e.g. internal RAM fragmented)
+    # or the component falls back to the previous mode, the select shows the
+    # actual mode rather than a fictitious one.
+    optimistic: false
+    restore_value: false
+    set_action:
+      - if:
+          condition:
+            not:
+              intercom_api.is_idle: intercom
+          then:
+            - logger.log:
+                level: WARN
+                format: "Cannot switch AEC mode during active intercom call"
+          else:
+            - logger.log:
+                format: "Switching AEC mode to %s"
+                args: ['x.c_str()']
+            - i2s_audio_duplex.stop: i2s_duplex
+            - esp_aec.set_mode:
+                id: aec_processor
+                mode: !lambda 'return x;'
+            - i2s_audio_duplex.start: i2s_duplex
+      # Reflect actual live mode (covers rejection and silent fallback).
+      - lambda: |-
+          id(aec_mode_select).publish_state(id(aec_processor).get_mode_name());
+
+# =============================================================================
+# Numbers
+# =============================================================================
+number:
+  - platform: i2s_audio_duplex
+    i2s_audio_duplex_id: i2s_duplex
+    speaker_volume:
+      name: Speaker Volume
+    mic_gain:
+      name: Mic Gain
+    mic_gain_pre_aec:
+      name: Mic Gain Pre-AEC
+      pre_aec: true
+
+# =============================================================================
+# Status LED
+# =============================================================================
+light:
+  - platform: esp32_rmt_led_strip
+    id: status_led
+    name: Status LED
+    icon: mdi:led-on
+    pin: GPIO33
+    chipset: SK6812
+    num_leds: 1
+    rgb_order: GRB
+    effects:
+      - pulse:
+          name: "Slow Pulse"
+          min_brightness: 20%
+          max_brightness: 100%
+          transition_length: 1s
+          update_interval: 1s
+      - strobe:
+          name: "Ringing"
+          colors:
+            - state: true
+              brightness: 100%
+              red: 100%
+              green: 0%
+              blue: 0%
+              duration: 250ms
+            - state: false
+              duration: 250ms
+      - strobe:
+          name: "Calling"
+          colors:
+            - state: true
+              brightness: 100%
+              red: 100%
+              green: 50%
+              blue: 0%
+              duration: 500ms
+            - state: false
+              duration: 500ms
+
+# =============================================================================
+# Diagnostics
+# =============================================================================
+sensor:
+  - platform: wifi_signal
+    name: WiFi Signal
+    update_interval: 60s
+    entity_category: diagnostic
+
+  - platform: uptime
+    name: Uptime
+    update_interval: 60s
+    entity_category: diagnostic
+
+  - platform: internal_temperature
+    name: CPU Temperature
+    update_interval: 60s
+    entity_category: diagnostic
+
+binary_sensor:
+  - platform: status
+    name: Status

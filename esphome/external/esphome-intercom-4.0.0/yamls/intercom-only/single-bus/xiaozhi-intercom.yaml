@@ -1,0 +1,1247 @@
+# =============================================================================
+# XIAOZHI BALL V3 - INTERCOM ONLY (LVGL, single-bus, esp_aec)
+# =============================================================================
+# Intercom-only LVGL variant of the Xiaozhi Ball V3. Same graphic identity as
+# the full-experience build for the intercom pages, but with NO voice
+# assistant, NO micro_wake_word, NO mixer, and NO VA pages.
+#
+# Audio pipeline (mixer topology, mirrors xiaozhi-ball-v3-full-aec speaker stack):
+#
+#   I2S RX 48kHz stereo (L=DAC ref, R=ADC mic) ─FIR x3─> esp_aec @16k ──> mic_main ──> intercom TX
+#
+#   Intercom RX (16kHz) ──> intercom_speaker  (resampler 16→48) ─┐
+#   Ringtone   (FLAC)   ──> ringtone_speaker  (resampler 16→48) ─┴─> audio_mixer (48k) ──> hw_speaker ──> ES8311 DAC
+#
+# Single GPIO0 button (intercom-only, no VA mode):
+#   short  : call (idle) / answer (ringing in) / hangup (in call/outgoing)
+#   double : decline (ringing in) / next contact (idle)
+#   long   : mute toggle
+#
+# Touch (CST816, dedicated I2C bus):
+#   horizontal swipe in IC idle : prev/next contact (right=prev, left=next)
+# =============================================================================
+
+substitutions:
+  # Device identity is hardware-based, not firmware-variant-based: all Xiaozhi
+  # firmwares (intercom / full-aec / full-afe) share `xiaozhi` so a flash swap
+  # reuses the same HA device entity and the same .esphome/build cache.
+  name: xiaozhi
+  friendly_name: Xiaozhi
+
+  ext_components_source: "github://n-IA-hane/esphome-intercom@main"
+
+  assets_base: "https://github.com/n-IA-hane/esphome-intercom/raw/main/"
+
+  # IC layout proportions (relative to display_height)
+  ic_btn_size: "25%"
+  ic_btn_offset: "2%"
+  ic_btn_below_center: "19%"   # cornetta center between peer (50%) and battery overlay (82%)
+  ic_contacts_y: "31%"         # idle rubrica icon: visual midway between IDLE label (~y=58) and peer (~y=120)
+  ic_peer_width: "58%"
+
+  # Display constants
+  display_width: "240"
+  display_height: "240"
+
+# =============================================================================
+# Packages
+# =============================================================================
+packages:
+  core: github://n-IA-hane/esphome-intercom/packages/intercom_only.yaml@main
+  s3_base: github://n-IA-hane/esphome-intercom/packages/platform/esp32s3_base.yaml@main
+  audio_mem: github://n-IA-hane/esphome-intercom/packages/profile/audio_memory.yaml@main
+  es8311_stereo_ref: github://n-IA-hane/esphome-intercom/packages/codec/es8311_stereo_ref.yaml@main
+
+# =============================================================================
+# Core
+# =============================================================================
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  name_add_mac_suffix: false
+  on_boot:
+    priority: 600
+    then:
+      - output.turn_on: speaker_enable
+      - light.turn_on:
+          id: backlight
+          brightness: 100%
+      - light.turn_off: status_led
+      - script.execute: backlight_timer
+      - delay: 1s
+      # ES8311 stereo AEC reference (shared with xiaozhi-full variants
+      # via packages/codec/es8311_stereo_ref.yaml).
+      - script.execute: es8311_stereo_ref_init
+      - lambda: |-
+          float vol = 0.15 + (id(speaker_volume).state / 100.0) * 0.60;
+          id(es8311_dac).set_volume(vol);
+          id(peer_name) = id(intercom).get_current_destination();
+      - script.execute: update_ic_idle_labels
+      - script.execute: draw_display
+
+esp32:
+  board: esp32-s3-devkitc-1
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    advanced:
+      compiler_optimization: PERF
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+# =============================================================================
+# Connectivity
+# =============================================================================
+api:
+  on_client_connected:
+    - script.execute: draw_display
+    - lambda: |-
+        // Only publish once on first HA connection (not on every log viewer connect)
+        static bool published = false;
+        if (!published) {
+          published = true;
+          id(intercom).publish_entity_states();
+        }
+  on_client_disconnected:
+    - script.execute: draw_display
+
+ota:
+  - platform: esphome
+    id: ota_esphome
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+  level: INFO
+  logs:
+    sensor: WARN
+    text_sensor: WARN
+    binary_sensor: WARN
+    switch: WARN
+
+network:
+  enable_high_performance: true
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "Ball v3 Hotspot"
+  on_connect:
+    - script.execute: draw_display
+  on_disconnect:
+    - script.execute: draw_display
+
+captive_portal:
+
+time:
+  - platform: sntp
+    id: my_time
+    timezone: Europe/Rome
+    servers:
+      - 0.pool.ntp.org
+      - 1.pool.ntp.org
+      - 2.pool.ntp.org
+
+# =============================================================================
+# External components
+# =============================================================================
+external_components:
+  - source: ${ext_components_source}
+    components: [intercom_api, i2s_audio_duplex, esp_aec, audio_processor]
+
+# =============================================================================
+# I2C buses (separate buses for codec and touchscreen)
+# =============================================================================
+i2c:
+  - id: i2c_bus
+    sda: GPIO15
+    scl: GPIO14
+    scan: false
+  - id: touchscreen_i2c_bus
+    sda: GPIO11
+    scl: GPIO7
+    scan: false
+
+# =============================================================================
+# Audio codec (ES8311)
+# =============================================================================
+audio_dac:
+  - platform: es8311
+    id: es8311_dac
+    i2c_id: i2c_bus
+    bits_per_sample: 16bit
+    sample_rate: 48000
+    mic_gain: 24DB
+
+# =============================================================================
+# Echo cancellation (esp_aec, voip_high_perf)
+# =============================================================================
+esp_aec:
+  id: aec_processor
+  sample_rate: 16000
+  filter_length: 4
+  mode: voip_high_perf
+
+# =============================================================================
+# I2S Audio Duplex (bus 48kHz ES8311 native, FIR x3 to 16kHz for AEC/intercom)
+# =============================================================================
+i2s_audio_duplex:
+  id: i2s_duplex
+  i2s_lrclk_pin: GPIO45
+  i2s_bclk_pin: GPIO9
+  i2s_mclk_pin: GPIO16
+  i2s_din_pin: GPIO10
+  i2s_dout_pin: GPIO8
+  sample_rate: 48000             # I2S bus rate (ES8311 native)
+  output_sample_rate: 16000      # Mic/AEC/intercom output rate (FIR decimation x3)
+  processor_id: aec_processor
+  # ES8311 digital feedback: RX is stereo with L=DAC(reference), R=ADC(mic).
+  # Sample-accurate reference; requires ES8311 register 0x44 bits[6:4]=4
+  # (configured in on_boot via es8311_stereo_ref_init).
+  use_stereo_aec_reference: true
+
+# =============================================================================
+# Microphone (post-AEC, mic_main is required by intercom_only package)
+# =============================================================================
+microphone:
+  - platform: i2s_audio_duplex
+    id: mic_main
+    i2s_audio_duplex_id: i2s_duplex
+
+# =============================================================================
+# Speakers (mixer topology: sources -> resampler -> mixer 48kHz -> hw_speaker)
+# Mirrors xiaozhi-ball-v3-full-aec stack so the intercom RX push-stream and the
+# ringtone announcement go through a buffered mixer instead of competing
+# directly on hw_speaker.
+# =============================================================================
+speaker:
+  - platform: i2s_audio_duplex
+    id: hw_speaker
+    i2s_audio_duplex_id: i2s_duplex
+    sample_rate: 48000
+
+  - platform: mixer
+    id: audio_mixer
+    output_speaker: hw_speaker
+    num_channels: 1
+    source_speakers:
+      - id: intercom_speaker_mix
+        timeout: 10s
+        buffer_duration: 100ms
+      - id: ringtone_speaker_mix
+        timeout: 10s
+        buffer_duration: 100ms
+
+  - platform: resampler
+    id: intercom_speaker            # Intercom RX (16kHz) -> 48kHz
+    output_speaker: intercom_speaker_mix
+
+  - platform: resampler
+    id: ringtone_speaker             # Ringtone FLAC -> 48kHz
+    output_speaker: ringtone_speaker_mix
+
+# =============================================================================
+# Media player (ringtone only — no music, no TTS)
+# =============================================================================
+media_player:
+  - platform: speaker
+    id: speaker_media_player
+    name: None
+    internal: true
+    # Pin the player chain at unity gain. Default volume_initial=0.5
+    # propagates to hw_speaker.set_volume(0.5) which i2s_audio_duplex
+    # interprets via the Q15 dB curve as ~-25 dB software attenuation,
+    # silencing both ringtone AND intercom RX. Clamping min=max=1.0
+    # makes set_volume_() a no-op and leaves the ES8311 slider as the
+    # only volume control.
+    volume_initial: 1.0
+    volume_min: 1.0
+    volume_max: 1.0
+    announcement_pipeline:
+      speaker: ringtone_speaker
+      format: FLAC
+      sample_rate: 48000
+      num_channels: 1
+    files:
+      - id: intercom_ringing_sound
+        file: ${assets_base}assets/sounds/ringtone.flac
+
+# =============================================================================
+# Intercom API (TCP-based, port 6054). RX flows through intercom_speaker
+# resampler into the audio_mixer, so the speaker pipeline stays buffered
+# and tolerates TCP push-stream jitter.
+# =============================================================================
+intercom_api:
+  tasks_stack_in_psram: true
+  frame_buffers_in_psram: true # Processor frame buffers (mic/ref/out, ~3 KB) in PSRAM
+  id: intercom
+  mode: full
+  microphone: mic_main
+  speaker: intercom_speaker
+  ringing_timeout: 30s
+
+  on_answered:
+    - logger.log: "Call answered"
+
+# =============================================================================
+# Globals (peer_name only - no VA state needed)
+# =============================================================================
+globals:
+  - id: peer_name
+    type: std::string
+    restore_value: no
+    initial_value: '"Home Assistant"'
+
+  - id: y_metrics
+    type: std::vector<int>
+    restore_value: false
+
+# =============================================================================
+# Scripts
+# =============================================================================
+script:
+  # Extend the package's update_status to drive page transitions and the
+  # ringtone loop while the device is in Ringing (incoming) state.
+  - id: !extend update_status
+    then:
+      - script.execute: draw_display
+      - if:
+          condition:
+            intercom_api.is_ringing: intercom
+          then:
+            - script.execute: intercom_ringing_loop
+          else:
+            - script.stop: intercom_ringing_loop
+            - media_player.stop:
+                announcement: true
+
+  # Extend the package's ui_ic_call hook to update the per-page peer label
+  # and refresh the display.
+  - id: !extend ui_ic_call
+    then:
+      - lambda: |-
+          id(peer_name) = peer;
+      - script.execute: backlight_timer
+      - lvgl.label.update:
+          id: ic_ringing_out_peer_label
+          text: !lambda 'return id(peer_name);'
+      - lvgl.label.update:
+          id: ic_ringing_in_peer_label
+          text: !lambda 'return id(peer_name);'
+      - lvgl.label.update:
+          id: ic_in_call_peer_label
+          text: !lambda 'return id(peer_name);'
+      - script.execute: draw_display
+
+  # Ringtone loop while ringing (incoming).
+  - id: intercom_ringing_loop
+    mode: restart
+    then:
+      - while:
+          condition:
+            intercom_api.is_ringing: intercom
+          then:
+            - media_player.speaker.play_on_device_media_file:
+                media_file: intercom_ringing_sound
+                announcement: true
+            - wait_until:
+                condition:
+                  media_player.is_announcing:
+                timeout: 2s
+            - wait_until:
+                condition:
+                  not:
+                    media_player.is_announcing:
+                timeout: 5s
+            - delay: 1s
+
+  # Page routing: pick the right LVGL screen for current intercom state.
+  - id: draw_display
+    mode: restart
+    then:
+      - lambda: |-
+          lv_obj_t* target = nullptr;
+          if (!wifi::global_wifi_component->is_connected()) {
+            target = id(no_wifi_page)->obj;
+          } else if (!api::global_api_server->is_connected()) {
+            target = id(no_ha_page)->obj;
+          } else {
+            auto s = id(intercom).get_state_str();
+            if (s == "Ringing" || s == "Incoming") {
+              target = id(ic_ringing_in_page)->obj;
+            } else if (s == "Calling" || s == "Outgoing") {
+              target = id(ic_ringing_out_page)->obj;
+            } else if (s == "Streaming" || s == "Answering") {
+              target = id(ic_in_call_page)->obj;
+            } else {
+              target = id(ic_idle_page)->obj;
+            }
+          }
+          if (target == nullptr) return;
+          if (target != lv_disp_get_scr_act(nullptr)) {
+            lv_disp_load_scr(target);
+            lv_obj_invalidate(lv_disp_get_scr_act(nullptr));
+          }
+      - if:
+          condition:
+            lambda: 'return id(intercom).get_state_str() == "Idle";'
+          then:
+            - script.execute: update_ic_idle_labels
+            - script.execute: update_idle_labels
+
+  # Update intercom-idle dynamic labels (peer + state + contact count + arrows).
+  - id: update_ic_idle_labels
+    then:
+      - lambda: id(peer_name) = id(intercom).get_current_destination();
+      - lvgl.label.update:
+          id: ic_idle_peer_label
+          text: !lambda 'return id(peer_name);'
+      - lvgl.label.update:
+          id: ic_idle_contacts_label
+          text: !lambda |-
+            auto csv = id(intercom).get_contacts_csv();
+            int count = csv.empty() ? 0 : std::count(csv.begin(), csv.end(), ',') + 1;
+            char buf[16];
+            snprintf(buf, sizeof(buf), "\U000F06CB %d", count);
+            return std::string(buf);
+  # Top-layer clock + battery/wifi/HA status bar refresh.
+  - id: update_idle_labels
+    then:
+      - lvgl.label.update:
+          id: top_clock_label
+          text:
+            format: "%02d:%02d"
+            args: ['id(my_time).now().hour', 'id(my_time).now().minute']
+      - if:
+          condition:
+            - lambda: return id(battery_percentage).has_state() && !std::isnan(id(battery_percentage).state);
+          then:
+            - lvgl.label.update:
+                id: top_battery_label
+                text: !lambda |-
+                  bool charging = id(usb_connected).state;
+                  float bat = id(battery_percentage).state;
+                  float wifi = id(wifi_pct).state;
+                  std::string ret;
+                  if (bat < 10) ret = charging ? "\U000F089F" : "\U000F008E";
+                  else if (bat < 20) ret = charging ? "\U000F089C" : "\U000F007A";
+                  else if (bat < 30) ret = charging ? "\U000F0086" : "\U000F007B";
+                  else if (bat < 40) ret = charging ? "\U000F0087" : "\U000F007C";
+                  else if (bat < 50) ret = charging ? "\U000F0088" : "\U000F007D";
+                  else if (bat < 60) ret = charging ? "\U000F089D" : "\U000F007E";
+                  else if (bat < 70) ret = charging ? "\U000F0089" : "\U000F007F";
+                  else if (bat < 80) ret = charging ? "\U000F089E" : "\U000F0080";
+                  else if (bat < 90) ret = charging ? "\U000F008A" : "\U000F0081";
+                  else if (bat < 100) ret = charging ? "\U000F008B" : "\U000F0082";
+                  else ret = "\U000F0079";
+                  if (wifi < 20) ret += "\U000F08BF";
+                  else if (wifi < 55) ret += "\U000F08BC";
+                  else if (wifi < 80) ret += "\U000F08BD";
+                  else ret += "\U000F08BE";
+                  ret += api::global_api_server->is_connected() ? "\U000F07D0" : "\U000F15D0";
+                  return ret;
+          else:
+            - lvgl.label.update:
+                id: top_battery_label
+                text: ""
+
+  # Backlight timer: full -> dim -> off (or low if charging).
+  - id: backlight_timer
+    mode: restart
+    then:
+      - light.turn_on:
+          id: backlight
+          brightness: 100%
+      - delay: 30s
+      - light.turn_on:
+          id: backlight
+          brightness: 60%
+      - delay: 120s
+      - if:
+          condition:
+            binary_sensor.is_on: usb_connected
+          then:
+            - light.turn_on:
+                id: backlight
+                brightness: 20%
+          else:
+            - light.turn_off: backlight
+
+  # Periodic clock/status refresh on the idle page.
+  - id: idle_refresh_loop
+    mode: single
+    then:
+      - while:
+          condition:
+            intercom_api.is_idle: intercom
+          then:
+            - script.execute: update_idle_labels
+            - delay: 30s
+
+# =============================================================================
+# Text sensors: extend the package's ha_active_devices to refresh the LVGL
+# idle screen (peer name + contact count) when HA pushes a new contacts CSV.
+# The package already runs intercom_api.set_contacts in on_value; this !extend
+# appends two more actions to the same chain. The filter on the package side
+# guarantees we only land here when the CSV actually changed.
+# =============================================================================
+text_sensor:
+  - id: !extend ha_active_devices
+    on_value:
+      - lambda: id(peer_name) = id(intercom).get_current_destination();
+      - script.execute: update_ic_idle_labels
+
+# =============================================================================
+# Buttons (package buttons extended here for Xiaozhi display sync)
+# =============================================================================
+button:
+  - platform: factory_reset
+    id: factory_reset_btn
+    internal: true
+
+  - id: !extend next_contact_button
+    on_press:
+      - script.execute: update_ic_idle_labels
+      - script.execute: draw_display
+
+  - id: !extend prev_contact_button
+    on_press:
+      - script.execute: update_ic_idle_labels
+      - script.execute: draw_display
+
+# =============================================================================
+# Sensors
+# =============================================================================
+sensor:
+  - platform: adc
+    pin: GPIO1
+    name: "Battery Voltage"
+    id: battery_voltage
+    attenuation: 12db
+    accuracy_decimals: 2
+    update_interval: 10s
+    unit_of_measurement: "V"
+    icon: mdi:battery
+    filters:
+      - multiply: 2.0
+      - median:
+          window_size: 7
+          send_every: 7
+          send_first_at: 1
+      - throttle: 1min
+
+  - platform: template
+    id: battery_percentage
+    name: "Battery Percentage"
+    lambda: |-
+      if (!id(battery_voltage).has_state() || std::isnan(id(battery_voltage).state))
+        return NAN;
+      return id(battery_voltage).state;
+    accuracy_decimals: 0
+    unit_of_measurement: "%"
+    icon: mdi:battery-medium
+    filters:
+      - calibrate_linear:
+          method: exact
+          datapoints:
+            - 2.80 -> 0.0
+            - 3.10 -> 10.0
+            - 3.30 -> 20.0
+            - 3.45 -> 30.0
+            - 3.60 -> 40.0
+            - 3.70 -> 50.0
+            - 3.75 -> 60.0
+            - 3.80 -> 70.0
+            - 3.90 -> 80.0
+            - 4.00 -> 90.0
+            - 4.20 -> 100.0
+      - lambda: |-
+          if (x > 100) return 100;
+          if (x < 0) return 0;
+          return x;
+
+  - platform: wifi_signal
+    id: wifi_signal_db
+    name: "WiFi Signal dBm"
+    icon: "mdi:wifi"
+    update_interval: 30s
+
+  - platform: template
+    id: wifi_pct
+    name: "WiFi Signal %"
+    icon: "mdi:wifi"
+    unit_of_measurement: "%"
+    update_interval: 30s
+    lambda: |-
+      if (!id(wifi_signal_db).has_state()) return 0.0f;
+      float dbm = id(wifi_signal_db).state;
+      if (dbm >= -50) return 100.0f;
+      if (dbm <= -100) return 0.0f;
+      return 2.0f * (dbm + 100.0f);
+
+  - platform: uptime
+    name: "Uptime"
+    update_interval: 60s
+
+  - platform: internal_temperature
+    name: "CPU Temperature"
+    update_interval: 60s
+
+  - platform: template
+    name: "Free Heap"
+    update_interval: 10s
+    unit_of_measurement: KB
+    entity_category: diagnostic
+    lambda: 'return esp_get_free_heap_size() / 1024.0f;'
+
+  - platform: template
+    name: "Free Internal"
+    update_interval: 10s
+    unit_of_measurement: KB
+    entity_category: diagnostic
+    lambda: 'return heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024.0f;'
+
+  - platform: template
+    name: "Internal Heap Minimum"
+    update_interval: 10s
+    unit_of_measurement: KB
+    entity_category: diagnostic
+    lambda: 'return heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL) / 1024.0f;'
+
+  - platform: template
+    name: "Internal Largest Block"
+    update_interval: 10s
+    unit_of_measurement: KB
+    entity_category: diagnostic
+    lambda: 'return heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024.0f;'
+
+# =============================================================================
+# Binary sensors (status, USB, GPIO0 button page-aware)
+# =============================================================================
+binary_sensor:
+  - platform: status
+    id: node_status
+    name: "Status"
+
+  - platform: template
+    name: "USB Connected"
+    id: usb_connected
+    device_class: plug
+    lambda: return id(battery_voltage).state > 3.9;
+    on_press:
+      - script.execute: backlight_timer
+    on_release:
+      - script.execute: backlight_timer
+
+  # Physical GPIO0 button (intercom-only, no VA mode):
+  #   short  : call/answer/hangup
+  #   double : decline (incoming) / next contact (idle)
+  #   long   : mute toggle
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: true
+    id: main_button
+    name: "Main Button"
+    icon: "mdi:gesture-tap-button"
+    filters:
+      - delayed_on: 20ms
+      - delayed_off: 20ms
+    on_multi_click:
+      # Single click: smart call (idle->call, ringing->answer, in-call->hangup)
+      - timing:
+          - ON for 10ms to 500ms
+          - OFF for at least 400ms
+        then:
+          - button.press: call_button
+      # Double click: decline incoming, else next contact when idle
+      - timing:
+          - ON for 50ms to 500ms
+          - OFF for 50ms to 400ms
+          - ON for 50ms to 500ms
+          - OFF for at least 400ms
+        then:
+          - if:
+              condition:
+                intercom_api.is_ringing: intercom
+              then:
+                - button.press: decline_button
+              else:
+                - if:
+                    condition:
+                      intercom_api.is_idle: intercom
+                    then:
+                      - button.press: next_contact_button
+      # Long press (1-3s): toggle mic mute
+      - timing:
+          - ON for 1s to 3s
+        then:
+          - switch.toggle: mute
+
+# =============================================================================
+# Outputs and lights
+# =============================================================================
+output:
+  - platform: gpio
+    id: speaker_enable
+    pin: GPIO46
+    inverted: false
+  - platform: ledc
+    id: backlight_output
+    pin: GPIO42
+    inverted: true
+
+light:
+  - platform: monochromatic
+    id: backlight
+    name: "Display Backlight"
+    icon: "mdi:brightness-6"
+    output: backlight_output
+    restore_mode: ALWAYS_ON
+    default_transition_length: 250ms
+
+  - platform: esp32_rmt_led_strip
+    id: status_led
+    name: none
+    disabled_by_default: false
+    entity_category: config
+    pin: GPIO48
+    default_transition_length: 0s
+    chipset: WS2812
+    num_leds: 1
+    rgb_order: grb
+    effects:
+      - pulse:
+          name: "Slow Pulse"
+          transition_length: 250ms
+          update_interval: 250ms
+          min_brightness: 0%
+          max_brightness: 100%
+      - pulse:
+          name: "Fast Pulse"
+          transition_length: 100ms
+          update_interval: 100ms
+          min_brightness: 50%
+          max_brightness: 100%
+      - strobe:
+          name: "Ringing"
+          colors:
+            - state: true
+              brightness: 100%
+              red: 100%
+              green: 0%
+              blue: 0%
+              duration: 300ms
+            - state: false
+              duration: 300ms
+      - strobe:
+          name: "Calling"
+          colors:
+            - state: true
+              brightness: 100%
+              red: 100%
+              green: 50%
+              blue: 0%
+              duration: 500ms
+            - state: false
+              duration: 500ms
+
+# =============================================================================
+# Switches
+# =============================================================================
+switch:
+  - platform: intercom_api
+    intercom_api_id: intercom
+    auto_answer:
+      id: auto_answer_switch
+      name: "Auto Answer"
+      restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: i2s_audio_duplex
+    i2s_audio_duplex_id: i2s_duplex
+    aec:
+      id: aec_switch
+      name: "Echo Cancellation"
+      icon: mdi:ear-hearing
+      restore_mode: RESTORE_DEFAULT_ON
+
+# =============================================================================
+# AEC mode select (VOIP-only, intercom-only)
+# Stay inside the dios_ssp_aec engine. Both VOIP modes share the same engine,
+# so a runtime switch never triggers an esp_aec3 FFT alloc and avoids the
+# silent calloc-fail bug observed at filter_length>4 on cross-engine
+# transitions. SR modes are not offered here because no MWW is present.
+# =============================================================================
+select:
+  - platform: template
+    name: AEC Mode
+    id: aec_mode_select
+    icon: mdi:tune-vertical
+    options:
+      - "voip_low_cost"
+      - "voip_high_perf"
+    initial_option: "voip_high_perf"
+    # Non-optimistic: HA reflects the live component mode, not the value the
+    # user clicked. If the switch is rejected (e.g. internal RAM fragmented)
+    # or the component falls back to the previous mode, the select shows the
+    # actual mode rather than a fictitious one.
+    optimistic: false
+    restore_value: false
+    set_action:
+      - if:
+          condition:
+            not:
+              intercom_api.is_idle: intercom
+          then:
+            - logger.log:
+                level: WARN
+                format: "Cannot switch AEC mode during active intercom call"
+          else:
+            - logger.log:
+                format: "Switching AEC mode to %s"
+                args: ['x.c_str()']
+            - i2s_audio_duplex.stop: i2s_duplex
+            - esp_aec.set_mode:
+                id: aec_processor
+                mode: !lambda 'return x;'
+            - i2s_audio_duplex.start: i2s_duplex
+      - lambda: |-
+          id(aec_mode_select).publish_state(id(aec_processor).get_mode_name());
+
+# =============================================================================
+# Numbers (mic gain + ES8311-backed speaker volume)
+# =============================================================================
+number:
+  - platform: i2s_audio_duplex
+    i2s_audio_duplex_id: i2s_duplex
+    mic_gain:
+      id: mic_gain
+      name: "Mic Gain"
+
+  - platform: template
+    id: speaker_volume
+    name: "Speaker Volume"
+    icon: "mdi:volume-high"
+    min_value: 0
+    max_value: 100
+    step: 5
+    initial_value: 50
+    optimistic: true
+    restore_value: true
+    unit_of_measurement: "%"
+    set_action:
+      - lambda: |-
+          float es8311_vol = 0.15 + (x / 100.0) * 0.60;
+          id(es8311_dac).set_volume(es8311_vol);
+
+# =============================================================================
+# Touchscreen (CST816 on dedicated I2C bus). Contact swipe is handled natively
+# via on_swipe_left / on_swipe_right on ic_idle_page; on_touch only refreshes
+# the backlight timer.
+# =============================================================================
+touchscreen:
+  - platform: cst816
+    id: touch
+    display: s3_box_lcd
+    i2c_id: touchscreen_i2c_bus
+    interrupt_pin: GPIO12
+    reset_pin: GPIO6
+    on_touch:
+      - script.execute: backlight_timer
+
+# =============================================================================
+# Display + LVGL (mipi_spi, GC9A01A 240x240 round)
+# =============================================================================
+spi:
+  - id: spi_bus
+    clk_pin: 4
+    mosi_pin: 2
+
+display:
+  - platform: mipi_spi
+    id: s3_box_lcd
+    model: GC9A01A
+    invert_colors: true
+    data_rate: 40MHz
+    cs_pin: 5
+    dc_pin: 47
+    reset_pin:
+      number: 38
+    auto_clear_enabled: false
+    dimensions:
+      height: 240
+      width: 240
+
+# =============================================================================
+# Fonts (gfonts + MaterialDesign glyphs for clock, IC icons, status bar)
+# =============================================================================
+font:
+  - file:
+      type: gfonts
+      family: Figtree
+      weight: 600
+    id: font_clock
+    size: 20
+    glyphs: "0123456789:%"
+    extras:
+      - file: "https://github.com/Templarian/MaterialDesign-Webfont/raw/master/fonts/materialdesignicons-webfont.ttf"
+        glyphs:
+          - "\U000F0079" # battery-100
+          - "\U000F008E" # battery-alert (0%)
+          - "\U000F007A" # battery-10
+          - "\U000F007B" # battery-20
+          - "\U000F007C" # battery-30
+          - "\U000F007D" # battery-40
+          - "\U000F007E" # battery-50
+          - "\U000F007F" # battery-60
+          - "\U000F0080" # battery-70
+          - "\U000F0081" # battery-80
+          - "\U000F0082" # battery-90
+          - "\U000F089F" # battery-charging-outline (0%)
+          - "\U000F089C" # battery-charging-10
+          - "\U000F0086" # battery-charging-20
+          - "\U000F0087" # battery-charging-30
+          - "\U000F0088" # battery-charging-40
+          - "\U000F089D" # battery-charging-50
+          - "\U000F0089" # battery-charging-60
+          - "\U000F089E" # battery-charging-70
+          - "\U000F008A" # battery-charging-80
+          - "\U000F008B" # battery-charging-90
+          - "\U000F08BF" # wifi-strength-outline (<20%)
+          - "\U000F08BC" # wifi-strength-1 (<55%)
+          - "\U000F08BD" # wifi-strength-2 (<80%)
+          - "\U000F08BE" # wifi-strength-3 (>=80%)
+          - "\U000F07D0" # home-assistant (HA connected)
+          - "\U000F15D0" # home-alert (HA disconnected)
+
+  - file: "https://github.com/Templarian/MaterialDesign-Webfont/raw/master/fonts/materialdesignicons-webfont.ttf"
+    id: ic_icons
+    size: 42
+    glyphs:
+      - "\U000F03F2" # phone
+      - "\U000F03F5" # phone-hangup
+      - "\U000F0731" # arrow left bold
+      - "\U000F0734" # arrow right bold
+
+  - file:
+      type: gfonts
+      family: Roboto
+      weight: 700
+    id: font_title
+    size: 24
+    glyphsets:
+      - GF_Latin_Core
+    extras:
+      - file: "https://github.com/Templarian/MaterialDesign-Webfont/raw/master/fonts/materialdesignicons-webfont.ttf"
+        glyphs:
+          - "\U000F06CB" # contacts (address book)
+
+  - file:
+      type: gfonts
+      family: Roboto
+      weight: 500
+    id: font_state
+    size: 28
+    # Static labels only: IDLE, RINGING, CALLING, IN CALL, No WiFi, No HA.
+    # Explicit glyphs save ~150 KB flash vs GF_Latin_Core (319 glyphs).
+    glyphs: " ACDEFGHILNRWio"
+
+# =============================================================================
+# LVGL display engine (intercom-only: 4 IC pages + no_wifi/no_ha + top status)
+# =============================================================================
+lvgl:
+  displays:
+    - s3_box_lcd
+  buffer_size: 50%
+  color_depth: 16
+  log_level: WARN
+  top_layer:
+    widgets:
+      # Clock + battery/wifi/HA status bar (always visible).
+      - label:
+          id: top_clock_label
+          align: TOP_MID
+          y: 90%
+          text: ""
+          text_color: 0xFFFFFF
+          text_font: font_clock
+      - label:
+          id: top_battery_label
+          align: TOP_MID
+          y: 82%
+          text: ""
+          text_color: 0xFFFFFF
+          text_font: font_clock
+
+  pages:
+    # ========================================================================
+    # NO WIFI PAGE
+    # ========================================================================
+    - id: no_wifi_page
+      bg_color: 0x000000
+      widgets:
+        - label:
+            align: CENTER
+            text: "No WiFi"
+            text_color: 0xFF8080
+            text_font: font_state
+            text_align: CENTER
+
+    # ========================================================================
+    # NO HA PAGE
+    # ========================================================================
+    - id: no_ha_page
+      bg_color: 0x000000
+      widgets:
+        - label:
+            align: CENTER
+            text: "No HA"
+            text_color: 0xFFFF80
+            text_font: font_state
+            text_align: CENTER
+
+    # ========================================================================
+    # INTERCOM: IDLE PAGE
+    # ========================================================================
+    - id: ic_idle_page
+      bg_color: 0x0000FF
+      # Horizontal swipe = prev/next contact (visual hint via < > glyphs).
+      on_swipe_left:
+        - button.press: next_contact_button
+        - script.execute: update_ic_idle_labels
+      on_swipe_right:
+        - button.press: prev_contact_button
+        - script.execute: update_ic_idle_labels
+      widgets:
+        - label:
+            align: TOP_MID
+            y: 8%
+            text: "${friendly_name}"
+            text_color: 0xFFFFFF
+            text_font: font_title
+            text_align: CENTER
+        # State (static) + contacts row (dynamic) on two lines, centered.
+        - label:
+            id: ic_idle_status_label
+            align: TOP_MID
+            y: 17%
+            text: "IDLE"
+            text_color: 0x00FF00
+            text_font: font_state
+            text_align: CENTER
+        - label:
+            id: ic_idle_contacts_label
+            align: TOP_MID
+            y: ${ic_contacts_y}
+            text: "\U000F06CB 0"
+            text_color: 0xFFFFFF
+            text_font: font_title
+            text_align: CENTER
+        # Peer name: single line; long names ping-pong scroll horizontally.
+        - label:
+            id: ic_idle_peer_label
+            align: CENTER
+            text: "Home Assistant"
+            text_color: 0xFFFFFF
+            text_font: font_title
+            width: ${ic_peer_width}
+            text_align: CENTER
+            long_mode: SCROLL
+        # Prev/next contact swipe hints: decorative only. The < > glyphs frame
+        # the peer name to suggest a horizontal swipe gesture on the text;
+        # actual nav is handled by the touchscreen swipe handler. Tips touch
+        # the round display edges at the horizontal diameter (chord = full
+        # width there, no chord math needed).
+        - label:
+            floating: true
+            align: LEFT_MID
+            x: 0
+            text: "<"
+            text_color: 0xFFFFFF
+            text_font: font_title
+            text_align: CENTER
+        - label:
+            floating: true
+            align: RIGHT_MID
+            x: 0
+            text: ">"
+            text_color: 0xFFFFFF
+            text_font: font_title
+            text_align: CENTER
+        # Green call button below the peer name (idle screen only calls).
+        - button:
+            floating: true
+            align: CENTER
+            y: ${ic_btn_below_center}
+            width: ${ic_btn_size}
+            height: ${ic_btn_size}
+            bg_opa: TRANSP
+            shadow_opa: TRANSP
+            widgets:
+              - label:
+                  text: "\U000F03F2"
+                  align: CENTER
+                  text_color: 0x00FF00
+                  text_font: ic_icons
+            on_short_click:
+              - button.press: call_button
+
+    # ========================================================================
+    # INTERCOM: RINGING IN PAGE
+    # ========================================================================
+    - id: ic_ringing_in_page
+      bg_color: 0xFF0000
+      widgets:
+        - label:
+            align: TOP_MID
+            y: 8%
+            text: "${friendly_name}"
+            text_color: 0xFFFFFF
+            text_font: font_title
+            text_align: CENTER
+        - label:
+            align: TOP_MID
+            y: 17%
+            text: "RINGING"
+            text_color: 0xFFFF00
+            text_font: font_state
+            text_align: CENTER
+        - label:
+            id: ic_ringing_in_peer_label
+            align: CENTER
+            text: ""
+            text_color: 0xFFFFFF
+            text_font: font_title
+            text_align: CENTER
+            long_mode: SCROLL
+            width: ${ic_peer_width}
+        # Answer (green left) / Decline (red right)
+        - button:
+            floating: true
+            align: LEFT_MID
+            x: ${ic_btn_offset}
+            width: ${ic_btn_size}
+            height: ${ic_btn_size}
+            bg_opa: TRANSP
+            shadow_opa: TRANSP
+            widgets:
+              - label:
+                  text: "\U000F03F2"
+                  align: CENTER
+                  text_color: 0x00FF00
+                  text_font: ic_icons
+            on_short_click:
+              - button.press: call_button
+        - button:
+            floating: true
+            align: RIGHT_MID
+            x: -5
+            width: ${ic_btn_size}
+            height: ${ic_btn_size}
+            bg_opa: TRANSP
+            shadow_opa: TRANSP
+            widgets:
+              - label:
+                  text: "\U000F03F5"
+                  align: CENTER
+                  text_color: 0xFFFFFF
+                  text_font: ic_icons
+            on_short_click:
+              - button.press: decline_button
+
+    # ========================================================================
+    # INTERCOM: RINGING OUT PAGE
+    # ========================================================================
+    - id: ic_ringing_out_page
+      bg_color: 0xFF9900
+      widgets:
+        - label:
+            align: TOP_MID
+            y: 8%
+            text: "${friendly_name}"
+            text_color: 0xFFFFFF
+            text_font: font_title
+            text_align: CENTER
+        - label:
+            align: TOP_MID
+            y: 17%
+            text: "CALLING"
+            text_color: 0x000000
+            text_font: font_state
+            text_align: CENTER
+        - label:
+            id: ic_ringing_out_peer_label
+            align: CENTER
+            text: ""
+            text_color: 0xFFFFFF
+            text_font: font_title
+            text_align: CENTER
+            long_mode: SCROLL
+            width: ${ic_peer_width}
+        # Hangup below center
+        - button:
+            floating: true
+            align: CENTER
+            y: ${ic_btn_below_center}
+            width: ${ic_btn_size}
+            height: ${ic_btn_size}
+            bg_opa: TRANSP
+            shadow_opa: TRANSP
+            widgets:
+              - label:
+                  text: "\U000F03F5"
+                  align: CENTER
+                  text_color: 0xFF0000
+                  text_font: ic_icons
+            on_short_click:
+              - button.press: decline_button
+
+    # ========================================================================
+    # INTERCOM: IN CALL PAGE
+    # ========================================================================
+    - id: ic_in_call_page
+      bg_color: 0x008800
+      widgets:
+        - label:
+            align: TOP_MID
+            y: 8%
+            text: "${friendly_name}"
+            text_color: 0xFFFFFF
+            text_font: font_title
+            text_align: CENTER
+        - label:
+            align: TOP_MID
+            y: 17%
+            text: "IN CALL"
+            text_color: 0x0000FF
+            text_font: font_state
+            text_align: CENTER
+        - label:
+            id: ic_in_call_peer_label
+            align: CENTER
+            text: ""
+            text_color: 0xFFFFFF
+            text_font: font_title
+            text_align: CENTER
+            long_mode: SCROLL
+            width: ${ic_peer_width}
+        # Hangup below center
+        - button:
+            floating: true
+            align: CENTER
+            y: ${ic_btn_below_center}
+            width: ${ic_btn_size}
+            height: ${ic_btn_size}
+            bg_opa: TRANSP
+            shadow_opa: TRANSP
+            widgets:
+              - label:
+                  text: "\U000F03F5"
+                  align: CENTER
+                  text_color: 0xFF0000
+                  text_font: ic_icons
+            on_short_click:
+              - button.press: call_button

@@ -1,0 +1,30 @@
+# =============================================================================
+# ESP32-S3 platform base
+# =============================================================================
+#
+# Chip-level SDK options every S3 device in this repo needs once it runs
+# esp-sr (pulled in by esp_aec or micro_wake_word) and moves audio buffers
+# through PSRAM. Kept deliberately small. Workload-specific profiles live
+# under packages/profile/ and are composed on top.
+#
+# Usage:
+#   packages:
+#     s3_base:
+#       url: https://github.com/n-IA-hane/esphome-intercom
+#       file: packages/platform/esp32s3_base.yaml
+#       ref: audio-core-v2
+# =============================================================================
+
+esp32:
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      # esp-sr 2.3.x requires 64KB data cache with 64B line on S3.
+      # ref: managed_components/espressif__esp-sr/esp_process_sdkconfig.c:26-31
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+      # Execute code from flash via PSRAM XIP and relocate rodata to PSRAM.
+      # Frees ~30KB internal DRAM on S3, at the cost of a small cache-miss
+      # penalty. Idiomatic for S3 boards in ESPHome.
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"
+      CONFIG_SPIRAM_RODATA: "y"

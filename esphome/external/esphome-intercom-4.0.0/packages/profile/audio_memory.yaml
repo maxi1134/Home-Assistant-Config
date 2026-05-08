@@ -1,0 +1,37 @@
+# =============================================================================
+# Audio-heavy memory profile
+# =============================================================================
+#
+# Reserve internal RAM for DMA-capable allocations on devices that run a
+# full audio pipeline (esp_afe or esp_aec + i2s_audio_duplex + optional
+# voice_assistant / micro_wake_word / intercom_api). Without this reserve,
+# mbedtls TLS + audio concurrency fragments the DMA heap and starves
+# i2s_audio_duplex / esp_afe internal scratch buffers.
+#
+# The PSRAM XIP settings live in the platform base packages (they differ
+# between S3 and P4); this file is chip-agnostic and only sets the
+# internal-DRAM reserve.
+#
+# Justification (from the Phase-A audit):
+#   - esp_afe has internal-only allocations (esp_afe.cpp:1000-1008,
+#     1023-1027, 1152-1154).
+#   - i2s_audio_duplex optionally allocates internal DMA bounce buffers
+#     (i2s_audio_duplex.cpp:721-735).
+#
+# Do not include this package on non-audio devices.
+#
+# Usage:
+#   packages:
+#     audio_mem:
+#       url: https://github.com/n-IA-hane/esphome-intercom
+#       file: packages/profile/audio_memory.yaml
+#       ref: audio-core-v2
+# =============================================================================
+
+esp32:
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      # Reserve 64KB internal DRAM for DMA-only allocations (WiFi/SDIO
+      # descriptors, I2S bounce buffers, esp_afe scratch).
+      CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL: "65536"

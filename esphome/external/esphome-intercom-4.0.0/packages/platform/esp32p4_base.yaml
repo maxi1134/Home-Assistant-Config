@@ -1,0 +1,36 @@
+# =============================================================================
+# ESP32-P4 platform base
+# =============================================================================
+#
+# Chip-level SDK options and CPU frequency for every P4 device in this
+# repo. P4 uses its own XIP symbol (CONFIG_SPIRAM_XIP_FROM_PSRAM) rather
+# than the S3-style FETCH_INSTRUCTIONS / RODATA pair - ESPHome prefers
+# the upstream name on P4.
+#
+# Connectivity-specific knobs (SDIO queues, WDT timeout) belong in
+# packages/board/waveshare_p4_c6.yaml because they are driven by the C6
+# co-processor, not by the P4 itself.
+#
+# Usage:
+#   packages:
+#     p4_base:
+#       url: https://github.com/n-IA-hane/esphome-intercom
+#       file: packages/platform/esp32p4_base.yaml
+#       ref: audio-core-v2
+# =============================================================================
+
+esp32:
+  # 360MHz is the known-stable CPU frequency for P4 revs v0.x/v1.x. 400MHz
+  # is the silicon max but ESPHome treats it as experimental and it has
+  # produced bootloops in the field. ref: esphome#13425.
+  cpu_frequency: 360MHz
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      # esp-sr 2.3.x on P4 wants more than the 128KB default L2 cache.
+      # ref: managed_components/espressif__esp-sr/esp_process_sdkconfig.c:60-65
+      CONFIG_CACHE_L2_CACHE_256KB: "y"
+      # XIP code and rodata from PSRAM. P4 uses its own symbol instead of
+      # the S3-style SPIRAM_FETCH_INSTRUCTIONS + SPIRAM_RODATA pair.
+      # ref: esp32p4/Kconfig.spiram:67-73
+      CONFIG_SPIRAM_XIP_FROM_PSRAM: "y"

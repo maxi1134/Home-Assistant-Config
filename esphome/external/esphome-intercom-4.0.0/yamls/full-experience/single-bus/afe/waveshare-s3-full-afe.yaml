@@ -1,0 +1,774 @@
+# =============================================================================
+# Waveshare ESP32-S3-AUDIO-Board: VA + Intercom + MWW (no display)
+# =============================================================================
+#
+# Hardware:
+#   - ESP32-S3R8 (16MB Flash, 8MB PSRAM octal)
+#   - ES8311 Audio DAC (speaker) + ES7210 Audio ADC (dual mic array)
+#   - NS4150 3W mono Class-D speaker amp (via TCA9555 EXIO pin 8)
+#   - 7x WS2812 addressable RGB LEDs (GPIO38)
+#   - 3 user buttons via TCA9555 (EXIO 9/10/11) + BOOT button (GPIO0)
+#   - Battery: MX1.25 3.7V Li-ion connector + charging IC
+#
+# Pin Map:
+#   I2S: MCLK=GPIO12 BCLK=GPIO13 LRCLK=GPIO14 DIN=GPIO15 DOUT=GPIO16
+#   I2C: SDA=GPIO11 SCL=GPIO10 (ES8311@0x18, ES7210@0x40, TCA9555@0x20)
+#   LEDs: GPIO38 (WS2812 x7)
+#   BOOT: GPIO0
+#
+# Audio pipeline (i2s_audio_duplex at 48kHz, TDM + FIR decimation to 16kHz):
+#
+# Verified Waveshare ESP32-S3-AUDIO-Board slot map, board oriented with:
+#   - speaker at the bottom
+#   - GPIO/header connector at the top
+#
+# Empirical TDM mapping on this board:
+#   - slot 2 = left microphone  (left of the GPIO connector)
+#   - slot 0 = right microphone (right of the GPIO connector)
+#   - slot 1 = playback reference used by AEC
+#   - slot 3 = near-silent / unused on this board revision
+#
+# Dual-mic target:
+#   ES7210 TDM slots [0, 2]          → FIR x3 ──┐
+#   ES7210 TDM slot 1 (DAC ref)      → FIR x3 ──┴── esp_afe (AEC + SE[BSS] + NS + AGC) → mono mic_main → VA / Intercom TX / MWW
+#
+#   Music/radio → media_speaker (resampler) ───────────┐
+#   VA TTS      → tts_speaker (resampler) ─────────────┼── mixer (48kHz) → hw_speaker → ES8311 DAC
+#   Intercom RX → intercom_speaker (resampler) ────────┘
+#
+# =============================================================================
+
+substitutions:
+  # Hardware-shared identity: all Waveshare S3 firmware variants share the same
+  # name so HA reuses the device entity and ESPHome reuses the build cache.
+  name: waveshare-s3
+  friendly_name: Waveshare S3 Audio
+
+  ext_components_source: "github://n-IA-hane/esphome-intercom@main"
+
+  assets_base: "https://github.com/n-IA-hane/esphome-intercom/raw/main/"
+
+  # Wake word sensitivity (per-device tuning)
+  wake_word_probability_cutoff: "0.60"
+  wake_word_sliding_window_size: "6"
+
+  # ES8311 DAC volume mapping (0-100% -> min-max float)
+  volume_min: "0.15"
+  volume_max: "0.75"
+
+  # Microphone ID for package mute switch
+  mic_id: mic_main
+
+# =============================================================================
+# Package: shared VA + Intercom state machine, callbacks, switches, buttons
+# =============================================================================
+packages:
+  core: github://n-IA-hane/esphome-intercom/packages/va_intercom.yaml@main
+  s3_base: github://n-IA-hane/esphome-intercom/packages/platform/esp32s3_base.yaml@main
+  audio_mem: github://n-IA-hane/esphome-intercom/packages/profile/audio_memory.yaml@main
+  es7210_tdm: github://n-IA-hane/esphome-intercom/packages/codec/es7210_tdm.yaml@main
+
+# =============================================================================
+# ESPHome Base
+# =============================================================================
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  platformio_options:
+    board_build.flash_mode: dio
+  on_boot:
+    priority: 200
+    then:
+      # Enable speaker amplifier via TCA9555
+      - switch.turn_on: speaker_enable
+      - delay: 200ms
+      # Brief LED flash to indicate boot
+      - light.turn_on:
+          id: status_led
+          red: 0%
+          green: 0%
+          blue: 100%
+          brightness: 50%
+          effect: none
+      - delay: 500ms
+      - light.turn_off: status_led
+      # Sync reducer state with boot flash
+      - globals.set:
+          id: g_applied_led
+          value: "0"
+      # ES7210 TDM configuration (shared with waveshare-p4 via
+      # packages/codec/es7210_tdm.yaml).
+      - script.execute: es7210_tdm_init
+      # Restore ES8311 volume from saved number entity
+      - lambda: |-
+          float vol = ${volume_min} + (id(speaker_volume).state / 100.0) * (${volume_max} - ${volume_min});
+          id(es8311_dac).set_volume(vol);
+
+esp32:
+  board: esp32-s3-devkitc-1
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    advanced:
+      compiler_optimization: PERF
+    sdkconfig_options:
+      # mbedtls extras (still inline pending benchmark vs tls_external_mem.yaml).
+      CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"
+      CONFIG_MBEDTLS_DYNAMIC_BUFFER: "y"
+      CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN: "16384"
+      # Hardware AES requires contiguous internal DMA-capable memory for its
+      # scratch area. With BSS beamforming active plus two concurrent TLS
+      # streams (music + TTS) the internal heap fragments below the size the
+      # hw crypto wants, so we fall back to software AES which uses regular
+      # heap (happily PSRAM). Software AES on S3 @ 240MHz tops out around
+      # 1.5 MB/s, ~50x headroom over what the audio streams need.
+      CONFIG_MBEDTLS_HARDWARE_AES: "n"
+      # Move WiFi/lwip buffers to PSRAM: recovers ~40-80KB internal RAM
+      # during streaming; octal PSRAM @ 80MHz sustains WiFi throughput.
+      # Keep inline because this YAML does NOT set
+      # network.enable_high_performance (which would imply the same).
+      CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP: "y"
+      # IRAM -> flash: frees ~30KB DRAM (PSRAM instruction cache compensates).
+      CONFIG_ESP_WIFI_IRAM_OPT: "n"
+      CONFIG_ESP_WIFI_RX_IRAM_OPT: "n"
+      CONFIG_ESP_PHY_IRAM_OPT: "n"
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+api:
+
+ota:
+  - platform: esphome
+
+logger:
+  level: INFO
+  logs:
+    # Sensors already publish their state to HA. Muting the S-level publish
+    # log keeps the console readable when diagnosing audio-pipeline issues.
+    sensor: WARN
+    text_sensor: WARN
+    binary_sensor: WARN
+    switch: WARN
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+external_components:
+  - source: ${ext_components_source}
+    components: [audio_processor, intercom_api, i2s_audio_duplex, esp_afe]
+
+# =============================================================================
+# I2C Bus (shared: ES8311, ES7210, TCA9555)
+# =============================================================================
+i2c:
+  - id: internal_i2c
+    sda: GPIO11
+    scl: GPIO10
+    scan: false
+
+# TCA9555 IO Expander (speaker amp, buttons)
+tca9555:
+  - id: io_expander
+    address: 0x20
+    i2c_id: internal_i2c
+
+# =============================================================================
+# Audio: Codec + AEC + I2S Duplex
+# =============================================================================
+audio_dac:
+  - platform: es8311
+    id: es8311_dac
+    i2c_id: internal_i2c
+    address: 0x18
+    bits_per_sample: 16bit
+    sample_rate: 48000
+    use_mclk: true
+    mic_gain: 24DB
+
+audio_adc:
+  - platform: es7210
+    id: es7210_adc
+    i2c_id: internal_i2c
+    address: 0x40
+    bits_per_sample: 16bit
+    sample_rate: 48000
+    mic_gain: 24dB
+
+esp_afe:
+  id: afe_processor
+  type: sr
+  mode: low_cost
+  mic_num: 2
+  aec_filter_length: 4
+  se_enabled: true
+  ns_enabled: true
+  vad_enabled: false
+  agc_enabled: true
+  task_priority: 19
+  # Buffer placement: PSRAM for the AFE staging triad (replicates pre-knob default).
+  # Toggle individual flags off to free Core 0 cycles at the cost of internal RAM.
+  feed_buf_in_psram: true       # ~3 KB scratch
+  feed_ring_in_psram: true      # ~12 KB staging ring
+  fetch_ring_in_psram: true     # ~4 KB output ring
+
+i2s_audio_duplex:
+  id: i2s_duplex
+  # 2-mic BSS + concurrent TLS streams (music + TTS + intercom) exhaust the
+  # ~30KB of internal RAM WS3 has available to user code. Moving the audio
+  # task's own stack to PSRAM recovers ~8KB and is enough headroom to keep
+  # all three streams stable. The task is not CPU-bound (per-frame work
+  # lives in esp_afe's feed_task on core 1), so PSRAM stack latency is
+  # acceptable here.
+  audio_stack_in_psram: true
+  i2s_lrclk_pin: GPIO14
+  i2s_bclk_pin: GPIO13
+  i2s_mclk_pin: GPIO12
+  i2s_din_pin: GPIO15
+  i2s_dout_pin: GPIO16
+  sample_rate: 48000
+  output_sample_rate: 16000
+  processor_id: afe_processor
+  use_tdm_reference: true
+  tdm_total_slots: 4
+  tdm_mic_slots: [0, 2]  # Verified right-side mic, left-side mic
+  tdm_ref_slot: 1        # Verified playback reference for AEC
+  buffers_in_psram: true
+
+# =============================================================================
+# Microphone (ES7210 ADC, 16kHz output after FIR decimation + AEC)
+# =============================================================================
+microphone:
+  - platform: i2s_audio_duplex
+    id: mic_main
+    i2s_audio_duplex_id: i2s_duplex
+
+# =============================================================================
+# Speaker Pipeline: i2s_audio_duplex -> resampler -> mixer (all at 48kHz)
+# =============================================================================
+speaker:
+  - platform: i2s_audio_duplex
+    id: hw_speaker
+    i2s_audio_duplex_id: i2s_duplex
+    sample_rate: 48000
+
+  - platform: mixer
+    id: audio_mixer
+    output_speaker: hw_speaker
+    num_channels: 1
+    task_stack_in_psram: true
+    source_speakers:
+      - id: media_speaker_mix
+        timeout: 10s
+        buffer_duration: 100ms
+      - id: tts_speaker_mix
+        timeout: 10s
+        buffer_duration: 100ms
+      - id: intercom_speaker_mix
+        timeout: 10s
+        buffer_duration: 100ms
+
+  - platform: resampler
+    id: media_speaker
+    output_speaker: media_speaker_mix
+    task_stack_in_psram: true
+
+  - platform: resampler
+    id: tts_speaker
+    output_speaker: tts_speaker_mix
+    task_stack_in_psram: true
+
+  - platform: resampler
+    id: intercom_speaker
+    output_speaker: intercom_speaker_mix
+    task_stack_in_psram: true
+
+# =============================================================================
+# Media Player (platform component; must be in device, not package)
+# =============================================================================
+media_player:
+  - platform: speaker
+    id: speaker_media_player
+    name: None
+    internal: false
+    task_stack_in_psram: true
+    buffer_size: 131072
+    media_pipeline:
+      speaker: media_speaker
+      sample_rate: 48000
+      format: FLAC
+    announcement_pipeline:
+      speaker: tts_speaker
+      sample_rate: 48000
+      format: FLAC
+    files:
+      - id: timer_finished_sound
+        file: ${assets_base}assets/sounds/timer_finished.flac
+      - id: intercom_ringing_sound
+        file: ${assets_base}assets/sounds/ringtone.flac
+    on_announcement:
+      - script.execute: update_status
+    on_play:
+      - script.execute: update_status
+    on_pause:
+      # Must stop (paused pipeline blocks audio). Display handled here (on_idle won't fire).
+      - media_player.stop:
+      - delay: 500ms
+      - script.execute: update_status
+    on_idle:
+      - delay: 200ms
+      - script.execute: update_status
+
+# =============================================================================
+# Micro Wake Word: Hardware config (callbacks from package)
+# =============================================================================
+micro_wake_word:
+  microphone: mic_main
+  models:
+    - model: alexa
+    - model: "${assets_base}assets/wakewords/hey_trowyayoh.json"
+      probability_cutoff: ${wake_word_probability_cutoff}
+      sliding_window_size: ${wake_word_sliding_window_size}
+
+# =============================================================================
+# Voice Assistant: Hardware config (callbacks from package)
+# =============================================================================
+voice_assistant:
+  microphone: mic_main
+  media_player: speaker_media_player
+  micro_wake_word: mww
+  noise_suppression_level: 0
+  auto_gain: 0dBFS
+  volume_multiplier: 2.0
+
+# =============================================================================
+# Intercom API: Hardware config (callbacks from package)
+# =============================================================================
+intercom_api:
+  tasks_stack_in_psram: true   # save ~28KB internal heap on S3/P4 by placing task stacks in PSRAM
+  frame_buffers_in_psram: true # Processor frame buffers (mic/ref/out, ~3 KB) in PSRAM
+  mode: full
+  microphone: mic_main
+  speaker: intercom_speaker
+  ringing_timeout: 30s
+
+# =============================================================================
+# Physical Buttons
+# =============================================================================
+binary_sensor:
+  - platform: status
+    name: Status
+
+  - platform: esp_afe
+    esp_afe_id: afe_processor
+    vad:
+      name: Voice Presence
+      id: voice_presence
+
+  # BOOT button (GPIO0), multi-click
+  - platform: gpio
+    name: Boot Button
+    id: boot_button
+    pin:
+      number: GPIO0
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    on_multi_click:
+      # Single click: call toggle if intercom active, otherwise VA start/stop
+      - timing:
+          - ON for at most 500ms
+          - OFF for at least 400ms
+        then:
+          - if:
+              condition:
+                not:
+                  - intercom_api.is_idle: intercom
+              then:
+                - intercom_api.call_toggle: intercom
+              else:
+                - if:
+                    condition:
+                      voice_assistant.is_running:
+                    then:
+                      - voice_assistant.stop:
+                    else:
+                      - voice_assistant.start:
+      # Double click: next contact
+      - timing:
+          - ON for 50ms to 500ms
+          - OFF for at most 300ms
+          - ON for 50ms to 500ms
+          - OFF for at least 400ms
+        then:
+          - intercom_api.next_contact: intercom
+      # Long press (1-3s): toggle mute
+      - timing:
+          - ON for 1s to 3s
+          - OFF for at least 300ms
+        then:
+          - switch.toggle: mute
+
+  # KEY1 (TCA9555 EXIO9): Call/Answer/Hangup
+  - platform: gpio
+    name: Key 1
+    id: key1
+    internal: true
+    pin:
+      tca9555: io_expander
+      number: 9
+      inverted: true
+      mode:
+        input: true
+    on_press:
+      - intercom_api.call_toggle: intercom
+
+  # KEY2 (TCA9555 EXIO10): Next contact
+  - platform: gpio
+    name: Key 2
+    id: key2
+    internal: true
+    pin:
+      tca9555: io_expander
+      number: 10
+      inverted: true
+      mode:
+        input: true
+    on_press:
+      - intercom_api.next_contact: intercom
+
+  # KEY3 (TCA9555 EXIO11): Decline / Previous contact
+  - platform: gpio
+    name: Key 3
+    id: key3
+    internal: true
+    pin:
+      tca9555: io_expander
+      number: 11
+      inverted: true
+      mode:
+        input: true
+    on_press:
+      - if:
+          condition:
+            intercom_api.is_ringing: intercom
+          then:
+            - intercom_api.decline_call: intercom
+          else:
+            - intercom_api.prev_contact: intercom
+
+# =============================================================================
+# Switches (device-specific)
+# =============================================================================
+switch:
+  # Speaker amplifier enable (TCA9555 EXIO8)
+  - platform: gpio
+    id: speaker_enable
+    internal: true
+    restore_mode: ALWAYS_ON
+    pin:
+      tca9555: io_expander
+      number: 8
+      mode:
+        output: true
+
+  # Replace speaker_mute (package version has no amp control)
+  - id: !remove speaker_mute
+  - platform: template
+    name: Speaker Mute
+    id: speaker_mute
+    icon: mdi:volume-off
+    entity_category: config
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      - logger.log:
+          level: INFO
+          tag: mute
+          format: "Speaker mute ON"
+      - speaker.mute_on: hw_speaker
+      - delay: 50ms
+      - switch.turn_off: speaker_enable
+      - script.execute: update_status
+    on_turn_off:
+      - logger.log:
+          level: INFO
+          tag: mute
+          format: "Speaker mute OFF"
+      - switch.turn_on: speaker_enable
+      - delay: 50ms
+      - speaker.mute_off: hw_speaker
+      - script.execute: update_status
+
+  # Intercom switches
+  - platform: intercom_api
+    intercom_api_id: intercom
+    auto_answer:
+      id: auto_answer_switch
+      name: Auto Answer
+      icon: mdi:phone-in-talk
+      restore_mode: RESTORE_DEFAULT_OFF
+
+  # AFE runtime toggles (per-feature enable/disable, trigger esp-sr reinit).
+  - platform: esp_afe
+    esp_afe_id: afe_processor
+    aec:
+      id: aec_switch
+      name: Echo Cancellation
+      icon: mdi:ear-hearing
+      restore_mode: RESTORE_DEFAULT_ON
+    ns:
+      id: ns_switch
+      name: Noise Suppression
+      icon: mdi:volume-off
+      restore_mode: RESTORE_DEFAULT_ON
+    se:
+      id: se_switch
+      name: Beamforming
+      icon: mdi:microphone-variant
+      restore_mode: RESTORE_DEFAULT_ON
+    agc:
+      id: agc_switch
+      name: Auto Gain Control
+      icon: mdi:tune-vertical
+      restore_mode: RESTORE_DEFAULT_ON
+    vad:
+      id: vad_switch
+      name: Voice Activity Detection
+      icon: mdi:account-voice
+      restore_mode: RESTORE_DEFAULT_OFF
+
+# =============================================================================
+# Number Entities
+# =============================================================================
+number:
+  - platform: i2s_audio_duplex
+    i2s_audio_duplex_id: i2s_duplex
+    mic_gain:
+      name: Mic Gain
+
+  - platform: template
+    id: speaker_volume
+    name: "Speaker Volume"
+    icon: "mdi:volume-high"
+    min_value: 0
+    max_value: 100
+    step: 5
+    initial_value: 50
+    optimistic: true
+    restore_value: true
+    unit_of_measurement: "%"
+    set_action:
+      - lambda: |-
+          float es8311_vol = ${volume_min} + (x / 100.0) * (${volume_max} - ${volume_min});
+          id(es8311_dac).set_volume(es8311_vol);
+
+# =============================================================================
+# Select Entities
+# =============================================================================
+select:
+  - platform: template
+    name: AEC Mode
+    id: aec_mode_select
+    icon: mdi:tune-vertical
+    options:
+      - "sr_low_cost"
+      - "sr_high_perf"
+    initial_option: "sr_low_cost"
+    # Non-optimistic: template_select::control runs the set_action first
+    # and only auto-publishes `index` when optimistic=true, overwriting
+    # whatever we published. With optimistic=false, the final lambda
+    # publish_state drives HA state from the live esp_afe mode.
+    optimistic: false
+    restore_value: false
+    set_action:
+      - if:
+          condition:
+            lambda: 'return id(init_in_progress);'
+          then:
+            - logger.log: "AEC mode select: skipping during boot"
+          else:
+            - if:
+                condition:
+                  or:
+                    - voice_assistant.is_running:
+                    - not:
+                        intercom_api.is_idle: intercom
+                then:
+                  - logger.log:
+                      level: WARN
+                      format: "Cannot switch AEC mode during active VA/intercom"
+                else:
+                  - logger.log:
+                      format: "Switching AEC mode to %s"
+                      args: ['x.c_str()']
+                  - micro_wake_word.stop:
+                  - i2s_audio_duplex.stop: i2s_duplex
+                  - esp_afe.set_mode:
+                      id: afe_processor
+                      mode: !lambda 'return x;'
+                  - i2s_audio_duplex.start: i2s_duplex
+                  - delay: 300ms
+                  - if:
+                      condition:
+                        switch.is_off: mute
+                      then:
+                        - micro_wake_word.start:
+      - lambda: |-
+          id(aec_mode_select).publish_state(id(afe_processor).get_mode_name());
+
+# =============================================================================
+# WS2812 RGB LED Ring (7 LEDs)
+# =============================================================================
+light:
+  - platform: esp32_rmt_led_strip
+    id: status_led
+    name: Status LED
+    pin: GPIO38
+    num_leds: 7
+    rgb_order: RGB
+    chipset: WS2812
+    default_transition_length: 0ms
+    effects:
+      - pulse:
+          name: "Slow Pulse"
+          transition_length: 1200ms
+          update_interval: 1200ms
+          min_brightness: 20%
+          max_brightness: 100%
+      - strobe:
+          name: "Ringing"
+          colors:
+            - state: true
+              brightness: 100%
+              red: 100%
+              green: 0%
+              blue: 0%
+              duration: 300ms
+            - state: false
+              duration: 300ms
+      - strobe:
+          name: "Calling"
+          colors:
+            - state: true
+              brightness: 100%
+              red: 100%
+              green: 50%
+              blue: 0%
+              duration: 500ms
+            - state: false
+              duration: 500ms
+      - addressable_lambda:
+          name: "Spin"
+          update_interval: 75ms
+          lambda: |-
+            // Alexa-style spinning comet: bright head + fading tail
+            static uint8_t pos = 0;
+            if (initial_run) pos = 0;
+            it.all() = Color(0, 0, 0);
+            it[pos] = current_color;
+            it[(pos + it.size() - 1) % it.size()] = current_color * 100;
+            it[(pos + it.size() - 2) % it.size()] = current_color * 25;
+            pos = (pos + 1) % it.size();
+
+# =============================================================================
+# LED logic (extends package placeholder)
+# =============================================================================
+script:
+  - id: !extend update_led
+    then:
+      - lambda: |-
+          static int last = -2;
+          int t = id(g_applied_led);
+          if (t == last) return;
+          last = t;
+          auto *led = id(status_led);
+          switch (t) {
+            case 1:  // Both muted: red slow pulse
+              led->turn_on().set_rgb(1.0f, 0.0f, 0.0f).set_brightness(0.4f).set_effect("Slow Pulse").perform();
+              break;
+            case 2:  // Mic muted: red dim solid
+              led->turn_on().set_rgb(1.0f, 0.0f, 0.0f).set_brightness(0.3f).set_effect("None").perform();
+              break;
+            case 3:  // Speaker muted: orange dim solid
+              led->turn_on().set_rgb(1.0f, 0.5f, 0.0f).set_brightness(0.3f).set_effect("None").perform();
+              break;
+            case 4:  // MWW recent / barge-in: red spin
+            case 5:  // VA Listening: red spin
+              led->turn_on().set_rgb(1.0f, 0.0f, 0.0f).set_brightness(0.7f).set_effect("Spin").perform();
+              break;
+            case 6:  // VA Thinking: yellow spin
+              led->turn_on().set_rgb(1.0f, 1.0f, 0.0f).set_brightness(0.7f).set_effect("Spin").perform();
+              break;
+            case 7:  // VA Speaking: blue solid
+              led->turn_on().set_rgb(0.3f, 0.3f, 0.7f).set_brightness(0.6f).set_effect("None").perform();
+              break;
+            case 8:  // IC Ringing: red strobe
+              led->turn_on().set_effect("Ringing").perform();
+              break;
+            case 9:  // IC Outgoing: orange strobe
+              led->turn_on().set_effect("Calling").perform();
+              break;
+            case 10: // IC Streaming: green solid
+              led->turn_on().set_rgb(0.3f, 0.69f, 0.31f).set_brightness(1.0f).set_effect("None").perform();
+              break;
+            case 11: // VA Error: red solid
+              led->turn_on().set_rgb(1.0f, 0.0f, 0.0f).set_brightness(0.7f).set_effect("None").perform();
+              break;
+            case 12: // Media playing: green spin
+              led->turn_on().set_rgb(0.0f, 1.0f, 0.0f).set_brightness(1.0f).set_effect("Spin").perform();
+              break;
+            default: // Off
+              led->turn_off().perform();
+              break;
+          }
+
+# =============================================================================
+# Sensors
+# =============================================================================
+sensor:
+  - platform: wifi_signal
+    name: WiFi Signal
+    update_interval: 60s
+    entity_category: diagnostic
+
+  - platform: uptime
+    name: Uptime
+    update_interval: 60s
+    entity_category: diagnostic
+
+  - platform: internal_temperature
+    name: CPU Temperature
+    update_interval: 60s
+    entity_category: diagnostic
+
+  - platform: template
+    name: Free Heap
+    update_interval: 10s
+    unit_of_measurement: KB
+    entity_category: diagnostic
+    lambda: 'return esp_get_free_heap_size() / 1024.0f;'
+
+  - platform: template
+    name: Free Internal
+    update_interval: 10s
+    unit_of_measurement: KB
+    entity_category: diagnostic
+    lambda: 'return heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024.0f;'
+
+  - platform: template
+    name: Internal Heap Minimum
+    update_interval: 10s
+    unit_of_measurement: KB
+    entity_category: diagnostic
+    lambda: 'return heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL) / 1024.0f;'
+
+  - platform: template
+    name: Internal Largest Block
+    update_interval: 10s
+    unit_of_measurement: KB
+    entity_category: diagnostic
+    lambda: 'return heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL) / 1024.0f;'

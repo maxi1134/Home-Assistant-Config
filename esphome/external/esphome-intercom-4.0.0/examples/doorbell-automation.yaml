@@ -1,0 +1,42 @@
+# Doorbell Notification Automation
+#
+# When an ESP device calls "Home Assistant", it fires an esphome.intercom_call
+# event. This automation sends a push notification with action buttons.
+#
+# Event data available:
+#   trigger.event.data.caller      - Device name (e.g., "Intercom Xiaozhi")
+#   trigger.event.data.destination - Always "Home Assistant"
+#   trigger.event.data.type        - "doorbell"
+#
+# Replace notify.mobile_app_your_phone with your mobile app service
+# and /lovelace/intercom with your dashboard URL.
+
+alias: Doorbell Notification
+description: Send push notification when doorbell rings - tap to open intercom
+triggers:
+  - trigger: event
+    event_type: esphome.intercom_call
+conditions: []
+actions:
+  - action: notify.mobile_app_your_phone
+    data:
+      title: "Incoming Call"
+      message: "{{ trigger.event.data.caller }} is calling..."
+      data:
+        clickAction: /lovelace/intercom
+        channel: doorbell
+        importance: high
+        ttl: 0
+        priority: high
+        actions:
+          - action: URI
+            title: "Open"
+            uri: /lovelace/intercom
+          - action: ANSWER
+            title: "Answer"
+  - action: persistent_notification.create
+    data:
+      title: "Incoming Call"
+      message: "{{ trigger.event.data.caller }} is calling..."
+      notification_id: intercom_call
+mode: single

@@ -1,0 +1,48 @@
+# =============================================================================
+# ES7210 TDM initialization script
+# =============================================================================
+#
+# One-shot I2C pokes that unlock the full ES7210 4-channel ADC: the ESPHome
+# driver enables ADC1 and ADC2 by default, so without this the other two
+# channels stay clocked off and the TDM slot we use for the AEC reference
+# reads zeros.
+#
+# Board-agnostic. The registers and values come from the Espressif Korvo-2
+# AEC reference design (MIC3 gain 30dB) and apply to ES7210 on any board.
+#
+# Required IDs provided by the consumer:
+#   id: es7210_adc   - the i2c_device block for the ES7210 ADC (I2C 0x40)
+#
+# Usage in consumer YAML:
+#   esphome:
+#     on_boot:
+#       - priority: 200
+#         then:
+#           - script.execute: es7210_tdm_init
+# =============================================================================
+
+script:
+  - id: es7210_tdm_init
+    mode: single
+    then:
+      - lambda: |-
+          // 1. Enable ALL ADC clocks (default driver only enables ADC1+2).
+          uint8_t reg01;
+          if (!id(es7210_adc).read_byte(0x01, &reg01)) {
+            ESP_LOGE("es7210_tdm", "Failed to read reg 0x01, TDM config aborted");
+            return;
+          }
+          reg01 &= ~0x3F;  // Clear bits 0-5: enable ADC1-4 + CP + BCLK.
+          if (!id(es7210_adc).write_byte(0x01, reg01) ||
+              !id(es7210_adc).write_byte(0x12, 0x02)) {  // TDM I2S mode.
+            ESP_LOGE("es7210_tdm", "Failed to write clock/TDM registers");
+            return;
+          }
+          // 2. MIC3 (AEC reference) gain = 30dB; MIC4 (unused) PGA+0dB.
+          //    Ref: Espressif Korvo-2 AEC example.
+          if (!id(es7210_adc).write_byte(0x45, 0x1A) ||
+              !id(es7210_adc).write_byte(0x46, 0x10)) {
+            ESP_LOGE("es7210_tdm", "Failed to write MIC gain registers");
+            return;
+          }
+          ESP_LOGI("es7210_tdm", "TDM config applied: clk=0x%02X, MIC3 gain=30dB", reg01);

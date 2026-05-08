@@ -1,0 +1,592 @@
+# =============================================================================
+# VA + Intercom Package: Shared state machine for ALL devices
+# =============================================================================
+#
+# Package owns ALL callbacks. Devices customize via hook scripts only.
+#
+# Hook scripts (placeholders, devices !extend):
+#   update_led            LED control from g_applied_led
+#   ui_state_changed      display routing after state change (mode: restart)
+#   ui_tts_started(text)  TTS text for display (emoticon parse, show text)
+#   ui_stt_ended(text)    STT text for display (show request)
+#   ui_ic_call(peer)      intercom call display (peer label, mode switch)
+#   va_end_cleanup        display cleanup after VA ends
+#
+# Substitutions: ${friendly_name}, ${mic_id} (default: mic_main)
+# =============================================================================
+
+# =============================================================================
+# Globals
+# =============================================================================
+globals:
+  - id: init_in_progress
+    type: bool
+    restore_value: false
+    initial_value: "true"
+  - id: g_va_state
+    type: int
+    restore_value: false
+    initial_value: "0"
+  - id: g_barge_in_pending
+    type: int
+    restore_value: false
+    initial_value: "0"
+  - id: g_mww_recent
+    type: int
+    restore_value: false
+    initial_value: "0"
+  - id: g_ducking_active
+    type: int
+    restore_value: false
+    initial_value: "0"
+  - id: g_applied_led
+    type: int
+    restore_value: false
+    initial_value: "-1"
+
+# =============================================================================
+# Voice Assistant
+# =============================================================================
+voice_assistant:
+  id: va
+  on_listening:
+    - logger.log:
+        tag: va
+        format: "VA: on_listening"
+    - globals.set:
+        id: g_va_state
+        value: "1"
+    - globals.set:
+        id: g_mww_recent
+        value: "0"
+    - globals.set:
+        id: g_barge_in_pending
+        value: "0"
+    - script.stop: mww_failsafe
+    - script.stop: barge_failsafe
+    - script.execute: update_status
+  on_stt_vad_end:
+    - logger.log:
+        tag: va
+        format: "VA: on_stt_vad_end (thinking)"
+    - globals.set:
+        id: g_va_state
+        value: "2"
+    - script.execute: update_status
+  on_stt_end:
+    - script.execute:
+        id: ui_stt_ended
+        text: !lambda 'return x;'
+  on_tts_start:
+    - logger.log:
+        tag: va
+        format: "VA: on_tts_start (speaking)"
+    - globals.set:
+        id: g_va_state
+        value: "3"
+    - script.execute: update_status
+    - script.execute:
+        id: ui_tts_started
+        text: !lambda 'return x;'
+  on_end:
+    - logger.log:
+        tag: va
+        format: "VA: on_end"
+    - script.execute: va_end_handler
+  on_error:
+    - logger.log:
+        tag: va
+        format: "VA: on_error (code=%s, msg=%s)"
+        args: ['code.c_str()', 'message.c_str()']
+    - if:
+        condition:
+          lambda: 'return id(g_barge_in_pending) != 0;'
+        then:
+          - logger.log:
+              tag: va
+              format: "VA: error during barge-in, keeping barge flag"
+        else:
+          - globals.set:
+              id: g_mww_recent
+              value: "0"
+          - if:
+              condition:
+                lambda: 'return !id(init_in_progress);'
+              then:
+                - globals.set:
+                    id: g_va_state
+                    value: "4"
+                - script.execute: update_status
+                - script.execute: va_error_flash
+              else:
+                - globals.set:
+                    id: g_va_state
+                    value: "0"
+                - script.execute: update_status
+  on_client_connected:
+    - logger.log:
+        tag: va
+        format: "VA: client connected"
+    - globals.set:
+        id: init_in_progress
+        value: "false"
+    - intercom_api.publish_entity_states: intercom
+    - if:
+        condition:
+          and:
+            - switch.is_off: mute
+            - not:
+                micro_wake_word.is_running:
+        then:
+          - micro_wake_word.start:
+    - script.execute: update_status
+    - delay: 1s
+    - lambda: |-
+        TaskHandle_t mww_task = xTaskGetHandle("mww");
+        if (mww_task) {
+          vTaskPrioritySet(mww_task, 8);
+        }
+  on_client_disconnected:
+    - globals.set:
+        id: g_va_state
+        value: "0"
+    - globals.set:
+        id: g_barge_in_pending
+        value: "0"
+    - globals.set:
+        id: g_mww_recent
+        value: "0"
+    - globals.set:
+        id: g_applied_led
+        value: "-1"
+    - script.stop: mww_failsafe
+    - script.stop: barge_failsafe
+    - micro_wake_word.stop:
+    - script.execute: update_status
+
+# =============================================================================
+# Micro Wake Word
+# =============================================================================
+micro_wake_word:
+  id: mww
+  stop_after_detection: false
+  on_wake_word_detected:
+    - logger.log:
+        tag: mww
+        format: "MWW: wake word detected"
+    - globals.set:
+        id: g_mww_recent
+        value: "1"
+    - script.execute: update_status
+    - script.execute: mww_failsafe
+    - if:
+        condition:
+          or:
+            - voice_assistant.is_running:
+            - lambda: 'return id(g_barge_in_pending) != 0;'
+        then:
+          - logger.log:
+              tag: mww
+              format: "MWW: barge-in, stopping VA"
+          - globals.set:
+              id: g_barge_in_pending
+              value: "1"
+          - script.execute: barge_failsafe
+          - voice_assistant.stop:
+          - media_player.stop:
+              announcement: true
+        else:
+          - logger.log:
+              tag: mww
+              format: "MWW: fresh VA start"
+          - voice_assistant.start:
+              wake_word: !lambda return wake_word;
+
+# =============================================================================
+# Intercom API
+# =============================================================================
+intercom_api:
+  id: intercom
+  on_outgoing_call:
+    - script.execute: update_status
+    - script.execute:
+        id: ui_ic_call
+        peer: !lambda 'return id(intercom).get_current_destination();'
+    - if:
+        condition:
+          intercom_api.is_ha_destination: intercom
+        then:
+          - homeassistant.event:
+              event: esphome.intercom_call
+              data:
+                caller: "${friendly_name}"
+                destination: "Home Assistant"
+                type: "doorbell"
+  on_ringing:
+    - script.execute: update_status
+    - script.execute:
+        id: ui_ic_call
+        peer: !lambda 'return id(intercom).get_caller();'
+    - script.execute: intercom_ringing_loop
+  on_streaming:
+    - script.stop: intercom_ringing_loop
+    - script.execute: update_status
+    - script.execute:
+        id: ui_ic_call
+        peer: !lambda |-
+          auto c = id(intercom).get_caller();
+          return c.empty() ? id(intercom).get_current_destination() : c;
+  on_idle:
+    - script.stop: intercom_ringing_loop
+    - script.execute: update_status
+  on_hangup:
+    - script.stop: intercom_ringing_loop
+    - script.execute: update_status
+  on_call_failed:
+    - script.stop: intercom_ringing_loop
+    - script.execute: update_status
+
+# =============================================================================
+# Scripts
+# =============================================================================
+script:
+  # CENTRAL REDUCER
+  - id: update_status
+    mode: restart
+    then:
+      - lambda: |-
+          // Central UI reducer. Priority order:
+          //   mute states > wake-word > VA (listening/thinking/responding)
+          //   > intercom call > VA error > media playback > idle.
+          // VA responding sits above intercom so concurrent TTS always shows
+          // blue even while a call is active; when TTS ends the evaluator
+          // falls back to the underlying call (green) or music (blue).
+          // Media playback target covers both STATE_PLAYING and
+          // STATE_ANNOUNCING so the LED stays blue when music pauses for a
+          // TTS announcement instead of flashing to off and back.
+          using S = media_player::MediaPlayerState;
+          auto mp_state = id(speaker_media_player).state;
+          bool media_active = (mp_state == S::MEDIA_PLAYER_STATE_PLAYING ||
+                               mp_state == S::MEDIA_PLAYER_STATE_ANNOUNCING);
+          int target = 0;
+          if (id(mute).state && id(speaker_mute).state) target = 1;
+          else if (id(mute).state) target = 2;
+          else if (id(speaker_mute).state) target = 3;
+          else if (id(g_mww_recent) || id(g_barge_in_pending)) target = 4;
+          else if (id(g_va_state) == 1) target = 5;     // VA listening
+          else if (id(g_va_state) == 2) target = 6;     // VA thinking
+          else if (id(g_va_state) == 3) target = 7;     // VA responding (TTS)
+          else if (id(intercom).is_ringing()) target = 8;
+          else if (id(intercom).is_outgoing()) target = 9;
+          else if (id(intercom).is_streaming()) target = 10;
+          else if (id(g_va_state) == 4) target = 11;    // VA error
+          else if (media_active) target = 12;           // Music / announcement
+          id(g_applied_led) = target;
+      - script.execute: update_led
+      - script.execute: ui_state_changed
+      # Ducking
+      - if:
+          condition:
+            or:
+              - voice_assistant.is_running:
+              - lambda: 'return id(g_va_state) != 0;'
+              - not:
+                  intercom_api.is_idle: intercom
+              - media_player.is_announcing:
+          then:
+            - if:
+                condition:
+                  lambda: 'return id(g_ducking_active) == 0;'
+                then:
+                  - mixer_speaker.apply_ducking:
+                      id: media_speaker_mix
+                      decibel_reduction: 20
+                      duration: 200ms
+                  - globals.set:
+                      id: g_ducking_active
+                      value: "1"
+          else:
+            - if:
+                condition:
+                  lambda: 'return id(g_ducking_active) != 0;'
+                then:
+                  - mixer_speaker.apply_ducking:
+                      id: media_speaker_mix
+                      decibel_reduction: 0
+                      duration: 500ms
+                  - globals.set:
+                      id: g_ducking_active
+                      value: "0"
+
+  # Hook placeholders (devices !extend)
+  - id: update_led
+    mode: restart
+    then: []
+  - id: ui_state_changed
+    mode: restart
+    then: []
+  - id: ui_tts_started
+    parameters:
+      text: string
+    then: []
+  - id: ui_stt_ended
+    parameters:
+      text: string
+    then: []
+  - id: ui_ic_call
+    parameters:
+      peer: string
+    then: []
+  - id: va_end_cleanup
+    then: []
+
+  # Core scripts
+  - id: va_end_handler
+    mode: restart
+    then:
+      - wait_until:
+          condition:
+            or:
+              - media_player.is_announcing:
+              - speaker.is_playing:
+                  id: tts_speaker
+          timeout: 2s
+      - wait_until:
+          condition:
+            and:
+              - not:
+                  media_player.is_announcing:
+              - not:
+                  speaker.is_playing:
+                      id: tts_speaker
+          # Long replies can keep the TTS pipeline draining well after VA on_end.
+          # A short timeout here forces idle cleanup and truncates the tail.
+          timeout: 90s
+      - if:
+          condition:
+            or:
+              - media_player.is_announcing:
+              - speaker.is_playing:
+                  id: tts_speaker
+          then:
+            - logger.log:
+                level: WARN
+                format: "VA: TTS drain timeout, forcing cleanup"
+            - media_player.stop:
+                announcement: true
+      - delay: 100ms
+      - voice_assistant.stop:
+      - if:
+          condition:
+            lambda: 'return id(g_barge_in_pending) != 0;'
+          then:
+            - logger.log:
+                tag: va
+                format: "VA: barge restart"
+            - wait_until:
+                condition:
+                  not:
+                    voice_assistant.is_running:
+                timeout: 2s
+            - delay: 200ms
+            - voice_assistant.start:
+          else:
+            - logger.log:
+                tag: va
+                format: "VA: end, clearing state"
+            - globals.set:
+                id: g_va_state
+                value: "0"
+            - script.execute: update_status
+            - script.execute: va_end_cleanup
+
+  - id: va_error_flash
+    mode: restart
+    then:
+      - delay: 2s
+      - if:
+          condition:
+            lambda: 'return id(g_va_state) == 4;'
+          then:
+            - globals.set:
+                id: g_va_state
+                value: "0"
+      - script.execute: update_status
+
+  - id: mww_failsafe
+    mode: restart
+    then:
+      - delay: 3s
+      - logger.log:
+          level: WARN
+          format: "MWW failsafe: clearing stuck g_mww_recent"
+      - globals.set:
+          id: g_mww_recent
+          value: "0"
+      - script.execute: update_status
+
+  - id: barge_failsafe
+    mode: restart
+    then:
+      - delay: 15s
+      - if:
+          condition:
+            lambda: 'return id(g_barge_in_pending) != 0;'
+          then:
+            - logger.log:
+                level: WARN
+                format: "Barge failsafe: clearing stuck g_barge_in_pending"
+            - globals.set:
+                id: g_barge_in_pending
+                value: "0"
+            - script.execute: update_status
+
+  - id: intercom_ringing_loop
+    mode: restart
+    then:
+      - while:
+          condition:
+            intercom_api.is_ringing: intercom
+          then:
+            - media_player.speaker.play_on_device_media_file:
+                media_file: intercom_ringing_sound
+                announcement: true
+            - wait_until:
+                condition:
+                  media_player.is_announcing:
+                timeout: 2s
+            - wait_until:
+                condition:
+                  not:
+                    media_player.is_announcing:
+                timeout: 5s
+            - delay: 1s
+
+# =============================================================================
+# Buttons
+# =============================================================================
+button:
+  - platform: template
+    name: Call
+    id: call_button
+    icon: mdi:phone
+    on_press:
+      - intercom_api.call_toggle: intercom
+  - platform: template
+    name: Next Contact
+    id: next_contact_button
+    icon: mdi:skip-next
+    on_press:
+      - intercom_api.next_contact: intercom
+  - platform: template
+    name: Previous Contact
+    id: prev_contact_button
+    icon: mdi:skip-previous
+    on_press:
+      - intercom_api.prev_contact: intercom
+  - platform: template
+    name: Decline
+    id: decline_button
+    icon: mdi:phone-hangup
+    on_press:
+      - intercom_api.decline_call: intercom
+  - platform: restart
+    name: Restart
+    entity_category: config
+
+# =============================================================================
+# Switches
+# =============================================================================
+switch:
+  - platform: template
+    name: Mic Mute
+    id: mute
+    icon: mdi:microphone-off
+    entity_category: config
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      - logger.log:
+          level: INFO
+          tag: mute
+          format: "Mic mute ON"
+      - micro_wake_word.stop:
+      - voice_assistant.stop:
+      - microphone.mute: ${mic_id}
+      - script.execute: update_status
+    on_turn_off:
+      - logger.log:
+          level: INFO
+          tag: mute
+          format: "Mic mute OFF"
+      - microphone.unmute: ${mic_id}
+      - if:
+          condition:
+            not:
+              micro_wake_word.is_running:
+          then:
+            - micro_wake_word.start:
+      - script.execute: update_status
+  - platform: template
+    name: Speaker Mute
+    id: speaker_mute
+    icon: mdi:volume-off
+    entity_category: config
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    on_turn_on:
+      - logger.log:
+          level: INFO
+          tag: mute
+          format: "Speaker mute ON"
+      - speaker.mute_on: hw_speaker
+      - script.execute: update_status
+    on_turn_off:
+      - logger.log:
+          level: INFO
+          tag: mute
+          format: "Speaker mute OFF"
+      - speaker.mute_off: hw_speaker
+      - script.execute: update_status
+  - platform: template
+    name: Wake Word
+    id: wake_word_switch
+    icon: mdi:account-voice
+    entity_category: config
+    restore_mode: DISABLED
+    lambda: 'return id(mww).is_running();'
+    turn_on_action:
+      - if:
+          condition:
+            not:
+              micro_wake_word.is_running:
+          then:
+            - micro_wake_word.start:
+    turn_off_action:
+      - micro_wake_word.stop:
+
+# =============================================================================
+# Text Sensors
+# =============================================================================
+text_sensor:
+  - platform: homeassistant
+    id: ha_active_devices
+    entity_id: sensor.intercom_active_devices
+    # ESPHome's TextSensor::publish_state always fires on_value, even when the
+    # value is identical to the previous one. HA also re-emits the current state
+    # on every reconnect/subscribe. Drop unchanged CSV here so set_contacts() and
+    # any device-side on_value extensions only fire on real change.
+    filters:
+      - lambda: |-
+          static std::string last;
+          if (x == last) return optional<std::string>{};
+          last = x;
+          return optional<std::string>(x);
+    on_value:
+      - intercom_api.set_contacts:
+          id: intercom
+          contacts_csv: !lambda 'return x;'
+
+# No CONFIG_LWIP_MAX_SOCKETS override: intercom_api reserves its socket
+# quota through socket.consume_sockets() in its Python validation path,
+# so ESPHome sizes the setting automatically.

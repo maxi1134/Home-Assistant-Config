@@ -1,0 +1,34 @@
+# =============================================================================
+# Waveshare ESP32-P4 + ESP32-C6 co-processor connectivity profile
+# =============================================================================
+#
+# SDK options that the C6 SDIO co-processor path needs on the Waveshare
+# ESP32-P4 boards. These are connectivity-specific (not driven by the P4
+# chip itself or by the audio pipeline) and should only be pulled in on
+# P4 boards that wire WiFi through a C6 via SDIO.
+#
+# Justification:
+#   - Default SDIO RX/TX queue size (20) overflows under concurrent
+#     WiFi traffic (music streaming + VA API). ref: esp-hosted#597.
+#   - C6 SDIO setup can take longer than the default task WDT, tripping
+#     during early boot without a longer timeout.
+#
+# Usage:
+#   packages:
+#     p4_c6:
+#       url: https://github.com/n-IA-hane/esphome-intercom
+#       file: packages/board/waveshare_p4_c6.yaml
+#       ref: audio-core-v2
+# =============================================================================
+
+esp32:
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      # SDIO stability: larger queues prevent overflow during concurrent
+      # WiFi traffic (music streaming + VA API). ref: esp-hosted#597.
+      CONFIG_ESP_HOSTED_SDIO_RX_Q_SIZE: "50"
+      CONFIG_ESP_HOSTED_SDIO_TX_Q_SIZE: "50"
+      # Give long-running SDIO/WiFi setup enough time before the task WDT
+      # trips during early boot.
+      CONFIG_ESP_TASK_WDT_TIMEOUT_S: "30"

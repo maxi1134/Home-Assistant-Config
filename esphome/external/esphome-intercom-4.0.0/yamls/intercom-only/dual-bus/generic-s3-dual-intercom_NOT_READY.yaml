@@ -1,0 +1,299 @@
+# =============================================================================
+# GENERIC ESP32-S3 INTERCOM: Intercom only (no VA, no MWW)
+# =============================================================================
+# Uses intercom_api with AEC for full-duplex echo-cancelled calls.
+# Speaker direct (no mixer, no resamplers). Same proven path as s3-mini.
+#
+# Limitation: the incoming-call ringtone is not played on this YAML yet.
+# The speaker path is plugged directly into intercom_api RX to keep the
+# latency budget tight; playing a ringtone would require a mixer in front
+# of the speaker, which is the full-experience architecture.
+#
+# HARDWARE (adapt GPIOs to YOUR board):
+#   - Board: Any ESP32-S3 with PSRAM
+#   - Microphone: Any I2S MEMS (INMP441, MSM261, SPH0645)
+#   - Speaker: Any I2S amplifier (MAX98357A, NS4168, PCM5102A)
+#   - LED: SK6812/WS2812 RGB (optional)
+#
+# GPIO PINOUT (example, change to match your wiring):
+#   Microphone I2S bus:  WS=GPIO37, SCK=GPIO36, SD=GPIO35
+#   Speaker I2S bus:     LRC=GPIO6, BCLK=GPIO5, DIN=GPIO7
+#   LED:                 DATA=GPIO33
+#
+# =============================================================================
+
+substitutions:
+  name: generic-dual-intercom
+  friendly_name: Generic Dual Intercom
+
+  # ---- External components: Remote (release / users without local clone) ----
+  # ext_components_source: "github://n-IA-hane/esphome-intercom@main"
+  # ---- External components: Local (dev, clone repo first; toggle by swapping the comment) ----
+  ext_components_source: "../../../esphome/components"
+
+# =============================================================================
+# Package: shared intercom state machine
+# =============================================================================
+packages:
+  # ---- Remote (release / users without local clone) ----
+  # core: github://n-IA-hane/esphome-intercom/packages/intercom_only.yaml@main
+  # s3_base: github://n-IA-hane/esphome-intercom/packages/platform/esp32s3_base.yaml@main
+  # ---- Local (dev, clone repo first; toggle: comment the remote block above and uncomment the block below) ----
+  core: !include ../../../packages/intercom_only.yaml
+  s3_base: !include ../../../packages/platform/esp32s3_base.yaml
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  platformio_options:
+    board_build.flash_mode: dio
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      # Allow mbedtls to allocate its working buffers in PSRAM.
+      CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"
+
+psram:
+  mode: quad
+  speed: 80MHz
+
+preferences:
+  flash_write_interval: 5min
+
+api:
+  on_client_connected:
+    - lambda: |-
+        static bool published = false;
+        if (!published) {
+          published = true;
+          id(intercom).publish_entity_states();
+        }
+
+ota:
+  - platform: esphome
+
+logger:
+  hardware_uart: USB_CDC
+  level: INFO
+  logs:
+    intercom_api: INFO
+
+network:
+  enable_high_performance: true
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+external_components:
+  - source: ${ext_components_source}
+    components: [intercom_api, esp_aec, audio_processor]
+
+# =============================================================================
+# I2S Audio Buses (dual-bus: separate mic + speaker)
+# =============================================================================
+i2s_audio:
+  - id: i2s_mic_bus
+    i2s_lrclk_pin: GPIO37
+    i2s_bclk_pin: GPIO36
+  - id: i2s_spk_bus
+    i2s_lrclk_pin: GPIO6
+    i2s_bclk_pin: GPIO5
+
+# =============================================================================
+# Microphone
+# =============================================================================
+microphone:
+  - platform: i2s_audio
+    id: mic_main
+    i2s_audio_id: i2s_mic_bus
+    i2s_din_pin: GPIO35
+    adc_type: external
+    pdm: false
+    bits_per_sample: 32bit
+    sample_rate: 16000
+    channel: left
+
+# =============================================================================
+# Speaker (direct, no mixer)
+# =============================================================================
+speaker:
+  - platform: i2s_audio
+    id: hw_speaker
+    i2s_audio_id: i2s_spk_bus
+    i2s_dout_pin: GPIO7
+    dac_type: external
+    i2s_mode: primary
+    sample_rate: 16000
+    bits_per_sample: 16bit
+    timeout: never
+    buffer_duration: 100ms
+
+# =============================================================================
+# AEC
+# =============================================================================
+esp_aec:
+  id: aec_processor
+  sample_rate: 16000
+  filter_length: 8
+  mode: voip_high_perf
+
+# =============================================================================
+# Intercom API: Device part (merged with package callbacks)
+# =============================================================================
+intercom_api:
+  mode: full
+  microphone: mic_main
+  speaker: hw_speaker
+  dc_offset_removal: true
+  processor_id: aec_processor
+  aec_reference_delay_ms: 80
+  ringing_timeout: 30s
+
+# =============================================================================
+# Switches (device-specific)
+# =============================================================================
+switch:
+  - platform: intercom_api
+    intercom_api_id: intercom
+    auto_answer:
+      id: auto_answer_switch
+      name: Auto Answer
+      icon: mdi:phone-in-talk
+      restore_mode: RESTORE_DEFAULT_OFF
+    aec:
+      id: aec_switch
+      name: Echo Cancellation
+      icon: mdi:ear-hearing
+      restore_mode: RESTORE_DEFAULT_ON
+
+# =============================================================================
+# AEC Mode Select
+# =============================================================================
+select:
+  - platform: template
+    name: AEC Mode
+    id: aec_mode_select
+    icon: mdi:tune-vertical
+    # Intercom-only standard: stay inside the dios_ssp_aec engine. The two
+    # VOIP modes share the same engine, so a runtime switch never triggers
+    # an esp_aec3 FFT alloc and avoids the silent calloc-fail bug observed
+    # at filter_length>4 on cross-engine transitions. SR modes are not
+    # offered here because no MWW is present in this configuration.
+    options:
+      - "voip_low_cost"
+      - "voip_high_perf"
+    initial_option: "voip_high_perf"
+    # Non-optimistic: HA reflects the live component mode, not the value the
+    # user clicked. If the switch is rejected (e.g. internal RAM fragmented)
+    # or the component falls back to the previous mode, the select shows the
+    # actual mode rather than a fictitious one.
+    optimistic: false
+    restore_value: false
+    set_action:
+      - if:
+          condition:
+            not:
+              intercom_api.is_idle: intercom
+          then:
+            - logger.log:
+                level: WARN
+                format: "Cannot switch AEC mode during active intercom call"
+          else:
+            - logger.log:
+                format: "Switching AEC mode to %s"
+                args: ['x.c_str()']
+            - esp_aec.set_mode:
+                id: aec_processor
+                mode: !lambda 'return x;'
+      # Reflect actual live mode (covers rejection and silent fallback).
+      - lambda: |-
+          id(aec_mode_select).publish_state(id(aec_processor).get_mode_name());
+
+# =============================================================================
+# Numbers
+# =============================================================================
+number:
+  - platform: intercom_api
+    intercom_api_id: intercom
+    speaker_volume:
+      id: speaker_volume
+      name: Speaker Volume
+    mic_gain:
+      id: mic_gain
+      name: Mic Gain
+
+# =============================================================================
+# Status LED
+# =============================================================================
+light:
+  - platform: esp32_rmt_led_strip
+    id: status_led
+    name: Status LED
+    icon: mdi:led-on
+    pin: GPIO33
+    chipset: SK6812
+    num_leds: 1
+    rgb_order: GRB
+    effects:
+      - pulse:
+          name: "Slow Pulse"
+          min_brightness: 20%
+          max_brightness: 100%
+          transition_length: 1s
+          update_interval: 1s
+      - pulse:
+          name: "Fast Pulse"
+          transition_length: 0.5s
+          update_interval: 0.5s
+          min_brightness: 0%
+          max_brightness: 100%
+      - strobe:
+          name: "Ringing"
+          colors:
+            - state: true
+              brightness: 100%
+              red: 100%
+              green: 0%
+              blue: 0%
+              duration: 250ms
+            - state: false
+              duration: 250ms
+      - strobe:
+          name: "Calling"
+          colors:
+            - state: true
+              brightness: 100%
+              red: 100%
+              green: 50%
+              blue: 0%
+              duration: 500ms
+            - state: false
+              duration: 500ms
+
+# =============================================================================
+# Diagnostics
+# =============================================================================
+sensor:
+  - platform: wifi_signal
+    name: WiFi Signal
+    update_interval: 60s
+    entity_category: diagnostic
+
+  - platform: uptime
+    name: Uptime
+    update_interval: 60s
+    entity_category: diagnostic
+
+  - platform: internal_temperature
+    name: CPU Temperature
+    update_interval: 60s
+    entity_category: diagnostic
+
+binary_sensor:
+  - platform: status
+    name: Status

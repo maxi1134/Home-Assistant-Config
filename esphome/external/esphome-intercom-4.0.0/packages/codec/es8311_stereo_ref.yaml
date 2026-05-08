@@ -1,0 +1,46 @@
+# =============================================================================
+# ES8311 stereo-reference initialization script
+# =============================================================================
+#
+# Writes the ES8311 undocumented register 0x44 so that ASDOUT carries a
+# stereo frame (L = DAC loopback, R = ADC mic). The DAC loopback becomes
+# the sample-accurate reference path for the AEC on boards that route
+# the speaker output through the same ES8311 codec instead of through an
+# external reference mic.
+#
+# The bits 6:4 of 0x44 (ADCDAT_SEL) must be set to 4 (DACL + ADC). The
+# register is poorly documented by Everest; this value was confirmed
+# against Espressif's official AEC reference configurations for ES8311.
+#
+# Required IDs provided by the consumer:
+#   id: i2c_bus   - the top-level I2C bus (ES8311 lives at 0x18)
+#
+# Usage in consumer YAML:
+#   esphome:
+#     on_boot:
+#       - priority: 200
+#         then:
+#           - script.execute: es8311_stereo_ref_init
+# =============================================================================
+
+script:
+  - id: es8311_stereo_ref_init
+    mode: single
+    then:
+      - lambda: |-
+          ESP_LOGI("es8311", "Configuring ES8311 register 0x44 for digital feedback...");
+          uint8_t reg = 0x44;
+          uint8_t current_val = 0;
+          id(i2c_bus).write(0x18, &reg, 1);
+          id(i2c_bus).read(0x18, &current_val, 1);
+          ESP_LOGI("es8311", "Register 0x44 current value: 0x%02X", current_val);
+          uint8_t data[2] = {0x44, 0x48};
+          auto err = id(i2c_bus).write(0x18, data, 2);
+          if (err == esphome::i2c::ERROR_OK) {
+            ESP_LOGI("es8311", "Wrote register 0x44=0x48 for digital feedback AEC");
+            id(i2c_bus).write(0x18, &reg, 1);
+            id(i2c_bus).read(0x18, &current_val, 1);
+            ESP_LOGI("es8311", "Register 0x44 after write: 0x%02X", current_val);
+          } else {
+            ESP_LOGE("es8311", "Failed to write register 0x44: error %d", (int)err);
+          }
