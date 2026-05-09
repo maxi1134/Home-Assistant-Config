@@ -1,4 +1,8 @@
 substitutions:
+  # Device Identity
+  name: "hallway-assistant"
+  friendly_name: hallway Assistant
+  static_ip: 192.168.20.61
   #images
   loading_illustration_file: http://192.168.0.15:8123/local/esp32_images/loading.png
   idle_illustration_file: http://192.168.0.15:8123/local/esp32_images/waiting.png
@@ -57,7 +61,7 @@ external_components:
   - source:
       type: local
       path: /config/esphome/external/esphome-intercom-4.0.0/esphome/components
-    components: [i2s_audio_duplex, esp_afe, audio_processor]
+    components: [i2s_audio_duplex, esp_aec, audio_processor]
 
 esp32:
   board: esp32s3box
@@ -119,7 +123,7 @@ interval:
   - interval: 30s
     then:
       - script.execute: draw_display
-sensor:
+sensor:       
   - platform: homeassistant
     id: outside_temp
     entity_id: sensor.outside_temperature_with_fallback
@@ -130,14 +134,6 @@ sensor:
             - lambda: return id(voice_assistant_phase) == ${voice_assist_idle_phase_id} || id(voice_assistant_phase) == ${voice_assist_muted_phase_id};
           then:
             - script.execute: draw_display
-  - platform: esp_afe
-    esp_afe_id: afe_processor
-    input_volume:
-      name: "AFE Input Volume"
-      update_interval: 250ms
-    output_rms:
-      name: "AFE Output RMS"
-      update_interval: 250ms
 binary_sensor:
   - platform: touchscreen
     name: "Screen Touch"
@@ -176,7 +172,7 @@ binary_sensor:
                           voice_assistant.is_running:
                   then:
                     # NOTE: do NOT stop_wake_word here. The pre-AEC config required it because
-                    # MWW couldn't share the mic with VA. With i2s_audio_duplex + esp_afe, MWW
+                    # MWW couldn't share the mic with VA. With i2s_audio_duplex + esp_aec, MWW
                     # and VA run concurrently as separate consumers of box_mic, so we leave MWW
                     # running through the touch-triggered turn — that's how 'Stop' (and the
                     # 'Okay Nabu' barge-in) keeps working during TTS reply for touch sessions.
@@ -203,10 +199,6 @@ binary_sensor:
           - ON for at least 10s
         then:
           - button.press: factory_reset_btn
-  - platform: esp_afe
-    esp_afe_id: afe_processor
-    vad:
-      name: "Voice Presence"
 touchscreen:
   - platform: gt911 # Most S3-Box models use this; if it fails, try 'ft6336'
     id: board_touchscreen
@@ -231,21 +223,11 @@ i2c:
   scl: GPIO18
   sda: GPIO8
 
-esp_afe:
-  id: afe_processor
-  type: sr                  # speech-recognition variant: esp_aec3 linear AEC, MWW-compatible (10/10)
-  mode: low_cost            # SIMD path, ~23% Core 0
-  # Single-mic for now. Dual-mic BSS (mic_num: 2 + se_enabled: true) requires
-  # TDM mode on i2s_audio_duplex (tdm_mic_slots) + ES7210 register writes —
-  # see i2s_audio_duplex.cpp:1361 alloc_fail("dual-mic processor requires TDM
-  # microphone slots"). That's a Phase-2 change; staying single-mic restores AEC.
-  mic_num: 1
-  se_enabled: false         # BSS off (requires mic_num: 2 + TDM)
-  aec_enabled: true         # echo cancellation (default)
-  aec_filter_length: 4      # 64 ms tail — matches old esp_aec filter_length
-  ns_enabled: true          # noise suppression (single-mic MR pipeline)
-  agc_enabled: true         # auto gain control (single-mic MR pipeline)
-  vad_enabled: true         # voice activity detection (drives binary_sensor)
+esp_aec:
+  id: aec_processor
+  sample_rate: 16000
+  filter_length: 4
+  mode: sr_low_cost
 
 i2s_audio_duplex:
   id: i2s_duplex
@@ -259,7 +241,7 @@ i2s_audio_duplex:
   slot_bit_width: 32
   bits_per_sample: 16
   correct_dc_offset: true
-  processor_id: afe_processor  # was aec_processor — now feeds esp_afe
+  processor_id: aec_processor
   buffers_in_psram: true
   aec_reference: previous_frame
 
@@ -1101,23 +1083,6 @@ switch:
           announcement: true
       - delay: 15min
       - switch.turn_off: timer_ringing
-  - platform: esp_afe
-    esp_afe_id: afe_processor
-    aec:
-      name: "Echo Cancellation"
-      restore_mode: RESTORE_DEFAULT_ON
-    se:
-      name: "Beamforming (BSS)"
-      restore_mode: RESTORE_DEFAULT_ON
-    ns:
-      name: "Noise Suppression"
-      restore_mode: RESTORE_DEFAULT_ON
-    vad:
-      name: "Voice Detection"
-      restore_mode: RESTORE_DEFAULT_ON
-    agc:
-      name: "Auto Gain Control"
-      restore_mode: RESTORE_DEFAULT_ON
 
 select:
   - platform: template
