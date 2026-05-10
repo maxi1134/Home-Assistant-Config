@@ -12,7 +12,7 @@ That is until I found the [ESPHOME-Intercom](https://github.com/n-IA-hane/esphom
 
 ---
 
-***If you're just looking to go ham at this without reading the presentation, here is the [complete yaml file](esphome/templates/ESP32-S3-BOX-3/ESP32-s3-box-3_esphome_voice_assistant_with_audio_duplex_and_stop_word.yaml)***
+***If you're just looking to go ham at this without reading the presentation, here is the [complete yaml file](/esphome/templates/ESP32-S3-BOX-3/ESP32-s3-box-3_esphome_voice_assistant_with_audio_duplex_and_stop_word.yaml)***
 
 ---
 
