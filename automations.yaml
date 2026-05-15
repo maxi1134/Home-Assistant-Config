@@ -219,6 +219,10 @@
   - condition: state
     entity_id: input_boolean.aerating_apartment
     state: 'off'
+  - condition: state
+    entity_id: input_boolean.party_mode
+    state:
+    - 'off'
   actions:
   - repeat:
       sequence:
@@ -842,6 +846,7 @@
     - binary_sensor.group_salon_motion_occupancy
     - binary_sensor.group_hotbox_motion_occupancy
     - binary_sensor.group_patio_motion_occupancy
+    - binary_sensor.patio_camera_person_occupancy
     for:
       hours: 0
       minutes: 0
@@ -3910,15 +3915,11 @@
     Unlocks and announces known users, or broadcasts a stranger alert for unknown
     codes.
   triggers:
-  - entity_id:
-    - lock.lock_front_door
-    trigger: state
-    attribute: action
-    to: unlock_failure_invalid_schedule
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 1
+  - trigger: state
+    entity_id:
+    - sensor.lock_front_door_action_user
+    to: '6'
+    id: A Guest
   conditions:
   - alias: Was the door unlocked with the keypad?
     condition: template
@@ -3928,42 +3929,122 @@
     entity_id: person.maximiliano
     state: home
   actions:
-  - variables:
-      action_id: '{{ states(''sensor.lock_front_door_action_user'') }}
-
-        '
-      user_opening: "{% if action_id | string == '1' %}\n  Maxi\n{% elif action_id
-        | string == '9' %}\n  Ré\n{% else %}\n Unknown\n{% endif %}\n"
   - choose:
     - conditions:
-      - condition: template
-        value_template: '{{ "Unknown" in user_opening  }}'
+      - condition: trigger
+        id:
+        - A Guest
       sequence:
-      - metadata: {}
-        data:
-          message: 'A stranger is trying to open the door
+      - choose:
+        - conditions:
+          - condition: state
+            entity_id: input_boolean.front_door_event_unlocking_code_automation_condition
+            state:
+            - 'on'
+          - condition: state
+            entity_id: input_boolean.party_mode
+            state:
+            - 'on'
+          sequence:
+          - metadata: {}
+            data:
+              filename: /media/front_door_guest_let_in.png
+            target:
+              entity_id: camera.front_door_ptz_camera_clear
+            action: camera.snapshot
+          - action: lock.unlock
+            target:
+              entity_id: lock.lock_front_door
+            data:
+              code: '2487'
+          - wait_for_trigger:
+            - trigger: state
+              entity_id:
+              - lock.lock_front_door
+              to:
+              - unlocked
+            continue_on_timeout: true
+            timeout:
+              hours: 0
+              minutes: 2
+              seconds: 0
+              milliseconds: 0
+            enabled: true
+          - action: input_text.set_value
+            metadata: {}
+            target:
+              entity_id: input_text.front_door_phone_text
+            data:
+              value: Welcome; Enter! Bienvenu, Entrez! Bienvenido, Entra!
+          - metadata: {}
+            data:
+              url: 'http://192.168.0.11:1984/stream.html?&src=front_door_camera_sub&mode=webrtc
 
-            '
-          color: blue
-        action: script.broadcast_alert_in_the_house
-      alias: Unknown code
-    - conditions:
-      - condition: template
-        value_template: '{{ "Unknown" not in user_opening  }}'
-      sequence:
-      - action: lock.unlock
-        target:
-          entity_id: lock.lock_front_door
-        data: {}
-      - metadata: {}
-        data:
-          message: '{{ user_opening }} has arrived
+                '
+              message: A guest is being let in through the front door
+              color: Blue
+              phone_data:
+                message: A guest is being let in through the front door
+                data:
+                  channel: doorbell_notifications
+                  image: /media/local/front_door_guest_let_in.png
+                  actions:
+                  - action: URI
+                    title: Security Tab
+                    uri: /maxi-mobile/main-view#security_popup
+                  - action: REPLY
+                    title: Enter Text
+                  - action: URI
+                    title: Open Cameras
+                    uri: /maxi-mobile/main-view#cameras
+            action: script.broadcast_alert_in_the_house
+            continue_on_error: true
+          - wait_for_trigger:
+            - trigger: state
+              entity_id:
+              - lock.lock_front_door
+              to:
+              - locked
+            continue_on_timeout: true
+            timeout:
+              hours: 0
+              minutes: 2
+              seconds: 0
+              milliseconds: 0
+            enabled: true
+          - action: input_text.set_value
+            metadata: {}
+            target:
+              entity_id: input_text.front_door_phone_text
+            data:
+              value: Empty
+        default:
+        - metadata: {}
+          data:
+            url: 'http://192.168.0.11:1984/stream.html?&src=front_door_camera_sub&mode=webrtc
 
-            '
-          color: cyan
-        action: script.broadcast_alert_in_the_house
-      alias: Known code
-  mode: single
+              '
+            message: Someone is at the front door!
+            color: Blue
+            phone_data:
+              message: Someone is at the door!
+              data:
+                channel: doorbell_notifications
+                image: 'https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
+
+                  '
+                actions:
+                - action: URI
+                  title: Security Tab
+                  uri: /maxi-mobile/main-view#security_popup
+                - action: REPLY
+                  title: Enter Text
+                - action: URI
+                  title: Open Cameras
+                  uri: /maxi-mobile/main-view#cameras
+          action: script.broadcast_alert_in_the_house
+          alias: Doorbell like announcement
+  mode: restart
 - id: '1729698675763'
   alias: Notify when someone leaves through front door
   description: Broadcasts a non-important alert when the front door is manually unlocked
@@ -5829,6 +5910,17 @@
       minutes: 0
       seconds: 0
     id: cooking_mode
+  - trigger: state
+    entity_id:
+    - input_boolean.front_door_event_unlocking_code_automation_condition
+    from:
+    to:
+    - 'on'
+    for:
+      hours: 6
+      minutes: 0
+      seconds: 0
+    id: front_door_code_automation_boolean
   conditions: []
   actions:
   - action: input_boolean.turn_off
@@ -6376,6 +6468,22 @@
     - condition: state
       entity_id: alarm_control_panel.home_alarm
       state: armed_away
+  - condition: or
+    conditions:
+    - condition: or
+      conditions:
+      - condition: state
+        entity_id: binary_sensor.parking_exit_camera_car_occupancy
+        state:
+        - 'on'
+      - condition: state
+        entity_id: binary_sensor.parking_camera_car_occupancy
+        state:
+        - 'on'
+    - condition: state
+      entity_id: person.myriam
+      state:
+      - home
   actions:
   - choose:
     - conditions:
@@ -17074,3 +17182,38 @@
     data:
       is_volume_muted: true
   mode: single
+- id: '1778543218741'
+  alias: Mute patio speaker when door closes
+  description: Mutes the patio speaker when server door closes and no one is present
+  triggers:
+  - entity_id:
+    - binary_sensor.sensor_patio_door_contact
+    trigger: state
+    from:
+    - 'on'
+    to:
+    - 'off'
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.patio_standing_zone_person_occupancy
+    state:
+    - 'off'
+  - condition: or
+    conditions:
+    - condition: state
+      entity_id: binary_sensor.group_server_motion_occupancy
+      state:
+      - 'on'
+    - condition: state
+      entity_id: binary_sensor.patio_door_zone_person_occupancy
+      state:
+      - 'on'
+  actions:
+  - metadata: {}
+    data:
+      is_volume_muted: true
+    action: media_player.volume_mute
+    target:
+      entity_id: media_player.mass_patio_wiim_speaker
+  mode: parallel
+  max: 10

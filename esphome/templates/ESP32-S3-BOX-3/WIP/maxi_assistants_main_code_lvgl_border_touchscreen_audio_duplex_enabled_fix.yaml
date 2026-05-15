@@ -139,7 +139,8 @@ binary_sensor:
     x_max: 320
     y_min: 0
     y_max: 240
-    on_press:
+    on_click:
+      min_length: 75ms
       then:
         - if:
             # Same stale-announcing guard as on_wake_word_detected: if user_cancelled is
@@ -419,20 +420,38 @@ voice_assistant:
         condition:
           - media_player.is_announcing:
         timeout: 0.5s
-    # Announcement is finished and the I2S bus is free.
-    # Timeout is critical: if the user cancels mid-TTS, ESPHome's media_player can stay
-    # stuck in ANNOUNCING state until the streaming HTTP reader times out (~30 s),
-    # because media_player.stop only flags a stop request — it doesn't abort the in-flight
-    # network read. Without this timeout, on_end blocks indefinitely and the device cannot
-    # accept new wake words / touches until the network errors out.
-    - wait_until:
+    # Wait for the announcement to finish. The timeout depends on whether the user
+    # cancelled mid-TTS:
+    #   - user_cancelled = true: 3 s. media_player.stop only flags a stop request —
+    #     the streaming HTTP reader can stay stuck on fetch_headers for ~30 s. We
+    #     bail out fast so the next turn can start; the follow-up "still announcing"
+    #     block silences the I2S TX until the network unblocks.
+    #   - user_cancelled = false: 120 s. Normal TTS playback ranges from a few
+    #     seconds (short answers) to over a minute (stories, multi-paragraph
+    #     responses). A short timeout here silences healthy playback — the
+    #     previous unconditional 3 s timeout truncated every response longer
+    #     than ~3 s of audio.
+    - if:
         condition:
-          and:
-            - not:
-                media_player.is_announcing:
-            - not:
-                speaker.is_playing:
-        timeout: 3s
+          lambda: 'return id(user_cancelled);'
+        then:
+          - wait_until:
+              condition:
+                and:
+                  - not:
+                      media_player.is_announcing:
+                  - not:
+                      speaker.is_playing:
+              timeout: 3s
+        else:
+          - wait_until:
+              condition:
+                and:
+                  - not:
+                      media_player.is_announcing:
+                  - not:
+                      speaker.is_playing:
+              timeout: 120s
     # If media_player is still stuck after the timeout, log a warning + keep the speaker
     # paused. The lockup itself is unavoidable — ESPHome's audio_reader has a hard-coded
     # 6 × 5 s = 30 s retry on fetch_headers and cannot be aborted from outside, so VA
