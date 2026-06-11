@@ -292,7 +292,7 @@
   actions:
   - metadata: {}
     data:
-      color_temp_kelvin: 254
+      color_temp_kelvin: 3724
       brightness: 255
     target:
       entity_id: light.back_door_light
@@ -744,7 +744,7 @@
       - action: adaptive_lighting.apply
         metadata: {}
         data:
-          lights: '{{ item.repeat }}
+          lights: '{{ repeat.item }}
 
             '
           entity_id: switch.adaptive_lighting_adaptive_lighting
@@ -1172,7 +1172,7 @@
     data:
       message: Washer finished
     action: script.non_important_broadcast_alert_in_the_house
-  mode: single
+  mode: restart
 - id: '1714077180427'
   alias: Change light to random colors on press
   description: Changes lights to random colors when a button is pressed, for fun ambient
@@ -1292,13 +1292,15 @@
     - media_player.mass_salon_wiim_speaker
     - media_player.mass_closet_vpe_speaker
     - media_player.mass_bedroom_wiim_speaker
+    - media_player.mass_kitchen_wiim_speaker
+    - media_player.mass_patio_wiim_speaker
     - media_player.group_mass_home_group_speakers
     to:
     - paused
     - idle
     for:
       hours: 0
-      minutes: 1
+      minutes: 10
       seconds: 0
     trigger: state
   conditions: []
@@ -1712,35 +1714,30 @@
   alias: Doorbell Main automation
   description: Rings and alerts my phone
   triggers:
-  - domain: mqtt
-    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
-    type: action
-    subtype: single
+  - device_id: bfcdf595a35cd8a0565307760602cc7d
+    domain: zha
+    type: remote_button_long_press
+    subtype: button
     trigger: device
-  - domain: mqtt
-    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
-    type: click
-    subtype: single
+  - device_id: bfcdf595a35cd8a0565307760602cc7d
+    domain: zha
+    type: remote_button_double_press
+    subtype: remote_button_double_press
     trigger: device
-  - domain: mqtt
-    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
-    type: click
-    subtype: long
+  - device_id: bfcdf595a35cd8a0565307760602cc7d
+    domain: zha
+    type: remote_button_short_press
+    subtype: remote_button_short_press
     trigger: device
-  - domain: mqtt
-    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
-    type: action
-    subtype: hold
+  - device_id: bfcdf595a35cd8a0565307760602cc7d
+    domain: zha
+    type: remote_button_triple_press
+    subtype: remote_button_triple_press
     trigger: device
-  - domain: mqtt
-    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
-    type: action
-    subtype: double
-    trigger: device
-  - domain: mqtt
-    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
-    type: click
-    subtype: double
+  - device_id: bfcdf595a35cd8a0565307760602cc7d
+    domain: zha
+    type: remote_button_long_release
+    subtype: button
     trigger: device
   conditions:
   - condition: not
@@ -1790,7 +1787,12 @@
     - action: script.quickbars_display_notification
       metadata: {}
       data: {}
-  mode: restart
+  - delay:
+      hours: 0
+      minutes: 1
+      seconds: 0
+      milliseconds: 0
+  mode: single
 - id: '1715719948033'
   alias: Reset doorbell stuff on unlock
   description: Resets doorbell-related booleans and front door phone text when the
@@ -1798,8 +1800,13 @@
   triggers:
   - entity_id:
     - lock.lock_front_door
-    to: unlocked
+    to:
+    - unlocked
     trigger: state
+    for:
+      hours: 0
+      minutes: 45
+      seconds: 0
   - entity_id:
     - lock.lock_front_door
     to:
@@ -1848,13 +1855,13 @@
     charging, so he knows to unplug it.
   triggers:
   - entity_id:
-    - sensor.maxi_watch_battery_level
+    - sensor.oneplus_watch_3_battery_level
     to:
     - '100'
     trigger: state
   conditions:
   - condition: state
-    entity_id: sensor.maxi_watch_battery_state
+    entity_id: sensor.oneplus_watch_3_battery_state
     state:
     - charging
   actions:
@@ -1953,15 +1960,20 @@
     action: llmvision.image_analyzer
     data:
       include_filename: false
-      target_width: 720
-      max_tokens: 30
-      temperature: 0.2
-      message: Answer with yes or no, is there a package or a delivery man on this
-        picture? Do not use an other word than  yes or no
-      image_entity:
-      - camera.front_door_camera
-      model: Qwen3.5-4B-UD-Q4_K_XL-with-draft
+      target_width: 1280
+      response_format: text
+      title_field: title
+      description_field: description
       provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
+      store_in_timeline: false
+      message: 'Answer with ONLY ''''yes'' or ''no'', is there a package or a deliveryman
+        in this picture?
+
+        '
+      image_entity:
+      - camera.front_door_ptz_camera_clear
+      generate_title: false
+      expose_images: false
     response_variable: answer
   - if:
     - condition: template
@@ -1975,6 +1987,18 @@
         message: Package is being delivered
         title: Package Detected
       action: notify.maxi_notification_group
+    - metadata: {}
+      data:
+        message: A package is being delivered!
+        color: Blue
+      action: script.broadcast_alert_in_the_house
+    - alias: Set Camera focus on the package zone
+      action: select.select_option
+      metadata: {}
+      target:
+        entity_id: select.front_door_ptz_camera_ptz_preset
+      data:
+        option: Doorway
     - delay:
         hours: 0
         minutes: 5
@@ -1989,7 +2013,7 @@
             minutes: 5
         until:
         - condition: template
-          value_template: '{{ (now() - state_attr(''lock.lock_front_door'', ''last_changed'')).total_seconds()
+          value_template: '{{ (now() - states.lock.lock_front_door.last_changed).total_seconds()
             < 300 }}'
   mode: single
 - id: '1716566146304'
@@ -2015,35 +2039,20 @@
   description: Points the front door PTZ camera to the doorway preset whenever the
     doorbell button is pressed, providing a clear view of who is at the door.
   triggers:
-  - domain: mqtt
-    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
-    type: action
-    subtype: single
+  - device_id: bfcdf595a35cd8a0565307760602cc7d
+    domain: zha
+    type: remote_button_short_press
+    subtype: remote_button_short_press
     trigger: device
-  - domain: mqtt
-    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
-    type: click
-    subtype: single
+  - device_id: bfcdf595a35cd8a0565307760602cc7d
+    domain: zha
+    type: remote_button_double_press
+    subtype: remote_button_double_press
     trigger: device
-  - domain: mqtt
-    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
-    type: action
-    subtype: hold
-    trigger: device
-  - domain: mqtt
-    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
-    type: click
-    subtype: long
-    trigger: device
-  - domain: mqtt
-    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
-    type: action
-    subtype: double
-    trigger: device
-  - domain: mqtt
-    device_id: efbe1670aafa845f79a0b84ddfdc4d6f
-    type: click
-    subtype: double
+  - device_id: bfcdf595a35cd8a0565307760602cc7d
+    domain: zha
+    type: remote_button_long_release
+    subtype: button
     trigger: device
   conditions: []
   actions:
@@ -2340,26 +2349,26 @@
     action: light.turn_on
     target:
       entity_id: light.group_all_lights
-  - action: tts.speak
-    data:
-      message: Someone has entered, '{{trigger.id}}' has been opened
-      cache: true
-      media_player_entity_id: media_player.mass_bedroom_wiim_speaker
-    target:
-      entity_id:
-      - tts.piper_2
   - action: media_player.volume_set
     metadata: {}
     data:
       volume_level: 0.56
     target:
-      entity_id: media_player.mass_bedroom_wiim_speaker
+      entity_id: media_player.home_assistant_voice_09e4a7_media_player
+  - action: tts.speak
+    data:
+      message: Someone has entered, '{{trigger.id}}' has been opened
+      cache: true
+      media_player_entity_id: media_player.home_assistant_voice_09e4a7_media_player
+    target:
+      entity_id:
+      - tts.piper_2
   - action: media_player.volume_up
     metadata: {}
     data: {}
     target:
-      entity_id: media_player.mass_bedroom_wiim_speaker
-  mode: single
+      entity_id: media_player.home_assistant_voice_09e4a7_media_player
+  mode: restart
 - id: '1717038729859'
   alias: Set front door screen text
   description: Displays the reply text from a mobile notification on the front door
@@ -3111,16 +3120,17 @@
     - 'off'
     for:
       hours: 0
-      minutes: 0
+      minutes: 5
       seconds: 0
     trigger: state
   conditions:
   - condition: state
     entity_id: binary_sensor.sensor_bedroom_door_contact
-    state: 'on'
+    state:
+    - 'on'
     for:
       hours: 0
-      minutes: 5
+      minutes: 10
       seconds: 0
   actions:
   - metadata: {}
@@ -3128,28 +3138,6 @@
     target:
       entity_id: cover.cover_bedroom_blinds
     action: cover.open_cover
-  mode: single
-- id: '1719366196396'
-  alias: Close bedroom cover when sleeper turns on
-  description: Closes the bedroom blinds 1 minute after the sleeper-in-bedroom boolean
-    turns on, darkening the room for sleep.
-  triggers:
-  - trigger: state
-    entity_id:
-    - input_boolean.sleeper_in_bedroom
-    from:
-    to: 'on'
-    for:
-      hours: 0
-      minutes: 1
-      seconds: 0
-  conditions: []
-  actions:
-  - action: cover.close_cover
-    target:
-      entity_id:
-      - cover.cover_bedroom_blinds
-    data: {}
   mode: single
 - id: '1721278758149'
   alias: 'Bedroom hue tap remote automation '
@@ -3271,36 +3259,36 @@
   description: Disarms the alarm and broadcasts a welcome message identifying the
     user when the front door is unlocked with a recognized keypad code.
   triggers:
-  - trigger: state
-    entity_id:
-    - sensor.lock_front_door_action_user
-    from:
-    to: '1'
+  - trigger: event
+    event_type: zha_event
+    event_data:
+      device_ieee: 90:fd:9f:ff:fe:64:47:36
+      command: operation_event_notification
+      args:
+        operation: Unlock
+        code_slot: 3
+    alias: Maxi unlocks (3)
     id: maxi
-  - trigger: state
-    entity_id:
-    - sensor.lock_front_door_action_user
-    from:
-    to: '2'
+  - alias: myriam unlocks (4)
+    trigger: event
+    event_type: zha_event
+    event_data:
+      device_ieee: 90:fd:9f:ff:fe:64:47:36
+      command: operation_event_notification
+      args:
+        operation: Unlock
+        code_slot: 4
     id: myriam
-  - trigger: state
-    entity_id:
-    - sensor.lock_front_door_action_user
-    from:
-    to: '4'
-    id: fay
-  - trigger: state
-    entity_id:
-    - sensor.lock_front_door_action_user
-    from:
-    to: '9'
-    id: Re
-  - trigger: state
-    entity_id:
-    - sensor.lock_front_door_action_user
-    from:
-    to: '5'
-    id: Lylou
+  - alias: Lylou unlocks (5)
+    trigger: event
+    event_type: zha_event
+    event_data:
+      device_ieee: 90:fd:9f:ff:fe:64:47:36
+      command: operation_event_notification
+      args:
+        operation: Unlock
+        code_slot: 5
+    id: lylou
   conditions: []
   actions:
   - action: alarm_control_panel.alarm_disarm
@@ -3308,10 +3296,13 @@
     data: {}
     target:
       entity_id: alarm_control_panel.home_alarm
+  - metadata: {}
+    data:
+      filename: /media/front_door_capture_on_opening.png
+    action: camera.snapshot
+    target:
+      entity_id: camera.front_door_ptz_camera_fluent
   - variables:
-      action_id: '{{ trigger.to_state.state }}
-
-        '
       user_opening: '{{ trigger.id }}
 
         '
@@ -3326,12 +3317,12 @@
           '
         data:
           ttl: 0
+          image: /media/local/front_door_capture_on_opening.png
           priority: high
-          channel: security_alerts_notifications
+          channel: doorbell_notifications
       color: cyan
     action: script.broadcast_alert_in_the_house
-  mode: parallel
-  max: 10
+  mode: single
 - id: '1723530969899'
   alias: 'Turn off workshop lights when bedroom Sleeper turns on '
   description: 'Check also that the workshop is empty '
@@ -3453,6 +3444,9 @@
     - assist_satellite.lounge_assistant_assist_satellite
     - assist_satellite.bedroom_assistant_assist_satellite
     - assist_satellite.home_assistant_voice_09ee99_assist_satellite
+    - assist_satellite.patio_assistant_assist_satellite
+    - assist_satellite.server_assistant_assist_satellite
+    - assist_satellite.workshop_window_assistant_assist_satellite
     from:
     trigger: state
     to:
@@ -3485,7 +3479,7 @@
               | round(2, ''floor'')| string  }}
 
               '
-            desired_volume: '{{ (original_volume | float / 2 ) | round(2, ''floor'')|
+            desired_volume: '{{ (original_volume | float / 1.55 ) | round(2, ''floor'')|
               string }}
 
               '
@@ -3604,8 +3598,7 @@
       entity_id: media_player.lg_workshop_tv
   - action: light.turn_off
     metadata: {}
-    data:
-      transition: 2
+    data: {}
     target:
       area_id: workshop
       entity_id:
@@ -3627,6 +3620,10 @@
       - switch.workshop_tablet_motion_detection
       - switch.workshop_secondary_tablet_screen
       - switch.workshop_secondary_tablet_motion_detection
+  - action: google_assistant_sdk.send_text_command
+    metadata: {}
+    data:
+      command: Power off workshop TV
   mode: single
 - id: '1728310438747'
   alias: Undo Sleep actions when "sleeper in workshop" is turned off
@@ -3999,12 +3996,24 @@
                     uri: /maxi-mobile/main-view#cameras
             action: script.broadcast_alert_in_the_house
             continue_on_error: true
+          - action: input_text.set_value
+            metadata: {}
+            target:
+              entity_id: input_text.front_door_phone_text
+            data:
+              value: Welcome; Enter! Bienvenu, Entrez! Bienvenido, Entra!
           - wait_for_trigger:
             - trigger: state
               entity_id:
               - lock.lock_front_door
               to:
               - locked
+              for:
+                hours: 0
+                minutes: 0
+                seconds: 10
+              from:
+              - unlocked
             continue_on_timeout: true
             timeout:
               hours: 0
@@ -4150,7 +4159,6 @@
   - trigger: conversation
     command:
     - '[Show] [me] [the] cameras  [on] [the] [tvs] [please]'
-    - Security Audit
     - '[Put] [the] cameras [on] [the] [tvs]'
   conditions: []
   actions:
@@ -4259,7 +4267,7 @@
   - trigger: numeric_state
     entity_id:
     - sensor.patio_camera_sound_level
-    above: -30
+    above: -20
   conditions:
   - condition: state
     entity_id: binary_sensor.group_patio_motion_occupancy
@@ -4409,9 +4417,10 @@
     detected.
   triggers:
   - entity_id:
-    - binary_sensor.sensor_kitchen_smoke_detector_smoke
+    - binary_sensor.sensor_kitchen_smoke_detector
     trigger: state
-    to: 'on'
+    to:
+    - 'on'
     for:
       hours: 0
       minutes: 0
@@ -4421,23 +4430,20 @@
   actions:
   - repeat:
       sequence:
-      - action: script.broadcast_alert_in_the_house
-        data:
-          color: white
-          message: Attention, Smoke detected in the kitchen, Please investigate.
       - metadata: {}
         data:
           title: Smoke has been detected in the kitchen! Act quickly!
           data:
             image: /api/camera_proxy/camera.kitchen_tablet
-            actions:
-            - action: open_phone_app_911
-              title: Call 911!
             ttl: 0
             priority: high
             channel: security_alerts_notifications
           message: Smoke detected in the kitchen
         action: notify.maxi_notification_group
+      - action: script.broadcast_alert_in_the_house
+        data:
+          color: white
+          message: Attention, Smoke detected in the kitchen, Please investigate.
       - delay:
           hours: 0
           minutes: 4
@@ -4445,8 +4451,9 @@
           milliseconds: 0
       while:
       - condition: state
-        entity_id: binary_sensor.sensor_kitchen_smoke_detector_smoke
-        state: 'on'
+        entity_id: binary_sensor.sensor_kitchen_smoke_detector
+        state:
+        - 'on'
     enabled: true
   mode: restart
 - id: '1731611467781'
@@ -5455,22 +5462,6 @@
     target:
       entity_id: media_player.mass_bathroom_vpe_speaker
   mode: restart
-- id: '1738198899369'
-  alias: Assist identify the device
-  description: Responds to voice queries like "who are you" or "what is your name"
-    by having the assist satellite announce its identity.
-  triggers:
-  - trigger: conversation
-    command:
-    - who are you
-    - what is your name
-    - what is your identity
-  conditions: []
-  actions:
-  - action: assist_satellite.announce
-    metadata: {}
-    data: {}
-  mode: single
 - id: '1738201829040'
   alias: Set the kitchen hub volume to 100% on app launch
   description: Sets the kitchen Google Hub volume to 100% when it starts playing Plex
@@ -5883,10 +5874,12 @@
   - trigger: state
     entity_id:
     - input_boolean.party_in_the_back_yard
-    from: 'off'
-    to: 'on'
+    from:
+    - 'off'
+    to:
+    - 'on'
     for:
-      hours: 2
+      hours: 4
       minutes: 0
       seconds: 0
     id: party_in_the_back_yard
@@ -5921,13 +5914,24 @@
       minutes: 0
       seconds: 0
     id: front_door_code_automation_boolean
+  - trigger: state
+    entity_id:
+    - input_boolean.parking_high_alert
+    from:
+    to:
+    - 'on'
+    for:
+      hours: 18
+      minutes: 0
+      seconds: 0
+    id: parking_high_alert_boolean
   conditions: []
   actions:
   - action: input_boolean.turn_off
     data: {}
     target:
       entity_id: '{{ trigger.entity_id }}'
-  mode: parallel
+  mode: queued
   max: 10
 - id: '1740934578627'
   alias: Automatically Turn off sleeper in patio
@@ -6132,7 +6136,7 @@
     data:
       cache: true
       media_player_entity_id: "{{ speaker }} \n"
-      message: Phone ringing near the "{{states('device_tracker.espresense_phone_maxi')}}
+      message: Phone ringing near the "{states('sensor.bermuda_fea50693a4e24fb1afcfc6eb07647825_10001_19641_bps_zone')}}"
     target:
       entity_id:
       - tts.piper_2
@@ -6317,10 +6321,6 @@
   - condition: or
     conditions:
     - condition: state
-      entity_id: person.myriam
-      state: home
-      enabled: false
-    - condition: state
       entity_id: binary_sensor.parking_camera_car_occupancy
       state:
       - 'on'
@@ -6335,8 +6335,9 @@
       max_tokens: 100
       temperature: 0.1
       provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
-      model: Qwen3.5-9B-IQ4_XS-4.20bpw
-      message: Answer only with yes or no; Is this person trying to enter the car?
+      model: Qwen3.5-4B-UD-MTP-Q8_K_XL.gguf
+      message: Answer only with yes or no; Is this person trying to interact with
+        the car?
       image_entity:
       - camera.parking_exit_camera
     response_variable: answer
@@ -6405,7 +6406,7 @@
     - binary_sensor.parking_exit_camera_person_occupancy
     for:
       hours: 0
-      minutes: 1
+      minutes: 0
       seconds: 30
     to:
     - 'on'
@@ -6416,13 +6417,61 @@
   actions:
   - metadata: {}
     data:
-      title: Car security alert
-      message: Person loitering beside the car
+      filename: /media/parking_car_loiterer.png
+    action: camera.snapshot
+    target:
+      entity_id: camera.parking_exit_camera
+  - metadata: {}
+    data:
+      message: Motion detected towards the hobo stash spot
       data:
         ttl: 0
         priority: high
-        image: api/camera_proxy/camera.parking_exit_camera
+        image: /media/local/parking_car_loiterer.png
+        actions:
+        - action: blow_parking_horn
+          title: Blow the horn for 2 minutes?
+        channel: security_alerts_notifications
+      title: The hobo Might be back!
     action: notify.maxi_notification_group
+  - wait_for_trigger:
+    - event_type: mobile_app_notification_action
+      context:
+        user_id:
+        - 7f1de31122574f6fa2215e519d6083ea
+      event_data:
+        action: blow_parking_horn
+      trigger: event
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 10
+      seconds: 0
+      milliseconds: 0
+  - action: switch.turn_on
+    metadata: {}
+    target:
+      entity_id:
+      - switch.plug_parking_horn
+    data: {}
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - binary_sensor.parking_exit_camera_person_occupancy
+      from:
+      - 'on'
+      to:
+      - 'off'
+      for:
+        hours: 0
+        minutes: 0
+        seconds: 10
+  - action: switch.turn_off
+    metadata: {}
+    target:
+      entity_id:
+      - switch.plug_parking_horn
+    data: {}
   mode: single
 - id: '1743179648448'
   alias: Alert when someone is in the parking
@@ -6432,14 +6481,12 @@
   - trigger: state
     entity_id:
     - binary_sensor.parking_exit_camera_person_occupancy
-    from:
     to: 'on'
     id: parking_exit
     enabled: true
   - trigger: state
     entity_id:
     - binary_sensor.parking_camera_person_occupancy
-    from:
     to: 'on'
     id: parking
     enabled: true
@@ -6459,31 +6506,59 @@
   - condition: state
     entity_id: input_boolean.party_in_the_back_yard
     state: 'off'
-  - condition: state
-    entity_id: binary_sensor.maxi_sleeping
-    state: 'off'
-    enabled: false
-  - condition: not
-    conditions:
-    - condition: state
-      entity_id: alarm_control_panel.home_alarm
-      state: armed_away
   - condition: or
     conditions:
+    - condition: and
+      conditions:
+      - condition: state
+        entity_id: input_boolean.house_sitting_mode
+        state:
+        - 'on'
+      - condition: state
+        entity_id: input_boolean.parking_high_alert
+        state:
+        - 'on'
+    - condition: and
+      conditions:
+      - condition: state
+        entity_id: input_boolean.house_sitting_mode
+        state:
+        - 'off'
+      - condition: state
+        entity_id: input_boolean.parking_high_alert
+        state:
+        - 'on'
     - condition: or
       conditions:
       - condition: state
-        entity_id: binary_sensor.parking_exit_camera_car_occupancy
+        entity_id: person.myriam
         state:
-        - 'on'
-      - condition: state
-        entity_id: binary_sensor.parking_camera_car_occupancy
-        state:
-        - 'on'
-    - condition: state
-      entity_id: person.myriam
-      state:
-      - home
+        - home
+      - condition: and
+        conditions:
+        - condition: state
+          entity_id: binary_sensor.parking_camera_car_occupancy
+          state:
+          - 'on'
+        - condition: state
+          entity_id: sensor.parking_camera_myriam_s_car_object_classification
+          state:
+          - Present
+          - present
+      - condition: and
+        conditions:
+        - condition: state
+          entity_id: sensor.parking_exit_camera_myriam_is_parked_classification
+          state:
+          - Present
+          - present
+      enabled: true
+    enabled: true
+  - condition: state
+    entity_id: input_boolean.parking_high_alert
+    state:
+    - 'on'
+    enabled: false
   actions:
   - choose:
     - conditions:
@@ -6661,6 +6736,84 @@
           priority: high
         title: Security breach
       action: notify.mobile_app_phone_myriam
+  - parallel: []
+  - if:
+    - condition: state
+      entity_id: person.myriam
+      state:
+      - not_home
+    - condition: state
+      entity_id: person.maximiliano
+      state:
+      - not_home
+    - condition: state
+      entity_id: person.lylou
+      state:
+      - home
+    then:
+    - parallel:
+      - metadata: {}
+        data:
+          message: command_volume_level
+          data:
+            media_stream: call_stream
+            command: 20
+        action: notify.mobile_app_phone_lylou
+      - metadata: {}
+        data:
+          message: command_volume_level
+          data:
+            media_stream: call_stream
+            command: 20
+        action: notify.mobile_app_phone_lylou
+      - metadata: {}
+        data:
+          message: command_volume_level
+          data:
+            media_stream: alarm_stream
+            command: 20
+        action: notify.mobile_app_phone_lylou
+      - metadata: {}
+        data:
+          message: command_volume_level
+          data:
+            media_stream: notification_stream
+            command: 20
+        action: notify.mobile_app_phone_lylou
+      - metadata: {}
+        data:
+          message: command_volume_level
+          data:
+            media_stream: notification_stream
+            command: 20
+        action: notify.mobile_app_phone_lylou
+      - metadata: {}
+        data:
+          message: command_volume_level
+          data:
+            media_stream: dtmf_stream
+            command: 20
+        action: notify.mobile_app_phone_lylou
+      - metadata: {}
+        data:
+          message: command_volume_level
+          data:
+            media_stream: music_stream
+            command: 20
+        action: notify.mobile_app_phone_lylou
+    - metadata: {}
+      data:
+        message: Back horn started
+        data:
+          image: /media/local/back_horn_check.png
+          actions:
+          - action: stop_horn
+            title: Stop the horn?
+          channel: security_alerts_notifications
+          ttl: 0
+          priority: high
+        title: Security breach
+      action: notify.mobile_app_phone_lylou
   - metadata: {}
     data:
       message: Back horn started
@@ -6951,11 +7104,17 @@
     for:
       hours: 0
       minutes: 0
-      seconds: 2
+      seconds: 1
   conditions:
-  - condition: state
-    entity_id: input_boolean.maxi_is_scared
-    state: 'on'
+  - condition: or
+    conditions:
+    - condition: state
+      entity_id: input_boolean.maxi_is_scared
+      state: 'on'
+    - condition: state
+      entity_id: input_boolean.maximum_back_exit_security
+      state:
+      - 'on'
   actions:
   - action: switch.turn_on
     metadata: {}
@@ -6967,6 +7126,26 @@
       url: http://192.168.0.11:1984/stream.html?src=back_door_camera_sub
       entity_id: media_player.bedroom_chromecast
       force: true
+  - action: dash_cast.load_url
+    data:
+      url: http://192.168.0.11:1984/stream.html?src=back_door_camera_sub
+      entity_id: media_player.workshop_chromecast
+      force: true
+  - action: dash_cast.load_url
+    data:
+      url: http://192.168.0.11:1984/stream.html?src=back_door_camera_sub
+      entity_id: media_player.hotbox_top_chromecast
+      force: true
+  - action: dash_cast.load_url
+    data:
+      url: http://192.168.0.11:1984/stream.html?src=back_door_camera_sub
+      entity_id: media_player.kitchen_google_hub
+      force: true
+  - action: dash_cast.load_url
+    data:
+      url: http://192.168.0.11:1984/stream.html?src=back_door_camera_sub
+      entity_id: media_player.salon_chromecast
+      force: true
   - action: siren.turn_on
     metadata: {}
     data: {}
@@ -6976,12 +7155,14 @@
     - trigger: state
       entity_id:
       - binary_sensor.back_door_camera_person_occupancy
-      from: 'on'
-      to: 'off'
+      from:
+      - 'on'
+      to:
+      - 'off'
       for:
         hours: 0
         minutes: 0
-        seconds: 10
+        seconds: 15
     timeout:
       hours: 0
       minutes: 5
@@ -6997,11 +7178,6 @@
     data: {}
     target:
       entity_id: siren.reolink_back_door_camera_siren
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 10
-      milliseconds: 0
   mode: single
 - id: '1743869107759'
   alias: Update cloudflare when IP changes
@@ -7060,11 +7236,9 @@
   - choose:
     - conditions:
       - condition: state
-        entity_id: binary_sensor.parking_camera_person_occupancy
-        state: 'off'
-      - condition: state
-        entity_id: binary_sensor.parking_exit_camera_person_occupancy
-        state: 'off'
+        entity_id: binary_sensor.group_parking_occupancy
+        state:
+        - 'off'
       sequence:
       - action: light.turn_off
         metadata: {}
@@ -7084,8 +7258,9 @@
       - wait_for_trigger:
         - trigger: state
           entity_id:
-          - binary_sensor.parking_exit_camera_person_occupancy
-          to: 'off'
+          - binary_sensor.group_parking_occupancy
+          to:
+          - 'off'
           for:
             hours: 0
             minutes: 5
@@ -7290,6 +7465,10 @@
   - condition: state
     entity_id: input_boolean.maxi_is_scared
     state: 'on'
+  - condition: state
+    entity_id: input_boolean.maximum_back_exit_security
+    state:
+    - 'on'
   actions:
   - action: light.turn_on
     metadata: {}
@@ -7601,6 +7780,10 @@
   - condition: state
     entity_id: input_boolean.maxi_is_scared
     state: 'on'
+  - condition: state
+    entity_id: input_boolean.maximum_back_exit_security
+    state:
+    - 'off'
   actions:
   - sequence:
     - alias: Wait For someone to come up the back stairs for 10 minutes
@@ -7658,7 +7841,11 @@
     - input_boolean.maxi_is_scared
     from: 'on'
     to: 'off'
-  conditions: []
+  conditions:
+  - condition: state
+    entity_id: input_boolean.maximum_back_exit_security
+    state:
+    - 'off'
   actions:
   - metadata: {}
     data:
@@ -7934,6 +8121,10 @@
   - condition: state
     entity_id: sun.sun
     state: above_horizon
+  - condition: state
+    entity_id: input_boolean.maximum_back_exit_security
+    state:
+    - 'off'
   actions:
   - action: input_boolean.turn_off
     metadata: {}
@@ -8249,7 +8440,11 @@
     entity_id:
     - alarm_control_panel.home_alarm
     to: disarmed
-  conditions: []
+  conditions:
+  - condition: state
+    entity_id: input_boolean.maximum_back_exit_security
+    state:
+    - 'off'
   actions:
   - action: input_boolean.turn_off
     metadata: {}
@@ -8461,12 +8656,23 @@
   triggers:
   - entity_id:
     - input_boolean.sleeper_in_bedroom
-    to: 'on'
-    from: 'off'
+    to:
+    - 'on'
+    from:
+    - 'off'
     trigger: state
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 3
   conditions: []
   actions:
   - parallel:
+    - action: cover.close_cover
+      metadata: {}
+      target:
+        entity_id: cover.cover_bedroom_blinds
+      data: {}
     - action: switch.turn_off
       metadata: {}
       data: {}
@@ -8499,6 +8705,10 @@
             entity_id: media_player.mass_bedroom_wiim_speaker
             state:
             - playing
+      - condition: state
+        entity_id: input_boolean.house_sitting_mode
+        state:
+        - 'off'
       then:
       - action: media_player.unjoin
         metadata: {}
@@ -8541,6 +8751,11 @@
           entity_id:
           - media_player.mass_bedroom_wiim_speaker
           - media_player.mass_bedroom_wiim_speaker
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 5
+          milliseconds: 0
       - metadata: {}
         data:
           is_volume_muted: false
@@ -8977,10 +9192,11 @@
   description: Toggles the sleeper-in-bedroom mode when the patio quiet button remote
     is pressed.
   triggers:
-  - trigger: state
-    entity_id:
-    - sensor.remote_patio_quiet_button_action
-    to: 'off'
+  - device_id: 48a61af46a3223a3e235a5439aee17eb
+    domain: zha
+    type: remote_button_double_press
+    subtype: turn_on
+    trigger: device
   conditions: []
   actions:
   - action: input_boolean.toggle
@@ -9135,7 +9351,7 @@
     - condition: or
       conditions:
       - condition: state
-        entity_id: sensor.maxi_location_by_petro_v2
+        entity_id: sensor.maxi_location_by_petro
         state:
         - salon
       - condition: state
@@ -9191,6 +9407,10 @@
     target:
       entity_id: switch.salon_desk_tablet_screen
     data: {}
+  - action: google_assistant_sdk.send_text_command
+    metadata: {}
+    data:
+      command: Power off salon TV
   mode: single
 - id: '1749333829084'
   alias: undo Sleeper action in salon when sleeper turns off
@@ -9210,319 +9430,6 @@
       transition: 30
     target:
       entity_id: light.group_salon_lights
-  mode: single
-- id: '1749521213239'
-  alias: Bedroom Hue Dial Automation
-  description: Maps the bedroom Hue dial remote buttons and rotation to control bedroom
-    lights (toggle, brightness, color temperature, random colors, dim), and manage
-    bedroom media playback.
-  triggers:
-  - domain: mqtt
-    device_id: 19def7fc56657d54fccacd364b0ec3fa
-    type: action
-    subtype: dial_rotate_right_step
-    trigger: device
-    id: rotate_right_step
-    enabled: false
-  - domain: mqtt
-    device_id: 19def7fc56657d54fccacd364b0ec3fa
-    type: action
-    subtype: brightness_step_up
-    trigger: device
-    id: brightness_step_up
-    enabled: false
-  - domain: mqtt
-    device_id: 19def7fc56657d54fccacd364b0ec3fa
-    type: action
-    subtype: dial_rotate_right_fast
-    trigger: device
-    id: rotate_right_fast
-    enabled: true
-  - domain: mqtt
-    device_id: 19def7fc56657d54fccacd364b0ec3fa
-    type: action
-    subtype: dial_rotate_right_slow
-    trigger: device
-    id: rotate_right_slow
-    enabled: true
-  - domain: mqtt
-    device_id: 19def7fc56657d54fccacd364b0ec3fa
-    type: action
-    subtype: brightness_step_down
-    trigger: device
-    id: brightness_step_down
-    enabled: true
-  - domain: mqtt
-    device_id: 19def7fc56657d54fccacd364b0ec3fa
-    type: action
-    subtype: dial_rotate_left_step
-    trigger: device
-    id: rotate_left_step
-    enabled: true
-  - domain: mqtt
-    device_id: 19def7fc56657d54fccacd364b0ec3fa
-    type: action
-    subtype: dial_rotate_left_fast
-    trigger: device
-    id: rotate_left_fast
-    enabled: true
-  - domain: mqtt
-    device_id: 19def7fc56657d54fccacd364b0ec3fa
-    type: action
-    subtype: dial_rotate_left_slow
-    trigger: device
-    id: rotate_left_slow
-    enabled: true
-  - trigger: state
-    entity_id:
-    - sensor.remote_salon_hue_dial_brightness
-    enabled: false
-    id: dial_brightness_change
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 0
-  - domain: mqtt
-    device_id: 19def7fc56657d54fccacd364b0ec3fa
-    type: action
-    subtype: button_1_press
-    trigger: device
-    id: button_1_press
-  - domain: mqtt
-    device_id: 19def7fc56657d54fccacd364b0ec3fa
-    type: action
-    subtype: button_2_press_release
-    trigger: device
-    id: button_2_press
-  - domain: mqtt
-    device_id: 19def7fc56657d54fccacd364b0ec3fa
-    type: action
-    subtype: button_4_hold
-    trigger: device
-    id: button_4_hold
-    enabled: false
-  - domain: mqtt
-    device_id: 19def7fc56657d54fccacd364b0ec3fa
-    type: action
-    subtype: button_3_press
-    trigger: device
-    id: button_3_press
-  - domain: mqtt
-    device_id: 19def7fc56657d54fccacd364b0ec3fa
-    type: action
-    subtype: button_4_press
-    trigger: device
-    id: button_4_press
-  - domain: mqtt
-    device_id: 19def7fc56657d54fccacd364b0ec3fa
-    type: action
-    subtype: button_2_hold
-    trigger: device
-    id: button_2_hold
-  - domain: mqtt
-    device_id: 19def7fc56657d54fccacd364b0ec3fa
-    type: action
-    subtype: button_1_hold
-    trigger: device
-    id: button_1_hold
-  conditions: []
-  actions:
-  - choose:
-    - conditions:
-      - condition: trigger
-        id:
-        - button_1_press
-      sequence:
-      - action: light.toggle
-        metadata: {}
-        data:
-          transition: 2
-        target:
-          entity_id: light.group_bedroom_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_1_hold
-      sequence:
-      - action: light.toggle
-        metadata: {}
-        data:
-          transition: 2
-          brightness_pct: 100
-          color_temp_kelvin: 4922
-        target:
-          entity_id: light.group_bedroom_lights
-      - choose:
-        - conditions:
-          - condition: state
-            entity_id: light.group_bedroom_lights
-            attribute: brightness
-            state: ''
-          - condition: numeric_state
-            entity_id: light.group_bedroom_lights
-            attribute: brightness
-            below: 99
-          sequence:
-          - action: light.turn_on
-            metadata: {}
-            data:
-              transition: 1
-              brightness_pct: 100
-            target:
-              entity_id: light.group_bedroom_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_2_press
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          transition: 1
-          color_temp_kelvin: 5238
-          brightness_pct: 100
-        target:
-          entity_id: light.group_bedroom_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_4_hold
-      sequence:
-      - if:
-        - condition: state
-          entity_id: media_player.universal_bedroom_chromecast
-          state: 'off'
-        then:
-        - action: google_assistant_sdk.send_text_command
-          metadata: {}
-          data:
-            command: power off bedroom tv
-      - action: media_player.media_stop
-        metadata: {}
-        data: {}
-        target:
-          area_id: bedroom
-      - action: media_player.clear_playlist
-        metadata: {}
-        data: {}
-        target:
-          area_id: bedroom
-      - action: media_player.turn_off
-        metadata: {}
-        data: {}
-        target:
-          area_id: bedroom
-    - conditions:
-      - condition: trigger
-        id:
-        - button_3_press
-      sequence:
-      - action: script.change_received_lights_to_random_colors
-        metadata: {}
-        data:
-          light:
-          - light.group_bedroom_lights
-          saturation: 100
-    - conditions:
-      - condition: trigger
-        id:
-        - button_4_press
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness_pct: 1
-        target:
-          entity_id: light.group_bedroom_lights
-      - action: light.turn_off
-        metadata: {}
-        data: {}
-        target:
-          entity_id: light.plug_bedroom_mirror_lamp
-    - conditions:
-      - condition: trigger
-        id:
-        - button_2_hold
-      sequence: []
-    - conditions:
-      - condition: trigger
-        id:
-        - rotate_right_step
-        - brightness_step_up
-        - rotate_right_slow
-        - rotate_right_fast
-      sequence:
-      - choose:
-        - conditions:
-          - condition: numeric_state
-            entity_id: light.group_bedroom_lights
-            attribute: brightness
-            enabled: true
-            above: 254
-          sequence:
-          - variables:
-              lights_saturated: "{{ expand('light.group_bedroom_lights')    | selectattr('attributes.hs_color',
-                'defined') | map(attribute='entity_id') | list }} \n"
-          - repeat:
-              for_each: '{{lights_saturated}}'
-              sequence:
-              - action: light.turn_on
-                metadata: {}
-                data:
-                  hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
-                    - 12) %}
-
-                    {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat, 100]|sort)[1]]
-                    }}
-
-                    '
-                  transition: 1
-                target:
-                  entity_id: '{{ repeat.item }}
-
-                    '
-        default:
-        - action: light.turn_on
-          metadata: {}
-          data:
-            brightness_step_pct: 10
-            transition: 1
-          target:
-            entity_id: light.group_bedroom_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - rotate_left_step
-        - rotate_left_slow
-        - brightness_step_down
-        - rotate_left_fast
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          transition: 1
-          brightness_step_pct: -15
-        target:
-          entity_id: light.group_bedroom_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - dial_brightness_change
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness: '{{ states(trigger.entity_id) }}
-
-            '
-        target:
-          entity_id: light.group_bedroom_lights
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 0
-      milliseconds: 50
-    enabled: false
   mode: single
 - id: '1749669750052'
   alias: Close bedroom blinds when sun sets
@@ -9668,7 +9575,7 @@
     state: 'on'
   actions:
   - variables:
-      playing_speakers: '{{ [area_id(states(''sensor.bermuda_myriam_phone_area''))]   |
+      playing_speakers: '{{ [area_id(states(''sensor.bermuda_59bf2e2b6e484b479cbe6dafc2cfacc0_100_40004_bps_zone''))]   |
         map(''area_entities'') | sum(start=[]) |    select(''search'', ''speakers'')
         | select(''is_state'',''playing'') | unique | list }}
 
@@ -9861,6 +9768,10 @@
   - condition: time
     after: 06:45:00
     before: '20:00:00'
+  - condition: state
+    entity_id: input_boolean.maximum_back_exit_security
+    state:
+    - 'off'
   actions:
   - action: input_boolean.turn_off
     metadata: {}
@@ -10135,14 +10046,9 @@
       - condition: state
         entity_id: input_boolean.neighbours_having_a_party
         state: 'off'
-      - condition: or
-        conditions:
-        - condition: state
-          entity_id: input_boolean.waiting_someone
-          state: 'on'
-        - condition: state
-          entity_id: input_boolean.waiting_package
-          state: 'on'
+      - condition: state
+        entity_id: input_boolean.waiting_someone
+        state: 'on'
       zone_multi: true
       zone_order_enforced: true
       tap_action: '{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json[''after''][''camera'']
@@ -10230,8 +10136,8 @@
   use_blueprint:
     path: EPMatt/ikea_e1744.yaml
     input:
-      integration: Zigbee2MQTT
-      controller_device: 72b74294a3a7ebd904b6ae64f2eb5260
+      integration: ZHA
+      controller_device: 831533d4a785b083659bce6d5ecd1f81
       helper_last_controller_event: input_text.dial_salon_helper
       action_rotate_left:
       - sequence:
@@ -10420,9 +10326,9 @@
   use_blueprint:
     path: EPMatt/ikea_e1744.yaml
     input:
-      integration: Zigbee2MQTT
-      controller_device: c037740c2e0b3d6a363a80d1403a9a07
-      helper_last_controller_event: input_text.dial_workshop_library_helper
+      integration: ZHA
+      controller_device: f917d1abfce98a5b62e932195a3b55b8
+      helper_last_controller_event: input_text.dial_workshop_wall_helper
       action_rotate_left:
       - sequence:
         - if:
@@ -10597,16 +10503,16 @@
           target:
             entity_id: media_player.mass_workshop_wiim_speaker
 - id: '1752638839619'
-  alias: Dial Workshop Wall Automation New
+  alias: Dial Workshop TV Automation
   description: Handles an IKEA SYMFONISK wall-mounted dial in the workshop, routing
     volume, play/pause, next track, and stop commands to either the Chromecast or
     the WiiM speaker depending on which is actively playing.
   use_blueprint:
     path: EPMatt/ikea_e1744.yaml
     input:
-      integration: Zigbee2MQTT
-      controller_device: 2a1d46c1ebb44f95879f61adf6e04454
-      helper_last_controller_event: input_text.dial_workshop_helper
+      integration: ZHA
+      controller_device: d67b8460572f27dfef1033aba795c6ac
+      helper_last_controller_event: input_text.dial_workshop_tv_helper
       action_rotate_left:
       - sequence:
         - if:
@@ -10788,8 +10694,8 @@
   use_blueprint:
     path: EPMatt/ikea_e1744.yaml
     input:
-      integration: Zigbee2MQTT
-      controller_device: 13115e527748ca9f6b53b4e217f5afac
+      integration: ZHA
+      controller_device: e533cc0769f5188f602c3774373f6f7e
       helper_last_controller_event: input_text.dial_salon_window_helper
       action_rotate_left:
       - sequence:
@@ -10814,7 +10720,7 @@
 
               {% endif %}'
           then:
-          - action: media_player.volume_up
+          - action: media_player.volume_down
             metadata: {}
             data: {}
             target:
@@ -10978,8 +10884,8 @@
   use_blueprint:
     path: EPMatt/ikea_e1744.yaml
     input:
-      integration: Zigbee2MQTT
-      controller_device: 1b66acbe5c380073052ae7bc44586e5a
+      integration: ZHA
+      controller_device: ae2b4b551d8602127e8c82118c98df98
       helper_last_controller_event: input_text.dial_kitchen_helper
       action_rotate_left:
       - sequence:
@@ -11180,8 +11086,8 @@
   use_blueprint:
     path: EPMatt/ikea_e1744.yaml
     input:
-      integration: Zigbee2MQTT
-      controller_device: 9bcfd547e63075f4af73f86b67ccaacb
+      integration: ZHA
+      controller_device: d083f3ac6f8b32342eccc0c875dc7e20
       helper_last_controller_event: input_text.dial_lounge_helper
       action_rotate_left:
       - sequence:
@@ -11537,13 +11443,12 @@
   triggers:
   - trigger: state
     entity_id:
-    - light.group_hallway_uv_lamps
-    - light.group_kitchen_uv_lamps
-    - light.group_lounge_uv_lamps
-    - light.group_patio_uv_lamps
-    - light.group_workshop_uv_lamps
-    - light.group_salon_uv_lamps
-    - light.group_entrance_uv_lamps
+    - switch.group_hallway_uv_lamps
+    - switch.group_kitchen_uv_lamps
+    - switch.group_lounge_uv_lamps
+    - switch.group_patio_uv_lamps
+    - switch.group_workshop_uv_lamps
+    - switch.group_salon_uv_lamps
     to:
     - 'on'
     from:
@@ -11574,13 +11479,13 @@
   triggers:
   - trigger: state
     entity_id:
-    - light.group_hallway_uv_lamps
-    - light.group_kitchen_uv_lamps
-    - light.group_lounge_uv_lamps
-    - light.group_patio_uv_lamps
-    - light.group_workshop_uv_lamps
-    - light.group_salon_uv_lamps
-    - light.group_entrance_uv_lamps
+    - switch.group_hallway_uv_lamps
+    - switch.group_kitchen_uv_lamps
+    - switch.group_lounge_uv_lamps
+    - switch.group_patio_uv_lamps
+    - switch.group_workshop_uv_lamps
+    - switch.group_salon_uv_lamps
+    - switch.group_entrance_uv_lamps
     to:
     - 'off'
     from:
@@ -11810,8 +11715,8 @@
   use_blueprint:
     path: EPMatt/ikea_e1744.yaml
     input:
-      integration: Zigbee2MQTT
-      controller_device: 9f0122be5a3a1abef7162715c8a4214a
+      integration: ZHA
+      controller_device: 8ad87a4264381c039e71ebf8ded05895
       helper_last_controller_event: input_text.dial_lounge_desk_helper
       action_rotate_left: []
       action_rotate_left_stop:
@@ -11913,7 +11818,7 @@
     on the phone, then unmutes them when she leaves or stops talking.
   triggers:
   - entity_id:
-    - sensor.bermuda_myriam_phone_area
+    - sensor.bermuda_59bf2e2b6e484b479cbe6dafc2cfacc0_100_40004_bps_floor
     trigger: state
   conditions:
   - condition: state
@@ -11924,7 +11829,7 @@
     state: 'on'
   actions:
   - variables:
-      playing_speakers: '{{ [area_id(states(''sensor.bermuda_myriam_phone_area''))]   |
+      playing_speakers: '{{ [area_id(states(''sensor.bermuda_59bf2e2b6e484b479cbe6dafc2cfacc0_100_40004_bps_zone''))]   |
         map(''area_entities'') | sum(start=[]) |    select(''search'', ''speakers'')
         | select(''is_state'',''playing'') | unique | list }}
 
@@ -11940,7 +11845,7 @@
   - wait_for_trigger:
     - trigger: state
       entity_id:
-      - sensor.bermuda_myriam_phone_area
+      - sensor.bermuda_59bf2e2b6e484b479cbe6dafc2cfacc0_100_40004_bps_floor
       for:
         hours: 0
         minutes: 0
@@ -12107,6 +12012,10 @@
   - condition: time
     after: 07:45:00
     before: 08:45:00
+  - condition: state
+    entity_id: input_boolean.maximum_back_exit_security
+    state:
+    - 'off'
   actions:
   - action: input_boolean.turn_off
     metadata: {}
@@ -12506,8 +12415,8 @@
   use_blueprint:
     path: EPMatt/ikea_e1744.yaml
     input:
-      integration: Zigbee2MQTT
-      controller_device: c217fcfa7eb3f5dd20f8fe49ace44a6f
+      integration: ZHA
+      controller_device: aff5e17204a91c14de15d339182b0d7e
       helper_last_controller_event: input_text.dial_bedroom_helper
       action_rotate_left:
       - sequence:
@@ -12691,320 +12600,6 @@
           data: {}
           target:
             entity_id: media_player.mass_bedroom_wiim_speaker
-- id: '1763157128192'
-  alias: Hotbox Hue Dial Automation
-  description: Controls hotbox lights and media using a Hue dial remote, supporting
-    light toggle, full brightness, brightness adjustment via dial rotation, color
-    effects, and dim-to-minimum via button presses.
-  triggers:
-  - domain: mqtt
-    device_id: ea515136741c87d1e86c40f14794926e
-    type: action
-    subtype: dial_rotate_right_step
-    trigger: device
-    id: rotate_right_step
-    enabled: false
-  - domain: mqtt
-    device_id: ea515136741c87d1e86c40f14794926e
-    type: action
-    subtype: brightness_step_up
-    trigger: device
-    id: brightness_step_up
-    enabled: false
-  - domain: mqtt
-    device_id: ea515136741c87d1e86c40f14794926e
-    type: action
-    subtype: button_1_press
-    trigger: device
-    id: rotate_right_fast
-  - domain: mqtt
-    device_id: ea515136741c87d1e86c40f14794926e
-    type: action
-    subtype: dial_rotate_right_slow
-    trigger: device
-    id: rotate_right_slow
-    enabled: true
-  - domain: mqtt
-    device_id: ea515136741c87d1e86c40f14794926e
-    type: action
-    subtype: brightness_step_down
-    trigger: device
-    id: brightness_step_down
-    enabled: true
-  - domain: mqtt
-    device_id: ea515136741c87d1e86c40f14794926e
-    type: action
-    subtype: dial_rotate_left_step
-    trigger: device
-    id: rotate_left_step
-    enabled: true
-  - domain: mqtt
-    device_id: ea515136741c87d1e86c40f14794926e
-    type: action
-    subtype: dial_rotate_left_fast
-    trigger: device
-    id: rotate_left_fast
-    enabled: true
-  - domain: mqtt
-    device_id: ea515136741c87d1e86c40f14794926e
-    type: action
-    subtype: dial_rotate_left_slow
-    trigger: device
-    id: rotate_left_slow
-    enabled: true
-  - trigger: state
-    entity_id:
-    - sensor.remote_salon_hue_dial_brightness
-    enabled: false
-    id: dial_brightness_change
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 0
-  - domain: mqtt
-    device_id: ea515136741c87d1e86c40f14794926e
-    type: action
-    subtype: button_1_press
-    trigger: device
-    id: button_1_press
-  - domain: mqtt
-    device_id: ea515136741c87d1e86c40f14794926e
-    type: action
-    subtype: button_2_press_release
-    trigger: device
-    id: button_2_press
-  - domain: mqtt
-    device_id: ea515136741c87d1e86c40f14794926e
-    type: action
-    subtype: button_4_hold
-    trigger: device
-    id: button_4_hold
-    enabled: false
-  - domain: mqtt
-    device_id: ea515136741c87d1e86c40f14794926e
-    type: action
-    subtype: button_3_press
-    trigger: device
-    id: button_3_press
-  - domain: mqtt
-    device_id: ea515136741c87d1e86c40f14794926e
-    type: action
-    subtype: button_4_press
-    trigger: device
-    id: button_4_press
-  - domain: mqtt
-    device_id: ea515136741c87d1e86c40f14794926e
-    type: action
-    subtype: button_2_hold
-    trigger: device
-    id: button_2_hold
-  - domain: mqtt
-    device_id: ea515136741c87d1e86c40f14794926e
-    type: action
-    subtype: button_1_hold
-    trigger: device
-    id: button_1_hold
-  conditions: []
-  actions:
-  - choose:
-    - conditions:
-      - condition: trigger
-        id:
-        - button_1_press
-      sequence:
-      - action: light.toggle
-        metadata: {}
-        data:
-          transition: 2
-        target:
-          entity_id: light.group_hotbox_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_1_hold
-      sequence:
-      - action: light.toggle
-        metadata: {}
-        data:
-          transition: 2
-          brightness_pct: 100
-          color_temp_kelvin: 4922
-        target:
-          entity_id: light.group_hotbox_lights
-      - choose:
-        - conditions: []
-          sequence: []
-        - conditions:
-          - condition: state
-            entity_id: light.group_hotbox_lights
-            attribute: brightness
-            state: ''
-          - condition: numeric_state
-            entity_id: light.group_hotbox_lights
-            attribute: brightness
-            below: 99
-          sequence:
-          - action: light.turn_on
-            metadata: {}
-            data:
-              transition: 1
-              brightness_pct: 100
-            target:
-              entity_id: light.group_hotbox_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_2_press
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          transition: 1
-          color_temp_kelvin: 5238
-          brightness_pct: 100
-        target:
-          entity_id: light.group_hotbox_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_4_hold
-      sequence:
-      - if:
-        - condition: state
-          entity_id: media_player.universal_hotbox_chromecast
-          state: 'off'
-        then:
-        - action: google_assistant_sdk.send_text_command
-          metadata: {}
-          data:
-            command: power off hotbox tv
-      - action: media_player.media_stop
-        metadata: {}
-        data: {}
-        target:
-          area_id: hotbox
-      - action: media_player.clear_playlist
-        metadata: {}
-        data: {}
-        target:
-          area_id: hotbox
-      - action: media_player.turn_off
-        metadata: {}
-        data: {}
-        target:
-          area_id: hotbox
-    - conditions:
-      - condition: trigger
-        id:
-        - button_3_press
-      sequence:
-      - action: script.change_received_lights_to_random_colors
-        metadata: {}
-        data:
-          light:
-          - light.group_hotbox_lights
-          saturation: 100
-    - conditions:
-      - condition: trigger
-        id:
-        - button_4_press
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness_pct: 1
-        target:
-          entity_id: light.group_hotbox_lights
-      - action: light.turn_off
-        metadata: {}
-        data: {}
-        target:
-          entity_id: light.plug_hotbox_mirror_lamp
-    - conditions:
-      - condition: trigger
-        id:
-        - button_2_hold
-      sequence: []
-    - conditions:
-      - condition: trigger
-        id:
-        - rotate_right_step
-        - brightness_step_up
-        - rotate_right_slow
-        - rotate_right_fast
-      sequence:
-      - choose:
-        - conditions:
-          - condition: numeric_state
-            entity_id: light.group_hotbox_lights
-            attribute: brightness
-            enabled: true
-            above: 254
-          sequence:
-          - variables:
-              lights_saturated: "{{ expand('light.group_hotbox_lights')    | selectattr('attributes.hs_color',
-                'defined') | map(attribute='entity_id') | list }} \n"
-          - repeat:
-              for_each: '{{lights_saturated}}'
-              sequence:
-              - action: light.turn_on
-                metadata: {}
-                data:
-                  hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
-                    - 7) %}
-
-                    {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat, 100]|sort)[1]]
-                    }}
-
-                    '
-                  transition: 1
-                target:
-                  entity_id: '{{ repeat.item }}
-
-                    '
-        default:
-        - action: light.turn_on
-          metadata: {}
-          data:
-            brightness_step_pct: 10
-            transition: 1
-          target:
-            entity_id: light.group_hotbox_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - rotate_left_step
-        - rotate_left_slow
-        - brightness_step_down
-        - rotate_left_fast
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          transition: 1
-          brightness_step_pct: -15
-        target:
-          entity_id: light.group_hotbox_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - dial_brightness_change
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness: '{{ states(trigger.entity_id) }}
-
-            '
-        target:
-          entity_id: light.group_hotbox_lights
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 0
-      milliseconds: 50
-    enabled: false
-  mode: single
 - id: '1763283441940'
   alias: Adjust Bedroom Tablet brightness to match the lights
   description: Synchronizes the bedroom tablet screen brightness with the bedroom
@@ -13031,1623 +12626,58 @@
       entity_id:
       - number.bedroom_tablet_screen_brightness
   mode: restart
-- id: '1763653396906'
-  alias: Hue Dial lounge automation
-  description: Controls lounge lights and media using a Hue dial remote, supporting
-    light toggle, full brightness, brightness and saturation adjustment via dial rotation,
-    random color effects, and dim-to-minimum via button presses.
-  triggers:
-  - domain: mqtt
-    device_id: 5482eded8919384250753ef11352c878
-    type: action
-    subtype: dial_rotate_right_step
-    trigger: device
-    id: rotate_right_step
-    enabled: false
-  - domain: mqtt
-    device_id: 5482eded8919384250753ef11352c878
-    type: action
-    subtype: brightness_step_up
-    trigger: device
-    id: brightness_step_up
-    enabled: false
-  - domain: mqtt
-    device_id: 5482eded8919384250753ef11352c878
-    type: action
-    subtype: dial_rotate_right_fast
-    trigger: device
-    id: rotate_right_fast
-    enabled: true
-  - domain: mqtt
-    device_id: 5482eded8919384250753ef11352c878
-    type: action
-    subtype: dial_rotate_right_slow
-    trigger: device
-    id: rotate_right_slow
-    enabled: true
-  - domain: mqtt
-    device_id: 5482eded8919384250753ef11352c878
-    type: action
-    subtype: brightness_step_down
-    trigger: device
-    id: brightness_step_down
-    enabled: true
-  - domain: mqtt
-    device_id: 5482eded8919384250753ef11352c878
-    type: action
-    subtype: dial_rotate_left_step
-    trigger: device
-    id: rotate_left_step
-    enabled: true
-  - domain: mqtt
-    device_id: 5482eded8919384250753ef11352c878
-    type: action
-    subtype: dial_rotate_left_fast
-    trigger: device
-    id: rotate_left_fast
-    enabled: true
-  - domain: mqtt
-    device_id: 5482eded8919384250753ef11352c878
-    type: action
-    subtype: dial_rotate_left_slow
-    trigger: device
-    id: rotate_left_slow
-    enabled: true
-  - trigger: state
-    entity_id:
-    - sensor.remote_salon_hue_dial_brightness
-    enabled: false
-    id: dial_brightness_change
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 0
-  - domain: mqtt
-    device_id: 5482eded8919384250753ef11352c878
-    type: action
-    subtype: button_1_press
-    trigger: device
-    id: button_1_press
-  - domain: mqtt
-    device_id: 5482eded8919384250753ef11352c878
-    type: action
-    subtype: button_2_press_release
-    trigger: device
-    id: button_2_press
-  - domain: mqtt
-    device_id: 5482eded8919384250753ef11352c878
-    type: action
-    subtype: button_4_hold
-    trigger: device
-    id: button_4_hold
-    enabled: false
-  - domain: mqtt
-    device_id: 5482eded8919384250753ef11352c878
-    type: action
-    subtype: button_3_press
-    trigger: device
-    id: button_3_press
-  - domain: mqtt
-    device_id: 5482eded8919384250753ef11352c878
-    type: action
-    subtype: button_4_press
-    trigger: device
-    id: button_4_press
-  - domain: mqtt
-    device_id: 5482eded8919384250753ef11352c878
-    type: action
-    subtype: button_2_hold
-    trigger: device
-    id: button_2_hold
-  - domain: mqtt
-    device_id: 5482eded8919384250753ef11352c878
-    type: action
-    subtype: button_1_hold
-    trigger: device
-    id: button_1_hold
-  conditions: []
-  actions:
-  - choose:
-    - conditions:
-      - condition: trigger
-        id:
-        - button_1_press
-      sequence:
-      - action: light.toggle
-        metadata: {}
-        data:
-          transition: 2
-        target:
-          entity_id: light.group_lounge_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_1_hold
-      sequence:
-      - action: light.toggle
-        metadata: {}
-        data:
-          transition: 2
-          brightness_pct: 100
-          color_temp_kelvin: 4922
-        target:
-          entity_id: light.group_lounge_lights
-      - choose:
-        - conditions: []
-          sequence: []
-        - conditions:
-          - condition: state
-            entity_id: light.group_lounge_lights
-            attribute: brightness
-            state: ''
-          - condition: numeric_state
-            entity_id: light.group_lounge_lights
-            attribute: brightness
-            below: 99
-          sequence:
-          - action: light.turn_on
-            metadata: {}
-            data:
-              transition: 1
-              brightness_pct: 100
-            target:
-              entity_id: light.group_lounge_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_2_press
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          transition: 1
-          color_temp_kelvin: 5238
-          brightness_pct: 100
-        target:
-          entity_id: light.group_lounge_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_4_hold
-      sequence:
-      - action: media_player.media_stop
-        metadata: {}
-        data: {}
-        target:
-          area_id: lounge
-      - action: media_player.clear_playlist
-        metadata: {}
-        data: {}
-        target:
-          area_id: lounge
-      - action: media_player.turn_off
-        metadata: {}
-        data: {}
-        target:
-          area_id: lounge
-    - conditions:
-      - condition: trigger
-        id:
-        - button_3_press
-      sequence:
-      - action: script.change_received_lights_to_random_colors
-        metadata: {}
-        data:
-          light:
-          - light.group_lounge_lights
-          saturation: 100
-    - conditions:
-      - condition: trigger
-        id:
-        - button_4_press
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness_pct: 1
-        target:
-          entity_id: light.group_lounge_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_2_hold
-      sequence: []
-    - conditions:
-      - condition: trigger
-        id:
-        - rotate_right_step
-        - brightness_step_up
-        - rotate_right_slow
-        - rotate_right_fast
-      sequence:
-      - choose:
-        - conditions:
-          - condition: numeric_state
-            entity_id: light.group_lounge_lights
-            attribute: brightness
-            enabled: true
-            above: 254
-          sequence:
-          - variables:
-              lights_saturated: "{{ expand('light.group_lounge_lights')    | selectattr('attributes.hs_color',
-                'defined') | map(attribute='entity_id') | list }} \n"
-          - repeat:
-              for_each: '{{lights_saturated}}'
-              sequence:
-              - action: light.turn_on
-                metadata: {}
-                data:
-                  hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
-                    - 20) %}
-
-                    {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat, 100]|sort)[1]]
-                    }}
-
-                    '
-                  transition: 1
-                target:
-                  entity_id: '{{ repeat.item }}
-
-                    '
-        default:
-        - action: light.turn_on
-          metadata: {}
-          data:
-            brightness_step_pct: 10
-            transition: 1
-          target:
-            entity_id: light.group_lounge_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - rotate_left_step
-        - rotate_left_slow
-        - brightness_step_down
-        - rotate_left_fast
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          transition: 1
-          brightness_step_pct: -15
-        target:
-          entity_id: light.group_lounge_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - dial_brightness_change
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness: '{{ states(trigger.entity_id) }}
-
-            '
-        target:
-          entity_id: light.group_lounge_lights
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 0
-      milliseconds: 50
-    enabled: false
-  mode: single
-- id: '1763655791601'
-  alias: Hallway hue dial automation
-  description: Controls hallway lights using a Hue dial remote, supporting light toggle,
-    full brightness, brightness adjustment via dial rotation, color effects, and dim-to-minimum
-    via button presses.
-  triggers:
-  - domain: mqtt
-    device_id: f211190283e31774e7e39beb65195278
-    type: action
-    subtype: dial_rotate_right_step
-    trigger: device
-    id: rotate_right_step
-    enabled: false
-  - domain: mqtt
-    device_id: f211190283e31774e7e39beb65195278
-    type: action
-    subtype: brightness_step_up
-    trigger: device
-    id: brightness_step_up
-    enabled: false
-  - domain: mqtt
-    device_id: f211190283e31774e7e39beb65195278
-    type: action
-    subtype: dial_rotate_left_slow
-    trigger: device
-    id: rotate_right_fast
-  - domain: mqtt
-    device_id: f211190283e31774e7e39beb65195278
-    type: action
-    subtype: dial_rotate_right_slow
-    trigger: device
-    id: rotate_right_slow
-    enabled: true
-  - domain: mqtt
-    device_id: f211190283e31774e7e39beb65195278
-    type: action
-    subtype: brightness_step_down
-    trigger: device
-    id: brightness_step_down
-    enabled: true
-  - domain: mqtt
-    device_id: f211190283e31774e7e39beb65195278
-    type: action
-    subtype: dial_rotate_left_step
-    trigger: device
-    id: rotate_left_step
-    enabled: true
-  - domain: mqtt
-    device_id: f211190283e31774e7e39beb65195278
-    type: action
-    subtype: dial_rotate_left_fast
-    trigger: device
-    id: rotate_left_fast
-    enabled: true
-  - domain: mqtt
-    device_id: f211190283e31774e7e39beb65195278
-    type: action
-    subtype: dial_rotate_left_slow
-    trigger: device
-    id: rotate_left_slow
-    enabled: true
-  - trigger: state
-    entity_id:
-    - sensor.remote_salon_hue_dial_brightness
-    enabled: false
-    id: dial_brightness_change
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 0
-  - domain: mqtt
-    device_id: f211190283e31774e7e39beb65195278
-    type: action
-    subtype: button_1_press
-    trigger: device
-    id: button_1_press
-  - domain: mqtt
-    device_id: f211190283e31774e7e39beb65195278
-    type: action
-    subtype: button_2_press_release
-    trigger: device
-    id: button_2_press
-  - domain: mqtt
-    device_id: f211190283e31774e7e39beb65195278
-    type: action
-    subtype: button_4_hold
-    trigger: device
-    id: button_4_hold
-    enabled: false
-  - domain: mqtt
-    device_id: f211190283e31774e7e39beb65195278
-    type: action
-    subtype: button_3_press
-    trigger: device
-    id: button_3_press
-  - domain: mqtt
-    device_id: f211190283e31774e7e39beb65195278
-    type: action
-    subtype: button_4_press
-    trigger: device
-    id: button_4_press
-  - domain: mqtt
-    device_id: f211190283e31774e7e39beb65195278
-    type: action
-    subtype: button_2_hold
-    trigger: device
-    id: button_2_hold
-  - domain: mqtt
-    device_id: f211190283e31774e7e39beb65195278
-    type: action
-    subtype: button_1_hold
-    trigger: device
-    id: button_1_hold
-  conditions: []
-  actions:
-  - choose:
-    - conditions:
-      - condition: trigger
-        id:
-        - button_1_press
-      sequence:
-      - action: light.toggle
-        metadata: {}
-        data:
-          transition: 2
-        target:
-          entity_id: light.group_hallway_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_1_hold
-      sequence:
-      - action: light.toggle
-        metadata: {}
-        data:
-          transition: 2
-          brightness_pct: 100
-          color_temp_kelvin: 4922
-        target:
-          entity_id: light.group_hallway_lights
-      - choose:
-        - conditions: []
-          sequence: []
-        - conditions:
-          - condition: state
-            entity_id: light.group_hallway_lights
-            attribute: brightness
-            state: ''
-          - condition: numeric_state
-            entity_id: light.group_hallway_lights
-            attribute: brightness
-            below: 99
-          sequence:
-          - action: light.turn_on
-            metadata: {}
-            data:
-              transition: 1
-              brightness_pct: 100
-            target:
-              entity_id: light.group_hallway_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_2_press
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          transition: 1
-          color_temp_kelvin: 5238
-          brightness_pct: 100
-        target:
-          entity_id: light.group_hallway_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_4_hold
-      sequence: []
-    - conditions:
-      - condition: trigger
-        id:
-        - button_3_press
-      sequence:
-      - action: script.change_received_lights_to_random_colors
-        metadata: {}
-        data:
-          light:
-          - light.group_hallway_lights
-          saturation: 100
-    - conditions:
-      - condition: trigger
-        id:
-        - button_4_press
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness_pct: 1
-        target:
-          entity_id: light.group_hallway_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_2_hold
-      sequence: []
-    - conditions:
-      - condition: trigger
-        id:
-        - rotate_right_step
-        - brightness_step_up
-        - rotate_right_slow
-        - rotate_right_fast
-      sequence:
-      - choose:
-        - conditions:
-          - condition: numeric_state
-            entity_id: light.group_hallway_lights
-            attribute: brightness
-            enabled: true
-            above: 254
-          sequence:
-          - variables:
-              lights_saturated: "{{ expand('light.group_hallway_lights')    | selectattr('attributes.hs_color',
-                'defined') | map(attribute='entity_id') | list }} \n"
-          - repeat:
-              for_each: '{{lights_saturated}}'
-              sequence:
-              - action: light.turn_on
-                metadata: {}
-                data:
-                  hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
-                    - 7) %}
-
-                    {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat, 100]|sort)[1]]
-                    }}
-
-                    '
-                  transition: 1
-                target:
-                  entity_id: '{{ repeat.item }}
-
-                    '
-        default:
-        - action: light.turn_on
-          metadata: {}
-          data:
-            brightness_step_pct: 10
-            transition: 1
-          target:
-            entity_id: light.group_hallway_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - rotate_left_step
-        - rotate_left_slow
-        - brightness_step_down
-        - rotate_left_fast
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          transition: 1
-          brightness_step_pct: -15
-        target:
-          entity_id: light.group_hallway_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - dial_brightness_change
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness: '{{ states(trigger.entity_id) }}
-
-            '
-        target:
-          entity_id: light.group_hallway_lights
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 0
-      milliseconds: 50
-    enabled: false
-  mode: single
-- id: '1763656472816'
-  alias: Workshop Hue dial automation
-  description: Controls workshop lights using a Hue dial remote, supporting light
-    toggle, full brightness, brightness adjustment via dial rotation, color effects,
-    and dim-to-minimum via button presses.
-  triggers:
-  - domain: mqtt
-    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
-    type: action
-    subtype: dial_rotate_right_step
-    trigger: device
-    id: rotate_right_step
-    enabled: false
-  - domain: mqtt
-    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
-    type: action
-    subtype: brightness_step_up
-    trigger: device
-    id: brightness_step_up
-    enabled: false
-  - domain: mqtt
-    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
-    type: action
-    subtype: dial_rotate_right_fast
-    trigger: device
-    id: rotate_right_fast
-  - domain: mqtt
-    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
-    type: action
-    subtype: dial_rotate_right_slow
-    trigger: device
-    id: rotate_right_slow
-    enabled: true
-  - domain: mqtt
-    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
-    type: action
-    subtype: brightness_step_down
-    trigger: device
-    id: brightness_step_down
-    enabled: true
-  - domain: mqtt
-    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
-    type: action
-    subtype: dial_rotate_left_step
-    trigger: device
-    id: rotate_left_step
-    enabled: true
-  - domain: mqtt
-    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
-    type: action
-    subtype: dial_rotate_left_fast
-    trigger: device
-    id: rotate_left_fast
-    enabled: true
-  - domain: mqtt
-    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
-    type: action
-    subtype: dial_rotate_left_slow
-    trigger: device
-    id: rotate_left_slow
-    enabled: true
-  - trigger: state
-    entity_id:
-    - sensor.remote_salon_hue_dial_brightness
-    enabled: false
-    id: dial_brightness_change
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 0
-  - domain: mqtt
-    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
-    type: action
-    subtype: button_1_press
-    trigger: device
-    id: button_1_press
-  - domain: mqtt
-    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
-    type: action
-    subtype: button_2_press_release
-    trigger: device
-    id: button_2_press
-  - domain: mqtt
-    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
-    type: action
-    subtype: button_4_hold
-    trigger: device
-    id: button_4_hold
-    enabled: false
-  - domain: mqtt
-    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
-    type: action
-    subtype: button_3_press
-    trigger: device
-    id: button_3_press
-  - domain: mqtt
-    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
-    type: action
-    subtype: button_4_press
-    trigger: device
-    id: button_4_press
-  - domain: mqtt
-    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
-    type: action
-    subtype: button_2_hold
-    trigger: device
-    id: button_2_hold
-  - domain: mqtt
-    device_id: 9fa37cfa788ec6b8e8ae6befd4d6e26f
-    type: action
-    subtype: button_1_hold
-    trigger: device
-    id: button_1_hold
-  conditions: []
-  actions:
-  - choose:
-    - conditions:
-      - condition: trigger
-        id:
-        - button_1_press
-      sequence:
-      - action: light.toggle
-        metadata: {}
-        data:
-          transition: 2
-        target:
-          entity_id: light.group_workshop_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_1_hold
-      sequence:
-      - action: light.toggle
-        metadata: {}
-        data:
-          transition: 2
-          brightness_pct: 100
-          color_temp_kelvin: 4922
-        target:
-          entity_id: light.group_workshop_lights
-      - choose:
-        - conditions: []
-          sequence: []
-        - conditions:
-          - condition: state
-            entity_id: light.group_workshop_lights
-            attribute: brightness
-            state: ''
-          - condition: numeric_state
-            entity_id: light.group_workshop_lights
-            attribute: brightness
-            below: 99
-          sequence:
-          - action: light.turn_on
-            metadata: {}
-            data:
-              transition: 1
-              brightness_pct: 100
-            target:
-              entity_id: light.group_workshop_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_2_press
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          transition: 1
-          color_temp_kelvin: 5238
-          brightness_pct: 100
-        target:
-          entity_id: light.group_workshop_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_4_hold
-      sequence:
-      - if:
-        - condition: state
-          entity_id: media_player.universal_workshop_chromecast
-          state: 'off'
-        then:
-        - action: google_assistant_sdk.send_text_command
-          metadata: {}
-          data:
-            command: power off workshop tv
-      - action: media_player.media_stop
-        metadata: {}
-        data: {}
-        target:
-          area_id: workshop
-      - action: media_player.clear_playlist
-        metadata: {}
-        data: {}
-        target:
-          area_id: workshop
-      - action: media_player.turn_off
-        metadata: {}
-        data: {}
-        target:
-          area_id: workshop
-    - conditions:
-      - condition: trigger
-        id:
-        - button_3_press
-      sequence:
-      - action: script.change_received_lights_to_random_colors
-        metadata: {}
-        data:
-          light:
-          - light.group_workshop_lights
-          saturation: 100
-    - conditions:
-      - condition: trigger
-        id:
-        - button_4_press
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness_pct: 1
-        target:
-          entity_id: light.group_workshop_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_2_hold
-      sequence: []
-    - conditions:
-      - condition: trigger
-        id:
-        - rotate_right_step
-        - brightness_step_up
-        - rotate_right_slow
-        - rotate_right_fast
-      sequence:
-      - choose:
-        - conditions:
-          - condition: numeric_state
-            entity_id: light.group_workshop_lights
-            attribute: brightness
-            enabled: true
-            above: 254
-          sequence:
-          - variables:
-              lights_saturated: "{{ expand('light.group_workshop_lights')    | selectattr('attributes.hs_color',
-                'defined') | map(attribute='entity_id') | list }} \n"
-          - repeat:
-              for_each: '{{lights_saturated}}'
-              sequence:
-              - action: light.turn_on
-                metadata: {}
-                data:
-                  hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
-                    - 7) %}
-
-                    {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat, 100]|sort)[1]]
-                    }}
-
-                    '
-                  transition: 1
-                target:
-                  entity_id: '{{ repeat.item }}
-
-                    '
-        default:
-        - action: light.turn_on
-          metadata: {}
-          data:
-            brightness_step_pct: 10
-            transition: 1
-          target:
-            entity_id: light.group_workshop_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - rotate_left_step
-        - rotate_left_slow
-        - brightness_step_down
-        - rotate_left_fast
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          transition: 1
-          brightness_step_pct: -15
-        target:
-          entity_id: light.group_workshop_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - dial_brightness_change
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness: '{{ states(trigger.entity_id) }}
-
-            '
-        target:
-          entity_id: light.group_workshop_lights
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 0
-      milliseconds: 50
-    enabled: false
-  mode: single
-- id: '1763657214344'
-  alias: Kitchen hue dial automation
-  description: Controls kitchen lights using a Hue dial remote, supporting light toggle,
-    full brightness, brightness adjustment via dial rotation, color effects, and dim-to-minimum
-    via button presses.
-  triggers:
-  - domain: mqtt
-    device_id: dc7089704215eb56dab209e30b546ffe
-    type: action
-    subtype: dial_rotate_right_step
-    trigger: device
-    id: rotate_right_step
-    enabled: false
-  - domain: mqtt
-    device_id: dc7089704215eb56dab209e30b546ffe
-    type: action
-    subtype: brightness_step_up
-    trigger: device
-    id: brightness_step_up
-    enabled: false
-  - domain: mqtt
-    device_id: dc7089704215eb56dab209e30b546ffe
-    type: action
-    subtype: dial_rotate_right_fast
-    trigger: device
-    id: rotate_right_fast
-  - domain: mqtt
-    device_id: dc7089704215eb56dab209e30b546ffe
-    type: action
-    subtype: dial_rotate_right_slow
-    trigger: device
-    id: rotate_right_slow
-    enabled: true
-  - domain: mqtt
-    device_id: dc7089704215eb56dab209e30b546ffe
-    type: action
-    subtype: brightness_step_down
-    trigger: device
-    id: brightness_step_down
-    enabled: true
-  - domain: mqtt
-    device_id: dc7089704215eb56dab209e30b546ffe
-    type: action
-    subtype: dial_rotate_left_step
-    trigger: device
-    id: rotate_left_step
-    enabled: true
-  - domain: mqtt
-    device_id: dc7089704215eb56dab209e30b546ffe
-    type: action
-    subtype: dial_rotate_left_fast
-    trigger: device
-    id: rotate_left_fast
-    enabled: true
-  - domain: mqtt
-    device_id: dc7089704215eb56dab209e30b546ffe
-    type: action
-    subtype: dial_rotate_left_slow
-    trigger: device
-    id: rotate_left_slow
-    enabled: true
-  - trigger: state
-    entity_id:
-    - sensor.remote_salon_hue_dial_brightness
-    enabled: false
-    id: dial_brightness_change
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 0
-  - domain: mqtt
-    device_id: dc7089704215eb56dab209e30b546ffe
-    type: action
-    subtype: button_1_press
-    trigger: device
-    id: button_1_press
-  - domain: mqtt
-    device_id: dc7089704215eb56dab209e30b546ffe
-    type: action
-    subtype: button_2_press_release
-    trigger: device
-    id: button_2_press
-  - domain: mqtt
-    device_id: dc7089704215eb56dab209e30b546ffe
-    type: action
-    subtype: button_4_hold
-    trigger: device
-    id: button_4_hold
-    enabled: false
-  - domain: mqtt
-    device_id: dc7089704215eb56dab209e30b546ffe
-    type: action
-    subtype: button_3_press
-    trigger: device
-    id: button_3_press
-  - domain: mqtt
-    device_id: dc7089704215eb56dab209e30b546ffe
-    type: action
-    subtype: button_4_press
-    trigger: device
-    id: button_4_press
-  - domain: mqtt
-    device_id: dc7089704215eb56dab209e30b546ffe
-    type: action
-    subtype: button_2_hold
-    trigger: device
-    id: button_2_hold
-  - domain: mqtt
-    device_id: dc7089704215eb56dab209e30b546ffe
-    type: action
-    subtype: button_1_hold
-    trigger: device
-    id: button_1_hold
-  conditions: []
-  actions:
-  - choose:
-    - conditions:
-      - condition: trigger
-        id:
-        - button_1_press
-      sequence:
-      - action: light.toggle
-        metadata: {}
-        data:
-          transition: 2
-        target:
-          entity_id: light.group_kitchen_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_1_hold
-      sequence:
-      - action: light.toggle
-        metadata: {}
-        data:
-          transition: 2
-          brightness_pct: 100
-          color_temp_kelvin: 4922
-        target:
-          entity_id: light.group_kitchen_lights
-      - choose:
-        - conditions: []
-          sequence: []
-        - conditions:
-          - condition: state
-            entity_id: light.group_kitchen_lights
-            attribute: brightness
-            state: ''
-          - condition: numeric_state
-            entity_id: light.group_kitchen_lights
-            attribute: brightness
-            below: 99
-          sequence:
-          - action: light.turn_on
-            metadata: {}
-            data:
-              transition: 1
-              brightness_pct: 100
-            target:
-              entity_id: light.group_kitchen_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_2_press
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          transition: 1
-          color_temp_kelvin: 5238
-          brightness_pct: 100
-        target:
-          entity_id: light.group_kitchen_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_4_hold
-      sequence:
-      - if:
-        - condition: state
-          entity_id: media_player.universal_kitchen_chromecast
-          state: 'off'
-        then:
-        - action: google_assistant_sdk.send_text_command
-          metadata: {}
-          data:
-            command: power off kitchen tv
-      - action: media_player.media_stop
-        metadata: {}
-        data: {}
-        target:
-          area_id: kitchen
-      - action: media_player.clear_playlist
-        metadata: {}
-        data: {}
-        target:
-          area_id: kitchen
-      - action: media_player.turn_off
-        metadata: {}
-        data: {}
-        target:
-          area_id: kitchen
-    - conditions:
-      - condition: trigger
-        id:
-        - button_3_press
-      sequence:
-      - action: script.change_received_lights_to_random_colors
-        metadata: {}
-        data:
-          light:
-          - light.group_kitchen_lights
-          saturation: 100
-    - conditions:
-      - condition: trigger
-        id:
-        - button_4_press
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness_pct: 1
-        target:
-          entity_id: light.group_kitchen_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_2_hold
-      sequence: []
-    - conditions:
-      - condition: trigger
-        id:
-        - rotate_right_step
-        - brightness_step_up
-        - rotate_right_slow
-        - rotate_right_fast
-      sequence:
-      - choose:
-        - conditions:
-          - condition: numeric_state
-            entity_id: light.group_kitchen_lights
-            attribute: brightness
-            enabled: true
-            above: 254
-          sequence:
-          - variables:
-              lights_saturated: "{{ expand('light.group_kitchen_lights')    | selectattr('attributes.hs_color',
-                'defined') | map(attribute='entity_id') | list }} \n"
-          - repeat:
-              for_each: '{{lights_saturated}}'
-              sequence:
-              - action: light.turn_on
-                metadata: {}
-                data:
-                  hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
-                    - 7) %}
-
-                    {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat, 100]|sort)[1]]
-                    }}
-
-                    '
-                  transition: 1
-                target:
-                  entity_id: '{{ repeat.item }}
-
-                    '
-        default:
-        - action: light.turn_on
-          metadata: {}
-          data:
-            brightness_step_pct: 10
-            transition: 1
-          target:
-            entity_id: light.group_kitchen_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - rotate_left_step
-        - rotate_left_slow
-        - brightness_step_down
-        - rotate_left_fast
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          transition: 1
-          brightness_step_pct: -15
-        target:
-          entity_id: light.group_kitchen_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - dial_brightness_change
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness: '{{ states(trigger.entity_id) }}
-
-            '
-        target:
-          entity_id: light.group_kitchen_lights
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 0
-      milliseconds: 50
-    enabled: false
-  mode: single
-- id: '1763657573280'
-  alias: Salon hue dial automation
-  description: Controls salon lights using a Hue dial remote, supporting light toggle,
-    full brightness, brightness adjustment via dial rotation, color effects, and dim-to-minimum
-    via button presses.
-  triggers:
-  - domain: mqtt
-    device_id: bc66f82750d4adb04da9269fa03a125e
-    type: action
-    subtype: brightness_step_up
-    trigger: device
-    id: brightness_step_up
-    enabled: false
-  - domain: mqtt
-    device_id: bc66f82750d4adb04da9269fa03a125e
-    type: action
-    subtype: dial_rotate_right_fast
-    trigger: device
-    id: rotate_right_fast
-  - domain: mqtt
-    device_id: bc66f82750d4adb04da9269fa03a125e
-    type: action
-    subtype: dial_rotate_right_slow
-    trigger: device
-    id: rotate_right_slow
-    enabled: true
-  - domain: mqtt
-    device_id: bc66f82750d4adb04da9269fa03a125e
-    type: action
-    subtype: brightness_step_down
-    trigger: device
-    id: brightness_step_down
-    enabled: true
-  - domain: mqtt
-    device_id: bc66f82750d4adb04da9269fa03a125e
-    type: action
-    subtype: dial_rotate_left_step
-    trigger: device
-    id: rotate_left_step
-    enabled: true
-  - domain: mqtt
-    device_id: bc66f82750d4adb04da9269fa03a125e
-    type: action
-    subtype: dial_rotate_left_fast
-    trigger: device
-    id: rotate_left_fast
-    enabled: true
-  - domain: mqtt
-    device_id: bc66f82750d4adb04da9269fa03a125e
-    type: action
-    subtype: dial_rotate_left_slow
-    trigger: device
-    id: rotate_left_slow
-    enabled: true
-  - trigger: state
-    entity_id:
-    - sensor.remote_salon_hue_dial_brightness
-    enabled: false
-    id: dial_brightness_change
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 0
-  - domain: mqtt
-    device_id: bc66f82750d4adb04da9269fa03a125e
-    type: action
-    subtype: button_1_press
-    trigger: device
-    id: button_1_press
-  - domain: mqtt
-    device_id: bc66f82750d4adb04da9269fa03a125e
-    type: action
-    subtype: button_2_press_release
-    trigger: device
-    id: button_2_press
-  - domain: mqtt
-    device_id: bc66f82750d4adb04da9269fa03a125e
-    type: action
-    subtype: button_4_hold
-    trigger: device
-    id: button_4_hold
-    enabled: false
-  - domain: mqtt
-    device_id: bc66f82750d4adb04da9269fa03a125e
-    type: action
-    subtype: button_3_press
-    trigger: device
-    id: button_3_press
-  - domain: mqtt
-    device_id: bc66f82750d4adb04da9269fa03a125e
-    type: action
-    subtype: button_4_press
-    trigger: device
-    id: button_4_press
-  - domain: mqtt
-    device_id: bc66f82750d4adb04da9269fa03a125e
-    type: action
-    subtype: button_2_hold
-    trigger: device
-    id: button_2_hold
-  - domain: mqtt
-    device_id: bc66f82750d4adb04da9269fa03a125e
-    type: action
-    subtype: button_1_hold
-    trigger: device
-    id: button_1_hold
-  conditions: []
-  actions:
-  - choose:
-    - conditions:
-      - condition: trigger
-        id:
-        - button_1_press
-      sequence:
-      - action: light.toggle
-        metadata: {}
-        data:
-          transition: 2
-        target:
-          entity_id: light.group_salon_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_1_hold
-      sequence:
-      - action: light.toggle
-        metadata: {}
-        data:
-          transition: 2
-          brightness_pct: 100
-          color_temp_kelvin: 4922
-        target:
-          entity_id: light.group_salon_lights
-      - choose:
-        - conditions: []
-          sequence: []
-        - conditions:
-          - condition: state
-            entity_id: light.group_salon_lights
-            attribute: brightness
-            state: ''
-          - condition: numeric_state
-            entity_id: light.group_salon_lights
-            attribute: brightness
-            below: 99
-          sequence:
-          - action: light.turn_on
-            metadata: {}
-            data:
-              transition: 1
-              brightness_pct: 100
-            target:
-              entity_id: light.group_salon_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_2_press
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          transition: 1
-          color_temp_kelvin: 5238
-          brightness_pct: 100
-        target:
-          entity_id: light.group_salon_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_4_hold
-      sequence:
-      - if:
-        - condition: state
-          entity_id: media_player.universal_salon_chromecast
-          state: 'off'
-        then:
-        - action: google_assistant_sdk.send_text_command
-          metadata: {}
-          data:
-            command: power off salon tv
-      - action: media_player.media_stop
-        metadata: {}
-        data: {}
-        target:
-          area_id: salon
-      - action: media_player.clear_playlist
-        metadata: {}
-        data: {}
-        target:
-          area_id: salon
-      - action: media_player.turn_off
-        metadata: {}
-        data: {}
-        target:
-          area_id: salon
-    - conditions:
-      - condition: trigger
-        id:
-        - button_3_press
-      sequence:
-      - action: script.change_received_lights_to_random_colors
-        metadata: {}
-        data:
-          light:
-          - light.group_salon_lights
-          saturation: 100
-    - conditions:
-      - condition: trigger
-        id:
-        - button_4_press
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness_pct: 1
-        target:
-          entity_id: light.group_salon_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - button_2_hold
-      sequence: []
-    - conditions:
-      - condition: trigger
-        id:
-        - rotate_right_step
-        - brightness_step_up
-        - rotate_right_slow
-        - rotate_right_fast
-      sequence:
-      - choose:
-        - conditions:
-          - condition: numeric_state
-            entity_id: light.group_salon_lights
-            attribute: brightness
-            enabled: true
-            above: 254
-          sequence:
-          - variables:
-              lights_saturated: "{{ expand('light.group_salon_lights')    | selectattr('attributes.hs_color',
-                'defined') | map(attribute='entity_id') | list }} \n"
-          - repeat:
-              for_each: '{{lights_saturated}}'
-              sequence:
-              - action: light.turn_on
-                metadata: {}
-                data:
-                  hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
-                    - 7) %}
-
-                    {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat, 100]|sort)[1]]
-                    }}
-
-                    '
-                  transition: 1
-                target:
-                  entity_id: '{{ repeat.item }}
-
-                    '
-        default:
-        - action: light.turn_on
-          metadata: {}
-          data:
-            brightness_step_pct: 10
-            transition: 1
-          target:
-            entity_id: light.group_salon_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - rotate_left_step
-        - rotate_left_slow
-        - brightness_step_down
-        - rotate_left_fast
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          transition: 1
-          brightness_step_pct: -15
-        target:
-          entity_id: light.group_salon_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - dial_brightness_change
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness: '{{ states(trigger.entity_id) }}
-
-            '
-        target:
-          entity_id: light.group_salon_lights
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 0
-      milliseconds: 50
-    enabled: false
-  mode: single
 - id: '1763775560173'
   alias: Workshop Desk Hue Dial automation
   description: Controls workshop desk lights using a Hue dial remote, supporting light
     toggle, full brightness, brightness adjustment via dial rotation, color effects,
     and dim-to-minimum via button presses.
   triggers:
-  - domain: mqtt
-    device_id: 1646c358a43638c330455746a22adb95
-    type: action
-    subtype: button_1_press
-    trigger: device
-    id: rotate_right_step
-    enabled: false
-  - domain: mqtt
-    device_id: 1646c358a43638c330455746a22adb95
-    type: action
-    subtype: brightness_step_up
+  - device_id: d9ffda94d5b5c9729c483a025268f6c8
+    domain: zha
+    type: remote_button_short_press
+    subtype: dim_up
     trigger: device
     id: brightness_step_up
-    enabled: false
-  - domain: mqtt
-    device_id: 1646c358a43638c330455746a22adb95
-    type: action
-    subtype: dial_rotate_right_fast
-    trigger: device
-    id: rotate_right_fast
-  - domain: mqtt
-    device_id: 1646c358a43638c330455746a22adb95
-    type: action
-    subtype: dial_rotate_right_slow
-    trigger: device
-    id: rotate_right_slow
-    enabled: true
-  - domain: mqtt
-    device_id: 1646c358a43638c330455746a22adb95
-    type: action
-    subtype: brightness_step_down
+  - device_id: d9ffda94d5b5c9729c483a025268f6c8
+    domain: zha
+    type: remote_button_short_press
+    subtype: dim_down
     trigger: device
     id: brightness_step_down
-    enabled: true
-  - domain: mqtt
-    device_id: 1646c358a43638c330455746a22adb95
-    type: action
-    subtype: dial_rotate_left_step
-    trigger: device
-    id: rotate_left_step
-    enabled: true
-  - domain: mqtt
-    device_id: 1646c358a43638c330455746a22adb95
-    type: action
-    subtype: dial_rotate_left_fast
-    trigger: device
-    id: rotate_left_fast
-    enabled: true
-  - domain: mqtt
-    device_id: 1646c358a43638c330455746a22adb95
-    type: action
-    subtype: dial_rotate_left_slow
-    trigger: device
-    id: rotate_left_slow
-    enabled: true
-  - trigger: state
-    entity_id:
-    - sensor.remote_salon_hue_dial_brightness
-    enabled: false
-    id: dial_brightness_change
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 0
-  - domain: mqtt
-    device_id: 1646c358a43638c330455746a22adb95
-    type: action
-    subtype: button_1_press
+  - device_id: d9ffda94d5b5c9729c483a025268f6c8
+    domain: zha
+    type: remote_button_short_press
+    subtype: button_1
     trigger: device
     id: button_1_press
-  - domain: mqtt
-    device_id: 1646c358a43638c330455746a22adb95
-    type: action
-    subtype: button_2_press_release
+  - device_id: d9ffda94d5b5c9729c483a025268f6c8
+    domain: zha
+    type: remote_button_short_press
+    subtype: button_2
     trigger: device
     id: button_2_press
-  - domain: mqtt
-    device_id: 1646c358a43638c330455746a22adb95
-    type: action
-    subtype: button_4_hold
-    trigger: device
-    id: button_4_hold
-    enabled: false
-  - domain: mqtt
-    device_id: 1646c358a43638c330455746a22adb95
-    type: action
-    subtype: button_3_press
+  - device_id: d9ffda94d5b5c9729c483a025268f6c8
+    domain: zha
+    type: remote_button_short_press
+    subtype: button_3
     trigger: device
     id: button_3_press
-  - domain: mqtt
-    device_id: 1646c358a43638c330455746a22adb95
-    type: action
-    subtype: button_4_press
+  - device_id: d9ffda94d5b5c9729c483a025268f6c8
+    domain: zha
+    type: remote_button_short_press
+    subtype: button_4
     trigger: device
     id: button_4_press
-  - domain: mqtt
-    device_id: 1646c358a43638c330455746a22adb95
-    type: action
-    subtype: button_2_hold
+  - device_id: d9ffda94d5b5c9729c483a025268f6c8
+    domain: zha
+    type: remote_button_long_press
+    subtype: button_2
     trigger: device
     id: button_2_hold
-  - domain: mqtt
-    device_id: 1646c358a43638c330455746a22adb95
-    type: action
-    subtype: button_1_hold
+  - device_id: d9ffda94d5b5c9729c483a025268f6c8
+    domain: zha
+    type: remote_button_long_press
+    subtype: button_1
     trigger: device
     id: button_1_hold
   conditions: []
@@ -14713,11 +12743,6 @@
     - conditions:
       - condition: trigger
         id:
-        - button_4_hold
-      sequence: []
-    - conditions:
-      - condition: trigger
-        id:
         - button_3_press
       sequence:
       - action: script.change_received_lights_to_random_colors
@@ -14745,10 +12770,7 @@
     - conditions:
       - condition: trigger
         id:
-        - rotate_right_step
         - brightness_step_up
-        - rotate_right_slow
-        - rotate_right_fast
       sequence:
       - choose:
         - conditions:
@@ -14756,7 +12778,7 @@
             entity_id: light.group_workshop_lights
             attribute: brightness
             enabled: true
-            above: 254
+            above: 253
           sequence:
           - variables:
               lights_saturated: "{{ expand('light.group_workshop_lights')    | selectattr('attributes.hs_color',
@@ -14790,29 +12812,13 @@
     - conditions:
       - condition: trigger
         id:
-        - rotate_left_step
-        - rotate_left_slow
         - brightness_step_down
-        - rotate_left_fast
       sequence:
       - action: light.turn_on
         metadata: {}
         data:
           transition: 1
           brightness_step_pct: -15
-        target:
-          entity_id: light.group_workshop_lights
-    - conditions:
-      - condition: trigger
-        id:
-        - dial_brightness_change
-      sequence:
-      - action: light.turn_on
-        metadata: {}
-        data:
-          brightness: '{{ states(trigger.entity_id) }}
-
-            '
         target:
           entity_id: light.group_workshop_lights
   - delay:
@@ -15185,7 +13191,8 @@
                     '
                   light_above_hue: "{% set number_positive = light_initial_hue + 25
                     %}\n  {% if number_positive > 360 %}\n    {% set number_positive
-                    = (number - 360) %}\n  {% endif %}\n{{ number_positive | int }}\n"
+                    = (number_positive - 360) %}\n  {% endif %}\n{{ number_positive
+                    | int }}\n"
                   light_below_hue: "{% set number_negative = light_initial_hue - 25
                     %}\n  {% if number_negative < 0 %}\n    {% set number_negative
                     = (number_negative | abs ) %}\n  {% endif %}\n{{ number_negative
@@ -15734,8 +13741,8 @@
   use_blueprint:
     path: EPMatt/ikea_e1744.yaml
     input:
-      integration: Zigbee2MQTT
-      controller_device: 83c6d6773874bd6654223d9e400b0b86
+      integration: ZHA
+      controller_device: 34c4c14c6366fffe8155f3de87abf170
       helper_last_controller_event: input_text.dial_hallway_helper
       action_rotate_left:
       - sequence:
@@ -15827,8 +13834,9 @@
   description: Ensures that when both speakers and Chromecasts are active in the same
     room, only one device remains unmuted at a time. Muting occurs unconditionally
     upon playback start or state change; unmuting is triggered only when motion is
-    detected and no active sleeper is present in the room, preventing audio conflicts
-    and ensuring a consistent listening experience.
+    detected and no active sleeper is present in the room. A 10-minute time gate on
+    chromecast state transitions prevents rapid playing→off→playing bounces (e.g.
+    caused by volume changes) from re-running unmute/volume logic.
   triggers:
   - alias: Chromecasts → playing
     trigger: state
@@ -15962,7 +13970,7 @@
           false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
     - if:
       - condition: template
-        value_template: '{{ unmuted_player_chromecasts != []   }}'
+        value_template: '{{ unmuted_player_chromecasts != [] }}'
       then:
       - action: media_player.volume_mute
         data:
@@ -15996,17 +14004,18 @@
     - condition: template
       value_template: "{{ trigger.id in ['cc_from_off', 'spk_mute_status',\n                  'spk_from_playing',
         'cc_to_playing', 'cc_to_idle'] }}\n"
-    - alias: Time-gate for cc_to_playing / cc_to_idle (60 s)
+    - alias: 10-min anti-flap gate (cc_to_playing / cc_to_idle / cc_from_off)
       condition: template
-      value_template: "{% if trigger.id in ['cc_to_playing', 'cc_to_idle'] %}\n  {{
-        (now() - trigger.from_state.last_changed) > timedelta(seconds=600) }}\n{%
-        elif trigger.id == 'spk_from_playing' %}\n  {{ trigger.to_state.state != 'unavailable'
-        }}\n{% else %}\n  true\n{% endif %}\n"
+      value_template: "{% if trigger.id in ['cc_to_playing', 'cc_to_idle', 'cc_from_off']
+        %}\n  {{ trigger.from_state is not none\n     and (now() - trigger.from_state.last_changed)
+        > timedelta(minutes=10) }}\n{% elif trigger.id == 'spk_from_playing' %}\n
+        \ {{ trigger.to_state.state != 'unavailable' }}\n{% else %}\n  true\n{% endif
+        %}\n"
       enabled: true
     - alias: No sleeper present
       condition: template
       value_template: "{{ area_id(trigger.entity_id)\n   | replace('_top','') | replace('_down','')\n
-        \  not in states('sensor.active_sleeper_rooms') | string }}\n"
+        \  | lower not in states('sensor.active_sleeper_rooms') | string | lower }}\n"
     - alias: Motion present
       condition: template
       value_template: "{{ area_id(trigger.entity_id)\n   | replace('_top','') | replace('_down','')\n
@@ -16039,10 +14048,11 @@
         ''cc_mute_status''] }}
 
         '
-    - alias: 600 s gate for spk_to_playing trigger
+    - alias: 10-min anti-flap gate (spk_to_playing / cc_from_playing)
       condition: template
-      value_template: "{% if trigger.id == 'spk_to_playing' %}\n  {{ (now() - trigger.from_state.last_changed)
-        > timedelta(seconds=600) }}\n{% else %}\n  true\n{% endif %}\n"
+      value_template: "{% if trigger.id in ['spk_to_playing', 'cc_from_playing'] %}\n
+        \ {{ trigger.from_state is not none\n     and (now() - trigger.from_state.last_changed)
+        > timedelta(minutes=10) }}\n{% else %}\n  true\n{% endif %}\n"
       enabled: true
     - alias: No sleeper present
       condition: template
@@ -16633,8 +14643,8 @@
   use_blueprint:
     path: EPMatt/ikea_e1744.yaml
     input:
-      integration: Zigbee2MQTT
-      controller_device: 9d9748cd89c9e4b3a75fe13d8b2d461a
+      integration: ZHA
+      controller_device: 360e22d2c7aadf1a857e8cb54d2bd198
       helper_last_controller_event: input_text.dial_workshop_tablet_helper
       action_rotate_left:
       - sequence:
@@ -17052,30 +15062,36 @@
   - condition: template
     value_template: '{{ states(''sensor.maxi_location_by_petro'') not in [area_id(trigger.entity_id)]
       | string  }}'
-  - condition: state
-    entity_id: binary_sensor.group_patio_motion_occupancy
-    state:
-    - 'off'
-    for:
-      hours: 0
-      minutes: 2
-      seconds: 0
-  - condition: or
+  - condition: and
     conditions:
-    - condition: and
+    - condition: state
+      entity_id: binary_sensor.group_patio_motion_occupancy
+      state:
+      - 'off'
+      for:
+        hours: 0
+        minutes: 2
+        seconds: 0
+    - condition: or
       conditions:
+      - condition: and
+        conditions:
+        - condition: state
+          entity_id: input_boolean.party_in_the_back_yard
+          state:
+          - 'on'
+        - condition: state
+          entity_id: binary_sensor.back_yard_camera_person_occupancy
+          state:
+          - 'off'
+          for:
+            hours: 0
+            minutes: 5
+            seconds: 0
       - condition: state
         entity_id: input_boolean.party_in_the_back_yard
         state:
-        - 'on'
-      - condition: state
-        entity_id: binary_sensor.back_yard_camera_person_occupancy
-        state:
         - 'off'
-    - condition: state
-      entity_id: input_boolean.party_in_the_back_yard
-      state:
-      - 'off'
   actions:
   - metadata: {}
     data:
@@ -17208,6 +15224,10 @@
       entity_id: binary_sensor.patio_door_zone_person_occupancy
       state:
       - 'on'
+  - condition: state
+    entity_id: input_boolean.party_mode
+    state:
+    - 'off'
   actions:
   - metadata: {}
     data:
@@ -17217,3 +15237,873 @@
       entity_id: media_player.mass_patio_wiim_speaker
   mode: parallel
   max: 10
+- id: '1779325664789'
+  alias: 'Alert when someone is on the back door balcony '
+  description: Sends a notification alert when a person is detected in the back door
+    area by the back door exit camera.
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.back_entrance_presence_person_occupancy
+    from:
+    to:
+    - 'on'
+    id: back_door_exit
+    enabled: true
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 1
+  conditions:
+  - condition: state
+    entity_id: input_boolean.party_in_the_back_yard
+    state: 'off'
+  actions:
+  - metadata: {}
+    data:
+      message: Someone is near the back door!
+      title: Someone is near the back door!
+      data:
+        ttl: 0
+        priority: high
+        image: /media/local/back_door_exit_movement.png
+        actions:
+        - action: blow_back_door_horn
+          title: Blow the horn for 2 minutes?
+        channel: security_alerts_notifications
+    action: notify.maxi_notification_group
+  - metadata: {}
+    data:
+      filename: /media/back_door_exit_movement.png
+    action: camera.snapshot
+    target:
+      entity_id: camera.back_door_camera
+  - wait_for_trigger:
+    - event_type: mobile_app_notification_action
+      context:
+        user_id:
+        - 7f1de31122574f6fa2215e519d6083ea
+      event_data:
+        action: blow_back_door_horn
+      trigger: event
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 5
+      seconds: 0
+      milliseconds: 0
+  - metadata: {}
+    data: {}
+    action: switch.turn_on
+    target:
+      entity_id: switch.plug_back_door_horn
+  mode: parallel
+  max: 4
+- id: '1779463183631'
+  alias: Manage House Sitting Mode when Maxi leaves/enters Montreal/home
+  description: Activates house sitting mode when Maximiliano leaves Montreal zone,
+    deactivates when he returns home
+  triggers:
+  - trigger: zone
+    entity_id: person.maximiliano
+    zone: zone.zone_around_montreal
+    event: leave
+    id: leaving_montreal
+  - trigger: zone
+    entity_id: person.maximiliano
+    zone: zone.home
+    event: enter
+    id: entering_home
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - leaving_montreal
+      sequence:
+      - action: input_boolean.turn_on
+        metadata: {}
+        target:
+          entity_id: input_boolean.house_sitting_mode
+        data: {}
+    - conditions:
+      - condition: trigger
+        id:
+        - entering_home
+      sequence:
+      - action: input_boolean.turn_off
+        metadata: {}
+        target:
+          entity_id: input_boolean.house_sitting_mode
+        data: {}
+  mode: single
+- id: '1779475899014'
+  alias: Alert when someone  is going through the entire yard toward the hobo stash
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_camera_bicycle_occupancy
+    to:
+    - 'on'
+    id: parking_bicycle_occupancy
+    enabled: false
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_camera_person_occupancy
+    to:
+    - 'on'
+    id: parking_person_occupancy
+    enabled: false
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_bicycle_occupancy
+    to:
+    - 'on'
+    id: parking_exit_bicycle_occupancy
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    to:
+    - 'on'
+    id: parking_exit_person_occupancy
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_yard_entrance_zone_all_occupancy
+    to:
+    - 'on'
+    id: back_yard_entrance_occupancy
+    enabled: false
+  conditions:
+  - condition: state
+    entity_id: input_boolean.house_sitting_mode
+    state:
+    - 'off'
+  actions:
+  - if:
+    - condition: trigger
+      id:
+      - parking_exit_person_occupancy
+      - parking_exit_bicycle_occupancy
+    then:
+    - metadata: {}
+      data:
+        filename: /media/parking_exit_trigger_hobo_stash_capture.png
+      action: camera.snapshot
+      target:
+        entity_id: camera.parking_exit_camera
+    else:
+    - metadata: {}
+      data:
+        filename: /media/hobo_stash_capture.png
+      action: camera.snapshot
+      target:
+        entity_id:
+        - camera.yard_camera_fluent
+  - if:
+    - condition: trigger
+      id:
+      - parking_person_occupancy
+      - parking_bicycle_occupancy
+    then:
+    - metadata: {}
+      data:
+        filename: /media/parking_trigger_hobo_stash_capture.png
+      action: camera.snapshot
+      target:
+        entity_id: camera.reolink_parking_camera_fluent
+    else:
+    - metadata: {}
+      data:
+        filename: /media/hobo_stash_capture.png
+      action: camera.snapshot
+      target:
+        entity_id:
+        - camera.yard_camera_fluent
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - binary_sensor.back_yard_camera_all_occupancy
+      to:
+      - 'on'
+      from:
+      - 'off'
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - back_yard_entrance_occupancy
+      sequence:
+      - metadata: {}
+        data:
+          filename: /media/hobo_stash_capture.png
+        action: camera.snapshot
+        target:
+          entity_id:
+          - camera.yard_camera_fluent
+    default:
+    - metadata: {}
+      data:
+        filename: /media/hobo_stash_capture.png
+      action: camera.snapshot
+      target:
+        entity_id:
+        - camera.yard_camera_fluent
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - binary_sensor.hobo_stash_zone_all_occupancy
+      to:
+      - 'on'
+      from:
+      - 'off'
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - parking_exit_person_occupancy
+        - parking_exit_bicycle_occupancy
+      sequence:
+      - metadata: {}
+        data:
+          message: Motion detected towards the hobo stash spot
+          data:
+            ttl: 0
+            priority: high
+            image: /media/local/parking_exit_trigger_hobo_stash_capture.png
+            actions:
+            - action: blow_both_back_horns
+              title: Blow the horn for 2 minutes?
+            channel: security_alerts_notifications
+          title: The hobo Might be back!
+        action: notify.maxi_notification_group
+    - conditions:
+      - condition: trigger
+        id:
+        - parking_bicycle_occupancy
+        - parking_person_occupancy
+      sequence:
+      - metadata: {}
+        data:
+          message: Motion detected towards the hobo stash spot
+          data:
+            ttl: 0
+            priority: high
+            image: /media/local/parking_trigger_hobo_stash_capture.png
+            actions:
+            - action: blow_both_back_horns
+              title: Blow the horn for 2 minutes?
+            channel: security_alerts_notifications
+          title: The hobo Might be back!
+        action: notify.maxi_notification_group
+    default:
+    - metadata: {}
+      data:
+        message: Motion detected towards the hobo stash spot
+        data:
+          ttl: 0
+          priority: high
+          image: /media/local/hobo_stash_capture.png
+          actions:
+          - action: blow_both_back_horns
+            title: Blow the horn for 2 minutes?
+          channel: security_alerts_notifications
+        title: The hobo Might be back!
+      action: notify.maxi_notification_group
+  - wait_for_trigger:
+    - event_type: mobile_app_notification_action
+      context:
+        user_id:
+        - 7f1de31122574f6fa2215e519d6083ea
+      event_data:
+        action: blow_both_back_horns
+      trigger: event
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 10
+      seconds: 0
+      milliseconds: 0
+  - action: switch.turn_on
+    metadata: {}
+    target:
+      entity_id:
+      - switch.plug_back_door_horn
+      - switch.plug_parking_horn
+    data: {}
+  - wait_for_trigger:
+    - trigger: state
+      entity_id:
+      - binary_sensor.back_yard_camera_person_occupancy
+      from:
+      - 'on'
+      to:
+      - 'off'
+      for:
+        hours: 0
+        minutes: 0
+        seconds: 10
+  - action: switch.turn_off
+    metadata: {}
+    target:
+      entity_id:
+      - switch.plug_back_door_horn
+      - switch.plug_parking_horn
+    data: {}
+  mode: parallel
+  max: 6
+- id: '1779644705230'
+  alias: Trigger parking siren for 1 seconds if someone is loitering by the car
+  description: Uses AI vision to analyze parking camera footage when a person is detected
+    near the car after 30 seconds or more, if someone is present, ring the siren for
+    1 horn and await for maxi's signal to trigger the full size hornfor 2minutes
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 30
+    to:
+    - 'on'
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
+    to:
+    - 'on'
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 30
+    to:
+    - 'on'
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 0
+    to:
+    - 'on'
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 30
+    to:
+    - 'on'
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    for:
+      hours: 0
+      minutes: 3
+      seconds: 0
+    to:
+    - 'on'
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    for:
+      hours: 0
+      minutes: 3
+      seconds: 30
+    to:
+    - 'on'
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    for:
+      hours: 0
+      minutes: 4
+      seconds: 0
+    to:
+    - 'on'
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    for:
+      hours: 0
+      minutes: 4
+      seconds: 30
+    to:
+    - 'on'
+  - trigger: state
+    entity_id:
+    - binary_sensor.parking_exit_camera_person_occupancy
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+    to:
+    - 'on'
+  conditions:
+  - condition: or
+    conditions:
+    - condition: state
+      entity_id: binary_sensor.parking_camera_car_occupancy
+      state:
+      - 'on'
+  actions:
+  - action: camera.snapshot
+    metadata: {}
+    target:
+      entity_id: camera.parking_exit_camera
+    data:
+      filename: /media/parking_exit_siren_triggered.png
+  - action: llmvision.stream_analyzer
+    metadata: {}
+    data:
+      duration: 6
+      max_frames: 6
+      include_filename: false
+      target_width: 1280
+      max_tokens: 100
+      temperature: 0.1
+      provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
+      model: Qwen3.5-4B-UD-MTP-Q8_K_XL.gguf
+      message: Answer only with yes or no; Is this person trying to interact with
+        the car?
+      image_entity:
+      - camera.parking_exit_camera
+    response_variable: answer
+  - alias: Stop if no one is trying to touch the car
+    condition: template
+    value_template: '{{ "YES" in answer.response_text | upper }}'
+  - action: light.turn_on
+    metadata: {}
+    target:
+      entity_id: light.parking_exit_camera_floodlight
+    data:
+      brightness_pct: 100
+  - sequence:
+    - action: siren.turn_on
+      metadata: {}
+      data: {}
+      target:
+        entity_id: siren.parking_exit_camera_siren
+    - delay:
+        hours: 0
+        minutes: 0
+        seconds: 0
+        milliseconds: 500
+    - action: siren.turn_off
+      metadata: {}
+      data: {}
+      target:
+        entity_id: siren.parking_exit_camera_siren
+  - metadata: {}
+    data:
+      message: Alerting people in the parking that they are monitored
+      title: Alerting people in the parking that they are monitored
+      data:
+        ttl: 0
+        priority: high
+        image: /media/local/parking_exit_siren_triggered.png
+        actions:
+        - action: blow_parking_horn
+          title: Blow the horn for 2 minutes?
+        channel: security_alerts_notifications
+    action: notify.maxi_notification_group
+  - wait_for_trigger:
+    - event_type: mobile_app_notification_action
+      context:
+        user_id:
+        - 7f1de31122574f6fa2215e519d6083ea
+      event_data:
+        action: blow_parking_horn
+      trigger: event
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 10
+      seconds: 0
+      milliseconds: 0
+  - metadata: {}
+    data: {}
+    action: switch.turn_on
+    target:
+      entity_id: switch.plug_parking_horn
+  mode: parallel
+  max: 3
+- id: '1780337448813'
+  alias: Turn on parking horn when back door horn runs for over 1 minute with presence
+    detected
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - switch.plug_back_door_horn
+    from:
+    - 'off'
+    to:
+    - 'on'
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.back_entrance_presence_person_occupancy
+    state:
+    - 'on'
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    target:
+      entity_id: switch.plug_parking_horn
+    data: {}
+  mode: single
+- id: '1780770158884'
+  alias: ikea Dial kitchen sink automation
+  description: Handles an IKEA SYMFONISK dial in the kitchen, routing volume, play/pause,
+    next track, and stop commands to either the kitchen Chromecast or the WiiM speaker
+    depending on which is actively playing.
+  use_blueprint:
+    path: EPMatt/ikea_e1744.yaml
+    input:
+      integration: ZHA
+      controller_device: 90e066a8ec47945f7d388b40c062898a
+      helper_last_controller_event: input_text.dial_kitchen_sink_helper
+      action_rotate_left:
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
+              %}
+
+              {% set speaker = ''media_player.mass_kitchen_wiim_speaker'' %}
+
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
+
+              {{ ''true''  | bool }}
+
+              {% else %}
+
+              {{ ''false'' | bool }}
+
+              {% endif %}'
+          then:
+          - action: media_player.volume_down
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.universal_kitchen_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_kitchen_wiim_speaker'',
+                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+            target:
+              entity_id: media_player.mass_kitchen_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
+      action_rotate_left_stop: []
+      rotate_right_loop: true
+      rotate_left_loop: true
+      rotate_left_max_loop_repeats: 60
+      rotate_right_max_loop_repeats: 60
+      action_rotate_right:
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
+              %}
+
+              {% set speaker = ''media_player.mass_kitchen_wiim_speaker'' %}
+
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
+
+              {{ ''true''  | bool }}
+
+              {% else %}
+
+              {{ ''false'' | bool }}
+
+              {% endif %}'
+          then:
+          - action: media_player.volume_up
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.universal_kitchen_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_kitchen_wiim_speaker'',
+                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
+            target:
+              entity_id: media_player.mass_kitchen_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
+      helper_debounce_delay: 0
+      action_click_triple:
+      - if:
+        - alias: 'If a chromecast is present '
+          condition: template
+          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
+            %}
+
+            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused''))
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'') and not
+            is_state_attr(chromecast,''app_id'', ''A078F6B0'') %}
+
+            {{ ''true''  | bool }}
+
+            {% else %}
+
+            {{ ''false'' | bool }}
+
+            {% endif %}
+
+
+            '
+          enabled: true
+        then:
+        - action: media_player.turn_off
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.universal_kitchen_chromecast
+          enabled: true
+        else:
+        - action: media_player.turn_off
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.mass_kitchen_wiim_speaker
+      action_click_double:
+      - if:
+        - alias: 'If a chromecast is present '
+          condition: template
+          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
+            %}
+
+            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused''))
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'') and not
+            is_state_attr(chromecast,''app_id'', ''A078F6B0'') %}
+
+            {{ ''true''  | bool }}
+
+            {% else %}
+
+            {{ ''false'' | bool }}
+
+            {% endif %}
+
+
+            '
+          enabled: true
+        then:
+        - action: media_player.media_next_track
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.universal_kitchen_chromecast
+          enabled: true
+        else:
+        - action: media_player.media_next_track
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.mass_kitchen_wiim_speaker
+      action_click_short:
+      - if:
+        - alias: 'If a chromecast is present '
+          condition: template
+          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
+            %}
+
+            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused''))
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'') and not
+            is_state_attr(chromecast,''app_id'', ''A078F6B0'') %}
+
+            {{ ''true''  | bool }}
+
+            {% else %}
+
+            {{ ''false'' | bool }}
+
+            {% endif %}
+
+
+            '
+          enabled: true
+        then:
+        - action: media_player.media_play_pause
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.universal_kitchen_chromecast
+          enabled: true
+        else:
+        - action: media_player.media_play_pause
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.mass_kitchen_wiim_speaker
+- id: '1780853812788'
+  alias: workshop tv hue dial automation
+  description: ''
+  use_blueprint:
+    path: maxi/hue_dial_automation_blueprint.yaml
+    input:
+      dial_device: 11fd71e151b84536a8d2ba74234103f2
+      target_light: light.group_workshop_lights
+- id: '1780854060015'
+  alias: hallway hue dial automation
+  description: ''
+  use_blueprint:
+    path: maxi/hue_dial_automation_blueprint.yaml
+    input:
+      target_light: light.group_hallway_lights
+      dial_device: 746b2468f3ea7789940882ace99453a6
+- id: '1780854223357'
+  alias: lounge hue dial automation
+  description: ''
+  use_blueprint:
+    path: maxi/hue_dial_automation_blueprint.yaml
+    input:
+      dial_device: b78dc2a472af6d380b3218db290e2a0c
+      target_light: light.group_lounge_lights
+- id: '1780854324390'
+  alias: salon hue dial automation
+  description: ''
+  use_blueprint:
+    path: maxi/hue_dial_automation_blueprint.yaml
+    input:
+      dial_device: adbd0698df890961c2ade2e6ce9f3eb2
+      target_light: light.group_salon_lights
+- id: '1780854429717'
+  alias: kitchen hue dial automation
+  description: ''
+  use_blueprint:
+    path: maxi/hue_dial_automation_blueprint.yaml
+    input:
+      target_light: light.group_kitchen_lights
+      dial_device: 26477caec10f84c93ae3b97c6245508a
+- id: '1780854612255'
+  alias: bedroom hue dial automation
+  description: ''
+  use_blueprint:
+    path: maxi/hue_dial_automation_blueprint.yaml
+    input:
+      dial_device: a269f1e24db2b57599069f1d0846806d
+      target_light: light.group_bedroom_lights
+- id: '1780855178606'
+  alias: hotbox hue dial automation
+  description: ''
+  use_blueprint:
+    path: maxi/hue_dial_automation_blueprint.yaml
+    input:
+      dial_device: d55fcc3cdd8aadbe6d38af27ce673738
+      target_light: light.group_hotbox_lights
+- id: '1781183357210'
+  alias: Turn off Workshop sleeper when lights are bright
+  description: Turns off the bedroom sleeper boolean when the bedroom chandelier brightness
+    exceeds 30%, indicating the occupant is awake.
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - light.group_workshop_lights
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 0
+    attribute: brightness
+    above: 70
+  conditions: []
+  actions:
+  - metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.sleeper_in_workshop
+    action: input_boolean.turn_off
+  mode: single
+- id: '1781210475077'
+  alias: Boost assist answers when answering with music
+  description: ''
+  triggers:
+  - entity_id:
+    - assist_satellite.kitchen_assistant_assist_satellite
+    - assist_satellite.saloon_assistant_assist_satellite
+    - assist_satellite.lv_assistant_assist_satellite
+    - assist_satellite.bedroom_assistant_assist_satellite
+    - assist_satellite.desktop_assistant_assist_satellite
+    - assist_satellite.lounge_assistant_assist_satellite
+    - assist_satellite.bathroom_assistant_assist_satellite
+    - assist_satellite.patio_assistant_assist_satellite
+    - assist_satellite.server_assistant_assist_satellite
+    from:
+    trigger: state
+    to:
+    - listening
+  conditions:
+  - alias: Make sure no sleeper is present
+    condition: template
+    value_template: '{{ area_id(trigger.entity_id) | lower | replace(''_top'','''')|
+      replace(''_down'','''') not in states(''sensor.active_sleeper_rooms'') | string
+      | lower }}'
+  - condition: template
+    value_template: '{{ states(area_entities(area_id(trigger.entity_id)) | select(''search'',
+      ''mass'') | first | default(''media_player.none'')) == ''playing'' }}
+
+      '
+  actions:
+  - variables:
+      speaker_gain_entity: '{{ area_entities(area_id(trigger.entity_id) | select(''match'',''.*speaker_gain''))
+        | list }}
+
+        '
+  - action: input_number.set_value
+    metadata: {}
+    target:
+      entity_id: '{{ speaker_gain_entity }}
+
+        '
+    data:
+      value: 12
+  - wait_for_trigger:
+    - trigger: template
+      value_template: '{{ states(trigger.entity_id) == ''idle''}}'
+    continue_on_timeout: true
+    timeout:
+      hours: 0
+      minutes: 1
+      seconds: 0
+      milliseconds: 0
+  - action: input_number.set_value
+    metadata: {}
+    target:
+      entity_id: '{{ speaker_gain_entity }}
+
+        '
+    data:
+      value: 4
+  mode: single

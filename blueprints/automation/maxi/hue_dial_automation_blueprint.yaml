@@ -1,0 +1,228 @@
+blueprint:
+  name: Hue Dial Light Controller
+  description: >-
+    Controls a light group using a Hue dial remote, supporting light toggle,
+    full brightness, brightness adjustment via dial rotation, color effects,
+    and dim-to-minimum via button presses. Select the dial device and the light
+    (group) to control.
+  domain: automation
+  input:
+    dial_device:
+      name: Hue Dial Remote
+      description: The ZHA Hue dial / remote device that triggers the automation.
+      selector:
+        device:
+          integration: zha
+    target_light:
+      name: Light / Light Group
+      description: >-
+        The light or light group to control. A light group entity works best so
+        the brightness conditions and color logic operate on the whole group.
+      selector:
+        entity:
+          domain: light
+
+mode: single
+
+variables:
+  # Needed so the entity can be referenced from inside Jinja templates
+  # (expand(), state_attr(), etc.). !input cannot be used directly in a template.
+  controlled_light: !input target_light
+
+triggers:
+  - device_id: !input dial_device
+    domain: zha
+    type: remote_button_short_press
+    subtype: dim_up
+    trigger: device
+    id: brightness_step_up
+  - device_id: !input dial_device
+    domain: zha
+    type: remote_button_short_press
+    subtype: dim_down
+    trigger: device
+    id: brightness_step_down
+  - device_id: !input dial_device
+    domain: zha
+    type: remote_button_short_press
+    subtype: button_1
+    trigger: device
+    id: button_1_press
+  - device_id: !input dial_device
+    domain: zha
+    type: remote_button_short_press
+    subtype: button_2
+    trigger: device
+    id: button_2_press
+  - device_id: !input dial_device
+    domain: zha
+    type: remote_button_short_press
+    subtype: button_3
+    trigger: device
+    id: button_3_press
+  - device_id: !input dial_device
+    domain: zha
+    type: remote_button_short_press
+    subtype: button_4
+    trigger: device
+    id: button_4_press
+  - device_id: !input dial_device
+    domain: zha
+    type: remote_button_long_press
+    subtype: button_2
+    trigger: device
+    id: button_2_hold
+  - device_id: !input dial_device
+    domain: zha
+    type: remote_button_long_press
+    subtype: button_1
+    trigger: device
+    id: button_1_hold
+
+conditions: []
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - button_1_press
+        sequence:
+          - action: light.toggle
+            metadata: {}
+            data:
+              transition: 2
+            target:
+              entity_id: !input target_light
+      - conditions:
+          - condition: trigger
+            id:
+              - button_1_hold
+        sequence:
+          - action: light.toggle
+            metadata: {}
+            data:
+              transition: 2
+              brightness_pct: 100
+              color_temp_kelvin: 4922
+            target:
+              entity_id: !input target_light
+          - choose:
+              - conditions: []
+                sequence: []
+              - conditions:
+                  - condition: state
+                    entity_id: !input target_light
+                    attribute: brightness
+                    state: ""
+                  - condition: numeric_state
+                    entity_id: !input target_light
+                    attribute: brightness
+                    below: 99
+                sequence:
+                  - action: light.turn_on
+                    metadata: {}
+                    data:
+                      transition: 1
+                      brightness_pct: 100
+                    target:
+                      entity_id: !input target_light
+      - conditions:
+          - condition: trigger
+            id:
+              - button_2_press
+        sequence:
+          - action: light.turn_on
+            metadata: {}
+            data:
+              transition: 1
+              color_temp_kelvin: 5238
+              brightness_pct: 100
+            target:
+              entity_id: !input target_light
+      - conditions:
+          - condition: trigger
+            id:
+              - button_3_press
+        sequence:
+          - action: script.change_received_lights_to_random_colors
+            metadata: {}
+            data:
+              light:
+                - !input target_light
+              saturation: 100
+      - conditions:
+          - condition: trigger
+            id:
+              - button_4_press
+        sequence:
+          - action: light.turn_on
+            metadata: {}
+            data:
+              brightness_pct: 1
+            target:
+              entity_id: !input target_light
+      - conditions:
+          - condition: trigger
+            id:
+              - button_2_hold
+        sequence: []
+      - conditions:
+          - condition: trigger
+            id:
+              - brightness_step_up
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: numeric_state
+                    entity_id: !input target_light
+                    attribute: brightness
+                    enabled: true
+                    above: 253
+                sequence:
+                  - variables:
+                      lights_saturated: >
+                        {{ expand(controlled_light)    |
+                        selectattr('attributes.hs_color', 'defined') |
+                        map(attribute='entity_id') | list }}
+                  - repeat:
+                      for_each: "{{lights_saturated}}"
+                      sequence:
+                        - action: light.turn_on
+                          metadata: {}
+                          data:
+                            hs_color: >
+                              {% set sat = ((state_attr(repeat.item,'hs_color')
+                              ).1 - 7) %}
+                              {{[state_attr(repeat.item,'hs_color').0] +  [([0,
+                              sat, 100]|sort)[1]] }}
+                            transition: 1
+                          target:
+                            entity_id: |
+                              {{ repeat.item }}
+            default:
+              - action: light.turn_on
+                metadata: {}
+                data:
+                  brightness_step_pct: 10
+                  transition: 1
+                target:
+                  entity_id: !input target_light
+      - conditions:
+          - condition: trigger
+            id:
+              - brightness_step_down
+        sequence:
+          - action: light.turn_on
+            metadata: {}
+            data:
+              transition: 1
+              brightness_step_pct: -15
+            target:
+              entity_id: !input target_light
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 0
+      milliseconds: 50
+    enabled: false

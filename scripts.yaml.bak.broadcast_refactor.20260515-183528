@@ -1,611 +1,460 @@
 broadcast_alert_in_the_house:
   alias: important broadcast alert in the house
-  description: Orchestrator for important broadcast alerts. Captures chromecast state
-    once, then dispatches each delivery channel (lights, TTS, audio URL, phone notifications,
-    TV image/URL, chromecast pausing) to a dedicated `broadcast_alert_*` sub-script
-    that runs in parallel. Supports Lylou-alone mode for hotbox-specific alerts.
-  fields:
-    color:
-      description: Optional color name used to flash the notification lights.
-      example: red
-      required: false
-      selector:
-        text: {}
-    message:
-      description: Text-to-speech message to announce on speakers.
-      required: false
-      selector:
-        text:
-          multiline: true
-    broadcast_url:
-      description: Audio URL to broadcast on speakers via Music Assistant.
-      required: false
-      selector:
-        text: {}
-    phone_data:
-      description: Data object forwarded to the user notify groups.
-      required: false
-      selector:
-        object: {}
-    image:
-      description: Image URL to display on idle Chromecast TVs.
-      required: false
-      selector:
-        text: {}
-    url:
-      description: Web URL to display on idle Chromecast TVs (takes priority over
-        image).
-      required: false
-      selector:
-        text: {}
+  description: 'Sends an important broadcast alert throughout the house using multiple
+    channels simultaneously: flashes notification lights (with optional color), announces
+    a TTS message or audio URL on all speakers, sends phone notifications, and displays
+    images or URLs on idle Chromecast TVs. Supports Lylou-alone mode for hotbox-specific
+    alerts.'
   sequence:
-  - alias: Capture chromecast state in a single pass
-    variables:
-      cast_entities: "{{ integration_entities('cast')\n   | select('search', 'chromecast')\n
-        \  | expand | list }}"
-      playing_chromecasts: "{{ cast_entities\n   | selectattr('state', 'eq', 'playing')\n
-        \  | map(attribute='entity_id') | list }}"
-      non_playing_chromecasts: "{{ cast_entities\n   | rejectattr('state', 'eq', 'playing')\n
-        \  | map(attribute='entity_id') | list }}"
-      lylou_alone: '{{ is_state(''binary_sensor.lylou_alone'', ''on'') }}'
-      has_color: '{{ color is defined and color is not none and (color | string |
-        trim) != '''' }}'
-      has_message: '{{ message is defined and message is not none and (message | string
-        | trim) != '''' }}'
-      has_broadcast_url: '{{ broadcast_url is defined and broadcast_url is not none
-        and (broadcast_url | string | trim) != '''' }}'
-      has_phone_data: '{{ phone_data is defined and phone_data is not none }}'
-      has_image: '{{ image is defined and image is not none and (image | string |
-        trim) != '''' }}'
-      has_url: '{{ url is defined and url is not none and (url | string | trim) !=
-        '''' }}'
+  - variables:
+      playing_chromecasts: '{{ integration_entities(''cast'') |  select(''search'',
+        ''chromecast'') | expand | selectattr(''state'', ''eq'', ''playing'')| map(attribute=''entity_id'')|
+        list }}
+
+        '
+      non_playing_chromecasts: '{{ integration_entities(''cast'') |  select(''search'',
+        ''chromecast'') | expand | rejectattr(''state'', ''eq'', ''playing'')| map(attribute=''entity_id'')|
+        list }}
+
+        '
+    alias: Store Chromecasts in variables
   - parallel:
-    - alias: Flash hotbox lights (Lylou-alone mode)
-      if:
-      - condition: template
-        value_template: '{{ lylou_alone and has_color }}'
-      then:
-      - action: script.broadcast_alert_flash_hotbox_lights
-        data:
-          color: '{{ color }}'
-        continue_on_error: true
-    - alias: Flash whole-house notification lights
-      if:
-      - condition: template
-        value_template: '{{ has_color }}'
-      then:
-      - action: script.broadcast_alert_flash_notification_lights
-        data:
-          color: '{{ color }}'
-        continue_on_error: true
-    - alias: TTS announcement on speakers
-      if:
-      - condition: template
-        value_template: '{{ has_message }}'
+    - if:
       - condition: state
-        entity_id: input_boolean.party_mode
-        state:
-        - 'off'
+        entity_id: binary_sensor.lylou_alone
+        state: 'on'
       then:
-      - action: script.broadcast_alert_tts_announce
-        data:
-          message: '{{ message }}'
-        continue_on_error: true
-    - alias: Audio URL broadcast on speakers
+      - alias: Lights Lylou
+        sequence:
+        - variables:
+            light_entity_ids: "{% set light_group = state_attr('light.group_hotbox_lights','entity_id')%}
+              \  {% set ns = namespace( rgb_dict= [] ) %} {% for entity_id in light_group
+              %}\n    {% set light_state = states(entity_id)  %}\n    {% set light_rgb_color
+              = state_attr(entity_id, \"rgb_color\") %}\n    {% if light_state !=
+              'unavailable' and light_rgb_color %}\n        {%- set rgb_values = light_rgb_color
+              | replace('(','') | replace(')','')| replace(' ','')| string  -%}\n
+              \       {% set rgb_dict = [(entity_id , rgb_values, states(entity_id))]
+              %}\n        {% set ns.rgb_dict = ns.rgb_dict + rgb_dict %}\n    {% elif
+              light_state != 'unavailable' %}\n        {%- set rgb_values = \"0,0,0\"
+              %}\n        {% set rgb_dict = [(entity_id , rgb_values, states(entity_id))]
+              %}\n        {% set ns.rgb_dict = ns.rgb_dict + rgb_dict %}\n    {% endif
+              %}    \n{% endfor %}  {{ ns.rgb_dict }}\n"
+          alias: 'Store Lights entity_id and current rgb values '
+        - alias: Change lights conditionally
+          if:
+          - condition: template
+            value_template: '{% if color is defined %}
+
+              true
+
+              {% else %}
+
+              false
+
+              {% endif %}'
+            alias: ' {{color}} variable  is present'
+          then:
+          - alias: Turn all lights to selected color
+            repeat:
+              sequence:
+              - target:
+                  entity_id: '{{light_entity_ids[repeat.index - 1].0}}'
+                data:
+                  color_name: '{{color}}'
+                enabled: true
+                action: light.turn_on
+              count: '{{ light_entity_ids | length }}'
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 2
+            milliseconds: 250
+        - alias: Restore lights to their initial state
+          repeat:
+            sequence:
+            - if:
+              - condition: template
+                value_template: '{{ light_entity_ids[repeat.index - 1].2 | bool }}'
+              then:
+              - target:
+                  entity_id: '{{light_entity_ids[repeat.index - 1].0}}'
+                data:
+                  rgb_color: '{{light_entity_ids[repeat.index - 1].1}}'
+                enabled: true
+                alias: Turn back on lights to previous state
+                action: light.turn_{{ 'on' if light_entity_ids[repeat.index - 1].2
+                  == 'on' else 'off' }}
+              alias: Turn on lights back to their original colors
+            - if:
+              - condition: template
+                value_template: '{{ not light_entity_ids[repeat.index - 1].2 | bool
+                  }}'
+              then:
+              - target:
+                  entity_id: '{{light_entity_ids[repeat.index - 1].0}}'
+                enabled: true
+                alias: Turn back off lights to previous state
+                action: light.turn_{{ 'on' if light_entity_ids[repeat.index - 1].2
+                  == 'on' else 'off' }}
+              alias: Turn off lights back to off
+            count: '{{ light_entity_ids | length }}'
+    - alias: Lights
+      sequence:
+      - variables:
+          light_entity_ids: "{% set light_group = state_attr('light.group_notifications_light','entity_id')%}
+            \  {% set ns = namespace( rgb_dict= [] ) %} {% for entity_id in light_group
+            %}\n    {% set light_state = states(entity_id)  %}\n    {% set light_rgb_color
+            = state_attr(entity_id, \"rgb_color\") %}\n    {% if light_state != 'unavailable'
+            and light_rgb_color %}\n        {%- set rgb_values = light_rgb_color |
+            replace('(','') | replace(')','')| replace(' ','')| string  -%}\n        {%
+            set rgb_dict = [(entity_id , rgb_values, states(entity_id))] %}\n        {%
+            set ns.rgb_dict = ns.rgb_dict + rgb_dict %}\n    {% elif light_state !=
+            'unavailable' %}\n        {%- set rgb_values = \"0,0,0\" %}\n        {%
+            set rgb_dict = [(entity_id , rgb_values, states(entity_id))] %}\n        {%
+            set ns.rgb_dict = ns.rgb_dict + rgb_dict %}\n    {% endif %}    \n{% endfor
+            %}  {{ ns.rgb_dict }}\n"
+        alias: 'Store Lights entity_id and current rgb values '
+      - alias: Change lights conditionally
+        if:
+        - condition: template
+          value_template: '{% if color is defined %}
+
+            true
+
+            {% else %}
+
+            false
+
+            {% endif %}'
+          alias: ' {{color}} variable  is present'
+        then:
+        - alias: Turn all lights to selected color
+          repeat:
+            sequence:
+            - target:
+                entity_id: '{{light_entity_ids[repeat.index - 1].0}}'
+              data:
+                color_name: '{{color}}'
+              enabled: true
+              action: light.turn_on
+            count: '{{ light_entity_ids | length }}'
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 2
+            milliseconds: 250
+        - alias: Restore lights to their initial state
+          repeat:
+            sequence:
+            - if:
+              - condition: template
+                value_template: '{{ light_entity_ids[repeat.index - 1].2 | bool }}'
+              then:
+              - target:
+                  entity_id: '{{light_entity_ids[repeat.index - 1].0}}'
+                data:
+                  rgb_color: '{{light_entity_ids[repeat.index - 1].1}}'
+                enabled: true
+                alias: Turn back on lights to previous state
+                action: light.turn_{{ 'on' if light_entity_ids[repeat.index - 1].2
+                  == 'on' else 'off' }}
+              alias: Turn on lights back to their original colors
+            - if:
+              - condition: template
+                value_template: '{{ not light_entity_ids[repeat.index - 1].2 | bool
+                  }}'
+              then:
+              - target:
+                  entity_id: '{{light_entity_ids[repeat.index - 1].0}}'
+                enabled: true
+                alias: Turn back off lights to previous state
+                action: light.turn_{{ 'on' if light_entity_ids[repeat.index - 1].2
+                  == 'on' else 'off' }}
+              alias: Turn off lights back to off
+            count: '{{ light_entity_ids | length }}'
+      enabled: true
+    - alias: music assistant Announcements
       if:
       - condition: template
-        value_template: '{{ has_broadcast_url }}'
-      - condition: state
-        entity_id: input_boolean.party_mode
-        state:
-        - 'off'
+        value_template: '{% if message is defined %}
+
+          true
+
+          {% else %}
+
+          false
+
+          {% endif %}'
       then:
-      - action: script.broadcast_alert_play_audio_url
-        data:
-          broadcast_url: '{{ broadcast_url }}'
-          include_hotbox: '{{ lylou_alone }}'
-        continue_on_error: true
-    - alias: Phone notifications
+      - alias: Announcements via Music Assistant
+        parallel:
+        - alias: Announce in the home group
+          action: music_assistant.play_announcement
+          data:
+            url: media-source://tts/tts.piper_2?message={{ message | urlencode }}&cache=true
+            announce_volume: 35
+          target:
+            entity_id: media_player.group_mass_home_group_speakers
+          continue_on_error: true
+          enabled: false
+        - action: tts.speak
+          metadata: {}
+          target:
+            entity_id: tts.piper_2
+          data:
+            cache: true
+            media_player_entity_id: media_player.group_mass_home_group_speakers
+            message: '{{ message }}'
+          continue_on_error: true
+        - if:
+          - condition: state
+            entity_id: input_boolean.sleeper_in_bedroom
+            state: 'off'
+          then:
+          - action: tts.speak
+            metadata: {}
+            target:
+              entity_id: tts.piper_2
+            data:
+              cache: true
+              media_player_entity_id: media_player.mass_bedroom_wiim_speaker
+              message: '{{ message }}'
+            continue_on_error: true
+        - action: tts.speak
+          metadata: {}
+          target:
+            entity_id: tts.piper_2
+          data:
+            cache: true
+            media_player_entity_id: media_player.mass_bathroom_vpe_speaker
+            message: '{{ message }}'
+          continue_on_error: true
+      enabled: true
+    - alias: music assistant Announcements
       if:
       - condition: template
-        value_template: '{{ has_phone_data }}'
+        value_template: '{% if broadcast_url is defined %}
+
+          true
+
+          {% else %}
+
+          false
+
+          {% endif %}'
       then:
-      - action: script.broadcast_alert_send_phone_notification
-        data:
-          phone_data: '{{ phone_data }}'
-        continue_on_error: true
-    - alias: TV display - image (only when url is not provided)
+      - alias: Announcements via Music Assistant
+        parallel:
+        - action: music_assistant.play_announcement
+          data:
+            url: '{{ broadcast_url }}'
+            announce_volume: 35
+          target:
+            entity_id: media_player.group_mass_home_group_speakers
+          continue_on_error: true
+        - action: music_assistant.play_announcement
+          data:
+            url: '{{ broadcast_url }}'
+            announce_volume: 35
+          target:
+            entity_id: media_player.mass_bedroom_wiim_speaker
+          continue_on_error: true
+        - alias: Announce in the closet
+          action: music_assistant.play_announcement
+          data:
+            url: '{{ broadcast_url }}'
+            announce_volume: 35
+          target:
+            entity_id: media_player.mass_closet_wiim_speaker
+          continue_on_error: true
+        - alias: Announce in the bathroom
+          action: music_assistant.play_announcement
+          data:
+            url: '{{ broadcast_url }}'
+            announce_volume: 35
+          target:
+            entity_id: media_player.mass_bathroom_vpe_speaker
+          continue_on_error: true
+        - if:
+          - condition: state
+            entity_id: binary_sensor.lylou_alone
+            state: 'on'
+          then:
+          - alias: Announce in the hotbox
+            action: music_assistant.play_announcement
+            data:
+              url: '{{ broadcast_url }}'
+              announce_volume: 35
+            target:
+              entity_id: media_player.mass_hotbox_wiim_speaker
+            continue_on_error: true
+      enabled: true
+    - alias: 'Notifications '
       if:
       - condition: template
-        value_template: '{{ has_image and not has_url }}'
-      - condition: state
-        entity_id: input_boolean.party_mode
-        state:
-        - 'off'
+        value_template: '{% if phone_data is defined %}
+
+          true
+
+          {% else %}
+
+          false
+
+          {% endif %}'
+      then:
+      - action: notify.users_notification_group
+        metadata: {}
+        data: '{{ phone_data  }}
+
+          '
+      - action: notify.maxi_notification_group
+        metadata: {}
+        data: "{{ phone_data }}\ndata:\n  ttl: 0\n  priority: high\n"
         enabled: false
-      then:
-      - action: script.broadcast_alert_display_image_on_tvs
-        data:
-          image: '{{ image }}'
-          non_playing_chromecasts: '{{ non_playing_chromecasts }}'
+      enabled: true
+    - alias: TVs
+      parallel:
+      - alias: Broadcast image to paused TVs if image is present
+        if:
+        - condition: template
+          value_template: '{% if image is defined and not url is defined %}
+
+            true
+
+            {% else %}
+
+            false
+
+            {% endif %}'
+        then:
+        - sequence:
+          - alias: Broadcast Image to paused chromecasts
+            repeat:
+              sequence:
+              - data:
+                  entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
+                  media:
+                    media_content_id: '{{image}}'
+                    media_content_type: image
+                    metadata: {}
+                action: media_player.play_media
+              for_each: '{{ non_playing_chromecasts }}'
+        - action: dash_cast.load_url
+          metadata: {}
+          data:
+            force: false
+            reload_seconds: 0
+            entity_id: media_player.kitchen_google_hub
+            url: '{{image}}'
+        - wait_for_trigger:
+          - trigger: state
+            entity_id:
+            - lock.lock_front_door
+            from:
+            - unlocked
+            - locking
+            to:
+            - locked
+            for:
+              hours: 0
+              minutes: 0
+              seconds: 0
+          continue_on_timeout: true
+          timeout:
+            hours: 0
+            minutes: 3
+            seconds: 0
+            milliseconds: 0
+        - action: media_player.turn_off
+          metadata: {}
+          data: {}
+          target:
+            entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
+        enabled: true
         continue_on_error: true
-    - alias: TV display - URL
-      if:
-      - condition: template
-        value_template: '{{ has_url }}'
-      - condition: state
-        entity_id: input_boolean.party_mode
-        state:
-        - 'off'
-        enabled: false
-      then:
-      - action: script.broadcast_alert_display_url_on_tvs
-        data:
-          url: '{{ url }}'
-          non_playing_chromecasts: '{{ non_playing_chromecasts }}'
+      - alias: Broadcast image to paused TVs if url is present
+        if:
+        - condition: template
+          value_template: '{% if url is defined %}
+
+            true
+
+            {% else %}
+
+            false
+
+            {% endif %}'
+        then:
+        - sequence:
+          - alias: Broadcast URL  to paused chromecasts
+            repeat:
+              sequence:
+              - action: dash_cast.load_url
+                metadata: {}
+                data:
+                  force: true
+                  reload_seconds: 0
+                  entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
+                  url: '{{url}}'
+              - wait_for_trigger:
+                - trigger: state
+                  entity_id:
+                  - lock.lock_front_door
+                  from:
+                  - unlocked
+                  - locking
+                  to:
+                  - locked
+                  for:
+                    hours: 0
+                    minutes: 0
+                    seconds: 0
+                timeout:
+                  hours: 0
+                  minutes: 1
+                  seconds: 0
+                  milliseconds: 0
+                continue_on_timeout: true
+              - action: media_player.turn_off
+                metadata: {}
+                data: {}
+                target:
+                  entity_id: '{{non_playing_chromecasts[repeat.index - 1]}}'
+              for_each: '{{ non_playing_chromecasts }}'
+        - action: dash_cast.load_url
+          metadata: {}
+          data:
+            force: true
+            reload_seconds: 0
+            entity_id: media_player.kitchen_google_hub
+            url: '{{url}}'
+        enabled: true
         continue_on_error: true
-    - alias: Pause playing chromecasts (skip during party mode)
-      if:
-      - condition: state
-        entity_id: input_boolean.party_mode
-        state: 'off'
-      - condition: template
-        value_template: '{{ playing_chromecasts | length > 0 }}'
-      then:
-      - action: script.broadcast_alert_pause_chromecasts
-        data:
-          playing_chromecasts: '{{ playing_chromecasts }}'
-        continue_on_error: true
+      - if:
+        - condition: state
+          entity_id: input_boolean.party_mode
+          state: 'off'
+        then:
+        - alias: Pause Playing Chromecasts
+          repeat:
+            sequence:
+            - metadata: {}
+              data: {}
+              target:
+                entity_id: '{{playing_chromecasts[repeat.index - 1]}}'
+              action: media_player.media_pause
+            for_each: '{{ playing_chromecasts }}'
+          enabled: true
+          continue_on_error: true
+      enabled: true
   - delay:
+      hours: 0
+      minutes: 0
       seconds: 5
-  mode: queued
+      milliseconds: 0
+  mode: parallel
   icon: mdi:speaker-message
   max: 5
-broadcast_alert_flash_lights:
-  alias: Broadcast alert - flash light group (internal impl)
-  description: 'INTERNAL flash implementation. Snapshots every member of `light_group`,
-    flashes them to `color`, then restores their captured state. Two concurrent calls
-    with the same `light_group` will race: the second call can snapshot the first
-    call''s flash color and persist it on restore. To stay race-safe, call this only
-    via the queued per-group wrappers (`broadcast_alert_flash_hotbox_lights`, `broadcast_alert_flash_notification_lights`)
-    -- the orchestrator does.'
-  fields:
-    light_group:
-      description: Group light entity whose members will be flashed.
-      required: true
-      selector:
-        entity:
-          domain: light
-    color:
-      description: Color name to flash the lights to.
-      required: true
-      selector:
-        text: {}
-    duration_ms:
-      description: How long to hold the flash colour before restoring (milliseconds).
-      required: false
-      default: 2250
-      selector:
-        number:
-          min: 100
-          max: 10000
-          unit_of_measurement: ms
-  sequence:
-  - alias: Snapshot each member's on/off state and rgb_color
-    variables:
-      lights_state: "{%- set members = state_attr(light_group, 'entity_id') or []
-        -%} {%- set ns = namespace(items=[]) -%} {%- for entity_id in members -%}\n
-        \ {%- set s = states(entity_id) -%}\n  {%- if s != 'unavailable' -%}\n    {%-
-        set rgb = state_attr(entity_id, 'rgb_color') -%}\n    {%- set rgb_list = (rgb
-        | list) if rgb else [0, 0, 0] -%}\n    {%- set ns.items = ns.items + [{'entity_id':
-        entity_id, 'rgb': rgb_list, 'state': s}] -%}\n  {%- endif -%}\n{%- endfor
-        -%} {{ ns.items }}"
-      light_ids: "{%- set members = state_attr(light_group, 'entity_id') or [] -%}
-        \n{%- set ns  = namespace(items=[]) -%} {%- for entity_id in members -%}\n{%-
-        set s = states(entity_id) -%}\n{%- if s != 'unavailable' -%}\n  {%- set rgb
-        = state_attr(entity_id, 'rgb_color') -%}\n  {%- set rgb_list = (rgb | list)
-        if rgb else [0, 0, 0] -%}\n  {%- set ns.items = ns.items +  [entity_id] -%}\n{%-
-        endif -%}\n{%- endfor -%} {{ ns.items }}\n"
-  - action: light.turn_on
-    target:
-      entity_id: '{{ light_ids }}'
-    data:
-      color_name: '{{ color }}'
-    continue_on_error: true
-  - alias: Flash all snapshotted lights to the requested colour
-    repeat:
-      for_each: '{{ lights_state }}'
-      sequence:
-      - action: light.turn_on
-        target:
-          entity_id: '{{ repeat.item.entity_id }}'
-        data:
-          color_name: '{{ color }}'
-        continue_on_error: true
-    enabled: false
-  - delay:
-      milliseconds: '{{ duration_ms | default(2250) | int }}'
-  - alias: Restore each light to its captured state
-    repeat:
-      for_each: '{{ lights_state }}'
-      sequence:
-      - choose:
-        - conditions:
-          - condition: template
-            value_template: '{{ repeat.item.state == ''on'' }}'
-          sequence:
-          - action: light.turn_on
-            target:
-              entity_id: '{{ repeat.item.entity_id }}'
-            data:
-              rgb_color: '{{ repeat.item.rgb }}'
-            continue_on_error: true
-        default:
-        - action: light.turn_off
-          target:
-            entity_id: '{{ repeat.item.entity_id }}'
-          continue_on_error: true
-  mode: queued
-  max: 3
-  icon: mdi:lightbulb-alert
-broadcast_alert_flash_hotbox_lights:
-  alias: Broadcast alert - flash hotbox lights (queued)
-  description: Queued wrapper around `broadcast_alert_flash_lights` for the hotbox
-    group. Rapid calls serialize so each invocation always snapshots the real prior
-    state (not another invocation's mid-flash colour). Other light groups are unaffected
-    and can flash in parallel.
-  fields:
-    color:
-      description: Color name to flash the hotbox lights to.
-      required: true
-      selector:
-        text: {}
-    duration_ms:
-      description: How long to hold the flash colour before restoring (milliseconds).
-      required: false
-      default: 2250
-      selector:
-        number:
-          min: 100
-          max: 10000
-          unit_of_measurement: ms
-  sequence:
-  - action: script.broadcast_alert_flash_lights
-    data:
-      light_group: light.group_hotbox_lights
-      color: '{{ color }}'
-      duration_ms: '{{ duration_ms | default(2250) | int }}'
-  mode: queued
-  max: 10
-  icon: mdi:lightbulb-alert
-broadcast_alert_flash_notification_lights:
-  alias: Broadcast alert - flash notification lights (queued)
-  description: Queued wrapper around `broadcast_alert_flash_lights` for the house-wide
-    notification light group. Rapid calls serialize so each invocation always snapshots
-    the real prior state (not another invocation's mid-flash colour). The hotbox wrapper
-    has its own queue and can flash in parallel.
-  fields:
-    color:
-      description: Color name to flash the notification lights to.
-      required: true
-      selector:
-        text: {}
-    duration_ms:
-      selector:
-        number:
-          min: 100
-          max: 10000
-          unit_of_measurement: ms
-      default: 1000
-  sequence:
-  - action: script.broadcast_alert_flash_lights
-    data:
-      light_group: light.group_notifications_light
-      color: '{{ color }}'
-      duration_ms: '{{ duration_ms | default(2250) | int }}'
-  mode: queued
-  max: 10
-  icon: mdi:lightbulb-alert
-broadcast_alert_tts_announce:
-  alias: Broadcast alert - TTS announcement
-  description: Speaks a TTS message via the Piper engine on the home speaker group,
-    the bathroom speaker, and the bedroom speaker (skipped when someone is sleeping
-    in the bedroom).
-  fields:
-    message:
-      description: Text-to-speech message.
-      required: true
-      selector:
-        text:
-          multiline: true
-  sequence:
-  - parallel:
-    - action: tts.speak
-      target:
-        entity_id: tts.piper_2
-      data:
-        cache: true
-        media_player_entity_id: media_player.group_mass_home_group_speakers
-        message: '{{ message }}'
-      continue_on_error: true
-    - action: tts.speak
-      target:
-        entity_id: tts.piper_2
-      data:
-        cache: true
-        media_player_entity_id: media_player.mass_bathroom_vpe_speaker
-        message: '{{ message }}'
-      continue_on_error: true
-    - if:
-      - condition: state
-        entity_id: input_boolean.sleeper_in_bedroom
-        state: 'off'
-      then:
-      - action: tts.speak
-        target:
-          entity_id: tts.piper_2
-        data:
-          cache: true
-          media_player_entity_id: media_player.mass_bedroom_wiim_speaker
-          message: '{{ message }}'
-        continue_on_error: true
-  mode: parallel
-  max: 10
-  icon: mdi:bullhorn
-broadcast_alert_play_audio_url:
-  alias: Broadcast alert - play audio URL
-  description: Plays an audio URL as a Music Assistant announcement on the home speaker
-    group plus the bedroom, closet, and bathroom speakers. The hotbox speaker is also
-    included when `include_hotbox` is true (Lylou-alone mode).
-  fields:
-    broadcast_url:
-      description: Audio URL to play as an announcement.
-      required: true
-      selector:
-        text: {}
-    include_hotbox:
-      description: Also announce on the hotbox speaker.
-      required: false
-      default: false
-      selector:
-        boolean: {}
-    announce_volume:
-      description: Announcement volume (Music Assistant scale).
-      required: false
-      default: 35
-      selector:
-        number:
-          min: 1
-          max: 100
-  sequence:
-  - parallel:
-    - action: music_assistant.play_announcement
-      data:
-        url: '{{ broadcast_url }}'
-        announce_volume: '{{ announce_volume | default(35) | int }}'
-      target:
-        entity_id: media_player.group_mass_home_group_speakers
-      continue_on_error: true
-    - action: music_assistant.play_announcement
-      data:
-        url: '{{ broadcast_url }}'
-        announce_volume: '{{ announce_volume | default(35) | int }}'
-      target:
-        entity_id: media_player.mass_bedroom_wiim_speaker
-      continue_on_error: true
-    - action: music_assistant.play_announcement
-      data:
-        url: '{{ broadcast_url }}'
-        announce_volume: '{{ announce_volume | default(35) | int }}'
-      target:
-        entity_id: media_player.mass_closet_wiim_speaker
-      continue_on_error: true
-    - action: music_assistant.play_announcement
-      data:
-        url: '{{ broadcast_url }}'
-        announce_volume: '{{ announce_volume | default(35) | int }}'
-      target:
-        entity_id: media_player.mass_bathroom_vpe_speaker
-      continue_on_error: true
-    - if:
-      - '{{ include_hotbox | default(false) | bool }}'
-      then:
-      - action: music_assistant.play_announcement
-        data:
-          url: '{{ broadcast_url }}'
-          announce_volume: '{{ announce_volume | default(35) | int }}'
-        target:
-          entity_id: media_player.mass_hotbox_wiim_speaker
-        continue_on_error: true
-  mode: parallel
-  max: 10
-  icon: mdi:speaker-wireless
-broadcast_alert_send_phone_notification:
-  alias: Broadcast alert - send phone notification
-  description: Forwards a notification payload to the users notification group.
-  fields:
-    phone_data:
-      description: Notification data object (title, message, data, etc.).
-      required: true
-      selector:
-        object: {}
-  sequence:
-  - action: notify.users_notification_group
-    data: '{{ phone_data }}'
-    continue_on_error: true
-  mode: parallel
-  max: 10
-  icon: mdi:cellphone-message
-broadcast_alert_display_image_on_tvs:
-  alias: Broadcast alert - display image on idle TVs
-  description: Casts a static image to all idle Chromecasts and the kitchen Google
-    Hub. Waits until the front door is locked (already-locked is treated as success)
-    before turning the casted TVs off, with a 3-minute safety timeout.
-  fields:
-    image:
-      description: Image URL to cast.
-      required: true
-      selector:
-        text: {}
-    non_playing_chromecasts:
-      description: Idle chromecasts to receive the image.
-      required: true
-      selector:
-        object: {}
-    lock_entity:
-      description: Lock entity whose `locked` state ends the display.
-      required: false
-      default: lock.lock_front_door
-      selector:
-        entity:
-          domain: lock
-    hub_entity:
-      description: Auxiliary screen (e.g. Google Hub) loaded via dash_cast.
-      required: false
-      default: media_player.kitchen_google_hub
-      selector:
-        entity:
-          domain: media_player
-    timeout_minutes:
-      description: Max wait before forcing the display to stop.
-      required: false
-      default: 3
-      selector:
-        number:
-          min: 1
-          max: 10
-  sequence:
-  - alias: Cast the image to every idle chromecast in parallel
-    repeat:
-      for_each: '{{ non_playing_chromecasts }}'
-      sequence:
-      - action: media_player.play_media
-        data:
-          entity_id: '{{ repeat.item }}'
-          media_content_id: '{{ image }}'
-          media_content_type: image
-        continue_on_error: true
-  - alias: Mirror the image on the kitchen hub via dash_cast
-    action: dash_cast.load_url
-    data:
-      force: false
-      reload_seconds: 0
-      entity_id: '{{ hub_entity | default(''media_player.kitchen_google_hub'') }}'
-      url: '{{ image }}'
-    continue_on_error: true
-  - alias: Wait until the front door becomes (or already is) locked
-    wait_template: '{{ is_state(lock_entity | default(''lock.lock_front_door''), ''locked'')
-      }}'
-    continue_on_timeout: true
-    timeout:
-      minutes: '{{ timeout_minutes | default(3) | int }}'
-  - alias: Power off every chromecast we cast to
-    repeat:
-      for_each: '{{ non_playing_chromecasts }}'
-      sequence:
-      - action: media_player.turn_off
-        target:
-          entity_id: '{{ repeat.item }}'
-        continue_on_error: true
-  mode: parallel
-  max: 5
-  icon: mdi:image-broken-variant
-broadcast_alert_display_url_on_tvs:
-  alias: Broadcast alert - display URL on idle TVs
-  description: Loads a URL via dash_cast on every idle Chromecast in parallel plus
-    the kitchen Google Hub. Waits once for the front door to be locked (already-locked
-    is treated as success) before powering the chromecasts off, with a 3-minute safety
-    timeout.
-  fields:
-    url:
-      description: Web URL to load on the TVs.
-      required: true
-      selector:
-        text: {}
-    non_playing_chromecasts:
-      description: Idle chromecasts to load the URL on.
-      required: true
-      selector:
-        object: {}
-    lock_entity:
-      description: Lock entity whose `locked` state ends the display.
-      required: false
-      default: lock.lock_front_door
-      selector:
-        entity:
-          domain: lock
-    hub_entity:
-      description: Auxiliary screen (e.g. Google Hub) loaded via dash_cast.
-      required: false
-      default: media_player.kitchen_google_hub
-      selector:
-        entity:
-          domain: media_player
-    timeout_minutes:
-      description: Max wait before forcing the display to stop.
-      required: false
-      default: 3
-      selector:
-        number:
-          min: 1
-          max: 10
-  sequence:
-  - alias: Load the URL on every idle chromecast in parallel
-    repeat:
-      for_each: '{{ non_playing_chromecasts }}'
-      sequence:
-      - action: dash_cast.load_url
-        data:
-          force: true
-          reload_seconds: 0
-          entity_id: '{{ repeat.item }}'
-          url: '{{ url }}'
-        continue_on_error: true
-  - alias: Mirror the URL on the kitchen hub via dash_cast
-    action: dash_cast.load_url
-    data:
-      force: true
-      reload_seconds: 0
-      entity_id: '{{ hub_entity | default(''media_player.kitchen_google_hub'') }}'
-      url: '{{ url }}'
-    continue_on_error: true
-  - alias: Wait once for the front door to be (or already be) locked
-    wait_template: '{{ is_state(lock_entity | default(''lock.lock_front_door''), ''locked'')
-      }}'
-    continue_on_timeout: true
-    timeout:
-      minutes: '{{ timeout_minutes | default(3) | int }}'
-  - alias: Power off every chromecast we loaded the URL on
-    repeat:
-      for_each: '{{ non_playing_chromecasts }}'
-      sequence:
-      - action: media_player.turn_off
-        target:
-          entity_id: '{{ repeat.item }}'
-        continue_on_error: true
-  mode: parallel
-  max: 5
-  icon: mdi:link-box-variant
-broadcast_alert_pause_chromecasts:
-  alias: Broadcast alert - pause playing chromecasts
-  description: Sends a media_pause command to each chromecast in the supplied list.
-  fields:
-    playing_chromecasts:
-      description: Chromecasts currently in the `playing` state.
-      required: true
-      selector:
-        object: {}
-  sequence:
-  - repeat:
-      for_each: '{{ playing_chromecasts }}'
-      sequence:
-      - action: media_player.media_pause
-        target:
-          entity_id: '{{ repeat.item }}'
-        continue_on_error: true
-  mode: parallel
-  max: 10
-  icon: mdi:pause-circle
 change_received_lights_to_random_colors:
   alias: Change received lights or area to dissimilar random color
   description: Changes each light to a random color, ensuring the new hue is at least
@@ -1144,12 +993,12 @@ changes_all_on_lights_to_warm_colors:
       - metadata: {}
         data:
           hs_color: "{% set hue_under_20 = range(1, 20) | random | string + ',' +
-            40 | string %} {% set hue_over_260 = range(260, 360) | random | string
-            + ',' + 40 | string %} {% set random = range(1, 3) | random %}           {%
+            55 | string %} {% set hue_over_260 = range(260, 360) | random | string
+            + ',' + 55 | string %} {% set random = range(1, 3) | random %}           {%
             if random == 1 %}\n {{hue_under_20 }}\n{% elif random > 1 %}           {{hue_over_260}}
             {%endif%}\n"
         target:
-          entity_id: '{{on_lights[repeat.index - 1 ]}}'
+          entity_id: '{{on_lights[repeat.index - 1]}}'
         action: light.turn_on
         continue_on_error: true
       for_each: '{{ on_lights }}'
@@ -2306,12 +2155,10 @@ find_phone:
     You can then TELL HIM WHERE THE PHONE IS, by looking for ''  {{states(''device_tracker.espresense_phone_maxi'')}}'''
 generate_front_door_person_description:
   sequence:
-  - action: llmvision.stream_analyzer
+  - action: llmvision.image_analyzer
     data:
-      store_in_timeline: true
-      use_memory: true
-      duration: 2
-      max_frames: 3
+      store_in_timeline: false
+      use_memory: false
       include_filename: false
       target_width: 1280
       max_tokens: 3000
@@ -2321,10 +2168,11 @@ generate_front_door_person_description:
       title_field: title
       description_field: description
       provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
+      model: Qwen3.5-4B-UD-Q4_K_XL-with-draft
+      message: Describe in one sentence the human activities in this image, if there
+        is any.
       image_entity:
       - camera.front_door_camera
-      message: 'Describe in one sentence the human activities in this image, if there
-        is any. '
     response_variable: answer
   - stop: Finished
     response_variable: answer
@@ -2333,25 +2181,20 @@ generate_front_door_person_description:
     at the front door. '
 generate_patio_camera_description:
   sequence:
-  - action: llmvision.stream_analyzer
+  - action: llmvision.image_analyzer
     data:
-      store_in_timeline: true
-      use_memory: true
-      duration: 2
-      max_frames: 3
       include_filename: false
-      target_width: 1280
-      max_tokens: 3000
+      target_width: 1024
+      max_tokens: 100
+      temperature: 0.1
+      provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
+      model: Qwen3.5-4B-UD-Q4_K_XL-with-draft
       generate_title: false
       expose_images: false
-      response_format: text
-      title_field: title
-      description_field: description
-      provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
-      image_entity:
-      - camera.patio_camera
       message: 'Describe in one sentence the human activities in this image, if there
         is any. '
+      image_entity:
+      - camera.patio_camera
     response_variable: answer
   - stop: Finished
     response_variable: answer
@@ -2360,25 +2203,20 @@ generate_patio_camera_description:
     on the patio
 generate_back_door_camera_description:
   sequence:
-  - action: llmvision.stream_analyzer
+  - action: llmvision.image_analyzer
     data:
-      store_in_timeline: true
-      use_memory: true
-      duration: 2
-      max_frames: 3
       include_filename: false
-      target_width: 1280
-      max_tokens: 3000
+      target_width: 1024
+      max_tokens: 100
+      temperature: 0.1
+      provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
+      model: Qwen3.5-4B-UD-Q4_K_XL-with-draft
       generate_title: false
       expose_images: false
-      response_format: text
-      title_field: title
-      description_field: description
-      provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
-      image_entity:
-      - camera.back_door_camera
       message: 'Describe in one sentence the human activities in this image, if there
         is any. '
+      image_entity:
+      - camera.back_door_camera
     response_variable: answer
   - stop: Finished
     response_variable: answer
@@ -2482,26 +2320,22 @@ changes_all_on_lights_to_white:
     Take note that it excludes the Hotbox And the Bedroom lights'
 generate_parking_camera_description:
   sequence:
-  - action: llmvision.stream_analyzer
+  - action: llmvision.image_analyzer
+    metadata: {}
     data:
-      store_in_timeline: true
-      use_memory: true
-      duration: 2
-      max_frames: 4
       include_filename: false
       target_width: 1280
       max_tokens: 3000
-      generate_title: false
-      expose_images: false
       response_format: text
       title_field: title
       description_field: description
       provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
+      model: Qwen3.5-4B-UD-Q4_K_XL-with-draft
+      message: Describe in one sentence the human activities in this image, if there
+        is any.
       image_entity:
-      - camera.parking_camera
       - camera.parking_exit_camera
-      message: 'Describe in one sentence the human activities in this image, if there
-        is any. '
+      - camera.parking_camera
     response_variable: answer
   - stop: Finished
     response_variable: answer
@@ -2801,23 +2635,23 @@ generate_back_yard_camera_description:
   sequence:
   - action: llmvision.stream_analyzer
     data:
-      store_in_timeline: true
-      use_memory: true
-      duration: 2
-      max_frames: 3
+      duration: 5
       include_filename: false
       target_width: 1280
-      max_tokens: 3000
       generate_title: false
-      expose_images: false
       response_format: text
-      title_field: title
-      description_field: description
       provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
+      model: Qwen3.5-4B-UD-Q4_K_XL-with-draft
+      message: Describe in one sentence the human activities in this image, if there
+        is any.
+      use_memory: false
+      store_in_timeline: false
       image_entity:
       - camera.back_yard_camera
-      message: 'Describe in one sentence the human activities in this image, if there
-        is any. '
+      max_frames: 10
+      max_tokens: 3000
+      expose_images: false
+      description_field: description
     response_variable: answer
   - stop: Finished
     response_variable: answer
@@ -2936,82 +2770,39 @@ start_a_random_maxi_playlist:
   sequence:
   - variables:
       maxi_playlists:
-      - Maxi's Smart Playlist
-      home_group: media_player.group_mass_home_group_speakers
-      requested_playlist: '{% if requested_playlist is defined and requested_playlist
-        | string | trim -%} {{- requested_playlist | string | trim -}} {%- else -%}
-        Maxi''s Smart Playlist {%- endif %}'
-      home_group_members: "{% set want = ['salon', 'workshop', 'kitchen', 'lounge',
-        'hallway'] -%} {% set ns = namespace(members=[]) -%} {% for aid in areas()
-        -%}\n  {% if ((area_name(aid) or '') | lower) in want -%}\n    {% set ns.members
-        = ns.members + (area_entities(aid) | select('search', 'media_player.mass.*_speaker')
-        | list) -%}\n  {% endif -%}\n{% endfor -%} {{ ns.members | unique | list }}"
-      players: "{% set ns = namespace(players=[]) -%} {% if player_entity is defined
-        and player_entity is mapping and player_entity.entity_id is defined and player_entity.entity_id
-        -%}\n  {% if player_entity.entity_id is string -%}\n    {% set ns.players
-        = [player_entity.entity_id | trim] -%}\n  {% else -%}\n    {% set ns.players
-        = player_entity.entity_id | map('trim') | list -%}\n  {% endif -%}\n{% elif
-        player_entity is defined and player_entity is string and player_entity | trim
-        and '{}' not in player_entity -%}\n  {% set ns.players = [player_entity |
-        trim] -%}\n{% elif area is defined and area -%}\n  {% set areas = area if
-        (area is iterable and area is not string) else [area] -%}\n  {% for a in areas
-        -%}\n    {% set ns.players = ns.players + (area_entities(a) | select('search',
-        'media_player.mass.*_speaker') | list) -%}\n  {% endfor -%}\n{% endif -%}
-        {% set valid = states.media_player | map(attribute='entity_id') | list -%}
-        {% set ns.players = ns.players | select('in', valid) | unique | list -%} {%
-        if ns.players | length == 0 -%}\n  {% set ns.players = [home_group] -%}\n{%
-        endif -%} {{ ns.players }}"
-      leader: '{{ players | first }}'
-      followers: '{{ players[1:] }}'
-  - if:
-    - condition: template
-      value_template: '{{ leader != home_group }}'
-    then:
-    - action: media_player.unjoin
-      target:
-        entity_id: '{{ players }}'
-    - delay:
-        seconds: 1
-  - if:
-    - condition: template
-      value_template: '{{ leader == home_group and home_group_members | length > 0
-        }}'
-    then:
-    - action: media_player.media_stop
-      target:
-        entity_id: '{{ home_group_members }}'
-    - delay:
-        seconds: 1
-    - action: media_player.join
-      target:
-        entity_id: '{{ home_group }}'
-      data:
-        group_members: '{{ home_group_members }}'
-    - delay:
-        seconds: 2
-  - if:
-    - condition: template
-      value_template: '{{ players | length > 1 }}'
-    then:
-    - action: media_player.join
-      target:
-        entity_id: '{{ leader }}'
-      data:
-        group_members: '{{ followers }}'
-    - delay:
-        seconds: 1
+      - ❤️ Tracks
+      - New Local Maxi Playlist
+      - All favorited tracks
+      requested_playlist: '{% if requested_playlist is defined %}
+
+        {{ requested_playlist }}
+
+        {% else %}
+
+        none
+
+        {% endif %}
+
+        '
+      player_entity: "{% if area is defined and area is iterable %}\n  {{ area_entities(area
+        | first ) | select('search', 'media_player.mass.*_speaker') | list | first
+        }}\n{% elif area is defined and area is not iterable %}    \n  {{ area_entities(area
+        | string ) | select('search', 'media_player.mass.*_speaker') | list | first}}\n{%
+        elif player_entity is defined%}  \n   {{ player_entity }}\n {% else %}\n   {%
+        set player_entity = 'media_player.group_mass_home_group_speakers' %} \n   {{player_entity
+        }}\n{% endif %}\n"
   - action: media_player.shuffle_set
     metadata: {}
     data:
       shuffle: true
     target:
-      entity_id: '{{ leader }}'
+      entity_id: '{{player_entity}}'
   - target:
-      entity_id: '{{ leader }}'
+      entity_id: '{{player_entity}}'
     data:
       media:
-        media_content_id: '{% if requested_playlist != ''none'' -%} {{- requested_playlist
-          -}} {%- else -%} {{- maxi_playlists | random -}} {%- endif %}'
+        media_content_id: "{% if requested_playlist != 'none' %}\n  {{ requested_playlist
+          }}\n{% else %}\n {{ maxi_playlists | random }}\n{% endif %}\n"
         media_content_type: playlist
         metadata: {}
     action: media_player.play_media
@@ -3020,17 +2811,19 @@ start_a_random_maxi_playlist:
       selector:
         target: {}
       name: Player entity
-      description: The player(s) to play music on. Accepts one or more media players.
-        The first one becomes the group leader.
+      description: This is the entity to play music on
       default:
         entity_id: media_player.group_mass_home_group_speakers
-      required: false
+      required: true
     requested_playlist:
       selector:
         text:
       name: Requested Playlist
       description: Use this if a specific playlist is requested
       default: none
+    field:
+      selector:
+        text:
     area:
       selector:
         area:
@@ -3039,19 +2832,20 @@ start_a_random_maxi_playlist:
             domain: media_player
           multiple: true
       name: Area
-      description: The area or areas for which the music is requested. If the request
+      description: 'The area or areas for which the music is requested. If the request
         does not mention a target (either an area or a player), use the area the request
-        comes from. If the area can not be determined from the request, or the device
-        the request comes from, do not use this parameter. Only use both the "area"
-        parameter and the "media_player" parameter together if both are specifically
-        used in the request.
+        comes from.
+
+        If the area can not be determined from the request, or the device the request
+        comes from, do not use this parameter.
+
+        Only use both the "area" parameter and the "media_player" parameter together
+        if both are specifically used in the request.'
   alias: Start a random maxi playlist
-  description: Starts music playback on one or more players or areas. Plays a specifically
-    requested playlist or randomly selects from a curated list of Maxi's favorite
-    playlists. Detaches the target player(s) from the home group, and when multiple
-    are requested groups them under the first one. When the home group is the target,
-    rebuilds its membership (Salon, Workshop, Kitchen, Lounge, Hallway) first so it
-    is never empty. Enables shuffle mode.
+  description: Starts music playback on a specified player by either playing a specifically
+    requested playlist or randomly selecting from a curated list of Maxi's favorite
+    playlists. Enables shuffle mode and retries with a fallback playlist if playback
+    fails to start within 15 seconds.
   mode: restart
 change_received_lights_to_random_pastel_colors:
   sequence:
@@ -3659,8 +3453,7 @@ jellyfin_play_random_episode_of_a_selected_tv_show:
         message: No episodes found for '{{ show_name }}'.
 llm_script_to_start_tv_shows_and_movies_on_tvs_duplicate:
   sequence:
-  - alias: Confirm Title through LLM/WebSearch
-    action: ai_task.generate_data
+  - action: ai_task.generate_data
     data:
       task_name: media name lookup
       instructions: 'The user has asked to watch "{{ media_id }}", but he is unsure
@@ -3677,7 +3470,9 @@ llm_script_to_start_tv_shows_and_movies_on_tvs_duplicate:
           required: true
           selector:
             text:
+      entity_id: ai_task.qwen3_5_9b_iq4_xs_4_20bpw_ai_task
     response_variable: media_lookup
+    alias: Confirm Title through LLM/WebSearch
   - if:
     - condition: template
       value_template: '{{ library_name is not defined }}'
@@ -3703,6 +3498,7 @@ llm_script_to_start_tv_shows_and_movies_on_tvs_duplicate:
             required: true
             selector:
               text:
+        entity_id: ai_task.qwen3_5_9b_iq4_xs_4_20bpw_ai_task
       response_variable: media_lookup_library_name
       enabled: true
   - if:
@@ -3731,6 +3527,7 @@ llm_script_to_start_tv_shows_and_movies_on_tvs_duplicate:
             required: true
             selector:
               text:
+        entity_id: ai_task.qwen3_5_9b_iq4_xs_4_20bpw_ai_task
       response_variable: media_lookup_type
   - variables:
       resolved_media_id: '{{ media_lookup.data.media_id_name if media_lookup is defined
@@ -3820,313 +3617,3 @@ llm_script_to_start_tv_shows_and_movies_on_tvs_duplicate:
       name: area
       description: This argument allows the LLM to select the right area to use
   alias: LLM Script to start TV SHOWS and MOVIES on TVs
-generate_front_street_camera_description:
-  sequence:
-  - action: select.select_option
-    metadata: {}
-    target:
-      entity_id: select.front_door_ptz_camera_ptz_preset
-    data:
-      option: Street
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 4
-      milliseconds: 0
-  - action: llmvision.stream_analyzer
-    data:
-      store_in_timeline: true
-      use_memory: true
-      duration: 5
-      max_frames: 3
-      include_filename: false
-      target_width: 1280
-      max_tokens: 3000
-      generate_title: false
-      expose_images: false
-      response_format: text
-      title_field: title
-      description_field: description
-      provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
-      image_entity:
-      - camera.front_door_camera
-      message: 'Describe in one sentence the human activities in this image, if there
-        is any. '
-    response_variable: answer
-  - stop: Finished
-    response_variable: answer
-  alias: Generate front street camera description
-  description: This script can be used by the LLM to describe the current situation
-    at the street in front of the home
-generate_security_audit_and_text_it_to_maxi:
-  sequence:
-  - action: script.generate_front_door_person_description
-    metadata: {}
-    data: {}
-    response_variable: front_door_activity
-    enabled: false
-  - action: script.generate_back_door_camera_description
-    metadata: {}
-    data: {}
-    response_variable: back_door_activity
-    enabled: false
-  - action: script.generate_parking_camera_description
-    metadata: {}
-    data: {}
-    response_variable: parking_activity
-    enabled: false
-  - action: script.generate_patio_camera_description
-    metadata: {}
-    data: {}
-    response_variable: patio_activity
-    enabled: false
-  - action: llmvision.image_analyzer
-    metadata: {}
-    data:
-      store_in_timeline: true
-      use_memory: true
-      include_filename: true
-      target_width: 1280
-      generate_title: true
-      expose_images: false
-      response_format: text
-      provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
-      message: Analyse the following CCTV Images and look for any human activity present.
-      image_entity:
-      - camera.parking_camera
-      - camera.parking_exit_camera
-      - camera.patio_camera
-      - camera.back_door_camera
-      - camera.front_door_camera
-      - camera.back_yard_camera
-      max_tokens: 128
-    response_variable: images_analyzer_activity
-  - variables:
-      compounded_answers: '(''front_door_activity'':{{images_analyzer_activity.response_text}}
-        ) '
-  - action: ai_task.generate_data
-    metadata: {}
-    data:
-      task_name: Security Cameras Overview generation
-      instructions: 'Analyze all the previous activity reports and provide an activity
-        overview, mention only the human acttivity!
-
-        This is the data: ''{{compounded_answers}}''
-
-
-        Be brief! This is an emergency situation.'
-      entity_id: ai_task.qwen3_5_4b_ud_mtp_q8_k_xl_ai_task
-    response_variable: final_audit
-  - metadata: {}
-    data:
-      title: 'Security Report:'
-      data:
-        ttl: 0
-        priority: high
-        channel: security_alerts_notifications
-        color: Red
-      message: '{{final_audit.data}}'
-    action: notify.maxi_notification_group
-  alias: Generate security audit and text it to maxi
-  description: ''
-join_player_to_music_assistant_group:
-  alias: Join player to Music Assistant group
-  description: 'Add a Music Assistant speaker to a sync group. Tell it the area/room
-    of the speaker to add (e.g. "office") and it finds the Music Assistant speaker
-    there automatically. It also auto-detects the group to join: the group currently
-    playing, or the home group when more than one group is playing. Use this when
-    the user asks to add a room/speaker to the music that is already playing, or to
-    group a room with another one.'
-  icon: mdi:speaker-multiple
-  mode: queued
-  max: 10
-  fields:
-    area:
-      name: Area / room of the speaker to add
-      description: The room/area that contains the speaker to add (e.g. Office, Kitchen,
-        Bedroom). The script automatically finds the Music Assistant speaker in that
-        area. This is the easiest and most reliable way to choose a speaker.
-      required: true
-      selector:
-        area:
-    player_to_add:
-      name: Specific player to add (optional override)
-      description: Optional advanced override. A specific Music Assistant media_player
-        entity to add (e.g. media_player.kitchen). If set, the area lookup is skipped.
-      required: false
-      selector:
-        entity:
-          filter:
-          - integration: music_assistant
-            domain: media_player
-      example: media_player.kitchen
-    target_player:
-      name: Target group player (optional)
-      description: Optional. Any Music Assistant media_player that is already in the
-        target group (either the leader or any member). Leave empty to automatically
-        use the Music Assistant group that is currently playing (and the home group
-        if more than one group is playing).
-      required: false
-      selector:
-        entity:
-          filter:
-          - integration: music_assistant
-            domain: media_player
-  sequence:
-  - variables:
-      area_in: '{{ area | default('''') }}'
-      override: '{{ player_to_add | default('''') }}'
-      tgt: '{{ target_player | default('''') }}'
-      home_group: media_player.group_mass_home_group_speakers
-      mass_players: "{{ integration_entities('music_assistant')\n   | select('match',
-        '^media_player\\.') | list }}"
-      add: "{%- set ns = namespace(add='', first='') -%} {%- if override -%}\n  {%-
-        set ns.add = override -%}\n{%- elif area_in -%}\n  {%- set cand = area_entities(area_in)\n
-        \        | select('match', '^media_player\\.')\n         | select('in', mass_players)
-        | list -%}\n  {%- for e in cand -%}\n    {%- if ns.first == '' -%}{%- set
-        ns.first = e -%}{%- endif -%}\n    {%- if ns.add == '' and states(e) not in
-        ['unavailable', 'unknown'] -%}\n      {%- set ns.add = e -%}\n    {%- endif
-        -%}\n  {%- endfor -%}\n  {%- set ns.add = ns.add if ns.add else ns.first -%}\n{%-
-        endif -%} {{ ns.add }}"
-      leader: "{%- set ns = namespace(leader='', others=[], solo=[]) -%} {%- if tgt
-        -%}\n  {%- set gm = state_attr(tgt, 'group_members') -%}\n  {%- set ns.leader
-        = (gm[0] if (gm and (gm | length) > 0) else tgt) -%}\n{%- else -%}\n  {%-
-        set home_state = states(home_group) -%}\n  {%- set home_exists = home_state
-        not in ['unavailable', 'unknown'] -%}\n  {%- set home_playing = home_exists
-        and home_state in ['playing', 'buffering', 'paused'] -%}\n  {%- set home_members
-        = state_attr(home_group, 'group_members') or [] -%}\n  {%- for p in mass_players
-        -%}\n    {%- if p != home_group and p not in home_members -%}\n      {%- set
-        gm = state_attr(p, 'group_members') -%}\n      {%- if gm and (gm | length)
-        > 1 and states(p) in ['playing', 'buffering', 'paused'] -%}\n        {%- set
-        ns.others = ns.others + [gm[0]] -%}\n      {%- elif states(p) in ['playing',
-        'buffering'] -%}\n        {%- set ns.solo = ns.solo + [p] -%}\n      {%- endif
-        -%}\n    {%- endif -%}\n  {%- endfor -%}\n  {%- set ns.others = ns.others
-        | unique | list -%}\n  {%- set total = (ns.others | length) + (1 if home_playing
-        else 0) -%}\n  {%- if total > 1 -%}\n    {%- set ns.leader = home_group if
-        home_exists else ns.others[0] -%}\n  {%- elif total == 1 -%}\n    {%- set
-        ns.leader = home_group if home_playing else ns.others[0] -%}\n  {%- elif (ns.solo
-        | length) > 0 -%}\n    {%- set ns.leader = ns.solo[0] -%}\n  {%- endif -%}\n{%-
-        endif -%} {{ ns.leader }}"
-      current_members: '{{ (state_attr(leader, ''group_members'') or []) if leader
-        else [] }}'
-      target_members: '{{ ((current_members | reject(''eq'', leader) | list) + [add])
-        | unique | list }}'
-      already_member: '{{ add in current_members }}'
-  - choose:
-    - conditions:
-      - condition: template
-        value_template: '{{ not add }}'
-      sequence:
-      - variables:
-          result:
-            success: false
-            message: Could not find a Music Assistant speaker to add. No Music Assistant
-              media_player was found in area '{{ area_in }}'. Make sure the Music
-              Assistant speaker entity (not just the native one) is assigned to that
-              area, or pass player_to_add.
-      - stop: No speaker resolved from area
-        response_variable: result
-    - conditions:
-      - condition: template
-        value_template: '{{ not leader }}'
-      sequence:
-      - variables:
-          result:
-            success: false
-            added: '{{ add }}'
-            message: No Music Assistant group leader could be found. Make sure a Music
-              Assistant player is currently playing, or specify a target_player that
-              is in the desired group.
-      - stop: No Music Assistant leader found
-        response_variable: result
-    - conditions:
-      - condition: template
-        value_template: '{{ add == leader }}'
-      sequence:
-      - variables:
-          result:
-            success: false
-            leader: '{{ leader }}'
-            message: '{{ add }} is already the group leader; nothing to join.'
-      - stop: Requested player is the leader
-        response_variable: result
-    - conditions:
-      - condition: template
-        value_template: '{{ already_member }}'
-      sequence:
-      - variables:
-          result:
-            success: true
-            leader: '{{ leader }}'
-            message: '{{ add }} is already part of the group led by {{ leader }}.'
-      - stop: Requested player already in group
-        response_variable: result
-    default:
-    - action: media_player.join
-      target:
-        entity_id: '{{ leader }}'
-      data:
-        group_members: '{{ target_members }}'
-    - variables:
-        result:
-          success: true
-          leader: '{{ leader }}'
-          added: '{{ add }}'
-          group_members: '{{ target_members }}'
-          message: Added {{ add }} to the Music Assistant group led by {{ leader }}.
-    - stop: Joined
-      response_variable: result
-unjoin_speaker_or_area_from_group:
-  alias: Unjoin speaker or area from group
-  icon: mdi:speaker-off
-  description: Remove Music Assistant speakers from any group / sync group they are
-    playing in, so they play on their own again. Provide `area` to unjoin every Music
-    Assistant speaker in a room (e.g. the user says "unjoin the patio"), and/or `player`
-    to unjoin one specific speaker. Use whenever the user asks to unjoin, ungroup,
-    separate, remove, or split off a speaker or a room from a multi-room / synced
-    group.
-  fields:
-    area:
-      name: Area
-      description: Room/area to unjoin. Every Music Assistant speaker in this area
-        is removed from its group. Use this when the user names a room, e.g. "unjoin
-        the patio".
-      required: false
-      selector:
-        area:
-          entity:
-            integration: music_assistant
-            domain: media_player
-    player:
-      name: Speaker
-      description: A single Music Assistant speaker to unjoin. Use this when the user
-        names a specific speaker instead of (or in addition to) a room.
-      required: false
-      selector:
-        entity:
-          filter:
-          - integration: music_assistant
-            domain: media_player
-  mode: parallel
-  max: 10
-  sequence:
-  - variables:
-      mass_players: "{%- set mass = integration_entities('music_assistant') -%} {%-
-        set ns = namespace(targets=[]) -%} {%- if player is defined and player -%}\n
-        \ {%- set ns.targets = ns.targets + ([player] if player is string else player
-        | list) -%}\n{%- endif -%} {%- if area is defined and area -%}\n  {%- set
-        areas = [area] if area is string else area | list -%}\n  {%- for a in areas
-        -%}\n    {%- for e in area_entities(a) -%}\n      {%- if e in mass and e.startswith('media_player.')
-        -%}\n        {%- set ns.targets = ns.targets + [e] -%}\n      {%- endif -%}\n
-        \   {%- endfor -%}\n  {%- endfor -%}\n{%- endif -%} {{- ns.targets | unique
-        | list }}"
-  - choose:
-    - conditions:
-      - condition: template
-        value_template: '{{ mass_players | count > 0 }}'
-      sequence:
-      - action: media_player.unjoin
-        target:
-          entity_id: '{{ mass_players }}'
-    default:
-    - stop: No Music Assistant speakers found for the requested area/speaker.
