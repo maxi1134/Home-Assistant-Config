@@ -1,0 +1,308 @@
+# =============================================================================
+# Single-page settings layout for the Waveshare P4 Touch (800x1280 portrait).
+#
+# Replaces the carousel pattern used on the round Spotpear panel: on a tall
+# touchscreen all controls fit in one scrollable page, organised by section
+# with horizontal divider lines. Eliminates the per-page swipe navigation
+# that conflicts with the main_page tileview.
+#
+# Bound entities (must exist in the device YAML):
+#   numbers : master_volume, mic_gain (-20..30 dB post-AFE gain)
+#   switches: speaker_mute, mute (mic), auto_answer_switch
+#             dnd_switch, aec_switch, vad_switch
+#             wake_word_switch
+#   selects : aec_mode_select  (options published by esp_afe FD pipeline)
+#
+# Substitutions used (already defined in the device YAML):
+#   ic_settings_row_width      e.g. "600"
+#   ic_settings_slider_height  e.g. "20"
+#   ic_settings_switch_width   e.g. "70"
+#   ic_settings_switch_height  e.g. "36"
+#   ic_settings_label_font     e.g. font_body
+#
+# Animation contract (driven by the device's main_page):
+#   - swipe-up on main_page -> lvgl.page.show: settings_p4_page, MOVE_TOP
+#   - swipe-down on this page -> lvgl.page.show: main_page, MOVE_BOTTOM
+# =============================================================================
+id: settings_p4_page
+bg_color: 0x202020
+on_swipe_down:
+  - lvgl.page.show:
+      id: main_page
+      animation: MOVE_BOTTOM
+      time: 250ms
+widgets:
+  # Full-screen wrapper: explicit pixel dimensions ensure the flex layout
+  # has a deterministic content area to stretch children into. Pages
+  # (top-level LVGL screens) in ESPHome have proven unreliable when used as
+  # flex containers directly; nesting one level fixes it.
+  - obj:
+      x: 0
+      y: 0
+      width: 800
+      height: 1280
+      bg_color: 0x202020
+      border_width: 0
+      pad_top: 18
+      pad_bottom: 20
+      pad_left: 20
+      pad_right: 20
+      scrollable: false
+      on_swipe_down:
+        - lvgl.page.show:
+            id: main_page
+            animation: MOVE_BOTTOM
+            time: 250ms
+      layout:
+        type: flex
+        flex_flow: COLUMN
+        flex_align_main: START
+        flex_align_cross: CENTER
+        pad_row: 8
+      widgets:
+        # ------------------------------------------------------------------
+        # Header
+        # ------------------------------------------------------------------
+        - label:
+            width: ${ic_settings_row_width}
+            text: "Settings"
+            text_align: CENTER
+            text_color: 0xFFFFFF
+            text_font: ${ic_settings_label_font}
+
+        # ==================================================================
+        # SECTION: AUDIO  (2 sliders)
+        # ==================================================================
+        - obj:
+            width: ${ic_settings_row_width}
+            height: 2
+            bg_color: 0x444444
+            border_width: 0
+            pad_all: 0
+        - label:
+            width: ${ic_settings_row_width}
+            text: "Audio"
+            text_align: CENTER
+            text_color: 0x88AAFF
+            text_font: ${ic_settings_label_font}
+        - label:
+            width: ${ic_settings_row_width}
+            text: "Master volume"
+            text_align: CENTER
+            text_color: 0xFFFFFF
+            text_font: ${ic_settings_label_font}
+        - slider:
+            width: ${ic_settings_row_width}
+            id: ui_speaker_vol_slider
+            height: ${ic_settings_slider_height}
+            adv_hittest: true
+            gesture_bubble: true
+            min_value: 0
+            max_value: 100
+            value: !lambda 'return id(master_volume).state;'
+            on_release:
+              - number.set:
+                  id: master_volume
+                  value: !lambda 'return x;'
+        - label:
+            width: ${ic_settings_row_width}
+            text: "Mic gain"
+            text_align: CENTER
+            text_color: 0xFFFFFF
+            text_font: ${ic_settings_label_font}
+        - slider:
+            width: ${ic_settings_row_width}
+            id: ui_mic_vol_slider
+            height: ${ic_settings_slider_height}
+            adv_hittest: true
+            gesture_bubble: true
+            min_value: -20
+            max_value: 30
+            value: !lambda 'return id(mic_gain).state;'
+            on_release:
+              - number.set:
+                  id: mic_gain
+                  value: !lambda 'return x;'
+        # ========================================================================
+        # SECTION: MUTE / AUTO ANSWER
+        # ========================================================================
+        - obj:
+            width: ${ic_settings_row_width}
+            height: 2
+            bg_color: 0x444444
+            border_width: 0
+            pad_all: 0
+        - label:
+            width: ${ic_settings_row_width}
+            text: "Mute"
+            text_align: CENTER
+            text_color: 0x88AAFF
+            text_font: ${ic_settings_label_font}
+        - label:
+            width: ${ic_settings_row_width}
+            text: "Speaker mute"
+            text_align: CENTER
+            text_color: 0xFFFFFF
+            text_font: ${ic_settings_label_font}
+        - switch:
+            id: ui_speaker_mute_sw
+            width: ${ic_settings_switch_width}
+            height: ${ic_settings_switch_height}
+            state:
+              checked: !lambda 'return id(speaker_mute).state;'
+            on_value:
+              - lambda: |-
+                  if (x == id(speaker_mute).state) return;
+                  if (x) id(speaker_mute).turn_on();
+                  else id(speaker_mute).turn_off();
+        - label:
+            width: ${ic_settings_row_width}
+            text: "Mic mute"
+            text_align: CENTER
+            text_color: 0xFFFFFF
+            text_font: ${ic_settings_label_font}
+        - switch:
+            id: ui_mic_mute_sw
+            width: ${ic_settings_switch_width}
+            height: ${ic_settings_switch_height}
+            state:
+              checked: !lambda 'return id(mute).state;'
+            on_value:
+              - lambda: |-
+                  if (x == id(mute).state) return;
+                  if (x) id(mute).turn_on();
+                  else id(mute).turn_off();
+        - label:
+            width: ${ic_settings_row_width}
+            text: "Auto answer"
+            text_align: CENTER
+            text_color: 0xFFFFFF
+            text_font: ${ic_settings_label_font}
+        - switch:
+            id: ui_auto_answer_sw
+            width: ${ic_settings_switch_width}
+            height: ${ic_settings_switch_height}
+            state:
+              checked: !lambda 'return id(auto_answer_switch).state;'
+            on_value:
+              - lambda: |-
+                  if (x == id(auto_answer_switch).state) return;
+                  if (x) id(auto_answer_switch).turn_on();
+                  else id(auto_answer_switch).turn_off();
+        - label:
+            width: ${ic_settings_row_width}
+            text: "Do Not Disturb"
+            text_align: CENTER
+            text_color: 0xFFFFFF
+            text_font: ${ic_settings_label_font}
+        - switch:
+            id: ui_dnd_sw
+            width: ${ic_settings_switch_width}
+            height: ${ic_settings_switch_height}
+            state:
+              checked: !lambda 'return id(dnd_switch).state;'
+            on_value:
+              - lambda: |-
+                  if (x == id(dnd_switch).state) return;
+                  if (x) id(dnd_switch).turn_on();
+                  else id(dnd_switch).turn_off();
+
+        # ========================================================================
+        # SECTION: ECHO CANCELLATION (AEC switch + Mode dropdown)
+        # ========================================================================
+        - obj:
+            width: ${ic_settings_row_width}
+            height: 2
+            bg_color: 0x444444
+            border_width: 0
+            pad_all: 0
+        - label:
+            width: ${ic_settings_row_width}
+            text: "Echo Cancellation"
+            text_align: CENTER
+            text_color: 0x88AAFF
+            text_font: ${ic_settings_label_font}
+        - label:
+            width: ${ic_settings_row_width}
+            text: "AEC"
+            text_align: CENTER
+            text_color: 0xFFFFFF
+            text_font: ${ic_settings_label_font}
+        - switch:
+            id: ui_aec_sw
+            width: ${ic_settings_switch_width}
+            height: ${ic_settings_switch_height}
+            state:
+              checked: !lambda 'return id(aec_switch).state;'
+            on_value:
+              - lambda: |-
+                  if (x == id(aec_switch).state) return;
+                  if (x) id(aec_switch).turn_on();
+                  else id(aec_switch).turn_off();
+        - label:
+            width: ${ic_settings_row_width}
+            text: "AEC mode"
+            text_align: CENTER
+            text_color: 0xFFFFFF
+            text_font: ${ic_settings_label_font}
+        - dropdown:
+            id: ui_aec_mode_dd
+            width: 240
+            options:
+              - "fd_low_cost"
+              - "fd_high_perf"
+            selected_text: !lambda 'return id(aec_mode_select).current_option();'
+            on_value:
+              - select.set_index:
+                  id: aec_mode_select
+                  index: !lambda 'return x;'
+
+        - label:
+            width: ${ic_settings_row_width}
+            text: "Voice Activity Detector"
+            text_align: CENTER
+            text_color: 0xFFFFFF
+            text_font: ${ic_settings_label_font}
+        - switch:
+            id: ui_vad_sw
+            width: ${ic_settings_switch_width}
+            height: ${ic_settings_switch_height}
+            state:
+              checked: !lambda 'return id(vad_switch).state;'
+            on_value:
+              - lambda: |-
+                  if (x) id(vad_switch).turn_on();
+                  else id(vad_switch).turn_off();
+
+        # ========================================================================
+        # SECTION: VOICE ASSISTANT
+        # ========================================================================
+        - obj:
+            width: ${ic_settings_row_width}
+            height: 2
+            bg_color: 0x444444
+            border_width: 0
+            pad_all: 0
+        - label:
+            width: ${ic_settings_row_width}
+            text: "Voice Assistant"
+            text_align: CENTER
+            text_color: 0x88AAFF
+            text_font: ${ic_settings_label_font}
+        - label:
+            width: ${ic_settings_row_width}
+            text: "Wake word"
+            text_align: CENTER
+            text_color: 0xFFFFFF
+            text_font: ${ic_settings_label_font}
+        - switch:
+            id: ui_wake_word_sw
+            width: ${ic_settings_switch_width}
+            height: ${ic_settings_switch_height}
+            state:
+              checked: !lambda 'return id(wake_word_switch).state;'
+            on_value:
+              - lambda: |-
+                  if (x == id(wake_word_switch).state) return;
+                  if (x) id(wake_word_switch).turn_on();
+                  else id(wake_word_switch).turn_off();

@@ -1,0 +1,51 @@
+# =============================================================================
+# Intercom HA-callable actions.
+# Drop-in for devices that integrate with the Home Assistant `intercom_native`
+# integration. Exposes only the call-control actions.
+#
+# Phonebook sync is no longer pushed via API actions: the ESP subscribes to the
+# protocol-aware `sensor.intercom_phonebook` and runs its own update cycles on
+# `intercom_api.update_contacts`. add_contact / remove_contact / set_contacts /
+# flush_contacts remain available as direct C++ actions for YAML scripting but
+# are no longer wrapped as HA-callable ESPHome services.
+#
+# Prerequisites in the device YAML:
+#   - id `intercom` : intercom_api component (intercom/callbacks.yaml provides this)
+# =============================================================================
+
+wifi:
+  on_connect:
+    - delay: 1s
+    - intercom_api.publish_entity_states: intercom
+
+api:
+  on_client_connected:
+    - delay: 1s
+    - intercom_api.publish_entity_states: intercom
+  actions:
+    # Card -> intercom_native.call(source=this) ends up here. Sets the
+    # current phonebook entry to `dest` and enters OUTGOING locally.
+    - action: start_call
+      variables:
+        dest: string
+      then:
+        - intercom_api.call_contact:
+            contact: !lambda 'return dest;'
+    # Direct ESP-side decline with an optional free-form reason. This keeps
+    # HA automations useful even for ESP<->ESP calls where HA is only
+    # mirroring state and is not the signaling bridge.
+    - action: decline_call
+      variables:
+        reason: string
+      then:
+        - intercom_api.decline_call:
+            reason: !lambda 'return reason;'
+    # Set by intercom_native at config-entry setup so ha_pbx routing finds
+    # the live HA name (hass.config.location_name) in the phonebook instead
+    # of a hardcoded "Home Assistant".
+    - action: set_ha_peer_name
+      variables:
+        name: string
+      then:
+        - intercom_api.set_ha_peer_name:
+            name: !lambda 'return name;'

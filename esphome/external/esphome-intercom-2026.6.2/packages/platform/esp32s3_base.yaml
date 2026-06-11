@@ -1,0 +1,45 @@
+# =============================================================================
+# ESP32-S3 platform base
+# =============================================================================
+#
+# Chip-level SDK options every S3 device in this repo needs once it runs
+# esp-sr (pulled in by esp_aec, esp_afe or micro_wake_word) and moves audio buffers
+# through PSRAM. Kept deliberately small. Workload-specific profiles live
+# under packages/profile/ and are composed on top.
+#
+# Usage:
+#   packages:
+#     s3_base:
+#       url: https://github.com/n-IA-hane/esphome-intercom
+#       file: packages/platform/esp32s3_base.yaml
+#       ref: main
+# =============================================================================
+
+esp32:
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      # esp-sr requires 64KB data cache with 64B line on S3.
+      # ref: managed_components/espressif__esp-sr/esp_process_sdkconfig.c:26-31
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+      # Execute code from flash via PSRAM XIP and relocate rodata to PSRAM.
+      # Frees ~30KB internal DRAM on S3, at the cost of a small cache-miss
+      # penalty. Idiomatic for S3 boards in ESPHome.
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"
+      CONFIG_SPIRAM_RODATA: "y"
+      # Let ESP-IDF route ordinary large malloc/calloc traffic to PSRAM while
+      # reserving internal RAM for DMA/I2S/Wi-Fi and small latency-sensitive
+      # allocations. GMF/esp-sr/codec-dev add several C allocations that do not
+      # go through ESPHome's RAMAllocator, so caps-only PSRAM leaves too much
+      # runtime pressure on internal heap.
+      CONFIG_SPIRAM_USE_CAPS_ALLOC: "n"
+      CONFIG_SPIRAM_USE_MALLOC: "y"
+      CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL: "4096"
+      CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL: "65536"
+      CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP: "y"
+      # Official espressif/mdns knobs: keep responder allocations and its task
+      # stack out of internal RAM. Intercom phonebooks no longer depend on mDNS
+      # discovery, but ESPHome still enables the responder for normal API UX.
+      CONFIG_MDNS_TASK_CREATE_FROM_SPIRAM: "y"
+      CONFIG_MDNS_MEMORY_ALLOC_SPIRAM: "y"

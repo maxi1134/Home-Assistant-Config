@@ -1,0 +1,63 @@
+# =============================================================================
+# WS2812 status LED ring.
+#
+# Drop-in hardware/effects package for devices with an addressable WS2812 status
+# ring. The state mapping is intentionally separate so the same ring can be used
+# by intercom-only, full-experience, or future media-only reducers.
+# =============================================================================
+
+substitutions:
+  status_led_name: Status LED
+  status_led_pin: GPIO38
+  status_led_num_leds: "7"
+  status_led_rgb_order: RGB
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: status_led
+    name: ${status_led_name}
+    pin: ${status_led_pin}
+    num_leds: ${status_led_num_leds}
+    rgb_order: ${status_led_rgb_order}
+    chipset: WS2812
+    default_transition_length: 0ms
+    effects:
+      - pulse:
+          name: "Slow Pulse"
+          transition_length: 1200ms
+          update_interval: 1200ms
+          min_brightness: 20%
+          max_brightness: 100%
+      - strobe:
+          name: "Ringing"
+          colors:
+            - state: true
+              brightness: 100%
+              red: 100%
+              green: 0%
+              blue: 0%
+              duration: 300ms
+            - state: false
+              duration: 300ms
+      - strobe:
+          name: "Calling"
+          colors:
+            - state: true
+              brightness: 100%
+              red: 100%
+              green: 50%
+              blue: 0%
+              duration: 500ms
+            - state: false
+              duration: 500ms
+      - addressable_lambda:
+          name: "Spin"
+          update_interval: 75ms
+          lambda: |-
+            static uint8_t pos = 0;
+            if (initial_run) pos = 0;
+            it.all() = Color(0, 0, 0);
+            it[pos] = current_color;
+            it[(pos + it.size() - 1) % it.size()] = current_color * 100;
+            it[(pos + it.size() - 2) % it.size()] = current_color * 25;
+            pos = (pos + 1) % it.size();

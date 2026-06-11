@@ -1,0 +1,42 @@
+# =============================================================================
+# ESP AFE dual-mic entities
+# =============================================================================
+# Shared runtime controls for dual-microphone esp_afe pipelines.
+#
+# `Voice Detected` is a binary sensor emitted by AFE voice-activity analysis.
+# `Voice Activity Detector` is the runtime switch that enables/disables
+# that analysis. Speech Enhancement / BSS is structural on dual-mic AFE
+# builds: disabling it makes esp-sr fall back to first-mic-only, so it is not
+# exposed as a runtime switch here. NS is also not exposed on dual-mic builds:
+# Espressif's afe_config_check() prioritizes SE/BSS over NS for two-channel
+# microphone input. AGC is intentionally not exposed on dual-mic profiles:
+# it is rebuild-only through the stock GMF manager and has shown runtime
+# pressure on dual-mic full-experience targets.
+# =============================================================================
+
+substitutions:
+  afe_aec_restore_mode: ALWAYS_ON
+  # GMF AFE creates its VAD/wakeup monitor internals only if VAD is enabled
+  # when the element opens. Keep dual-mic VAD on across HA reconnect/reboot.
+  afe_vad_restore_mode: ALWAYS_ON
+
+binary_sensor:
+  - platform: esp_afe
+    esp_afe_id: afe_processor
+    vad:
+      name: Voice Detected
+      id: voice_presence
+
+switch:
+  - platform: esp_afe
+    esp_afe_id: afe_processor
+    aec:
+      id: aec_switch
+      name: Echo Cancellation
+      icon: mdi:ear-hearing
+      restore_mode: ${afe_aec_restore_mode}
+    vad:
+      id: vad_switch
+      name: Voice Activity Detector
+      icon: mdi:account-voice
+      restore_mode: ${afe_vad_restore_mode}

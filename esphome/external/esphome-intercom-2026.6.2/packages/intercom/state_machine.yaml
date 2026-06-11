@@ -1,0 +1,70 @@
+# =============================================================================
+# Intercom state machine: g_applied_led + central reducer + LED driver.
+# Drop-in for any device that runs the intercom_api stack and a status LED.
+#
+# g_applied_led values (intercom subset):
+#   0=off, 1=both_muted, 2=mic_muted, 3=spk_muted,
+#   8=ic_ringing, 9=ic_outgoing, 10=ic_streaming
+#
+# Prerequisites in the device YAML:
+#   - id `intercom`     : intercom_api component
+#   - id `mute`         : mic mute switch (provided by intercom/buttons_switches.yaml)
+#   - id `speaker_mute` : speaker mute switch (provided by intercom/buttons_switches.yaml)
+#   - id `status_led`   : light entity for state feedback
+# =============================================================================
+
+globals:
+  - id: g_applied_led
+    type: int
+    restore_value: false
+    initial_value: "-1"
+
+script:
+  # Central reducer: collapses inputs into a single LED target index.
+  - id: update_status
+    mode: restart
+    then:
+      - lambda: |-
+          int target = 0;
+          if (id(mute).state && id(speaker_mute).state) target = 1;
+          else if (id(mute).state) target = 2;
+          else if (id(speaker_mute).state) target = 3;
+          else if (id(intercom).is_ringing()) target = 8;
+          else if (id(intercom).is_outgoing()) target = 9;
+          else if (id(intercom).is_streaming()) target = 10;
+          id(g_applied_led) = target;
+      - script.execute: update_led
+
+  # LED state from g_applied_led. Display devices !extend to add their patterns.
+  - id: update_led
+    mode: restart
+    then:
+      - lambda: |-
+          static int last = -2;
+          int t = id(g_applied_led);
+          if (t == last) return;
+          last = t;
+          auto *led = id(status_led);
+          switch (t) {
+            case 1:  // Both muted: red slow pulse
+              led->turn_on().set_rgb(1.0f, 0.0f, 0.0f).set_brightness(0.4f).set_effect("Slow Pulse").perform();
+              break;
+            case 2:  // Mic muted: red dim solid
+              led->turn_on().set_rgb(1.0f, 0.0f, 0.0f).set_brightness(0.3f).set_effect("None").perform();
+              break;
+            case 3:  // Speaker muted: orange dim solid
+              led->turn_on().set_rgb(1.0f, 0.5f, 0.0f).set_brightness(0.3f).set_effect("None").perform();
+              break;
+            case 8:  // IC Ringing: red strobe
+              led->turn_on().set_effect("Ringing").perform();
+              break;
+            case 9:  // IC Outgoing: orange strobe
+              led->turn_on().set_effect("Calling").perform();
+              break;
+            case 10: // IC Streaming: green solid
+              led->turn_on().set_rgb(0.3f, 0.69f, 0.31f).set_brightness(1.0f).set_effect("None").perform();
+              break;
+            default: // Off
+              led->turn_off().perform();
+              break;
+          }

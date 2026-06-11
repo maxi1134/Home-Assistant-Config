@@ -1,0 +1,44 @@
+# =============================================================================
+# Phonebook HA subscription (protocol-aware).
+#
+# Declares the homeassistant text_sensor that subscribes to
+# `sensor.intercom_phonebook` (published by the intercom_native HA integration)
+# and binds it to intercom_api so update_contacts() can read it. Each row carries
+# its own protocol; intercom_api normalizes the roster into a transport-local
+# dial plan before merging it into the phonebook.
+#
+# The merge cycle is driven by the HA state update itself, not by
+# `api.on_client_connected`. ESPHome logs/web clients also connect to the
+# native API, so using the API callback would retrigger phonebook work when
+# somebody merely opens logs.
+#
+# =============================================================================
+
+text_sensor:
+  - platform: homeassistant
+    id: ha_phonebook_subscribe
+    entity_id: sensor.intercom_phonebook
+    attribute: phonebook
+    internal: true
+    on_value:
+      - script.execute: ha_phonebook_update_from_ha
+
+intercom_api:
+  ha_phonebook_text_sensor_id: ha_phonebook_subscribe
+  use_ha_as_first_contact: true
+
+script:
+  - id: ha_phonebook_update_from_ha
+    mode: restart
+    then:
+      # Debounce HA startup/reload state bursts. The latest phonebook value is
+      # read by intercom_api.update_contacts() after HA and the ESP API link
+      # have settled; ESPHome log clients do not update this HA text sensor.
+      - delay: 10s
+      - if:
+          condition:
+            lambda: |-
+              return id(ha_phonebook_subscribe).has_state() &&
+                     !id(ha_phonebook_subscribe).state.empty();
+          then:
+            - intercom_api.update_contacts:

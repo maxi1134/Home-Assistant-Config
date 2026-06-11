@@ -1,0 +1,51 @@
+# Serial-first runtime diagnostics for ESP devices that become unreachable
+# while still appearing alive locally. Include only for focused debug sessions.
+
+esp32:
+  framework:
+    sdkconfig_options:
+      CONFIG_FREERTOS_USE_TRACE_FACILITY: "y"
+      CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS: "y"
+      CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS: "y"
+      CONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER: "y"
+      CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID: "y"
+      CONFIG_ESP_GDBSTUB_SUPPORT_TASKS: "y"
+      # RISC-V targets such as ESP32-P4 need EH frames for useful runtime
+      # backtraces. Keep this package debug-only; EH frames increase binary size.
+      CONFIG_ESP_SYSTEM_USE_EH_FRAME: "y"
+      CONFIG_ESP_DEBUG_OCDAWARE: "y"
+      CONFIG_FREERTOS_DEBUG_OCDAWARE: "y"
+      # GDBSTUB blocks UART after panic and needs a live GDB session within 5s;
+      # coredump-to-UART writes a base64 ELF snapshot on the same UART and then
+      # reboots, letting `esphome logs` capture both the snapshot and the next
+      # boot. Decode offline with `espcoredump.py info_corefile -t b64 firmware.elf`.
+      CONFIG_ESP_SYSTEM_PANIC_GDBSTUB: "n"
+      CONFIG_ESP_SYSTEM_PANIC_PRINT_REBOOT: "y"
+      CONFIG_ESP_SYSTEM_PANIC_REBOOT_DELAY_SECONDS: "3"
+      # Coredump-to-UART belongs to a Kconfig choice (ESP_COREDUMP_TO_FLASH_OR_UART)
+      # whose default is ENABLE_TO_NONE. Setting only ENABLE_TO_UART=y was
+      # silently ignored on the previous build, so disable the other branches
+      # explicitly to force the choice.
+      CONFIG_ESP_COREDUMP_ENABLE_TO_NONE: "n"
+      CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH: "n"
+      CONFIG_ESP_COREDUMP_ENABLE_TO_UART: "y"
+      CONFIG_ESP_COREDUMP_DATA_FORMAT_ELF: "y"
+      CONFIG_ESP_COREDUMP_CAPTURE_DRAM: "y"
+      CONFIG_ESP_COREDUMP_MAX_TASKS_NUM: "32"
+      CONFIG_ESP_COREDUMP_CHECKSUM_CRC32: "y"
+      CONFIG_ESP_COREDUMP_LOGS: "y"
+      CONFIG_ESP_COREDUMP_USE_STACK_SIZE: "2048"
+
+runtime_diag:
+  id: runtime_diag_component
+  dump_interval: 5s
+  dump_window: 10min
+  periodic_dump: true
+  dump_network: false
+  task_log_limit: 12
+  loop_watch: true
+  loop_watch_interval: 500ms
+  loop_stall_threshold: 2500ms
+  loop_watch_stack_size: 12288
+  loop_watch_priority: 10
+  dump_backtraces: false

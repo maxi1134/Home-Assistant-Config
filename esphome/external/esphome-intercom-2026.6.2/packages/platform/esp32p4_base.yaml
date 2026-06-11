@@ -1,0 +1,35 @@
+# =============================================================================
+# ESP32-P4 platform base
+# =============================================================================
+#
+# Chip-level board/framework selection, hardware accelerator enables and P4
+# memory policy for every P4 device in this repo.
+#
+# Usage:
+#   packages:
+#     p4_base:
+#       url: https://github.com/n-IA-hane/esphome-intercom
+#       file: packages/platform/esp32p4_base.yaml
+#       ref: main
+# =============================================================================
+
+esp32:
+  board: esp32-p4-evboard
+  variant: esp32p4
+  flash_size: 32MB
+  # 360MHz is the standard ESP-IDF/ESPHome maximum for P4. Some datasheet
+  # revisions mention 400MHz only as a special-contact / non-default case, so
+  # treat 400MHz as an explicit experiment, not as the baseline.
+  cpu_frequency: 360MHz
+  framework:
+    type: esp-idf
+    advanced:
+      enable_idf_experimental_features: true
+      # Default ESPHome `-Os` (SIZE). P4 AFE/FFT workloads are sensitive to
+      # instruction-cache pressure; larger `-O2` binaries can starve loopTask
+      # under full audio load.
+    sdkconfig_options:
+      # Keep P4 instruction/rodata fetches in PSRAM as in the last stable
+      # display/audio baseline. Disabling this globally fixed one AFE FFT crash
+      # signature but reintroduced display flicker and choppy intercom TX audio.
+      CONFIG_SPIRAM_XIP_FROM_PSRAM: "y"

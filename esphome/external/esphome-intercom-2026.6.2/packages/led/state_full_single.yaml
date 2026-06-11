@@ -1,0 +1,57 @@
+# =============================================================================
+# Full-experience state mapping for a single status LED.
+#
+# Requires:
+#   - light id `status_led` from packages/led/status_ws2812_single.yaml
+#   - global id `g_applied_led` from intercom/state_machine_full.yaml
+#   - placeholder script id `update_led` from the active state machine package
+# =============================================================================
+
+script:
+  - id: !extend update_led
+    then:
+      - lambda: |-
+          static int last = -2;
+          int t = id(g_applied_led);
+          if (t == last) return;
+          last = t;
+          auto *led = id(status_led);
+          switch (t) {
+            case 1:  // Both muted: red slow pulse
+              led->turn_on().set_rgb(1.0f, 0.0f, 0.0f).set_brightness(0.4f).set_effect("Slow Pulse").perform();
+              break;
+            case 2:  // Mic muted: red dim
+              led->turn_on().set_rgb(1.0f, 0.0f, 0.0f).set_brightness(0.3f).set_effect("None").perform();
+              break;
+            case 3:  // Speaker muted: orange dim
+              led->turn_on().set_rgb(1.0f, 0.5f, 0.0f).set_brightness(0.3f).set_effect("None").perform();
+              break;
+            case 4:  // MWW recent / barge-in
+            case 5:  // VA Listening: red solid
+              led->turn_on().set_rgb(1.0f, 0.0f, 0.0f).set_brightness(0.7f).set_effect("None").perform();
+              break;
+            case 6:  // VA Thinking: yellow solid
+              led->turn_on().set_rgb(1.0f, 1.0f, 0.0f).set_brightness(1.0f).set_effect("None").perform();
+              break;
+            case 7:  // VA Speaking: blue solid
+              led->turn_on().set_rgb(0.3f, 0.3f, 0.7f).set_brightness(0.6f).set_effect("None").perform();
+              break;
+            case 8:  // IC Ringing: red strobe
+              led->turn_on().set_effect("Ringing").perform();
+              break;
+            case 9:  // IC Outgoing: orange strobe
+              led->turn_on().set_effect("Calling").perform();
+              break;
+            case 10: // IC Streaming: green solid
+              led->turn_on().set_rgb(0.0f, 1.0f, 0.0f).set_brightness(1.0f).set_effect("None").perform();
+              break;
+            case 11: // VA Error: red solid
+              led->turn_on().set_rgb(1.0f, 0.0f, 0.0f).set_brightness(0.7f).set_effect("None").perform();
+              break;
+            case 12: // Media playing: green solid
+              led->turn_on().set_rgb(0.0f, 1.0f, 0.0f).set_brightness(1.0f).set_effect("None").perform();
+              break;
+            default: // Off
+              led->turn_off().perform();
+              break;
+          }

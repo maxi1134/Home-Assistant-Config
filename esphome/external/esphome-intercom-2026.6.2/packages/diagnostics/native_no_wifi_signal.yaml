@@ -1,0 +1,65 @@
+# =============================================================================
+# Native ESPHome diagnostics without periodic Wi-Fi RSSI reads.
+#
+# Use on ESP32-P4 hosted Wi-Fi targets: wifi_signal polls
+# WiFiComponent::wifi_rssi(), which goes through esp-hosted RPC and can block
+# loopTask under media/network load.
+#
+# This package uses ESPHome's native `debug` component internally for heap,
+# reset reason and device info; it is not the runtime debug package.
+# =============================================================================
+
+substitutions:
+  diagnostics_update_interval: "60s"
+
+debug:
+  update_interval: ${diagnostics_update_interval}
+
+sensor:
+  - platform: uptime
+    name: Uptime
+    update_interval: ${diagnostics_update_interval}
+    entity_category: diagnostic
+
+  - platform: internal_temperature
+    name: CPU Temperature
+    update_interval: ${diagnostics_update_interval}
+    entity_category: diagnostic
+
+  - platform: debug
+    free:
+      name: Free Heap
+      entity_category: diagnostic
+    block:
+      name: Largest Free Block
+      entity_category: diagnostic
+    min_free:
+      name: Minimum Free Heap
+      entity_category: diagnostic
+    fragmentation:
+      name: Heap Fragmentation
+      entity_category: diagnostic
+    loop_time:
+      name: Main Loop Max Time
+      entity_category: diagnostic
+    psram:
+      name: PSRAM Free
+      entity_category: diagnostic
+    cpu_frequency:
+      name: CPU Frequency
+      entity_category: diagnostic
+
+text_sensor:
+  - platform: debug
+    device:
+      name: Device Info
+      entity_category: diagnostic
+    reset_reason:
+      name: Reset Reason
+      entity_category: diagnostic
+
+binary_sensor:
+  - platform: status
+    id: node_status
+    name: Status
+    entity_category: diagnostic

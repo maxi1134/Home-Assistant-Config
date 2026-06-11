@@ -1,0 +1,54 @@
+# =============================================================================
+# OTA maintenance mode for full-experience audio devices without LVGL.
+#
+# ESPHome emits ota.on_begin before esp_ota_begin(), so this hook can quiesce
+# audio tasks before flash erase/write preparation starts.
+#
+# Required IDs:
+#   - audio_stack
+#   - intercom
+#   - mww
+#   - speaker_media_player
+#   - script: start_mww_when_ready
+# =============================================================================
+
+ota:
+  - platform: esphome
+    on_begin:
+      - esp_audio_stack.suspend_ota_watchdog: audio_stack
+      - logger.log:
+          level: INFO
+          tag: ota
+          format: "OTA begin: loop watchdog suspended, pausing full audio runtime"
+      - globals.set:
+          id: g_ota_in_progress
+          value: "true"
+      - media_player.stop:
+          id: speaker_media_player
+          announcement: true
+      - voice_assistant.stop:
+      - micro_wake_word.stop:
+      - intercom_api.stop: intercom
+      - esp_audio_stack.stop_and_wait: audio_stack
+    on_abort:
+      - script.execute: ota_full_audio_restore
+    on_error:
+      - script.execute: ota_full_audio_restore
+    on_end:
+      - esp_audio_stack.restore_ota_watchdog: audio_stack
+
+script:
+  - id: ota_full_audio_restore
+    mode: restart
+    then:
+      - logger.log:
+          level: WARN
+          tag: ota
+          format: "OTA aborted/failed: restoring full audio runtime"
+      - globals.set:
+          id: g_ota_in_progress
+          value: "false"
+      - esp_audio_stack.start: audio_stack
+      - intercom_api.start: intercom
+      - script.execute: start_mww_when_ready
+      - esp_audio_stack.restore_ota_watchdog: audio_stack

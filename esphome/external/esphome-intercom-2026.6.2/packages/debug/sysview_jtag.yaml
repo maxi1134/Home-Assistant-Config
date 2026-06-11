@@ -1,0 +1,52 @@
+# =============================================================================
+# SystemView over JTAG debug profile (opt-in, development only)
+# =============================================================================
+#
+# Enables ESP-IDF App Trace + integrated SystemView for ESP32-S3/P4 debug builds.
+# This package intentionally exposes no HA entities and no YAML sensors. It is
+# for OpenOCD/GDB/SystemView captures on real target firmware.
+#
+# Use only in local debug YAMLs, not in published production configs.
+# =============================================================================
+
+esp32:
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      # Emit the FreeRTOS task table for OpenOCD thread-aware debugging.
+      CONFIG_ESP_DEBUG_OCDAWARE: "y"
+      CONFIG_FREERTOS_USE_TRACE_FACILITY: "y"
+      CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS: "y"
+      CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS: "y"
+      CONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER: "y"
+
+      # ESP-IDF 5.5.x integrated AppTrace/SystemView path.
+      CONFIG_APPTRACE_DEST_JTAG: "y"
+      CONFIG_APPTRACE_ENABLE: "y"
+      CONFIG_APPTRACE_PENDING_DATA_SIZE_MAX: "8192"
+      CONFIG_APPTRACE_SV_ENABLE: "y"
+      CONFIG_APPTRACE_SV_DEST_JTAG: "y"
+      CONFIG_APPTRACE_SV_TS_SOURCE_ESP_TIMER: "y"
+      CONFIG_APPTRACE_SV_MAX_TASKS: "64"
+
+      # Keep finite wait: dropped trace events are preferable to blocking the
+      # scheduler/audio path indefinitely while diagnosing realtime behavior.
+      CONFIG_APPTRACE_SV_BUF_WAIT_TMO: "500"
+
+      CONFIG_APPTRACE_SV_EVT_OVERFLOW_ENABLE: "y"
+      # The full ISR stream overwhelms JTAG on full AFE builds and causes
+      # SystemView target-side overflows. Keep task scheduling and FreeRTOS API
+      # events as the primary realtime signal; enable ISR events only for a
+      # short, specific interrupt diagnostic.
+      CONFIG_APPTRACE_SV_EVT_ISR_ENTER_ENABLE: "n"
+      CONFIG_APPTRACE_SV_EVT_ISR_EXIT_ENABLE: "n"
+      CONFIG_APPTRACE_SV_EVT_ISR_TO_SCHED_ENABLE: "n"
+      CONFIG_APPTRACE_SV_EVT_TASK_START_EXEC_ENABLE: "y"
+      CONFIG_APPTRACE_SV_EVT_TASK_STOP_EXEC_ENABLE: "y"
+      CONFIG_APPTRACE_SV_EVT_TASK_START_READY_ENABLE: "y"
+      CONFIG_APPTRACE_SV_EVT_TASK_STOP_READY_ENABLE: "y"
+      CONFIG_APPTRACE_SV_EVT_TASK_CREATE_ENABLE: "y"
+      CONFIG_APPTRACE_SV_EVT_TASK_TERMINATE_ENABLE: "y"
+      CONFIG_APPTRACE_SV_EVT_IDLE_ENABLE: "y"
+      CONFIG_APPTRACE_SV_EVT_TIMER_ENTER_ENABLE: "y"
+      CONFIG_APPTRACE_SV_EVT_TIMER_EXIT_ENABLE: "y"

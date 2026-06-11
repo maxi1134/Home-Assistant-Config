@@ -1,0 +1,49 @@
+# =============================================================================
+# Full-experience mono 48 kHz speaker mixer.
+#
+# Device YAML must provide:
+#   - speaker id `hw_speaker`
+#
+# Provides:
+#   - `audio_mixer`
+#   - `media_speaker_mix`, `tts_speaker_mix`, `intercom_speaker_mix`
+#   - `media_speaker`, `tts_speaker`, `intercom_speaker`
+#
+# The hardware speaker stays device-local because codec/no-codec and power
+# handling differ by board.
+# =============================================================================
+
+speaker:
+  - platform: mixer
+    id: audio_mixer
+    output_speaker: hw_speaker
+    num_channels: 1
+    task_stack_in_psram: true
+    source_speakers:
+      - id: media_speaker_mix
+        timeout: 10s
+        buffer_duration: 100ms
+      - id: tts_speaker_mix
+        timeout: 10s
+        buffer_duration: 100ms
+      - id: intercom_speaker_mix
+        timeout: 10s
+        # 4 intercom wire frames: 1024 B @ 16 kHz mono = 32 ms/frame.
+        buffer_duration: 128ms
+
+  - platform: resampler
+    id: media_speaker
+    output_speaker: media_speaker_mix
+    task_stack_in_psram: true
+
+  - platform: resampler
+    id: tts_speaker
+    output_speaker: tts_speaker_mix
+    task_stack_in_psram: true
+
+  - platform: resampler
+    id: intercom_speaker
+    output_speaker: intercom_speaker_mix
+    task_stack_in_psram: true
+    # Keep the intercom RX resampler buffer frame-aligned with the wire chunk.
+    buffer_duration: 128ms

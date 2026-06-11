@@ -1,0 +1,51 @@
+# =============================================================================
+# VA + Intercom meta-package.
+# Bundles the five sub-packages that make up a full-experience device
+# (voice_assistant + micro_wake_word + intercom):
+#   - intercom/state_machine_full.yaml shared reducer, failsafes, ringing loop
+#   - voice_assistant/core.yaml        voice_assistant + micro_wake_word config
+#   - intercom/va_callbacks.yaml       intercom_api on_* (with ringing loop)
+#   - intercom/va_buttons_switches.yaml buttons + mic mute/wake-word switches
+#   - intercom/call_settings.yaml      auto-answer + DND switches
+#   - intercom/ha_api.yaml             HA-callable call-control services
+#
+# Drop-in replacement for the previous monolithic va_intercom.yaml. Existing
+# device YAMLs that include `core: !include packages/va_intercom.yaml`
+# continue to work unchanged.
+#
+# For LVGL devices that want a settings carousel, ALSO include:
+#   `lvgl/settings_navigation.yaml`   carousel state + navigation scripts
+#   `lvgl/lvgl_settings_*.yaml`       individual settings pages
+#
+# For headless Voice Assistant timer alarms, ALSO include:
+#   `voice_assistant/timers.yaml`      timer callbacks + alarm loop
+#
+# Required IDs (defined by device):
+#   mic_main / ${mic_id}      - Microphone
+#   hw_speaker                - Hardware speaker
+#   speaker_mute              - Speaker mute switch supplied by the device YAML
+#                               or packages/intercom/speaker_mute.yaml
+#   tts_speaker               - TTS speaker (for VA drain wait_until)
+#   speaker_media_player      - media_player component
+#   media_speaker_mix         - mixer for ducking
+#   intercom_ringing_sound    - media_file for ringtone loop
+#
+# Required substitutions:
+#   ${friendly_name} - homeassistant.event payload
+#   ${mic_id}        - id of the mute target microphone (default: mic_main)
+# =============================================================================
+
+packages:
+  state_machine_full: !include intercom/state_machine_full.yaml
+  voice_assistant_core: !include voice_assistant/core.yaml
+  va_callbacks: !include intercom/va_callbacks.yaml
+  va_buttons_switches: !include intercom/va_buttons_switches.yaml
+  call_settings: !include intercom/call_settings.yaml
+  ha_api: !include intercom/ha_api.yaml
+
+intercom_api:
+  id: intercom
+  # Full-experience devices can have HA API/logging, media HTTP, TTS HTTP and
+  # intercom sockets alive together. Reserve that headroom through ESPHome's
+  # socket accounting instead of hardcoding CONFIG_LWIP_MAX_SOCKETS in YAMLs.
+  network_socket_headroom: 8

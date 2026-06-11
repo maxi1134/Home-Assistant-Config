@@ -1,0 +1,49 @@
+# =============================================================================
+# Full-experience mono 48 kHz speaker media player.
+#
+# Requires speaker ids from packages/audio/full_mono_mixer_48k.yaml:
+#   - media_speaker
+#   - tts_speaker
+#
+# Devices can extend `speaker_media_player` to override memory sizing or add
+# UI-specific callbacks. Display devices should keep their richer callback
+# handling device-local until the hook contract is explicit.
+# =============================================================================
+
+media_player:
+  - platform: speaker
+    id: speaker_media_player
+    name: None
+    internal: false
+    task_stack_in_psram: true
+    # ESPHome's native media_player volume is the source/speaker abstraction.
+    # When `packages/esp_audio_stack/controls.yaml` provides `master_volume`,
+    # esp_audio_stack cascades both in the final I2S TX path. Codec-specific
+    # boards may instead provide `master_volume` as hardware DAC volume.
+    volume_initial: 100%
+    volume_min: 0%
+    volume_max: 100%
+    volume_increment: 5%
+    # Keep HA pause/resume semantics, but park the media HTTP pipeline so
+    # announcements, VA and intercom can use the mixer/output graph cleanly.
+    pause_releases_pipeline: true
+    media_pipeline:
+      speaker: media_speaker
+      sample_rate: 48000
+      format: FLAC
+    announcement_pipeline:
+      speaker: tts_speaker
+      sample_rate: 48000
+      format: FLAC
+    files:
+      - id: intercom_ringing_sound
+        file: ${assets_base}assets/sounds/ringtone.flac
+    on_announcement:
+      - script.execute: update_status
+    on_play:
+      - script.execute: update_status
+    on_pause:
+      - script.execute: update_status
+    on_idle:
+      - delay: 200ms
+      - script.execute: update_status

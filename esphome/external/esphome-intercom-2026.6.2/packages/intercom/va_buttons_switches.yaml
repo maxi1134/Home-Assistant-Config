@@ -1,0 +1,67 @@
+# =============================================================================
+# Intercom buttons + mute/wake-word switches.
+# VA-aware variant of intercom/buttons_switches.yaml: the mic mute switch also
+# stops/starts the wake word + voice assistant pipeline, and adds an extra
+# Wake Word toggle.
+#
+# Provides:
+#   buttons: call_button, next_contact_button, prev_contact_button,
+#            decline_button, restart
+#   switches: mute, wake_word_switch
+#
+# Prerequisites in the device YAML:
+#   - id `mww`        : micro_wake_word component (voice_assistant/core.yaml)
+#   - script id `update_status` (provided by intercom/state_machine_full.yaml)
+#
+# Required substitutions:
+#   ${mic_id} - ID of the microphone bound to the mute action (default: mic_main)
+# =============================================================================
+
+packages:
+  intercom_buttons_base: !include buttons_base.yaml
+
+switch:
+  - platform: template
+    name: Mic Mute
+    id: mute
+    icon: mdi:microphone-off
+    entity_category: config
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - logger.log:
+          level: INFO
+          tag: mute
+          format: "Mic mute ON"
+      - micro_wake_word.stop:
+      - voice_assistant.stop:
+      - microphone.mute: ${mic_id}
+      - script.execute: update_status
+    on_turn_off:
+      - logger.log:
+          level: INFO
+          tag: mute
+          format: "Mic mute OFF"
+      - microphone.unmute: ${mic_id}
+      - script.execute: start_mww_when_ready
+      - script.execute: update_status
+
+  - platform: template
+    name: Wake Word
+    id: wake_word_switch
+    icon: mdi:account-voice
+    entity_category: config
+    restore_mode: DISABLED
+    lambda: 'return id(g_wake_word_enabled);'
+    turn_on_action:
+      - globals.set:
+          id: g_wake_word_enabled
+          value: "true"
+      - script.execute: start_mww_when_ready
+      - script.execute: update_status
+    turn_off_action:
+      - globals.set:
+          id: g_wake_word_enabled
+          value: "false"
+      - micro_wake_word.stop:
+      - script.execute: update_status

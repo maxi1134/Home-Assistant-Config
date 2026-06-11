@@ -1,0 +1,109 @@
+# =============================================================================
+# Intercom API callbacks + UI hook placeholders.
+# Drop-in for intercom-only devices. Wires intercom_api state transitions to
+# the central reducer (update_status) and to ui_ic_* hooks that devices with
+# a display can !extend to update their LVGL widgets.
+#
+# Prerequisites in the device YAML:
+#   - intercom_api hardware config (microphone, speaker, ringing_timeout, ...)
+#   - script id `update_status` (provided by intercom/state_machine.yaml)
+#
+# Required substitutions:
+#   ${friendly_name} - used in the homeassistant.event payload on outgoing call
+# =============================================================================
+
+intercom_api:
+  id: intercom
+
+  on_outgoing_call:
+    - script.execute: update_status
+    - script.execute:
+        id: ui_ic_call
+        peer: !lambda 'return id(intercom).get_current_destination();'
+    - if:
+        condition:
+          intercom_api.is_ha_destination: intercom
+        then:
+          - homeassistant.event:
+              event: esphome.intercom_call
+              data:
+                caller: "${friendly_name}"
+                destination: !lambda 'return id(intercom).get_current_destination();'
+                type: "doorbell"
+
+  on_ringing:
+    - script.execute: update_status
+    - script.execute:
+        id: ui_ic_call
+        peer: !lambda 'return id(intercom).get_caller();'
+
+  # Caller path: dest acknowledged with RING. Same outgoing screen,
+  # device YAML flips the label from "Calling X..." to "X is ringing..."
+  # in `ui_ic_dest_ringing` (defined per-device).
+  on_dest_ringing:
+    - script.execute:
+        id: ui_ic_dest_ringing
+        peer: !lambda 'return id(intercom).get_current_destination();'
+
+  on_streaming:
+    - script.execute: update_status
+    - script.execute:
+        id: ui_ic_call
+        peer: !lambda |-
+          auto c = id(intercom).get_caller();
+          return c.empty() ? id(intercom).get_current_destination() : c;
+
+  on_idle:
+    - script.execute: update_status
+
+  on_hangup:
+    - script.execute: update_status
+    - logger.log:
+        format: "Hangup: %s"
+        args: ['reason.c_str()']
+    - script.execute:
+        id: ui_ic_ended
+        peer: !lambda |-
+          auto c = id(intercom).get_caller();
+          return c.empty() ? id(intercom).get_current_destination() : c;
+        reason: !lambda 'return reason;'
+
+  on_call_failed:
+    - script.execute: update_status
+    - logger.log:
+        format: "Call failed: %s"
+        args: ['reason.c_str()']
+    - script.execute:
+        id: ui_ic_ended
+        peer: !lambda 'return id(intercom).get_current_destination();'
+        reason: !lambda 'return reason;'
+
+# =============================================================================
+# UI hook placeholders. Devices with a display !extend these to update
+# LVGL widgets (peer name, page transitions, post-call screen).
+# =============================================================================
+script:
+  - id: ui_ic_call
+    parameters:
+      peer: string
+    then: []
+
+  # Caller's outgoing screen: dest acked with RING. Same screen, label
+  # flips from "Calling X..." to "X is ringing...".
+  - id: ui_ic_dest_ringing
+    parameters:
+      peer: string
+    then: []
+
+  # Call terminated (hangup, decline, error, timeout, unreachable, busy).
+  # `reason` is whatever end_call_(...) emitted via on_hangup/on_call_failed:
+  # canonical strings (`local_hangup` / `remote_hangup` / `declined` /
+  # `timeout` / `busy` / `unreachable` / `protocol_error` / `bridge_error`)
+  # or - when the protocol carries a free-form DECLINE payload - that
+  # raw reason text. Devices !extend this script to render a brief
+  # "Call ended. Reason: ..." page and revert to idle on timeout.
+  - id: ui_ic_ended
+    parameters:
+      peer: string
+      reason: string
+    then: []

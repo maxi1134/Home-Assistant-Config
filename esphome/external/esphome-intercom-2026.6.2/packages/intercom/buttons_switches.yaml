@@ -1,0 +1,39 @@
+# =============================================================================
+# Intercom buttons + mute switches.
+# Drop-in for intercom devices that need button/switch entities.
+#
+# Provides:
+#   buttons: call_button, next_contact_button, prev_contact_button,
+#            decline_button, restart
+#   switch: mute
+#
+# Prerequisites in the device YAML:
+#   - id `mic_main`   : microphone (for microphone.mute action)
+#   - script id `update_status` (provided by intercom/state_machine.yaml)
+# =============================================================================
+
+packages:
+  intercom_buttons_base: !include buttons_base.yaml
+
+switch:
+  - platform: template
+    name: Mic Mute
+    id: mute
+    icon: mdi:microphone-off
+    entity_category: config
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    on_turn_on:
+      - logger.log:
+          level: INFO
+          tag: mute
+          format: "Mic mute ON"
+      - microphone.mute: mic_main
+      - script.execute: update_status
+    on_turn_off:
+      - logger.log:
+          level: INFO
+          tag: mute
+          format: "Mic mute OFF"
+      - microphone.unmute: mic_main
+      - script.execute: update_status

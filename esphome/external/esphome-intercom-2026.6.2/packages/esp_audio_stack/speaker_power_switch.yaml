@@ -1,0 +1,38 @@
+# =============================================================================
+# ESP Audio Stack speaker power gating (switch enable)
+# =============================================================================
+# Expects:
+#   - esp_audio_stack id: audio_stack
+#   - switch id: speaker_enable
+#   - switch id: speaker_mute
+#
+# Playback start enables the amp immediately. Playback idle starts a restartable
+# countdown; repeated idle events reset the countdown and only the last one can
+# power the amp down.
+# =============================================================================
+
+substitutions:
+  audio_stack_speaker_idle_delay: 30s
+
+esp_audio_stack:
+  id: !extend audio_stack
+  on_amplifier_required:
+    - script.stop: audio_stack_speaker_idle_powerdown
+    - if:
+        condition:
+          switch.is_off: speaker_mute
+        then:
+          - switch.turn_on: speaker_enable
+  on_amplifier_idle:
+    - script.execute: audio_stack_speaker_idle_powerdown
+
+script:
+  - id: audio_stack_speaker_idle_powerdown
+    mode: restart
+    then:
+      - delay: ${audio_stack_speaker_idle_delay}
+      - if:
+          condition:
+            switch.is_off: speaker_mute
+          then:
+            - switch.turn_off: speaker_enable

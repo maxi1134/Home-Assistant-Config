@@ -1,0 +1,61 @@
+# =============================================================================
+# OTA maintenance mode for full-experience LVGL devices.
+#
+# ESPHome emits ota.on_begin before esp_ota_begin(), so this hook can quiesce
+# busy audio/UI tasks before flash erase/write preparation starts.
+#
+# Required IDs:
+#   - audio_stack
+#   - intercom
+#   - mww
+#   - speaker_media_player
+#   - scripts: ai_animation_loop, timer_alarm_loop, start_mww_when_ready, draw_display
+# =============================================================================
+
+ota:
+  - platform: esphome
+    on_begin:
+      - esp_audio_stack.suspend_ota_watchdog: audio_stack
+      - logger.log:
+          level: INFO
+          tag: ota
+          format: "OTA begin: loop watchdog suspended, pausing full audio runtime and LVGL"
+      - globals.set:
+          id: g_ota_in_progress
+          value: "true"
+      - script.stop: ai_animation_loop
+      - script.stop: timer_alarm_loop
+      - switch.turn_off: timer_ringing
+      - media_player.stop:
+          id: speaker_media_player
+          announcement: true
+      - voice_assistant.stop:
+      - micro_wake_word.stop:
+      - intercom_api.stop: intercom
+      - esp_audio_stack.stop_and_wait: audio_stack
+      - lvgl.pause:
+          show_snow: false
+    on_abort:
+      - script.execute: ota_full_audio_lvgl_restore
+    on_error:
+      - script.execute: ota_full_audio_lvgl_restore
+    on_end:
+      - esp_audio_stack.restore_ota_watchdog: audio_stack
+
+script:
+  - id: ota_full_audio_lvgl_restore
+    mode: restart
+    then:
+      - logger.log:
+          level: WARN
+          tag: ota
+          format: "OTA aborted/failed: restoring full audio runtime and LVGL"
+      - globals.set:
+          id: g_ota_in_progress
+          value: "false"
+      - lvgl.resume:
+      - esp_audio_stack.start: audio_stack
+      - intercom_api.start: intercom
+      - script.execute: start_mww_when_ready
+      - script.execute: draw_display
+      - esp_audio_stack.restore_ota_watchdog: audio_stack

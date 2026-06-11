@@ -1,0 +1,70 @@
+# =============================================================================
+# Boot-time sync script for the P4 unified settings page.
+#
+# Loaded as a top-level package (NOT as an lvgl: pages: include): the only
+# top-level keyword used here is `script:`, so this file slots straight under
+# the device YAML's package list. The companion page YAML
+# (`lvgl_settings_p4_unified.yaml`) is the LVGL page itself and cannot host a
+# top-level `script:` block - that's why the boot sync lives here.
+#
+# Invoke from the device's on_boot:
+#   - script.execute: settings_p4_sync_widgets
+# at a priority below 200 (after switch entities have completed their
+# restore_mode and after the AFE pipeline has wired vad/ns/agc/aec).
+# Run once per boot is enough for the carousel to come up matching the
+# entity state. Subsequent runtime entity changes can re-call this script
+# (for example from each switch's on_turn_on/on_turn_off) to keep the UI
+# in sync without per-entity update lambdas.
+# =============================================================================
+
+script:
+  - id: settings_p4_sync_widgets
+    then:
+      # Sliders use the same units as their backing entities.
+      # Master volume is 0..100%; mic_gain is native dB.
+      - lvgl.slider.update:
+          id: ui_speaker_vol_slider
+          value: !lambda 'return id(master_volume).state;'
+      - lvgl.slider.update:
+          id: ui_mic_vol_slider
+          value: !lambda 'return id(mic_gain).state;'
+      - lvgl.switch.update:
+          id: ui_speaker_mute_sw
+          state:
+            checked: !lambda 'return id(speaker_mute).state;'
+      - lvgl.switch.update:
+          id: ui_mic_mute_sw
+          state:
+            checked: !lambda 'return id(mute).state;'
+      - lvgl.switch.update:
+          id: ui_auto_answer_sw
+          state:
+            checked: !lambda 'return id(auto_answer_switch).state;'
+      - lvgl.switch.update:
+          id: ui_dnd_sw
+          state:
+            checked: !lambda 'return id(dnd_switch).state;'
+      - lvgl.switch.update:
+          id: ui_aec_sw
+          state:
+            checked: !lambda 'return id(aec_switch).state;'
+      - lvgl.dropdown.update:
+          id: ui_aec_mode_dd
+          selected_text: !lambda 'return id(aec_mode_select).current_option();'
+      - lvgl.switch.update:
+          id: ui_vad_sw
+          state:
+            checked: !lambda 'return id(vad_switch).state;'
+      - lvgl.switch.update:
+          id: ui_wake_word_sw
+          state:
+            checked: !lambda 'return id(wake_word_switch).state;'
+
+interval:
+  - interval: 1s
+    then:
+      - if:
+          condition:
+            lambda: 'return lv_disp_get_scr_act(nullptr) == id(settings_p4_page)->obj;'
+          then:
+            - script.execute: settings_p4_sync_widgets

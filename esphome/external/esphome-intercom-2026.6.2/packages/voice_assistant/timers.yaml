@@ -1,0 +1,68 @@
+# =============================================================================
+# Optional Voice Assistant timers package.
+#
+# Headless timer alarm support for devices that already include:
+#   - voice_assistant id `va`
+#   - media_player id `speaker_media_player`
+#   - script id `update_status`
+#
+# Display devices keep their richer LVGL timer UI device-local.
+# =============================================================================
+
+media_player:
+  - id: !extend speaker_media_player
+    files:
+      - id: timer_finished_sound
+        file: ${assets_base}assets/sounds/timer_finished.flac
+
+voice_assistant:
+  id: va
+  on_timer_started:
+    - script.execute: va_timer_state_changed
+  on_timer_cancelled:
+    - script.execute: va_timer_state_changed
+  on_timer_updated:
+    - script.execute: va_timer_state_changed
+  on_timer_tick:
+    - script.execute: va_timer_state_changed
+  on_timer_finished:
+    - switch.turn_on: timer_ringing
+
+script:
+  - id: va_timer_state_changed
+    mode: restart
+    then:
+      - script.execute: update_status
+
+  - id: timer_alarm_loop
+    mode: single
+    then:
+      - while:
+          condition:
+            switch.is_on: timer_ringing
+          then:
+            - media_player.speaker.play_on_device_media_file:
+                media_file: timer_finished_sound
+                announcement: true
+            - delay: 6s
+
+switch:
+  - platform: template
+    id: timer_ringing
+    optimistic: true
+    internal: true
+    restore_mode: ALWAYS_OFF
+    on_turn_off:
+      - script.stop: timer_alarm_loop
+      - media_player.stop:
+          id: speaker_media_player
+          announcement: true
+      - script.execute: update_status
+    on_turn_on:
+      - media_player.stop:
+          id: speaker_media_player
+          announcement: true
+      - script.execute: timer_alarm_loop
+      - script.execute: update_status
+      - delay: 15min
+      - switch.turn_off: timer_ringing

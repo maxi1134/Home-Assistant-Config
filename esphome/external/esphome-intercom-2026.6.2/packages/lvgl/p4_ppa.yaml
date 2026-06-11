@@ -1,0 +1,22 @@
+# =============================================================================
+# ESP32-P4 LVGL PPA acceleration
+# =============================================================================
+#
+# Enables LVGL's Espressif PPA draw unit on P4 display builds. Keep this out of
+# the generic p4_base package because p4_base is also used by non-LVGL debug
+# firmware.
+# =============================================================================
+
+esp32:
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      # LVGL/Espressif PPA requires cache-line aligned draw buffers on P4.
+      CONFIG_LV_DRAW_BUF_ALIGN: "64"
+      CONFIG_LV_USE_PPA: "y"
+      CONFIG_LV_USE_PPA_IMG: "y"
+      # PPA and MIPI DSI share the DMA2D path. Keep DMA2D control code out of
+      # flash-cache stalls on the full display + audio workload. Do not enable
+      # CONFIG_DMA2D_ISR_IRAM_SAFE here: ESPHome/LVGL callbacks are not all
+      # IRAM-safe and the driver rejects them at runtime.
+      CONFIG_DMA2D_OPERATION_FUNC_IN_IRAM: "y"

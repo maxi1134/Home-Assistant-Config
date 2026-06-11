@@ -1,0 +1,145 @@
+# =============================================================================
+# Voice Assistant + Micro Wake Word (core configuration + handlers).
+# Drop-in for full-experience devices that run VA on top of the shared
+# intercom/state_machine_full.yaml.
+#
+# Prerequisites in the device YAML:
+#   - VA hardware config (microphone, speaker, media_player, ringtone, ...)
+#     declared via the standard ESPHome blocks; this package only adds
+#     `voice_assistant: id: va` + `micro_wake_word: id: mww` config sections
+#     and their on_* handlers, not the hardware bindings.
+#   - script id `update_status` (provided by intercom/state_machine_full.yaml)
+#   - script id `va_end_handler` (provided by intercom/state_machine_full.yaml)
+#   - script id `mww_failsafe`   (provided by intercom/state_machine_full.yaml)
+#   - script id `barge_failsafe` (provided by intercom/state_machine_full.yaml)
+#   - script id `va_error_flash` (provided by intercom/state_machine_full.yaml)
+#   - script id `ui_tts_started`, `ui_stt_ended` (placeholders or device override)
+#   - id `intercom`              : intercom_api component (for publish_entity_states)
+#   - id `mute`                  : mic mute switch
+# =============================================================================
+
+globals:
+  - id: g_ota_in_progress
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
+voice_assistant:
+  id: va
+  on_listening:
+    - logger.log:
+        tag: va
+        format: "VA: on_listening"
+    - globals.set:
+        id: g_va_state
+        value: "1"
+    - globals.set:
+        id: g_mww_recent
+        value: "0"
+    - globals.set:
+        id: g_barge_in_pending
+        value: "0"
+    - script.stop: mww_failsafe
+    - script.stop: barge_failsafe
+    - script.execute: update_status
+  on_stt_vad_end:
+    - logger.log:
+        tag: va
+        format: "VA: on_stt_vad_end (thinking)"
+    - globals.set:
+        id: g_va_state
+        value: "2"
+    - script.execute: update_status
+  on_stt_end:
+    - script.execute:
+        id: ui_stt_ended
+        text: !lambda 'return x;'
+  on_tts_start:
+    - logger.log:
+        tag: va
+        format: "VA: on_tts_start (speaking)"
+    - globals.set:
+        id: g_va_state
+        value: "3"
+    - script.execute: update_status
+    - script.execute:
+        id: ui_tts_started
+        text: !lambda 'return x;'
+  on_end:
+    - logger.log:
+        tag: va
+        format: "VA: on_end"
+    - script.execute: va_end_handler
+  on_error:
+    - logger.log:
+        tag: va
+        format: "VA: on_error (code=%s, msg=%s)"
+        args: ['code.c_str()', 'message.c_str()']
+    - if:
+        condition:
+          lambda: 'return id(g_barge_in_pending) != 0;'
+        then:
+          - logger.log:
+              tag: va
+              format: "VA: error during barge-in, keeping barge flag"
+        else:
+          - globals.set:
+              id: g_mww_recent
+              value: "0"
+          - if:
+              condition:
+                lambda: 'return !id(init_in_progress);'
+              then:
+                - globals.set:
+                    id: g_va_state
+                    value: "4"
+                - script.execute: update_status
+                - script.execute: va_error_flash
+              else:
+                - globals.set:
+                    id: g_va_state
+                    value: "0"
+                - script.execute: update_status
+  on_client_connected:
+    - logger.log:
+        tag: va
+        format: "VA: client connected"
+    - globals.set:
+        id: init_in_progress
+        value: "false"
+    - script.execute: update_status
+    - script.execute: start_mww_when_ready
+micro_wake_word:
+  id: mww
+  stop_after_detection: false
+  on_wake_word_detected:
+    - logger.log:
+        tag: mww
+        format: "MWW: wake word detected"
+    - globals.set:
+        id: g_mww_recent
+        value: "1"
+    - script.execute: update_status
+    - script.execute: mww_failsafe
+    - if:
+        condition:
+          or:
+            - voice_assistant.is_running:
+            - lambda: 'return id(g_barge_in_pending) != 0;'
+        then:
+          - logger.log:
+              tag: mww
+              format: "MWW: barge-in, stopping VA"
+          - globals.set:
+              id: g_barge_in_pending
+              value: "1"
+          - script.execute: barge_failsafe
+          - voice_assistant.stop:
+          - media_player.stop:
+              announcement: true
+        else:
+          - logger.log:
+              tag: mww
+              format: "MWW: fresh VA start"
+          - voice_assistant.start:
+              wake_word: !lambda return wake_word;
