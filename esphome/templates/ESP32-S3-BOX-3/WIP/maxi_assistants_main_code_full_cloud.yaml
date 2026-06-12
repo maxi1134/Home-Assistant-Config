@@ -1,12 +1,19 @@
 substitutions:
+  # Device Identity
+  name: "hallway-assistant"
+  friendly_name: hallway Assistant
+  static_ip: 192.168.20.61
+  gateway_ip: 192.168.20.1  
+  network_subnet: 255.255.255.0
   #images
-  loading_illustration_file: http://192.168.0.15:8123/local/esp32_images/loading.png
-  idle_illustration_file: http://192.168.0.15:8123/local/esp32_images/waiting.png
-  listening_illustration_file: http://192.168.0.15:8123/local/esp32_images/listening.png
-  thinking_illustration_file: http://192.168.0.15:8123/local/esp32_images/thinking.png
-  replying_illustration_file: http://192.168.0.15:8123/local/esp32_images/replying.png
-  error_illustration_file: http://192.168.0.15:8123/local/esp32_images/stop.png
-  timer_finished_illustration_file: http://192.168.0.15:8123/local/esp32_images/timer_finished.png
+  loading_illustration_file: https://github.com/esphome/wake-word-voice-assistants/raw/main/casita/loading_320_240.png
+  idle_illustration_file: https://github.com/esphome/wake-word-voice-assistants/raw/main/casita/idle_320_240.png
+  listening_illustration_file: https://github.com/esphome/wake-word-voice-assistants/raw/main/casita/listening_320_240.png
+  thinking_illustration_file: https://github.com/esphome/wake-word-voice-assistants/raw/main/casita/thinking_320_240.png
+  replying_illustration_file: https://github.com/esphome/wake-word-voice-assistants/raw/main/casita/replying_320_240.png
+  error_illustration_file: https://github.com/esphome/wake-word-voice-assistants/raw/main/casita/error_320_240.png
+  timer_finished_illustration_file: https://github.com/esphome/wake-word-voice-assistants/raw/main/casita/timer_finished_320_240.png
+
   #colors
   loading_illustration_background_color: "000000"
   idle_illustration_background_color: "000000"
@@ -49,29 +56,17 @@ esphome:
             then:
               - lambda: id(init_in_progress) = false;
               - script.execute: draw_display
-    # Late hook (-100 runs after EVERY component's setup, including the ES8311
-    # driver, which programs its own 0 dB default during setup): re-apply the
-    # restored Speaker Gain so the hardware boost survives reboots and cannot
-    # be overwritten by the driver's init.
+    # Late hook (-100 = after every component's setup): apply the restored
+    # Speaker Gain on top of the codec's freshly-initialized DAC volume.
     - priority: -100
       then:
         - script.execute: apply_speaker_gain
 
 external_components:
-  # Local copy of n-IA-hane/esphome-intercom @ v2026.6.2 — kept as a local
-  # extract because the HA host's `git clone` fails with `fetch-pack: invalid
-  # index-pack output` (OOM during pack indexing).
-  #
-  # 2026.6.x replaced i2s_audio_duplex with esp_audio_stack (Espressif
-  # codec/GMF backend, official IDF I2S driver). esp_audio_stack AUTO_LOADs
-  # audio_processor, but it must stay in the filter list — a filtered external
-  # source won't resolve unlisted components and core ESPHome has none.
-  # 'speaker' is the repo's narrow fork of ESPHome's core speaker component
-  # adding pause_releases_pipeline on the speaker media_player (see below).
-  - source:
-      type: local
-      path: /config/esphome/external/esphome-intercom-2026.6.2/esphome/components
+  # n-IA-hane/esphome-intercom, pinned to a validated release.
+  - source: github://n-IA-hane/esphome-intercom@v2026.6.2
     components: [audio_processor, esp_aec, esp_audio_stack, speaker]
+
 
 esp32:
   board: esp32s3box
@@ -87,10 +82,8 @@ esp32:
       CONFIG_SPIRAM_RODATA: "y"
       CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL: "65536"
       CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"
-      # esp_audio_stack 2026.6.x: GMF / esp-sr / esp_audio_effects allocate via
-      # plain malloc (not ESPHome's RAMAllocator), so route ordinary large
-      # mallocs to PSRAM and keep internal RAM for DMA/Wi-Fi/latency-critical
-      # use. Mirrors the repo's packages/platform/esp32s3_base.yaml.
+      # Route ordinary large mallocs (GMF / esp-sr / esp_audio_effects) to
+      # PSRAM, keeping internal RAM for DMA/Wi-Fi/latency-critical use.
       CONFIG_SPIRAM_USE_CAPS_ALLOC: "n"
       CONFIG_SPIRAM_USE_MALLOC: "y"
       CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL: "4096"
@@ -102,26 +95,18 @@ psram:
   mode: octal
   speed: 80MHz
 
-# NOTE (2026-06-11): `network: enable_high_performance: false` was trialed
-# here for internal-heap savings, but is the prime suspect for a spike in
-# wedged TTS fetches ("Failed to fetch headers" -> unabortable ~30 s reader
-# lockups): it also shrinks CONFIG_LWIP_MAX_SOCKETS to 12, and barge-in churn
-# (HA API + log stream + OTA/web listeners + a retrying announcement reader
-# holding a socket for 30 s) can starve new TTS connections. Deliberately left
-# at the component-requested default — do not re-add without soak-testing
-# barge-in cycles against "Failed to fetch headers" in the logs.
+# Do NOT set `network: enable_high_performance: false` here: it shrinks the
+# lwIP socket pool and can starve TTS fetches ("Failed to fetch headers"
+# -> unabortable ~30 s reader lockups) under barge-in churn.
 
 # Keep the FLAC decoder's working buffers out of internal RAM — it allocates
-# on every TTS response, exactly when AEC + mWW + LVGL are all live.
-# (repo packages/audio/flac_codecs_psram.yaml)
+# on every TTS response, exactly when AEC + wake word + LVGL are all live.
 audio:
   codecs:
     flac:
       buffer_memory: psram
 
-# Native production diagnostics (repo packages/diagnostics/native.yaml):
-# heap/fragmentation/loop-time telemetry to HA as diagnostic entities — the
-# baseline for validating heap/latency changes across the 9-device fleet.
+# Heap/fragmentation/loop-time telemetry exposed to HA as diagnostic entities.
 debug:
   update_interval: 60s
 
@@ -139,12 +124,9 @@ ota:
 
 logger:
   hardware_uart: USB_SERIAL_JTAG
-  # Production logging (repo maintained profiles + docs/troubleshooting.md:
-  # "Production YAMLs default to logger.level: INFO. Only flip to DEBUG while
-  # tuning, then revert.") DEBUG burns main-loop time formatting per-frame
-  # audio chatter and ships it over the API to HA. NOTE: global INFO compiles
-  # DEBUG statements out — custom logger.log actions that must survive need an
-  # explicit level (see the 'MWW fired' log in on_wake_word_detected).
+  # Production logging: DEBUG burns main-loop time on per-frame audio chatter.
+  # Note: global INFO compiles DEBUG statements out — custom logger.log actions
+  # that must survive need an explicit level.
   level: INFO
   logs:
     # Mute chatty entity-state built-ins; voice/audio components stay at INFO.
@@ -171,15 +153,13 @@ logger:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-  # ESPHome's ESP32 default is LIGHT (modem-sleep): the radio naps between DTIM
-  # beacons, adding tens of ms of jitter per packet — straight onto wake->STT
-  # and TTS first-byte latency, and a known cause of HA marking satellites
-  # unavailable. All maintained esphome-intercom S3 profiles set NONE.
+  # Modem-sleep (the ESP32 default) adds tens of ms of jitter per packet,
+  # straight onto wake->STT and TTS latency. Keep the radio awake.
   power_save_mode: NONE
   manual_ip:
     static_ip: ${static_ip}
-    gateway: 192.168.20.1
-    subnet: 255.255.255.0
+    gateway: ${gateway_ip}
+    subnet: ${network_subnet}
   ap:
   on_connect:
     - script.execute: draw_display
@@ -187,9 +167,6 @@ wifi:
     - script.execute: draw_display
 
 captive_portal:
-time:
-  - platform: homeassistant
-    id: ha_time_og
 
 button:
   - platform: factory_reset
@@ -209,17 +186,7 @@ interval:
           then:
             - script.execute: apply_speaker_gain
 sensor:       
-  - platform: homeassistant
-    id: outside_temp
-    entity_id: sensor.outside_temperature_with_fallback
-    internal: true
-    on_value:
-      - if:
-          condition:
-            - lambda: return id(voice_assistant_phase) == ${voice_assist_idle_phase_id} || id(voice_assistant_phase) == ${voice_assist_muted_phase_id};
-          then:
-            - script.execute: draw_display
-  # ── Fleet diagnostics (repo packages/diagnostics/native.yaml) ──────────────
+  # ── Diagnostics ─────────────────────────────────────────────────────────
   - platform: wifi_signal
     id: wifi_signal_db
     name: "WiFi Signal dBm"
@@ -269,16 +236,6 @@ sensor:
     cpu_frequency:
       name: CPU Frequency
       entity_category: diagnostic
-  - platform: esp_audio_stack
-    tdm_slot_levels:
-      - slot: 0
-        name: "TDM Slot 0 Level"
-      - slot: 1
-        name: "TDM Slot 1 Level"
-      - slot: 2
-        name: "TDM Slot 2 Level"
-      - slot: 3
-        name: "TDM Slot 3 Level"
 binary_sensor:
   - platform: touchscreen
     name: "Screen Touch"
@@ -345,7 +302,7 @@ binary_sensor:
           - ON for at least 10s
         then:
           - button.press: factory_reset_btn
-  # ── Fleet diagnostics (repo packages/diagnostics/native.yaml) ──────────────
+  # ── Diagnostics ─────────────────────────────────────────────────────────
   - platform: status
     id: node_status
     name: Status
@@ -388,14 +345,11 @@ esp_aec:
   filter_length: 4
   mode: sr_low_cost
 
-# esp_audio_stack (2026.6.x) — successor of i2s_audio_duplex. 1:1 option
-# carry-over, run in "no-codec" mode (no codec: block): the stack does raw
-# I2S read/write and the ESPHome core audio_adc/audio_dac blocks below keep
-# initializing the ES7210/ES8311 over I2C, exactly like the old setup.
-# (The canonical-but-untested-on-Box-3 alternative is the stack's built-in
-# codec: {input: es7210, output: es8311} block with use_tdm_reference for a
-# hardware AEC reference — needs on-device slot-map bring-up, see repo's
-# waveshare-s3 profile and packages/codec/es7210_tdm.yaml before attempting.)
+# Full-duplex audio for the ESP32-S3-Box-3 in hardware-codec mode:
+# esp_codec_dev drives the ES7210 (4-ch TDM ADC) and ES8311 (DAC) directly,
+# and the ES7210 captures the DAC loopback on a dedicated TDM slot — a
+# sample-accurate hardware AEC reference (far better echo cancellation than
+# the software reference modes).
 esp_audio_stack:
   id: audio_stack
   i2s_lrclk_pin: GPIO45
@@ -405,43 +359,37 @@ esp_audio_stack:
   i2s_dout_pin: GPIO15
   sample_rate: 48000
   output_sample_rate: 16000
-  slot_bit_width: 16  # TDM: 16-bit slots x4 (WS3/Korvo-2 convention)              # new default is 'auto' (follows bits_per_sample) — the
-                                  # Box-3 bus runs 32-bit slots, so this must stay explicit
+  slot_bit_width: 16  # 16-bit TDM slots x4
   bits_per_sample: 16
-  # NOTE: do NOT set dma_frame_num: 240 here. It was tried (Tier-1 tuning,
-  # 2026-06-11) to recover ~10-20 KB internal heap, but halving the DMA backlog
-  # to ~30 ms produced audible TX underruns ("compressed"/crunchy playback) on
-  # this std-mode bus — the component's auto-raise protection for large
-  # processor quanta is TDM-only and does not guard this path. Auto sizing
-  # (~10 ms/descriptor, 480 frames @48 kHz, ~60 ms backlog) is required.
+  # Do NOT set dma_frame_num here: shrinking the DMA backlog below the auto
+  # sizing (~10 ms/descriptor) causes audible TX underruns on this device.
   correct_dc_offset: true
   processor_id: aec_processor
-  # ===== TDM HARDWARE AEC REFERENCE (validated on hallway 2026-06-11) =====
+  # ── TDM hardware AEC reference (slot map measured on the S3-Box-3) ──
+  # ES7210 MIC numbering is NOT 1:1 with TDM slot order; the slots carry
+  # MIC1, MIC3, MIC2, MIC4. The board loops the ES8311 DAC output back into
+  # MIC3, which lands on TDM slot 1.
   codec:
     i2c_id: i2c_bus
     input:
       type: es7210
       address: 0x40
       mic_selected: 0x0F
-      gain_db: 24.0        # matches the old core-driver default the +21 dB software Mic Gain was tuned against
-      ref_channel: 2       # MIC3 (reg 0x45) loopback. ES7210 MIC order is NOT 1:1 with TDM
-                           # slots: slot order is MIC1, MIC3, MIC2, MIC4 (measured).
-      ref_gain_db: 0.0     # unity PGA on the reference — higher gains clip the line-level loopback
+      gain_db: 24.0        # mic PGA
+      ref_channel: 2       # MIC3 = the DAC loopback channel
+      ref_gain_db: 0.0     # unity PGA — higher gains clip the line-level loopback
     output:
       type: es8311
       address: 0x18
       use_mclk: true
       no_dac_ref: true
   tdm_total_slots: 4
-  tdm_mic_slots: [0]       # MEASURED: mics on slots 0+2 (esp_aec single-mic; slot 0 = MIC1)
-  tdm_ref_slot: 1          # MEASURED: DAC loopback on slot 1 (= MIC3)
+  tdm_mic_slots: [0]       # slot 0 = MIC1 (esp_aec is single-mic)
+  tdm_ref_slot: 1          # slot 1 = MIC3 = DAC loopback
   use_tdm_reference: true
   buffers_in_psram: true
-  audio_task_stack_in_psram: true # new in 2026.6.x — frees ~8 KB internal heap, used by
-                                  # all maintained S3 profiles (helps the LVGL+VA heap budget)
-  aec_reference: previous_frame   # parity with the old duplex config. The 2026.6.x DEFAULT
-                                  # changed to ring_buffer (ADF TYPE2, 80 ms ring) — keep this
-                                  # explicit or the AEC reference timing changes silently.
+  audio_task_stack_in_psram: true
+  aec_reference: previous_frame   # ignored while use_tdm_reference is set
 
 microphone:
   - platform: esp_audio_stack
@@ -458,8 +406,8 @@ media_player:
   - platform: speaker
     name: None
     id: speaker_media_player
-    # Option from the repo's 'speaker' fork (2026.6.2): HA media pause RELEASES
-    # the media pipeline (instead of parking it half-owned) so TTS and timer
+    # From the esphome-intercom 'speaker' fork: HA media pause RELEASES the
+    # media pipeline (instead of parking it half-owned) so TTS and timer
     # alarms can take the speaker graph while a stream is paused.
     pause_releases_pipeline: true
     volume_min: 0.8
@@ -513,13 +461,10 @@ media_player:
             - script.execute: start_wake_word
             - script.execute: set_idle_or_mute_phase
             - script.execute: draw_display
-      # WEDGE RELEASE: a cancelled episode just fully ended — the unabortable
-      # TTS reader died and the pipeline went idle. VA lags a moment leaving
-      # STREAMING_RESPONSE (which is why a bare is_running check here used to
-      # skip and leave the error page stranded until the next wake word).
-      # Wait that lag out (bounded), then either honor a FRESH barge-in
-      # request (any repeat 'Zylox' during the wedge refreshes the 15 s
-      # window) or fall back to the idle page automatically.
+      # WEDGE RELEASE: a cancelled episode fully ended (the unabortable TTS
+      # reader died). VA lags a moment leaving STREAMING_RESPONSE — wait that
+      # out (bounded), then either honor a FRESH barge-in request (repeat wake
+      # words refresh the 15 s window) or fall back to the idle page.
       - if:
           condition:
             lambda: 'return id(user_cancelled);'
@@ -536,9 +481,6 @@ media_player:
                     - not:
                         voice_assistant.is_running:
                 then:
-                  - script.execute:
-                      id: barge_log
-                      msg: "wedge-recover"
                   - voice_assistant.start:
                       wake_word: !lambda return id(pending_wake_restart);
                 else:
@@ -547,9 +489,6 @@ media_player:
                         not:
                           voice_assistant.is_running:
                       then:
-                        - script.execute:
-                            id: barge_log
-                            msg: "wedge-idle"
                         - script.execute: start_wake_word
                         # The cancelled episode is fully resolved — clear the
                         # stale-cancel marker and return the display to idle.
@@ -563,25 +502,13 @@ micro_wake_word:
   microphone: box_mic
   stop_after_detection: false
   models:
-    # ── Activation words ──────────────────────────────────────────────────
-    # Exactly one is active at a time, chosen by the 'Wake word' select below
-    # (enforced by the apply_wake_word_selection script). Both are internal:
-    # HA's per-pipeline wake-word switches are out of the loop, the firmware
-    # select is the single source of truth.
-    #
-    # IMPORTANT: internal models do NOT persist their enable state to flash
-    # (WakeWordModel::enable()/disable() skip pref_.save for internal_only
-    # models), so every boot reverts to the compile-time default: first model
-    # in this list enabled, everything else disabled. The selection survives
-    # anyway because (a) the 'Wake word' select restores from flash and its
-    # on_value re-applies the choice during boot, and (b) every mWW start
-    # path below re-runs apply_wake_word_selection. Those re-applications are
-    # load-bearing — do not remove them.
+    # ── Activation word ───────────────────────────────────────────────────
+    # internal: true keeps HA's per-pipeline wake-word switches out of the
+    # loop. Internal models do NOT persist their enable state to flash —
+    # every boot reverts to the compile-time default (first listed model
+    # enabled, everything else disabled), which is exactly what we want here.
     - model: okay_nabu
       id: okay_nabu_model
-      internal: true
-    - model: http://192.168.0.15:8123/local/mww/zylox.json
-      id: zylox_model
       internal: true
     # ── Halt word (unchanged) ─────────────────────────────────────────────
     - model: https://raw.githubusercontent.com/TaterTotterson/microWakeWords/refs/heads/main/microWakeWords/stop.json
@@ -591,8 +518,8 @@ micro_wake_word:
                                       # disable Stop until the user manually toggled it on.
                                       # internal=true keeps the model loaded and always-running
                                       # at the firmware level, outside HA's per-pipeline control.
-      probability_cutoff: 0.40        # model default is 0.5 — your sliding avg comes in around 0.58, so 0.40 fires reliably
-      sliding_window_size: 3          # model default is 5 — fires after 3 frames (~30 ms) instead of 5
+      probability_cutoff: 0.40        # below the 0.5 default so Stop fires reliably mid-playback
+      sliding_window_size: 3          # fires after 3 frames (~30 ms) instead of the default 5
   vad:
     # Loose VAD: noise filter without the multi-second lag the defaults caused.
     # 0.20 cutoff + 1-frame window means VAD agrees almost immediately on any voice-like sound,
@@ -619,12 +546,10 @@ micro_wake_word:
                 - media_player.is_announcing:
                 - lambda: 'return !id(user_cancelled);'
         then:
-          # A second 'Okay Nabu' / 'Zylox' doesn't just cancel — it re-opens
-          # listening for a fresh turn. 'Stop' stays cancel-only.
-          # ORDER MATTERS: the restart request is recorded BEFORE global_cancel
-          # runs, so the cancel paints the LISTENING page (no idle flash) and
-          # the dying turn's on_end takes its fast-restart path instead of the
-          # full announcement-wait + cleanup sequence.
+          # A repeated activation word doesn't just cancel — it re-opens
+          # listening for a fresh turn ('Stop' stays cancel-only). ORDER
+          # MATTERS: record the restart request BEFORE global_cancel so the
+          # cancel paints the LISTENING page and on_end takes the fast path.
           - if:
               condition:
                 lambda: 'return wake_word != "Stop";'
@@ -632,30 +557,17 @@ micro_wake_word:
                 - lambda: |-
                     id(pending_wake_restart) = wake_word;
                     id(pending_set_ms) = millis();
-          # RE-ENTRY GUARD: while a cancel is already in flight (user_cancelled
-          # is set and no new turn has reached on_listening yet), rapid repeat
-          # detections — the Stop model prefiring on 'Zylox', double-fires of
-          # the zylox model, or an impatient second utterance — must NOT run
-          # global_cancel again: a second cancel's voice_assistant.stop can
-          # kill the very turn the restart machinery just started. Updating
-          # pending_wake_restart above is enough; the in-flight on_end (or the
-          # direct-start below) honors the latest word.
+          # RE-ENTRY GUARD: while a cancel is already in flight, rapid repeat
+          # detections (the hair-trigger Stop model prefiring on the activation
+          # word, model double-fires, impatient re-utterances) must NOT run
+          # global_cancel again — a second cancel can kill the very turn the
+          # restart machinery just started. Updating pending_wake_restart
+          # above is enough.
           - if:
               condition:
                 lambda: 'return !id(user_cancelled);'
               then:
-                - script.execute:
-                    id: barge_log
-                    msg: !lambda 'return "cancel:" + wake_word;'
                 - script.execute: global_cancel
-              else:
-                - logger.log:
-                    tag: barge
-                    level: INFO
-                    format: "duplicate barge-in ignored (cancel in flight)"
-                - script.execute:
-                    id: barge_log
-                    msg: "dup-ign"
           - if:
               condition:
                 and:
@@ -665,13 +577,6 @@ micro_wake_word:
               then:
                 # No pipeline was active (timer alarm, user media, stale TTS
                 # tail): no on_end is coming — start the new turn directly.
-                - logger.log:
-                    tag: barge
-                    level: INFO
-                    format: "direct restart: VA idle at wake time"
-                - script.execute:
-                    id: barge_log
-                    msg: "direct-start"
                 - voice_assistant.start:
                     wake_word: !lambda return id(pending_wake_restart);
                 - lambda: id(pending_wake_restart).clear();
@@ -702,9 +607,6 @@ voice_assistant:
     # here keeps a stale flag (e.g. from a turn whose on_end never consumed it)
     # from spawning a surprise extra turn after some later, unrelated turn.
     - lambda: id(pending_wake_restart).clear();
-    - script.execute:
-        id: barge_log
-        msg: "listening"
     - lambda: id(voice_assistant_phase) = ${voice_assist_listening_phase_id};
     - text_sensor.template.publish:
         id: text_request
@@ -740,52 +642,27 @@ voice_assistant:
           - text_sensor.template.publish:
               id: text_response
               state: !lambda return x;
+          # Hold the marquee briefly so the answer's beginning is readable
+          # before it starts scrolling.
+          - script.execute: response_scroll_delay
           - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
           - script.execute: draw_display
   on_end:
-    # Branch tracer — INFO so it survives the production log level. The barge-in
-    # machinery has had enough subtle races that every decision point logs.
-    - logger.log:
-        tag: barge
-        level: INFO
-        format: "on_end: pending='%s' announcing=%d va_running=%d"
-        args:
-          - id(pending_wake_restart).c_str()
-          - 'id(speaker_media_player)->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING'
-          - 'id(va).is_running()'
-    - script.execute:
-        id: barge_log
-        msg: !lambda |-
-          char b[64];
-          snprintf(b, sizeof(b), "end p=%s a=%d v=%d",
-                   id(pending_wake_restart).empty() ? "-" : id(pending_wake_restart).c_str(),
-                   (int) (id(speaker_media_player)->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING),
-                   (int) id(va).is_running());
-          return std::string(b);
     # ── FAST BARGE-IN RESTART ────────────────────────────────────────────
-    # A second 'Okay Nabu'/'Zylox' mid-turn requested a fresh turn.
-    # pending_wake_restart was set BEFORE global_cancel ran, so the cancel
-    # already stopped the media player, flushed+paused the speaker, cleared
-    # the text sensors and painted the LISTENING page. No TTS announcement is
-    # coming, and mWW never stopped (it just detected the wake word) — so the
-    # normal path's 0.5 s announcement wait, drain waits, mWW restart and
-    # idle-phase cleanup would only add latency and an idle flash. Skip all
-    # of it and reopen the mic immediately.
+    # A repeated wake word mid-turn requested a fresh turn. The cancel already
+    # stopped the media player, flushed+paused the speaker and painted the
+    # LISTENING page — skip the normal announcement waits and cleanup and
+    # reopen the mic as soon as the old turn has unwound.
     - if:
         condition:
           lambda: 'return !id(pending_wake_restart).empty();'
         then:
-          # Wait until BOTH the announcement pipeline has settled AND the VA
-          # component is truly back to IDLE. The VA condition is the critical
-          # one: when a turn is cancelled during STREAMING_RESPONSE, core VA
-          # fires on_end with state STILL = STREAMING_RESPONSE (the RUN_END
-          # handler only forces IDLE from mic/awaiting states; the IDLE
-          # transition happens later in VA's own loop once the announcement
-          # unwinds) — and request_start is a strict NO-OP unless state ==
-          # IDLE, so a start issued too early is silently swallowed (the
-          # "frozen on the listening page" bug). is_running() == (state !=
-          # IDLE), so waiting on it is exactly the request_start gate.
-          # Do NOT gate on speaker.is_playing (lingers ~5 s after pause+flush).
+          # Wait for BOTH the announcement pipeline AND the VA component to be
+          # idle. The VA condition is critical: request_start is a strict no-op
+          # unless VA's state is IDLE, and after a reply-phase cancel VA stays
+          # in STREAMING_RESPONSE for up to ~1 s — a start issued too early is
+          # silently swallowed. Do NOT gate on speaker.is_playing (a paused
+          # speaker wrapper can keep it latched for seconds).
           - wait_until:
               condition:
                 and:
@@ -802,40 +679,14 @@ voice_assistant:
                   - not:
                       voice_assistant.is_running:
               then:
-                - logger.log:
-                    tag: barge
-                    level: INFO
-                    format: "fast-path restart: starting new turn"
-                - script.execute:
-                    id: barge_log
-                    msg: "fast-start"
                 - voice_assistant.start:
                     wake_word: !lambda return id(pending_wake_restart);
                 - lambda: id(pending_wake_restart).clear();
               else:
-                # Restart impossible right now — almost always the wedged-TTS
-                # case: the announcement's HTTP reader is blocked (~30 s,
-                # unabortable) and holds VA hostage in STREAMING_RESPONSE.
-                # ALWAYS replace the optimistic listening paint with the busy
-                # indicator so the device never looks frozen-listening; the
-                # media_player.on_idle handler restores idle + wake word when
-                # the reader finally errors out. Only silence the speaker when
-                # no turn could be live.
-                - logger.log:
-                    tag: barge
-                    level: INFO
-                    format: "fast-path restart blocked (announcing=%d va_running=%d)"
-                    args:
-                      - 'id(speaker_media_player)->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING'
-                      - 'id(va).is_running()'
-                - script.execute:
-                    id: barge_log
-                    msg: !lambda |-
-                      char b[32];
-                      snprintf(b, sizeof(b), "fast-blk a=%d v=%d",
-                               (int) (id(speaker_media_player)->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING),
-                               (int) id(va).is_running());
-                      return std::string(b);
+                # Restart impossible — almost always a wedged TTS fetch (the
+                # HTTP reader blocks unabortably for ~30 s and holds VA
+                # hostage). Show the busy page instead of a fake listening
+                # screen; media_player.on_idle recovers when the reader dies.
                 # Deliberately KEEP pending_wake_restart: the wedge-recovery
                 # block in media_player.on_idle honors it (if still fresh) the
                 # moment the dead stream releases the pipeline. on_listening
@@ -861,25 +712,11 @@ voice_assistant:
               condition:
                 - media_player.is_announcing:
               timeout: 0.5s
-          # Wait for the announcement to finish. The timeout depends on whether the user
-          # cancelled mid-TTS:
-          #   - user_cancelled = true: 3 s. media_player.stop only flags a stop request —
-          #     the streaming HTTP reader can stay stuck on fetch_headers for ~30 s. We
-          #     bail out fast so the next turn can start; the follow-up "still announcing"
-          #     block silences the I2S TX until the network unblocks.
-          #   - user_cancelled = false: 120 s. Normal TTS playback ranges from a few
-          #     seconds (short answers) to over a minute (stories, multi-paragraph
-          #     responses). A short timeout here silences healthy playback — the
-          #     previous unconditional 3 s timeout truncated every response longer
-          #     than ~3 s of audio.
-          # Drain gates on is_announcing ONLY. speaker.is_playing was removed
-          # from these waits deliberately: a paused speaker wrapper never hits
-          # its idle timeout (`!pause_state_` is part of the timeout condition),
-          # so after barge-in pause/flush churn the flag can stay latched and
-          # hold this automation hostage for the full timeout with the display
-          # stranded — while the VA component is long idle. is_announcing spans
-          # the actual answer playback, and the VA-unwind wait below covers the
-          # tail (VA leaves STREAMING_RESPONSE only once media settles).
+          # Wait for the announcement to finish: 3 s when the user cancelled
+          # (the wedged-reader case is handled below), 120 s for healthy
+          # playback (long answers can exceed a minute). Gate on is_announcing
+          # ONLY — never speaker.is_playing, which a paused speaker wrapper
+          # can keep latched for the full timeout.
           - if:
               condition:
                 lambda: 'return id(user_cancelled);'
@@ -896,13 +733,10 @@ voice_assistant:
                         media_player.is_announcing:
                     timeout: 120s
           # ── Let the turn FULLY unwind before deciding anything. ──
-          # KEY FACT (from live traces): on_end fires at TTS HANDOFF — seconds
-          # before the user hears the answer — and the drain wait above is what
-          # spans the playback. A reply-phase barge-in therefore always lands
-          # MID-DRAIN (pending_wake_restart set while we waited), and right
-          # after the cancel VA stays in STREAMING_RESPONSE for up to ~1 s
-          # (request_start is a no-op until its loop reaches IDLE). Wait that
-          # out, bounded so a wedged stream can't hold this automation hostage.
+          # on_end fires at TTS HANDOFF (before the answer is heard); the drain
+          # wait above spans the playback, so a reply-phase barge-in lands
+          # MID-DRAIN with pending_wake_restart set. Wait (bounded) for VA to
+          # reach IDLE — request_start is a no-op until it does.
           - wait_until:
               condition:
                 not:
@@ -921,52 +755,27 @@ voice_assistant:
                         - not:
                             voice_assistant.is_running:
                     then:
-                      - logger.log:
-                          tag: barge
-                          level: INFO
-                          format: "late restart: starting new turn"
-                      - script.execute:
-                          id: barge_log
-                          msg: "late-start"
                       - voice_assistant.start:
                           wake_word: !lambda return id(pending_wake_restart);
                       - lambda: id(pending_wake_restart).clear();
                     else:
-                      - logger.log:
-                          tag: barge
-                          level: INFO
-                          format: "late restart blocked (announcing=%d va_running=%d)"
-                          args:
-                            - 'id(speaker_media_player)->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING'
-                            - 'id(va).is_running()'
-                      - script.execute:
-                          id: barge_log
-                          msg: !lambda |-
-                            char b[32];
-                            snprintf(b, sizeof(b), "late-blk a=%d v=%d",
-                                     (int) (id(speaker_media_player)->state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING),
-                                     (int) id(va).is_running());
-                            return std::string(b);
-                      # Never leave the optimistic listening paint up with no
-                      # turn coming — show busy; on_idle recovers when the
-                      # wedged reader errors out, honoring the (kept) pending
-                      # restart if it is still fresh.
+                      # Never leave the listening paint up with no turn coming
+                      # — show busy; on_idle recovers when the wedged reader
+                      # errors out, honoring the kept pending restart if fresh.
                       - lambda: id(voice_assistant_phase) = ${voice_assist_error_phase_id};
                       - script.execute: draw_display
-          # ── Cleanup for THIS ended turn — ONLY if no turn is live now ──
-          # (live = the restart we just issued, a direct restart from the wake
-          # handler, or a touch-started turn). The stuck-branch would PAUSE a
-          # live turn's audio and the phase/text cleanup would clobber its
-          # listening UI.
+          # ── Cleanup for THIS ended turn — ONLY if no turn is live now. ──
+          # A live turn (restart above, direct restart, or touch-started) must
+          # not have its audio paused or its listening UI clobbered.
           - if:
               condition:
                 not:
                   voice_assistant.is_running:
               then:
-                # If media_player is still stuck after the timeout, log a warning + keep the
-                # speaker paused. The lockup itself is unavoidable — ESPHome's audio_reader has
-                # a hard-coded 6 × 5 s = 30 s retry on fetch_headers and cannot be aborted from
-                # outside. New turns will be accepted once the stream errors out.
+                # If media_player is still stuck after the timeout, silence the
+                # speaker and show the busy page. The lockup is upstream
+                # (audio_reader's unabortable ~30 s fetch retry); new turns are
+                # accepted once the stream errors out.
                 - if:
                     condition:
                       - media_player.is_announcing:
@@ -990,10 +799,9 @@ voice_assistant:
                     then:
                       - lambda: id(va).set_use_wake_word(false);
                       - micro_wake_word.start:
-                      # Internal models don't persist enable state — re-assert Stop and the
-                      # selected activation word on every restart path, same as start_wake_word.
+                      # Re-assert the internal Stop model (it never persists
+                      # its enable state), same as start_wake_word.
                       - micro_wake_word.enable_model: stop
-                      - script.execute: apply_wake_word_selection
                       - script.execute: boost_mww_priority
                 - script.execute: set_idle_or_mute_phase
                 - script.execute: draw_display
@@ -1005,9 +813,6 @@ voice_assistant:
                     id: text_response
                     state: ""
   on_error:
-    - script.execute:
-        id: barge_log
-        msg: "va-err"
     - if:
         condition:
           lambda: return !id(init_in_progress);
@@ -1058,26 +863,14 @@ script:
       - media_player.stop:
           announcement: true
       - media_player.stop: speaker_media_player
-      # ── Halt the audio-stack speaker output immediately ──────────────────
-      # Calling `speaker.stop` is futile while media_player still has data:
-      # the speaker's `play()` auto-re-registers the listener, the state
-      # machine runs STOPPED → STARTING → calls parent.start_speaker(), and
-      # audio resumes. (Verified on the old duplex component; esp_audio_stack
-      # keeps the same speaker-wrapper state machine.)
-      #
-      # Pausing gates the TX ring read in the audio task, so the I2S DMA emits
-      # pure silence regardless of what's still queued in the announcement
-      # ring buffer or what media_player keeps feeding. stop_speaker()
-      # additionally requests a speaker-buffer reset (service_speaker_reset_)
-      # so the queued PCM is dropped, not deferred.
-      # IMPORTANT: pause via the WRAPPER (box_speaker.set_pause_state), not
-      # id(audio_stack).set_speaker_paused — the wrapper forwards to the stack
-      # AND keeps its own flag in sync, which (a) lets upstream speaker logic
-      # fast-path its stop on pause, and (b) makes the wrapper auto-unpause
-      # the stack on the next start, so a missed manual unpause can't leave
-      # the device permanently silent.
-      # The pause is cleared in voice_assistant.on_listening when a fresh
-      # turn starts, so the wake-chime + new TTS play normally.
+      # ── Halt the speaker output immediately ──────────────────────────────
+      # `speaker.stop` is futile while media_player still has data (play()
+      # auto-restarts the speaker). Pausing gates the TX ring read so the DMA
+      # emits silence; stop_speaker() drops the queued PCM. IMPORTANT: pause
+      # via the WRAPPER (box_speaker.set_pause_state), never the stack
+      # directly — the wrapper keeps its own flag in sync and auto-unpauses on
+      # the next start, so a missed unpause can't leave the device silent.
+      # The pause is cleared in voice_assistant.on_listening.
       - lambda: |-
           id(box_speaker).set_pause_state(true);
           id(audio_stack).stop_speaker();
@@ -1088,10 +881,9 @@ script:
       - text_sensor.template.publish:
           id: text_response
           state: ""
-      # When a barge-in restart is pending (second activation word), go straight
-      # to the LISTENING visuals — the restart lands a few hundred ms later and
-      # the screen should never flash the idle page between the two turns.
-      # Cancel-only paths (Stop, touch) keep the idle/mute page as before.
+      # With a restart pending (repeated activation word), paint the LISTENING
+      # page directly — no idle flash between the two turns. Cancel-only paths
+      # (Stop, touch) keep the idle/mute page.
       - if:
           condition:
             lambda: 'return id(pending_wake_restart).empty();'
@@ -1108,249 +900,21 @@ script:
       - lvgl.label.update:
           id: replying_request_label
           text: !lambda return id(text_request).state;
+      # Pace the answer marquee to roughly match TTS dictation. LVGL's default
+      # label scroll is SPEED-encoded but hard-clamped to a 10 s maximum pass
+      # (lv_label.c: lv_anim_speed_clamped(40, 300, 10000)), so long answers
+      # whip through far too fast. Give the label an explicit duration scaled
+      # to the text (~70 ms/char ~= speaking pace) before updating it; only
+      # write when changed so periodic redraws don't restart the scroll.
+      - lambda: |-
+          const uint32_t ms = std::max((uint32_t) 4000,
+                                       (uint32_t) (id(text_response).state.length() * 70));
+          if (lv_obj_get_style_anim_duration(id(response_label), LV_PART_MAIN) != ms) {
+            lv_obj_set_style_anim_duration(id(response_label), ms, LV_PART_MAIN);
+          }
       - lvgl.label.update:
           id: response_label
           text: !lambda return id(text_response).state;
-      - lvgl.label.update:
-          id: date_label_up
-          text: !lambda |-
-            static const char *days[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-            static const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"};
-            if (!id(ha_time_og).now().is_valid()) {
-              return std::string("");
-            }
-            char buffer[32];
-            snprintf(
-              buffer,
-              sizeof(buffer),
-              "%s %d %s",
-              days[id(ha_time_og).now().day_of_week - 1],
-              id(ha_time_og).now().day_of_month,
-              months[id(ha_time_og).now().month - 1]
-            );
-            return std::string(buffer);
-      - lvgl.label.update:
-          id: date_label_down
-          text: !lambda |-
-            static const char *days[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-            static const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"};
-            if (!id(ha_time_og).now().is_valid()) {
-              return std::string("");
-            }
-            char buffer[32];
-            snprintf(
-              buffer,
-              sizeof(buffer),
-              "%s %d %s",
-              days[id(ha_time_og).now().day_of_week - 1],
-              id(ha_time_og).now().day_of_month,
-              months[id(ha_time_og).now().month - 1]
-            );
-            return std::string(buffer);
-      - lvgl.label.update:
-          id: date_label_left
-          text: !lambda |-
-            static const char *days[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-            static const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"};
-            if (!id(ha_time_og).now().is_valid()) {
-              return std::string("");
-            }
-            char buffer[32];
-            snprintf(
-              buffer,
-              sizeof(buffer),
-              "%s %d %s",
-              days[id(ha_time_og).now().day_of_week - 1],
-              id(ha_time_og).now().day_of_month,
-              months[id(ha_time_og).now().month - 1]
-            );
-            return std::string(buffer);
-      - lvgl.label.update:
-          id: date_label_right
-          text: !lambda |-
-            static const char *days[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-            static const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"};
-            if (!id(ha_time_og).now().is_valid()) {
-              return std::string("");
-            }
-            char buffer[32];
-            snprintf(
-              buffer,
-              sizeof(buffer),
-              "%s %d %s",
-              days[id(ha_time_og).now().day_of_week - 1],
-              id(ha_time_og).now().day_of_month,
-              months[id(ha_time_og).now().month - 1]
-            );
-            return std::string(buffer);
-      - lvgl.label.update:
-          id: date_label
-          text: !lambda |-
-            static const char *days[] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
-            static const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"};
-            if (!id(ha_time_og).now().is_valid()) {
-              return std::string("");
-            }
-            char buffer[32];
-            snprintf(
-              buffer,
-              sizeof(buffer),
-              "%s %d %s",
-              days[id(ha_time_og).now().day_of_week - 1],
-              id(ha_time_og).now().day_of_month,
-              months[id(ha_time_og).now().month - 1]
-            );
-            return std::string(buffer);
-      - if:
-          condition:
-            lambda: return id(time_display_format).state == "24 Hr";
-          then:
-            - lvgl.label.update:
-                id: clock_label_up
-                text_font: my_font82
-                text: !lambda |-
-                  if (!id(ha_time_og).now().is_valid()) {
-                    return std::string("--:--");
-                  }
-                  return id(ha_time_og).now().strftime("%H:%M");
-            - lvgl.label.update:
-                id: clock_label_down
-                text_font: my_font82
-                text: !lambda |-
-                  if (!id(ha_time_og).now().is_valid()) {
-                    return std::string("--:--");
-                  }
-                  return id(ha_time_og).now().strftime("%H:%M");
-            - lvgl.label.update:
-                id: clock_label_left
-                text_font: my_font82
-                text: !lambda |-
-                  if (!id(ha_time_og).now().is_valid()) {
-                    return std::string("--:--");
-                  }
-                  return id(ha_time_og).now().strftime("%H:%M");
-            - lvgl.label.update:
-                id: clock_label_right
-                text_font: my_font82
-                text: !lambda |-
-                  if (!id(ha_time_og).now().is_valid()) {
-                    return std::string("--:--");
-                  }
-                  return id(ha_time_og).now().strftime("%H:%M");
-            - lvgl.label.update:
-                id: clock_label
-                text_font: my_font82
-                text: !lambda |-
-                  if (!id(ha_time_og).now().is_valid()) {
-                    return std::string("--:--");
-                  }
-                  return id(ha_time_og).now().strftime("%H:%M");
-          else:
-            - lvgl.label.update:
-                id: clock_label_up
-                text_font: my_font2
-                text: !lambda |-
-                  if (!id(ha_time_og).now().is_valid()) {
-                    return std::string("--:--");
-                  }
-                  auto value = id(ha_time_og).now().strftime("%I:%M%p");
-                  if (!value.empty() && value[0] == '0') {
-                    value.erase(0, 1);
-                  }
-                  return value;
-            - lvgl.label.update:
-                id: clock_label_down
-                text_font: my_font2
-                text: !lambda |-
-                  if (!id(ha_time_og).now().is_valid()) {
-                    return std::string("--:--");
-                  }
-                  auto value = id(ha_time_og).now().strftime("%I:%M%p");
-                  if (!value.empty() && value[0] == '0') {
-                    value.erase(0, 1);
-                  }
-                  return value;
-            - lvgl.label.update:
-                id: clock_label_left
-                text_font: my_font2
-                text: !lambda |-
-                  if (!id(ha_time_og).now().is_valid()) {
-                    return std::string("--:--");
-                  }
-                  auto value = id(ha_time_og).now().strftime("%I:%M%p");
-                  if (!value.empty() && value[0] == '0') {
-                    value.erase(0, 1);
-                  }
-                  return value;
-            - lvgl.label.update:
-                id: clock_label_right
-                text_font: my_font2
-                text: !lambda |-
-                  if (!id(ha_time_og).now().is_valid()) {
-                    return std::string("--:--");
-                  }
-                  auto value = id(ha_time_og).now().strftime("%I:%M%p");
-                  if (!value.empty() && value[0] == '0') {
-                    value.erase(0, 1);
-                  }
-                  return value;
-            - lvgl.label.update:
-                id: clock_label
-                text_font: my_font2
-                text: !lambda |-
-                  if (!id(ha_time_og).now().is_valid()) {
-                    return std::string("--:--");
-                  }
-                  auto value = id(ha_time_og).now().strftime("%I:%M%p");
-                  if (!value.empty() && value[0] == '0') {
-                    value.erase(0, 1);
-                  }
-                  return value;
-      - lvgl.label.update:
-          id: temp_label_up
-          text: !lambda |-
-            if (isnan(id(outside_temp).state)) {
-              return std::string("--°C");
-            }
-            char buffer[16];
-            snprintf(buffer, sizeof(buffer), "%.0f°C", id(outside_temp).state);
-            return std::string(buffer);
-      - lvgl.label.update:
-          id: temp_label_down
-          text: !lambda |-
-            if (isnan(id(outside_temp).state)) {
-              return std::string("--°C");
-            }
-            char buffer[16];
-            snprintf(buffer, sizeof(buffer), "%.0f°C", id(outside_temp).state);
-            return std::string(buffer);
-      - lvgl.label.update:
-          id: temp_label_left
-          text: !lambda |-
-            if (isnan(id(outside_temp).state)) {
-              return std::string("--°C");
-            }
-            char buffer[16];
-            snprintf(buffer, sizeof(buffer), "%.0f°C", id(outside_temp).state);
-            return std::string(buffer);
-      - lvgl.label.update:
-          id: temp_label_right
-          text: !lambda |-
-            if (isnan(id(outside_temp).state)) {
-              return std::string("--°C");
-            }
-            char buffer[16];
-            snprintf(buffer, sizeof(buffer), "%.0f°C", id(outside_temp).state);
-            return std::string(buffer);
-      - lvgl.label.update:
-          id: temp_label
-          text: !lambda |-
-            if (isnan(id(outside_temp).state)) {
-              return std::string("--°C");
-            }
-            char buffer[16];
-            snprintf(buffer, sizeof(buffer), "%.0f°C", id(outside_temp).state);
-            return std::string(buffer);
       - script.execute: check_if_timers_active
       - script.execute: check_if_timers
       - if:
@@ -1543,14 +1107,9 @@ script:
           then:
             - lambda: id(va).set_use_wake_word(false);
             - micro_wake_word.start:
-            # The 'stop' model is internal=true (hidden from HA so HA can't disable it),
-            # which means it boots DISABLED on EVERY boot — internal models never save
-            # their enable state to flash — and only runs after an explicit enable_model.
-            # Re-enabling here ensures Stop is active on every boot and HA reconnect.
+            # The internal Stop model never persists its enable state and
+            # boots disabled — re-assert it on every wake-word (re)start path.
             - micro_wake_word.enable_model: stop
-            # Same deal for the activation words (both internal since the Zylox
-            # toggle was added): enforce the 'Wake word' select on every pass.
-            - script.execute: apply_wake_word_selection
             - script.execute: boost_mww_priority
       - if:
           condition:
@@ -1575,43 +1134,19 @@ script:
             lambda: return id(wake_word_engine_location).current_option() == "On device";
           then:
             - micro_wake_word.stop:
-  # Enables the activation model chosen by the 'Wake word' select and disables
-  # the other one. Safe to run at any time, including while mWW is listening —
-  # enable/disable just flip per-model flags (persisted to flash). The VAD and
-  # the internal 'stop' halt-word are not touched by this script.
-  - id: apply_wake_word_selection
+  # Hold the answer still (DOTS-truncated, the ellipsis signals more text) for
+  # 1 s so the start of the answer is readable, THEN begin the circular
+  # marquee. mode: restart — each new answer restarts the hold.
+  - id: response_scroll_delay
+    mode: restart
     then:
-      - if:
-          condition:
-            # current_option() — .state is deprecated and slated for removal in ESPHome 2026.7
-            lambda: return id(wake_word_select).current_option() == "Zylox";
-          then:
-            - micro_wake_word.enable_model: zylox_model
-            - micro_wake_word.disable_model: okay_nabu_model
-          else:
-            # Default branch (also covers an unset/blank select state):
-            # fall back to the original Okay Nabu behavior.
-            - micro_wake_word.enable_model: okay_nabu_model
-            - micro_wake_word.disable_model: zylox_model
-  # On-device forensic trail for the barge-in machinery: appends short event
-  # tokens to the 'Barge Trail' diagnostic text sensor so failures can be
-  # diagnosed AFTER the fact via the API — no live log stream needed.
-  - id: barge_log
-    parameters:
-      msg: string
-    then:
-      - lambda: |-
-          std::string s = id(barge_trail).has_state() ? id(barge_trail).state : "";
-          if (s.length() > 170) s = s.substr(s.length() - 170);
-          if (!s.empty()) s += " | ";
-          s += msg;
-          id(barge_trail).publish_state(s);
+      - lambda: lv_label_set_long_mode(id(response_label), LV_LABEL_LONG_MODE_DOTS);
+      - delay: 1s
+      - lambda: lv_label_set_long_mode(id(response_label), LV_LABEL_LONG_MODE_SCROLL_CIRCULAR);
   # Boost the micro_wake_word inference task from ESPHome's default priority 3
-  # to 8 — the repo-tested value for reliable wake/'Stop' detection during loud
-  # TTS playback (esp_audio_stack README: "Boost MWW priority to 8 via on_boot
-  # lambda"; pattern from packages/intercom/state_machine_full.yaml). The task
-  # (FreeRTOS name "mww") is created by micro_wake_word.start, so wait 1 s for
-  # it to exist. mode: restart — rapid re-calls just restart the settle timer.
+  # to 8 for reliable wake/'Stop' detection during loud TTS playback. The task
+  # (FreeRTOS name "mww") is created by micro_wake_word.start — wait 1 s for
+  # it to exist.
   - id: boost_mww_priority
     mode: restart
     then:
@@ -1662,12 +1197,9 @@ script:
           else:
             - lambda: id(voice_assistant_phase) = ${voice_assist_muted_phase_id};
 
-# User controls from the repo's packages/esp_audio_stack/controls.yaml.
-# NOTE: this number block is not optional decoration — esp_audio_stack ships
-# number.h at its component root, which #includes the core 'number' component
-# unconditionally. A config with no number entities never loads core 'number'
-# and the build fails (fatal error: esphome/components/number/number.h).
-# Every maintained profile carries these controls for the same reason.
+# NOTE: this number block is load-bearing — esp_audio_stack ships number.h at
+# its component root, so a config with NO number entities fails to build
+# (core 'number' never gets loaded).
 number:
   - platform: esp_audio_stack
     esp_audio_stack_id: audio_stack
@@ -1680,13 +1212,9 @@ number:
       name: Mic Gain
       min_value: -20
       max_value: 30
-  # Hardware output boost on the ES8311 DAC. The codec's digital volume scale
-  # reaches +32 dB above its 0 dB boot default (reg 0x32: 0.5 dB/step, 191 =
-  # 0 dB); the popular BigBobbas Box-3 config tops out around +6.5 dB on this
-  # same hardware. This is a separate stage from HA's media volume and the
-  # Master Volume number — think of it as the amp's trim knob. Values much
-  # above ~7 dB will clip/distort full-scale TTS peaks; back off if playback
-  # sounds harsh.
+  # Hardware output boost on the ES8311 DAC (+32 dB of headroom above 0 dB).
+  # A separate stage from media volume and Master Volume — the amp's trim
+  # knob. Much above ~7 dB clips full-scale TTS peaks; back off if harsh.
   - platform: template
     name: Speaker Gain
     id: speaker_gain
@@ -1706,8 +1234,8 @@ number:
       - script.execute: apply_speaker_gain
 
 switch:
-  # Runtime AEC on/off (packages/esp_audio_stack/aec_controls.yaml). Restores
-  # ON — leave it on for normal use, barge-in ('Stop' during TTS) depends on it.
+  # Runtime AEC on/off. Restores ON — leave it on for normal use; barge-in
+  # ('Stop' during TTS) depends on it.
   - platform: esp_audio_stack
     esp_audio_stack_id: audio_stack
     aec:
@@ -1816,27 +1344,11 @@ select:
                         switch.is_off: mute
                       then:
                         - micro_wake_word.start
-                        # Without these, switching to 'On device' mid-session could
+                        # Without this, switching to 'On device' mid-session could
                         # run mWW with the internal Stop model still disabled (it is
                         # only enabled by start_wake_word / on_end restart paths).
                         - micro_wake_word.enable_model: stop
-                        - script.execute: apply_wake_word_selection
                         - script.execute: boost_mww_priority
-  - platform: template
-    entity_category: config
-    name: Wake word
-    id: wake_word_select
-    icon: "mdi:chat-question"
-    optimistic: true
-    restore_value: true
-    options:
-      - Okay Nabu
-      - Zylox
-    initial_option: Okay Nabu
-    on_value:
-      # Runs on boot restore too — harmless, the apply script only flips
-      # model-enable flags and is safe whether or not mWW is running.
-      - script.execute: apply_wake_word_selection
 
 globals:
   - id: init_in_progress
@@ -1948,47 +1460,7 @@ font:
     size: 30
     glyphsets:
       - ${font_glyphsets}
-  - file:
-      type: gfonts
-      family: ${font_family}
-      weight: 300
-    id: my_font2
-    size: 45
-    glyphsets:
-      - ${font_glyphsets}
-  - file:
-      type: gfonts
-      family: ${font_family}
-      weight: 300
-    id: clock_font
-    size: 36
-    glyphsets:
-      - ${font_glyphsets}
-  - file:
-      type: gfonts
-      family: ${font_family}
-      weight: 300
-    id: my_font82
-    size: 82
-    glyphsets:
-      - ${font_glyphsets}
 text_sensor:
-  - platform: template
-    name: "Current Time"
-    id: ha_time
-    lambda: |-
-      return id(ha_time_og).now().strftime("%H:%M");
-    update_interval: never    
-    on_value:
-      - if:
-          condition:
-            - lambda: return id(voice_assistant_phase) == ${voice_assist_idle_phase_id} || id(voice_assistant_phase) == ${voice_assist_muted_phase_id};
-          then:
-            - script.execute: draw_display
-
-  - platform: template
-    id: time_display_format
-    update_interval: never
   - id: text_request
     platform: template
     on_value:
@@ -2003,18 +1475,15 @@ text_sensor:
     platform: template
     on_value:
       lambda: |-
-        if(id(text_response).state.length()>32) {
+        // The replying page scrolls the answer in a circular marquee, so keep
+        // the full text — bounded so a runaway LLM response can't bloat the
+        // label buffer.
+        if(id(text_response).state.length()>600) {
           std::string name = id(text_response).state.c_str();
-          std::string truncated = esphome::str_truncate(name.c_str(),31);
+          std::string truncated = esphome::str_truncate(name.c_str(),597);
           id(text_response).state = (truncated+"...").c_str();
         }
-  # Forensic trail of barge-in decisions — see the barge_log script.
-  - platform: template
-    name: "Barge Trail"
-    id: barge_trail
-    entity_category: diagnostic
-    update_interval: never
-  # ── Fleet diagnostics (repo packages/diagnostics/native.yaml) ──────────────
+  # ── Diagnostics ─────────────────────────────────────────────────────────
   - platform: debug
     device:
       name: Device Info
@@ -2024,12 +1493,6 @@ text_sensor:
       entity_category: diagnostic
 
 color:  
-  - id: light_blue
-    hex: 'CFE2F3'
-  - id: clock_color
-    hex: 'FFFFFF'
-  - id: black
-    hex: '000000'
   - id: idle_color
     hex: ${idle_illustration_background_color}
   - id: listening_color
@@ -2078,141 +1541,6 @@ lvgl:
         - image:
             src: casita_idle
             align: CENTER
-        - label:
-            id: date_label_up
-            text: ""
-            x: 0
-            y: 6
-            width: 320
-            align: TOP_MID
-            text_align: CENTER
-            text_font: clock_font
-            text_color: black
-        - label:
-            id: date_label_down
-            text: ""
-            x: 0
-            y: 10
-            width: 320
-            align: TOP_MID
-            text_align: CENTER
-            text_font: clock_font
-            text_color: black
-        - label:
-            id: date_label_left
-            text: ""
-            x: -2
-            y: 8
-            width: 320
-            align: TOP_MID
-            text_align: CENTER
-            text_font: clock_font
-            text_color: black
-        - label:
-            id: date_label_right
-            text: ""
-            x: 2
-            y: 8
-            width: 320
-            align: TOP_MID
-            text_align: CENTER
-            text_font: clock_font
-            text_color: black
-        - label:
-            id: date_label
-            text: ""
-            x: 0
-            y: 8
-            width: 320
-            align: TOP_MID
-            text_align: CENTER
-            text_font: clock_font
-            text_color: clock_color
-        - label:
-            id: clock_label_up
-            text: ""
-            x: 0
-            y: 173
-            width: 190
-            text_align: CENTER
-            text_font: my_font82
-            text_color: black
-        - label:
-            id: clock_label_down
-            text: ""
-            x: 0
-            y: 177
-            width: 190
-            text_align: CENTER
-            text_font: my_font82
-            text_color: black
-        - label:
-            id: clock_label_left
-            text: ""
-            x: -2
-            y: 175
-            width: 190
-            text_align: CENTER
-            text_font: my_font82
-            text_color: black
-        - label:
-            id: clock_label_right
-            text: ""
-            x: 2
-            y: 175
-            width: 190
-            text_align: CENTER
-            text_font: my_font82
-            text_color: black
-        - label:
-            id: clock_label
-            text: ""
-            x: 0
-            y: 175
-            width: 190
-            text_align: CENTER
-            text_font: my_font82
-            text_color: clock_color
-        - label:
-            id: temp_label_up
-            text: ""
-            x: 210
-            y: 173
-            width: 110
-            text_font: my_font2
-            text_color: black
-        - label:
-            id: temp_label_down
-            text: ""
-            x: 210
-            y: 177
-            width: 110
-            text_font: my_font2
-            text_color: black
-        - label:
-            id: temp_label_left
-            text: ""
-            x: 208
-            y: 175
-            width: 110
-            text_font: my_font2
-            text_color: black
-        - label:
-            id: temp_label_right
-            text: ""
-            x: 212
-            y: 175
-            width: 110
-            text_font: my_font2
-            text_color: black
-        - label:
-            id: temp_label
-            text: ""
-            x: 210
-            y: 175
-            width: 110
-            text_font: my_font2
-            text_color: clock_color
     - id: listening_page
       bg_color: listening_color
       pad_all: 0
@@ -2301,7 +1629,13 @@ lvgl:
                   x: 10
                   y: 0
                   width: 250
-                  long_mode: DOT
+                  # Fixed single-line height: without it, the DOTS hold phase
+                  # (response_scroll_delay) word-wraps the full answer into
+                  # multiple rows instead of truncating on one line.
+                  height: 20
+                  # Circular marquee so long answers scroll through the box
+                  # while they are dictated (was DOT = hard truncation).
+                  long_mode: SCROLL_CIRCULAR
                   text_font: font_response
                   text_color: 0x000000
     - id: timer_finished_page
