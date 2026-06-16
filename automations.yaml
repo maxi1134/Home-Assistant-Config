@@ -1028,7 +1028,7 @@
     entity_id: input_boolean.following_music
     state: 'on'
   - condition: template
-    value_template: '{{ states(''sensor.maxi_location_by_petro'') not in [area_id(trigger.entity_id)]
+    value_template: '{{ states(''sensor.maxi_location_by_petro_v2'') not in [area_id(trigger.entity_id)]
       | string  }}'
   actions:
   - variables:
@@ -1330,7 +1330,7 @@
     from: 'off'
   - trigger: state
     entity_id:
-    - sensor.maxi_location_by_petro
+    - sensor.maxi_location_by_petro_v2
     for:
       hours: 0
       minutes: 0
@@ -1344,7 +1344,7 @@
     state: 'on'
   actions:
   - variables:
-      playing_speakers: '{{ [area_id(states(''sensor.maxi_location_by_petro''))]   |
+      playing_speakers: '{{ [area_id(states(''sensor.maxi_location_by_petro_v2''))]   |
         map(''area_entities'') | sum(start=[]) |    select(''search'', ''speakers'')
         | select(''is_state'',''playing'') | unique | list }}
 
@@ -2009,12 +2009,18 @@
         - action: script.non_important_broadcast_alert_in_the_house
           data:
             message: A package has been delivered! Go check the door
-        - delay:
+        - wait_for_trigger:
+          - trigger: state
+            entity_id: lock.lock_front_door
+          - trigger: state
+            entity_id: input_boolean.waiting_package
+            to: 'off'
+          timeout:
             minutes: 5
+          continue_on_timeout: true
         until:
         - condition: template
-          value_template: '{{ (now() - states.lock.lock_front_door.last_changed).total_seconds()
-            < 300 }}'
+          value_template: '{{ wait.trigger is not none }}'
   mode: single
 - id: '1716566146304'
   alias: Assist play next song
@@ -4683,8 +4689,7 @@
       max_tokens: 100
       temperature: 0.1
       expose_images: true
-      provider: 01K9337G97H1HC11NBFD4HF7JQ
-      model: qwen3-vl:2b-instruct-q4_K_M
+      provider: 01K9337G97H1HC11NBFD4HF7JQ\
       message: Answer only with 'yes' or 'no', is there a police officer or a security
         guard on this image? Only use one word to answer
       image_entity:
@@ -5513,7 +5518,7 @@
         state: home
       sequence:
       - variables:
-          in_room_speakers: "{% set area = area_id(states('sensor.maxi_location_by_petro'))
+          in_room_speakers: "{% set area = area_id(states('sensor.maxi_location_by_petro_v2'))
             %} {% if area %}\n  {% set mass_speakers = [area] | map('area_entities')
             | sum(start=[]) | select('search', 'speaker') | select('search', 'mass')
             | unique | list %}\n  {% if mass_speakers %}\n    {{ mass_speakers }}\n
@@ -6130,8 +6135,8 @@
   actions:
   - variables:
       speaker: "{{ integration_entities('music_assistant') \n | expand\n | selectattr('entity_id',
-        'search', states('sensor.maxi_location_by_petro') )\n | map(attribute='entity_id')
-        | list }} \n"
+        'search', states('sensor.maxi_location_by_petro_v2') )\n | selectattr('entity_id',
+        'search', 'speaker' )\n | map(attribute='entity_id') | list }} \n"
     alias: Define Closest speaker to maxi
   - action: media_player.unjoin
     metadata: {}
@@ -6143,7 +6148,7 @@
     data:
       cache: true
       media_player_entity_id: "{{ speaker }} \n"
-      message: Phone ringing near the "{states('sensor.bermuda_fea50693a4e24fb1afcfc6eb07647825_10001_19641_bps_zone')}}"
+      message: Phone ringing near the {{states('sensor.bermuda_bc4bcf440a7d4d358cd961821d36ca57_100_40004_bps_zone')}}
     target:
       entity_id:
       - tts.piper_2
@@ -8301,10 +8306,10 @@
     trigger: state
   conditions:
   - condition: template
-    value_template: '{% if states(''sensor.maxi_location_by_petro'') != ''unknown''
+    value_template: '{% if states(''sensor.maxi_location_by_petro_v2'') != ''unknown''
       %}
 
-      {{ states(''sensor.maxi_location_by_petro'') | lower not in [area_id(trigger.entity_id)]
+      {{ states(''sensor.maxi_location_by_petro_v2'') | lower not in [area_id(trigger.entity_id)]
       | lower }}
 
       {% else %}
@@ -8480,7 +8485,7 @@
   - condition: not
     conditions:
     - condition: state
-      entity_id: sensor.maxi_location_by_petro
+      entity_id: sensor.maxi_location_by_petro_v2
       state: hallway
   - condition: not
     conditions:
@@ -8520,7 +8525,7 @@
   - condition: not
     conditions:
     - condition: state
-      entity_id: sensor.maxi_location_by_petro
+      entity_id: sensor.maxi_location_by_petro_v2
       state: workshop
   - condition: not
     conditions:
@@ -9116,7 +9121,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - sensor.maxi_location_by_petro
+    - sensor.maxi_location_by_petro_v2
     from: salon
     for:
       hours: 0
@@ -9352,13 +9357,13 @@
   - action: remote.turn_off
     metadata: {}
     target:
-      entity_id: remote.lounge_roku_tv
+      entity_id: remote.salon_salon_bravia_tv
     data: {}
   - if:
     - condition: or
       conditions:
       - condition: state
-        entity_id: sensor.maxi_location_by_petro
+        entity_id: sensor.maxi_location_by_petro_v2
         state:
         - salon
       - condition: state
@@ -9437,6 +9442,13 @@
       transition: 30
     target:
       entity_id: light.group_salon_lights
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - switch.saloon_assistant_mute
+      - switch.desktop_assistant_mute
   mode: single
 - id: '1749669750052'
   alias: Close bedroom blinds when sun sets
@@ -11365,10 +11377,10 @@
     trigger: state
   conditions:
   - condition: template
-    value_template: '{% if states(''sensor.maxi_location_by_petro'') != ''unknown''
+    value_template: '{% if states(''sensor.maxi_location_by_petro_v2'') != ''unknown''
       %}
 
-      {{ states(''sensor.maxi_location_by_petro'') | lower not in [area_id(trigger.entity_id)]
+      {{ states(''sensor.maxi_location_by_petro_v2'') | lower not in [area_id(trigger.entity_id)]
       | lower }}
 
       {% else %}
@@ -13038,8 +13050,8 @@
   - action: light.turn_on
     metadata: {}
     target:
-      entity_id: '{{ area_entities(states(''sensor.where_is_maxi_sleeping'')) | select(''search'',''^light.group'')|
-        reject(''search'', ''uv_lamp'') | list  }}
+      entity_id: '{{ area_entities(states(''sensor.maxi_location_by_petro_v2'')) |
+        select(''search'',''^light.group'')| reject(''search'', ''uv_lamp'') | list  }}
 
         '
     data:
@@ -15067,7 +15079,7 @@
     - media_player.mass_patio_wiim_speaker
   conditions:
   - condition: template
-    value_template: '{{ states(''sensor.maxi_location_by_petro'') not in [area_id(trigger.entity_id)]
+    value_template: '{{ states(''sensor.maxi_location_by_petro_v2'') not in [area_id(trigger.entity_id)]
       | string  }}'
   - condition: and
     conditions:

@@ -610,42 +610,7 @@ change_received_lights_to_random_colors:
   alias: Change received lights or area to dissimilar random color
   description: Changes each light to a random color, ensuring the new hue is at least
     25 degrees away from the current one. Consolidates areas and manual light selections.
-  sequence:
-  - variables:
-      lights: "{# 1. Get entities from the selected areas #}\n{% set area_list = []
-        %}\n{% if area is defined and area %}\n  {% set area_list = area \n    | map('area_entities')
-        \n    | sum(start=[]) \n    | select('search', '^light\\.')\n    | list %}\n{%
-        endif %}\n\n{# 2. Get entities from the manual 'light' field #}\n{% set manual_list
-        = light if light is defined and light else [] %}\n\n{# 3. Combine, expand
-        groups to find hidden members, and filter #}\n{% set combined = (area_list
-        + manual_list) | unique | list %}\n\n{# 4. Final filter: Expand all to get
-        raw entities, filter keywords, and ensure unique IDs #}\n{{ expand(combined)\n
-        \     | selectattr('domain', 'eq', 'light')\n      | selectattr('attributes.supported_color_modes',
-        'defined')\n      | selectattr('attributes.supported_color_modes', 'search',
-        'hs|rgb|xy')\n      | rejectattr('attributes.entity_id', 'defined')\n      |
-        map(attribute='entity_id')\n      | reject('search', 'decorative')\n      |
-        reject('search', 'main')\n      | unique | list }}\n"
-  - repeat:
-      for_each: '{{ lights }}'
-      sequence:
-      - variables:
-          current_hue: '{% set hs = state_attr(repeat.item, ''hs_color'') %} {{ hs[0]
-            | float if hs else 0 }}
-
-            '
-          wanted_hue: "{% set buffer = 25 %} {% set random_hue = range(0, 360) | random
-            %} {% set diff = (random_hue - current_hue) | abs %} {% if diff > buffer
-            and diff < (360 - buffer) %}\n  {{ random_hue }}\n{% else %}\n  {{ (random_hue
-            + 180) % 360 }}\n{% endif %}\n"
-      - action: light.turn_on
-        target:
-          entity_id: '{{ repeat.item }}'
-        data:
-          hs_color:
-          - '{{ wanted_hue }}'
-          - '{{ saturation | default(100) }}'
-          transition: '{{ transition_speed | default(''1'') }}'
-        continue_on_error: true
+    All lights are recolored simultaneously.
   mode: restart
   icon: mdi:palette-swatch
   fields:
@@ -655,6 +620,7 @@ change_received_lights_to_random_colors:
       selector:
         area:
           multiple: true
+      required: true
     light:
       name: Light
       description: Specific light entity (or entities) to target.
@@ -675,6 +641,31 @@ change_received_lights_to_random_colors:
           min: 2
           max: 200
       default: 1
+  sequence:
+  - variables:
+      lights: "{# 1. Get entities from the selected areas #} {% set area_list = []
+        %} {% if area is defined and area %}\n  {% set area_list = area\n    | map('area_entities')\n
+        \   | sum(start=[])\n    | select('search', '^light\\.')\n    | list %}\n{%
+        endif %} {# 2. Get entities from the manual 'light' field #} {% set manual_list
+        = light if light is defined and light else [] %} {# 3. Combine and dedupe
+        #} {% set combined = (area_list + manual_list) | unique | list %} {# 4. Expand,
+        filter to color-capable lights, drop decorative/main #} {{ expand(combined)\n
+        \     | selectattr('domain', 'eq', 'light')\n      | selectattr('attributes.supported_color_modes',
+        'defined')\n      | selectattr('attributes.supported_color_modes', 'search',
+        'hs|rgb|xy')\n      | rejectattr('attributes.entity_id', 'defined')\n      |
+        map(attribute='entity_id')\n      | reject('search', 'decorative')\n      |
+        reject('search', 'main')\n      | unique | list }}\n"
+  - repeat:
+      for_each: '{{ lights }}'
+      sequence:
+      - action: script.turn_on
+        target:
+          entity_id: script.set_one_light_to_a_dissimilar_random_color
+        data:
+          variables:
+            target_light: '{{ repeat.item }}'
+            saturation: '{{ saturation | default(100) }}'
+            transition_speed: '{{ transition_speed | default(1) }}'
 start_visual_playlist_on_plex:
   alias: Start requsted Playlist on plex for all unplaying chromecasts
   description: Starts a requested Plex playlist in shuffle mode on all idle Chromecast
@@ -1005,59 +996,49 @@ non_important_broadcast_alert_in_the_house:
   max: 3
 changes_all_on:
   alias: Changes all on lights to random colors
-  sequence:
-  - variables:
-      all_on_lights: '{{ integration_entities(''group'')|  select(''search'', ''light.group_all_lights'')   |
-        expand | selectattr("attributes.rgb_color", "defined") |  selectattr("state",
-        "eq", "on") | map(attribute=''entity_id'')  | list }}
-
-        '
-  - repeat:
-      sequence:
-      - metadata: {}
-        data:
-          hs_color: '{{ range(1, 360) | random | string + '','' + 100 | string }}'
-        target:
-          entity_id: '{{all_on_lights[repeat.index - 1]}}'
-        action: light.turn_on
-      for_each: '{{ all_on_lights }}'
   mode: restart
   icon: mdi:sale
-  fields: {}
   description: 'This script can be used to change the lights in the house to random
     colors.
 
-
-    It can be used by an LLM to trigger this action when requested
-
+    It can be used by an LLM to trigger this action when requested.
 
     Do not use this to modify individual lights or bulbs!'
-change_all_on_lights_to_random_pastel_colors:
-  alias: Changes all turned on lights to random pastel colors
   sequence:
   - variables:
-      on_lights: '
-
-        {{ integration_entities(''group'')|  select(''search'', ''light.group_all_lights'')   |
-        expand | selectattr("attributes.rgb_color", "defined") |  selectattr("state",
-        "eq", "on") | map(attribute=''entity_id'')  | list }}
-
-        '
+      all_on_lights: "{{ integration_entities('group') | select('search', 'light.group_all_lights')\n
+        \  | expand | selectattr(\"attributes.rgb_color\", \"defined\")\n   | selectattr(\"state\",
+        \"eq\", \"on\") | map(attribute='entity_id') | list }}"
   - repeat:
+      for_each: '{{ all_on_lights }}'
       sequence:
-      - metadata: {}
-        data:
-          hs_color: '{{ range(1, 360) | random | string + '','' + 40 | string }}'
+      - action: script.turn_on
         target:
-          entity_id: '{{repeat.item}}'
-        action: light.turn_on
-      for_each: '{{ on_lights }}'
+          entity_id: script.set_one_light_to_a_random_color
+        data:
+          variables:
+            target_light: '{{ repeat.item }}'
+change_all_on_lights_to_random_pastel_colors:
+  alias: Changes all turned on lights to random pastel colors
+  description: Sets all currently turned-on lights to random pastel colors (random
+    hue, saturation 40). Each light gets its own pastel color, all recolored simultaneously.
   mode: restart
   icon: mdi:sale
   fields: {}
-  description: Changes all currently turned-on inside lights to random pastel colors
-    by setting each light to a random hue with low saturation (40%), creating a soft,
-    muted color palette throughout the home.
+  sequence:
+  - variables:
+      on_lights: "{{ integration_entities('group') | select('search', 'light.group_all_lights')\n
+        \  | expand | selectattr(\"attributes.rgb_color\", \"defined\")\n   | selectattr(\"state\",
+        \"eq\", \"on\") | map(attribute='entity_id') | list }}"
+  - repeat:
+      for_each: '{{ on_lights }}'
+      sequence:
+      - action: script.turn_on
+        target:
+          entity_id: script.set_one_light_to_a_random_pastel_color
+        data:
+          variables:
+            target_light: '{{ repeat.item }}'
 generate_and_save_localai_image:
   alias: Generate and save LocalAI image
   description: Generates an image using LocalAI's image generation API with the specified
@@ -1098,64 +1079,27 @@ generate_and_save_sd_image:
   mode: single
   icon: mdi:image-frame
 changes_all_on_lights_to_warm_colors:
-  alias: Changes all on lights to warm colors
-  description: Sets all currently turned-on inside lights to random warm colors by
-    choosing hues in the red/orange range (0-20) or pink/magenta range (260-360) at
-    full saturation, creating a warm ambient atmosphere.
-  sequence:
-  - variables:
-      on_lights: '{{ integration_entities(''group'')|  select(''search'', ''light.group_all_inside_lights'')   |
-        expand | selectattr("attributes.rgb_color", "defined") |  selectattr("state",
-        "eq", "on") | map(attribute=''entity_id'')  | list }}
-
-        '
-  - repeat:
-      sequence:
-      - metadata: {}
-        data:
-          hs_color: "{% set hue_under_20 = range(1, 20) | random | string + ',' +
-            100 | string %} {% set hue_over_260 = range(260, 360) | random | string
-            + ',' + 100 | string %} {% set random = range(1, 3) | random %}           {%
-            if random == 1 %}\n {{hue_under_20 }}\n{% elif random > 1 %}           {{hue_over_260}}
-            {%endif%}\n"
-        target:
-          entity_id: '{{on_lights[repeat.index - 1]}}'
-        action: light.turn_on
-        continue_on_error: true
-      for_each: '{{ on_lights }}'
-  mode: restart
-  icon: mdi:sale
-  fields: {}
-'1716330781093':
   alias: Changes all on lights to warm pale colors
-  description: Sets all currently turned-on inside lights to warm pale colors by choosing
-    hues in the red/orange range (0-20) or pink/magenta range (260-360) with reduced
-    saturation (55%), producing a softer, more muted warm tone than the fully saturated
-    version.
-  sequence:
-  - variables:
-      on_lights: '{{ integration_entities(''group'')|  select(''search'', ''light.group_all_inside_lights'')   |
-        expand | selectattr("attributes.rgb_color", "defined") |  selectattr("state",
-        "eq", "on") | map(attribute=''entity_id'')  | list }}
-
-        '
-  - repeat:
-      sequence:
-      - metadata: {}
-        data:
-          hs_color: "{% set hue_under_20 = range(1, 20) | random | string + ',' +
-            40 | string %} {% set hue_over_260 = range(260, 360) | random | string
-            + ',' + 40 | string %} {% set random = range(1, 3) | random %}           {%
-            if random == 1 %}\n {{hue_under_20 }}\n{% elif random > 1 %}           {{hue_over_260}}
-            {%endif%}\n"
-        target:
-          entity_id: '{{on_lights[repeat.index - 1 ]}}'
-        action: light.turn_on
-        continue_on_error: true
-      for_each: '{{ on_lights }}'
+  description: Sets all currently turned-on inside lights to warm pale colors (hue
+    1-20 or 260-360, saturation 40). Each light gets its own warm-pale color and they
+    are all recolored simultaneously.
   mode: restart
   icon: mdi:sale
   fields: {}
+  sequence:
+  - variables:
+      on_lights: "{{ integration_entities('group') | select('search', 'light.group_all_inside_lights')\n
+        \  | expand | selectattr(\"attributes.rgb_color\", \"defined\")\n   | selectattr(\"state\",
+        \"eq\", \"on\") | map(attribute='entity_id') | list }}"
+  - repeat:
+      for_each: '{{ on_lights }}'
+      sequence:
+      - action: script.turn_on
+        target:
+          entity_id: script.set_one_light_to_a_warm_pale_color
+        data:
+          variables:
+            target_light: '{{ repeat.item }}'
 generate_fake_white_colors:
   alias: Generate fake white colors
   description: Sets all turned-on lights across every light group to low-saturation
@@ -2336,7 +2280,7 @@ generate_patio_camera_description:
   - action: llmvision.stream_analyzer
     data:
       store_in_timeline: true
-      use_memory: true
+      use_memory: false
       duration: 2
       max_frames: 3
       include_filename: false
@@ -2350,8 +2294,8 @@ generate_patio_camera_description:
       provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
       image_entity:
       - camera.patio_camera
-      message: 'Describe in one sentence the human activities in this image, if there
-        is any. '
+      message: Describe in one sentence the human activities in this image or the
+        lack of.
     response_variable: answer
   - stop: Finished
     response_variable: answer
@@ -3659,25 +3603,29 @@ jellyfin_play_random_episode_of_a_selected_tv_show:
         message: No episodes found for '{{ show_name }}'.
 llm_script_to_start_tv_shows_and_movies_on_tvs_duplicate:
   sequence:
-  - alias: Confirm Title through LLM/WebSearch
-    action: ai_task.generate_data
-    data:
-      task_name: media name lookup
-      instructions: 'The user has asked to watch "{{ media_id }}", but he is unsure
-        about the actual name of the media. Look it up online with a web search tool
-        call to make confirm the name. If it does not seem to exist, output the most
-        probable match.
+  - if:
+    - condition: template
+      value_template: '{{ is_description | default(false) }}'
+    then:
+    - alias: Confirm Title through LLM/WebSearch
+      action: ai_task.generate_data
+      data:
+        task_name: media name lookup
+        instructions: 'The user has asked to watch "{{ media_id }}", but he is unsure
+          about the actual name of the media. Look it up online with a web search
+          tool call to make confirm the name. If it does not seem to exist, output
+          the most probable match.
 
 
-        Return the result only in the requested structured field.'
-      structure:
-        media_id_name:
-          description: The confirmed name/title for the requested media ID, or the
-            most probable match if no exact result exists.
-          required: true
-          selector:
-            text:
-    response_variable: media_lookup
+          Return the result only in the requested structured field.'
+        structure:
+          media_id_name:
+            description: The confirmed name/title for the requested media ID, or the
+              most probable match if no exact result exists.
+            required: true
+            selector:
+              text:
+      response_variable: media_lookup
   - if:
     - condition: template
       value_template: '{{ library_name is not defined }}'
@@ -3797,14 +3745,21 @@ llm_script_to_start_tv_shows_and_movies_on_tvs_duplicate:
       description: '"library_name" is the library the user wants to play the media
         from. ''Movies'' for movies and ''TV Shows'' for TV series'
       required: false
+    is_description:
+      selector:
+        boolean: {}
+      default: false
+      required: true
     media_id:
       selector:
         text:
       name: Media ID
-      description: 'This argument is mandatory and must always be provided no matter
+      description: "This argument is mandatory and must always be provided no matter
         what! media_id is the queried name- If the search is about a tv show: Then
         media_id is the tv show title - If the search is about a movie: Then media_id
-        is the movie title This is a mandatory argument and must always be provided.'
+        is the movie title This is a mandatory argument and must always be provided.\n\n
+        If the user only gives a description rather than a title, pass the description
+        here and set \"is_description\" to true!"
       required: true
     media_player:
       selector:
@@ -3860,38 +3815,18 @@ generate_front_street_camera_description:
     at the street in front of the home
 generate_security_audit_and_text_it_to_maxi:
   sequence:
-  - action: script.generate_front_door_person_description
-    metadata: {}
-    data: {}
-    response_variable: front_door_activity
-    enabled: false
-  - action: script.generate_back_door_camera_description
-    metadata: {}
-    data: {}
-    response_variable: back_door_activity
-    enabled: false
-  - action: script.generate_parking_camera_description
-    metadata: {}
-    data: {}
-    response_variable: parking_activity
-    enabled: false
-  - action: script.generate_patio_camera_description
-    metadata: {}
-    data: {}
-    response_variable: patio_activity
-    enabled: false
   - action: llmvision.image_analyzer
     metadata: {}
     data:
       store_in_timeline: true
-      use_memory: true
       include_filename: true
       target_width: 1280
       generate_title: true
       expose_images: false
       response_format: text
       provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
-      message: Analyse the following CCTV Images and look for any human activity present.
+      message: Analyse the following CCTV Images and describe the human activity or
+        lack of.
       image_entity:
       - camera.parking_camera
       - camera.parking_exit_camera
@@ -3899,23 +3834,23 @@ generate_security_audit_and_text_it_to_maxi:
       - camera.back_door_camera
       - camera.front_door_camera
       - camera.back_yard_camera
-      max_tokens: 128
+      max_tokens: 3000
     response_variable: images_analyzer_activity
   - variables:
-      compounded_answers: '(''front_door_activity'':{{images_analyzer_activity.response_text}}
+      compounded_answers: '(''answers'':{{images_analyzer_activity.response_text}}
         ) '
   - action: ai_task.generate_data
     metadata: {}
     data:
       task_name: Security Cameras Overview generation
       instructions: 'Analyze all the previous activity reports and provide an activity
-        overview, mention only the human acttivity!
+        overview, mention only the human activity!
 
         This is the data: ''{{compounded_answers}}''
 
 
         Be brief! This is an emergency situation.'
-      entity_id: ai_task.qwen3_5_4b_ud_mtp_q8_k_xl_ai_task
+      entity_id: ai_task.remote_llama_qwen3_5_4b_ud_mtp_q8_k_xl_ai_task
     response_variable: final_audit
   - metadata: {}
     data:
@@ -4130,3 +4065,176 @@ unjoin_speaker_or_area_from_group:
           entity_id: '{{ mass_players }}'
     default:
     - stop: No Music Assistant speakers found for the requested area/speaker.
+set_one_light_to_a_random_color:
+  alias: Set one light to a random color
+  mode: parallel
+  max: 50
+  fields:
+    target_light:
+      selector:
+        entity:
+          domain: light
+  sequence:
+  - action: light.turn_on
+    target:
+      entity_id: '{{ target_light }}'
+    data:
+      hs_color: '{{ [ range(1, 360) | random, 100 ] }}'
+  description: ''
+set_one_light_to_a_dissimilar_random_color:
+  alias: Set one light to a dissimilar random color
+  mode: parallel
+  max: 100
+  icon: mdi:palette-swatch
+  fields:
+    target_light:
+      name: Target light
+      required: true
+      selector:
+        entity:
+          domain: light
+    saturation:
+      selector:
+        number:
+          min: 20
+          max: 100
+      default: 100
+    transition_speed:
+      selector:
+        number:
+          min: 2
+          max: 200
+      default: 1
+  sequence:
+  - variables:
+      current_hue: '{% set hs = state_attr(target_light, ''hs_color'') %} {{ hs[0]
+        | float if hs else 0 }}
+
+        '
+      wanted_hue: "{% set buffer = 25 %} {% set random_hue = range(0, 360) | random
+        %} {% set diff = (random_hue - current_hue) | abs %} {% if diff > buffer and
+        diff < (360 - buffer) %}\n  {{ random_hue }}\n{% else %}\n  {{ (random_hue
+        + 180) % 360 }}\n{% endif %}\n"
+  - action: light.turn_on
+    target:
+      entity_id: '{{ target_light }}'
+    data:
+      hs_color:
+      - '{{ wanted_hue }}'
+      - '{{ saturation | default(100) }}'
+      transition: '{{ transition_speed | default(1) }}'
+    continue_on_error: true
+  description: ''
+set_one_light_to_a_warm_pale_color:
+  alias: Set one light to a warm pale color
+  mode: parallel
+  max: 100
+  icon: mdi:sale
+  fields:
+    target_light:
+      name: Target light
+      required: true
+      selector:
+        entity:
+          domain: light
+  sequence:
+  - variables:
+      wanted_hue: "{% if range(1, 3) | random == 1 %}\n  {{ range(1, 20) | random
+        }}\n{% else %}\n  {{ range(260, 360) | random }}\n{% endif %}"
+  - action: light.turn_on
+    target:
+      entity_id: '{{ target_light }}'
+    data:
+      hs_color:
+      - '{{ wanted_hue }}'
+      - 40
+    continue_on_error: true
+  description: ''
+set_one_light_to_a_warm_saturated_color:
+  sequence:
+  - variables:
+      wanted_hue: "{% if range(1, 3) | random == 1 %}\n  {{ range(1, 20) | random
+        }}\n{% else %}\n  {{ range(260, 360) | random }}\n{% endif %}"
+  - action: light.turn_on
+    target:
+      entity_id: '{{ target_light }}'
+    data:
+      hs_color:
+      - '{{ wanted_hue }}'
+      - 100
+      transition: 1
+    continue_on_error: true
+  alias: 'Set one light to a warm  saturated color '
+  mode: parallel
+  max: 100
+  icon: mdi:sale
+  fields:
+    target_light:
+      name: Target light
+      required: true
+      selector:
+        entity:
+          domain: light
+  description: ''
+changes_all_on_lights_to_warm_saturated_colors:
+  sequence:
+  - variables:
+      on_lights: "{{ integration_entities('group') | select('search', 'light.group_all_inside_lights')\n
+        \  | expand | selectattr(\"attributes.rgb_color\", \"defined\")\n   | selectattr(\"state\",
+        \"eq\", \"on\") | map(attribute='entity_id') | list }}"
+  - repeat:
+      for_each: '{{ on_lights }}'
+      sequence:
+      - action: script.turn_on
+        target:
+          entity_id: script.set_one_light_to_a_warm_saturated_color
+        data:
+          variables:
+            target_light: '{{ repeat.item }}'
+  alias: Changes all on lights to warm saturated colors
+  description: Sets all currently turned-on inside lights to warm saturated colors
+    (hue 1-20 or 260-360, saturation 100%). Each light gets its own warm color and
+    they are all recolored simultaneously.
+  mode: restart
+  icon: mdi:sale
+  fields: {}
+set_one_light_to_a_random_pastel_color:
+  alias: Set one light to a random pastel color
+  mode: parallel
+  max: 100
+  icon: mdi:sale
+  fields:
+    target_light:
+      name: Target light
+      required: true
+      selector:
+        entity:
+          domain: light
+  sequence:
+  - action: light.turn_on
+    target:
+      entity_id: '{{ target_light }}'
+    data:
+      hs_color:
+      - '{{ range(1, 360) | random }}'
+      - 40
+    continue_on_error: true
+  description: ''
+start_retro_gaming_session:
+  sequence:
+  - action: media_player.turn_on
+    metadata: {}
+    target:
+      entity_id: media_player.salon_salon_bravia_tv
+    data: {}
+  - action: media_player.select_source
+    metadata: {}
+    target:
+      entity_id: media_player.salon_salon_bravia_tv
+    data:
+      source: HDMI 1
+  alias: Start retro gaming session
+  description: 'This Script is used to start the retro-gaming console connected to
+    the Salon TV.
+
+    It should be called whenever someone asks to play retro games or any retro title'

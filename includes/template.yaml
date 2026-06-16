@@ -405,7 +405,7 @@
       - name: Is maxi asleep?
         unique_id: "is_maxi_asleep"
         state: >
-            {% set room = states('sensor.maxi_location_by_petro') %}  {# get the current maxi location sensor state #}
+            {% set room = states('sensor.maxi_location_by_petro_v2') %}  {# get the current maxi location sensor state #}
             {% set sleeperamount = states('sensor.active_sleeper_amount') | int %}
             {% set activesleeperrooms = (state_attr('sensor.active_sleepers', 'rooms') or {}).values() | list %}
             {% set lasttvactiveroom = states('sensor.last_active_room') %}
@@ -895,6 +895,71 @@
             {% else %}
               not_home
             {% endif %}
+        attributes:
+          rooms: >-
+            {% set info = [
+              ('watch', 'sensor.bermuda_5f62ef7629b24f70b1bd9a60847429cb_100_40004_area', 'sensor.bermuda_5f62ef7629b24f70b1bd9a60847429cb_100_40004_bps_zone'),
+              ('bracelet', 'sensor.bermuda_fea50693a4e24fb1afcfc6eb07647825_10001_19641_area', 'sensor.bermuda_fea50693a4e24fb1afcfc6eb07647825_10001_19641_bps_zone'),
+              ('phone','sensor.bermuda_bc4bcf440a7d4d358cd961821d36ca57_100_40004_area' , 'sensor.bermuda_bc4bcf440a7d4d358cd961821d36ca57_100_40004_bps_zone' ),
+            ] %}
+            {% set ns = namespace(rooms=[], lines=[]) %}
+            {% for name, room, sensor in info if (name == 'watch' and is_state('binary_sensor.oneplus_watch_3_on_body_sensor', 'on') and is_state('sensor.oneplus_watch_3_charger_type', 'none') ) or
+                                                 (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on')) or
+                                                 (name == 'bracelet' )
+            %}
+              {% set room_val, sensor_val = (room, sensor) | map('states') | map('lower') | list %}
+              {% if room_val not in ['not_home','main floor','unknown','home','unavailable'] %}
+                {% set ns.rooms = ns.rooms + [(name ~ '_area', room_val.split('_').0)] %}
+              {% endif %}
+              {% if sensor_val not in ['not_home','main floor','unknown','home','unavailable'] %}
+                {% set ns.rooms = ns.rooms + [(name ~ '_bps_zone', sensor_val.split('_').0)] %}
+              {% endif %}
+            {% endfor %}
+            {% if is_state('binary_sensor.maxi_alone', 'on') %}
+              {% set ns.rooms = ns.rooms + [('last_active_room', states('sensor.last_active_room')|lower)] %}
+            {% endif %}
+            {% for room, items in ns.rooms | groupby(attribute='1') %}
+              {% set devices = items | map(attribute='0') | list %}
+              {% set ns.lines = ns.lines + [room ~ ' (' ~ devices|length ~ '): ' ~ devices|join(', ')] %}
+            {% endfor %}
+            {{ ns.lines }}
+
+    sensor:
+      - name: "Maxi Location by petro v2"
+        unique_id: maxi_location_by_petro_v2
+        state: >-
+              {% set info = [
+              ('watch', 'sensor.bermuda_5f62ef7629b24f70b1bd9a60847429cb_100_40004_area', 'sensor.bermuda_5f62ef7629b24f70b1bd9a60847429cb_100_40004_bps_zone'),
+              ('bracelet', 'sensor.bermuda_fea50693a4e24fb1afcfc6eb07647825_10001_19641_area', 'sensor.bermuda_fea50693a4e24fb1afcfc6eb07647825_10001_19641_bps_zone'),
+              ('phone', 'sensor.bermuda_bc4bcf440a7d4d358cd961821d36ca57_100_40004_area', 'sensor.bermuda_bc4bcf440a7d4d358cd961821d36ca57_100_40004_bps_zone'),
+              ] %}
+              {% set invalid = ['not_home', 'main floor', 'unknown', 'home', 'unavailable'] %}
+              {% set gpslocation = states('device_tracker.phone_maxi') | lower %}
+              {% set ns = namespace(rooms=[], results=[]) %}
+              {% for name, room_entity, zone_entity in info if (name == 'watch' and is_state('binary_sensor.oneplus_watch_3_on_body_sensor', 'on') and is_state('sensor.oneplus_watch_3_charger_type', 'none')) or
+                                                              (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on')) or
+                                                              (name == 'bracelet')
+              %}
+                {% for entity in [room_entity, zone_entity] %}
+                  {% set value = states(entity) | lower %}
+                  {% if value not in invalid %}
+                    {% set ns.rooms = ns.rooms + [(name, value.split('_').0, as_timestamp(states[entity].last_changed, 0))] %}
+                  {% endif %}
+                {% endfor %}
+              {% endfor %}
+              {% if is_state('binary_sensor.maxi_alone', 'on') and states('sensor.last_active_room') | lower not in invalid %}
+                {% set ns.rooms = ns.rooms + [('last', states('sensor.last_active_room') | lower, as_timestamp(states['sensor.last_active_room'].last_changed, 0))] %}
+              {% endif %}
+              {% for room, votes in ns.rooms | groupby(attribute='1') %}
+                {% set ns.results = ns.results + [(room, votes | length, votes | map(attribute='2') | max)] %}
+              {% endfor %}
+              {% if is_state('device_tracker.phone_maxi', 'home') %}
+                {{ ns.results | sort(attribute='2', reverse=True) | sort(attribute='1', reverse=True) | map(attribute='0') | first | default('unknown') }}
+              {% elif gpslocation != 'home' and gpslocation != 'away' %}
+                At {{ gpslocation }}
+              {% else %}
+                not_home
+              {% endif %}
         attributes:
           rooms: >-
             {% set info = [
