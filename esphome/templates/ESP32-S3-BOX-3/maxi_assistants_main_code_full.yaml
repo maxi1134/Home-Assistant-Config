@@ -6,13 +6,20 @@ substitutions:
   gateway_ip: 192.168.20.1  
   network_subnet: 255.255.255.0
   #images
-  loading_illustration_file: http://192.168.0.15:8123/local/esp32_images/loading.png
-  idle_illustration_file: http://192.168.0.15:8123/local/esp32_images/waiting.png
-  listening_illustration_file: http://192.168.0.15:8123/local/esp32_images/listening.png
-  thinking_illustration_file: http://192.168.0.15:8123/local/esp32_images/thinking.png
-  replying_illustration_file: http://192.168.0.15:8123/local/esp32_images/replying.png
-  error_illustration_file: http://192.168.0.15:8123/local/esp32_images/stop.png
-  timer_finished_illustration_file: http://192.168.0.15:8123/local/esp32_images/timer_finished.png
+  loading_illustration_file: /config/esphome/images/loading.png
+  idle_illustration_file: /config/esphome/images/waiting.png
+  listening_illustration_file: /config/esphome/images/listening.png
+  thinking_illustration_file: /config/esphome/images/thinking.png
+  replying_illustration_file: /config/esphome/images/replying.png
+  error_illustration_file: /config/esphome/images/stop.png
+  timer_finished_illustration_file: /config/esphome/images/timer_finished.png
+  # Night variants (sun.sun below_horizon) — loading and timer_finished have no
+  # night artwork, so those pages keep the day illustration around the clock.
+  idle_night_illustration_file: /config/esphome/images/waiting_night.png
+  listening_night_illustration_file: /config/esphome/images/listening_night.png
+  thinking_night_illustration_file: /config/esphome/images/thinking_night.png
+  replying_night_illustration_file: /config/esphome/images/replying_night.png
+  error_night_illustration_file: /config/esphome/images/stop_night.png
   #colors
   loading_illustration_background_color: "000000"
   idle_illustration_background_color: "000000"
@@ -64,19 +71,8 @@ esphome:
         - script.execute: apply_speaker_gain
 
 external_components:
-  # Local copy of n-IA-hane/esphome-intercom @ v2026.6.2 — kept as a local
-  # extract because the HA host's `git clone` fails with `fetch-pack: invalid
-  # index-pack output` (OOM during pack indexing).
-  #
-  # 2026.6.x replaced i2s_audio_duplex with esp_audio_stack (Espressif
-  # codec/GMF backend, official IDF I2S driver). esp_audio_stack AUTO_LOADs
-  # audio_processor, but it must stay in the filter list — a filtered external
-  # source won't resolve unlisted components and core ESPHome has none.
-  # 'speaker' is the repo's narrow fork of ESPHome's core speaker component
-  # adding pause_releases_pipeline on the speaker media_player (see below).
-  - source:
-      type: local
-      path: /config/esphome/external/esphome-intercom-2026.6.2/esphome/components
+  # n-IA-hane/esphome-intercom, pinned to a validated release.
+  - source: github://n-IA-hane/esphome-intercom@v2026.6.2
     components: [audio_processor, esp_aec, esp_audio_stack, speaker]
 
 esp32:
@@ -1101,6 +1097,22 @@ script:
       - script.execute: draw_display
   - id: draw_display
     then:
+      # Day/night artwork: sun.sun below_horizon selects the *_night set.
+      # Unknown/empty state (HA not connected yet) keeps the day images.
+      # Only write the src when it actually changes — lv_image_set_src always
+      # invalidates the whole 320x240 widget, and draw_display runs every 30 s.
+      - lambda: |-
+          const bool night = id(sun_state).has_state() &&
+                             id(sun_state).state == "below_horizon";
+          const auto swap = [](lv_obj_t *img, const void *src) {
+            if (lv_image_get_src(img) != src)
+              lv_image_set_src(img, src);
+          };
+          swap(id(idle_image),      night ? id(casita_idle_night).get_lv_image_dsc()      : id(casita_idle).get_lv_image_dsc());
+          swap(id(listening_image), night ? id(casita_listening_night).get_lv_image_dsc() : id(casita_listening).get_lv_image_dsc());
+          swap(id(thinking_image),  night ? id(casita_thinking_night).get_lv_image_dsc()  : id(casita_thinking).get_lv_image_dsc());
+          swap(id(replying_image),  night ? id(casita_replying_night).get_lv_image_dsc()  : id(casita_replying).get_lv_image_dsc());
+          swap(id(error_image),     night ? id(casita_error_night).get_lv_image_dsc()     : id(casita_error).get_lv_image_dsc());
       - lvgl.label.update:
           id: thinking_request_label
           text: !lambda return id(text_request).state;
@@ -1933,6 +1945,29 @@ image:
     id: casita_initializing
     resize: 320x240
     type: RGB565
+  # Night variants — swapped in by draw_display when sun.sun is below_horizon.
+  # Each RGB565 320x240 image adds ~150 KB to the flash image (rodata), not to
+  # internal RAM, so the heap budget is unaffected.
+  - file: ${error_night_illustration_file}
+    id: casita_error_night
+    resize: 320x240
+    type: RGB565
+  - file: ${idle_night_illustration_file}
+    id: casita_idle_night
+    resize: 320x240
+    type: RGB565
+  - file: ${listening_night_illustration_file}
+    id: casita_listening_night
+    resize: 320x240
+    type: RGB565
+  - file: ${thinking_night_illustration_file}
+    id: casita_thinking_night
+    resize: 320x240
+    type: RGB565
+  - file: ${replying_night_illustration_file}
+    id: casita_replying_night
+    resize: 320x240
+    type: RGB565
   - file: https://github.com/esphome/wake-word-voice-assistants/raw/main/error_box_illustrations/error-no-wifi.png
     id: error_no_wifi
     resize: 320x240
@@ -1993,6 +2028,14 @@ font:
     glyphsets:
       - ${font_glyphsets}
 text_sensor:
+  # Day/night state from HA ("above_horizon" / "below_horizon"). Unknown/empty
+  # (HA not yet connected) falls back to the day illustrations in draw_display.
+  - platform: homeassistant
+    id: sun_state
+    entity_id: sun.sun
+    internal: true
+    on_value:
+      - script.execute: draw_display
   - platform: template
     name: "Current Time"
     id: ha_time
@@ -2100,6 +2143,7 @@ lvgl:
       pad_all: 0
       widgets:
         - image:
+            id: idle_image
             src: casita_idle
             align: CENTER
         - label:
@@ -2242,6 +2286,7 @@ lvgl:
       pad_all: 0
       widgets:
         - image:
+            id: listening_image
             src: casita_listening
             align: CENTER
     - id: thinking_page
@@ -2249,6 +2294,7 @@ lvgl:
       pad_all: 0
       widgets:
         - image:
+            id: thinking_image
             src: casita_thinking
             align: CENTER
         - container:
@@ -2280,6 +2326,7 @@ lvgl:
       pad_all: 0
       widgets:
         - image:
+            id: replying_image
             src: casita_replying
             align: CENTER
         - container:
@@ -2346,6 +2393,7 @@ lvgl:
       pad_all: 0
       widgets:
         - image:
+            id: error_image
             src: casita_error
             align: CENTER
     - id: no_ha_page
