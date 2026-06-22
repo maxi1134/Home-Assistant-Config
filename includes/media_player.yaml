@@ -539,20 +539,41 @@
     children:
       - media_player.bedroom_chromecast
     active_child_template: >-
-      {% set cast = "media_player.bedroom_chromecast" %}
-      {% set ns = namespace(plex_entity = "") %}
-      {% set cast_title = state_attr(cast, 'media_title') | default("", true) %}
-      {% set cast_series = state_attr(cast, 'media_series_title') | default("", true) %}
-      {% for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" %}
-        {% set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) %}
-        {% set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) %}
-        {% if cast_title and plex_title == cast_title %}
-          {% set ns.plex_entity = player.entity_id %}
-        {% elif cast_series and plex_series == cast_series %}
-          {% set ns.plex_entity = player.entity_id %}
-        {% endif %}
-      {% endfor %}
-      {{ ns.plex_entity if ns.plex_entity else cast }}
+      {%- set cast = "media_player.bedroom_chromecast" -%}
+      {%- set ns = namespace(plex_entity = "", active = "") -%}
+      {%- set cast_state = states(cast) -%}
+      {#- Correlate this room's Plex session by Plex ratingKey (media_content_id): cast may send a path/URL, plex sends the bare key. Strip query string, take last "/" segment. -#}
+      {%- set cast_cid = ((state_attr(cast, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
+      {%- set cast_title = state_attr(cast, 'media_title') | default("", true) -%}
+      {%- set cast_series = state_attr(cast, 'media_series_title') | default("", true) -%}
+      {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
+        {%- set plex_cid = ((state_attr(player.entity_id, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
+        {%- if cast_cid and plex_cid and cast_cid == plex_cid -%}
+          {%- set ns.plex_entity = player.entity_id -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- if not ns.plex_entity -%}
+        {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
+          {%- set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) -%}
+          {%- set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) -%}
+          {%- if cast_title and plex_title == cast_title -%}
+            {%- set ns.plex_entity = player.entity_id -%}
+          {%- elif cast_series and plex_series == cast_series -%}
+            {%- set ns.plex_entity = player.entity_id -%}
+          {%- endif -%}
+        {%- endfor -%}
+      {%- endif -%}
+      {%- if not ns.plex_entity and not cast_cid and not cast_title and cast_state in ['playing', 'paused', 'buffering'] -%}
+        {%- for player in states.media_player if "plex" in player.entity_id and "cast" in player.entity_id and player.state == cast_state and state_attr(player.entity_id, 'media_title') and not ns.plex_entity -%}
+          {%- set ns.plex_entity = player.entity_id -%}
+        {%- endfor -%}
+      {%- endif -%}
+      {%- if ns.plex_entity and states(ns.plex_entity) in ['playing', 'paused', 'idle'] -%}
+        {%- set ns.active = ns.plex_entity -%}
+      {%- else -%}
+        {%- set ns.active = cast -%}
+      {%- endif -%}
+      {{- ns.active -}}
     commands:
       volume_mute:
         service: media_player.volume_mute
@@ -622,96 +643,160 @@
       state: media_player.bedroom_chromecast
 
 
-  ########################## Universal salon Chromecast  ########################## 
-  
-  
+  ########################## Universal salon Chromecast  ##########################
+  # Sony Bravia TV (salon) unified from its 3 Home Assistant integrations:
+  #   cast (Google TV)   -> media_player.salon_chromecast          : now-playing metadata while casting
+  #   braviatv (Bravia)  -> media_player.salon_salon_bravia_tv : power, HDMI/source, volume & mute (control device)
+  #   androidtv_remote   -> media_player.bravia_4k_ae2         : on/off + foreground app
+  # active_child priority: matching Plex player -> Google TV (cast) -> Bravia -> Android TV Remote -> Bravia (off).
+  # Volume/mute + power route to the Bravia integration; transport (play/pause/seek)
+  # auto-forwards to whichever child is active so Plex/Cast keep their richer controls.
   - platform: universal
     unique_id: universal_salon_chromecast
     name: Universal salon chromecast
     children:
       - media_player.salon_chromecast
+      - media_player.salon_salon_bravia_tv
+      - media_player.bravia_4k_ae2
     active_child_template: >-
-      {% set cast = "media_player.salon_chromecast" %}
-      {% set ns = namespace(plex_entity = "") %}
-      {% set cast_title = state_attr(cast, 'media_title') | default("", true) %}
-      {% set cast_series = state_attr(cast, 'media_series_title') | default("", true) %}
-      {% for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" %}
-        {% set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) %}
-        {% set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) %}
-        {% if cast_title and plex_title == cast_title %}
-          {% set ns.plex_entity = player.entity_id %}
-        {% elif cast_series and plex_series == cast_series %}
-          {% set ns.plex_entity = player.entity_id %}
-        {% endif %}
-      {% endfor %}
-      {{ ns.plex_entity if ns.plex_entity else cast }}        
+      {%- set cast = "media_player.salon_chromecast" -%}
+      {%- set atv = "media_player.bravia_4k_ae2" -%}
+      {%- set brav = "media_player.salon_salon_bravia_tv" -%}
+      {%- set ns = namespace(plex_entity = "", active = "") -%}
+      {#- bravia_4k_ae2 (Android TV Remote) is the power source of truth: not 'on' -> TV off. -#}
+      {%- if states(atv) != 'on' -%}
+        {%- set ns.active = atv -%}
+      {%- else -%}
+        {%- set cast_state = states(cast) -%}
+        {#- Correlate THIS TV's Plex session by Plex ratingKey. Cast reports media_content_id "/library/metadata/<key>"; the plex entity reports "<key>". Normalise both to the last "/" segment. -#}
+        {%- set cast_cid = (state_attr(cast, 'media_content_id') | default('', true) | string).split('/') | last -%}
+        {%- set cast_title = state_attr(cast, 'media_title') | default("", true) -%}
+        {%- set cast_series = state_attr(cast, 'media_series_title') | default("", true) -%}
+        {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
+          {%- set plex_cid = (state_attr(player.entity_id, 'media_content_id') | default('', true) | string).split('/') | last -%}
+          {%- if cast_cid and plex_cid and cast_cid == plex_cid -%}
+            {%- set ns.plex_entity = player.entity_id -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {#- Secondary: exact title/series match if no ratingKey match. -#}
+        {%- if not ns.plex_entity -%}
+          {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
+            {%- set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) -%}
+            {%- set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) -%}
+            {%- if cast_title and plex_title == cast_title -%}
+              {%- set ns.plex_entity = player.entity_id -%}
+            {%- elif cast_series and plex_series == cast_series -%}
+              {%- set ns.plex_entity = player.entity_id -%}
+            {%- endif -%}
+          {%- endfor -%}
+        {%- endif -%}
+        {#- Fallback: cast active but dropped all metadata (e.g. on pause) -> grab the Plex cast client in the same state that still has a title. -#}
+        {%- if not ns.plex_entity and not cast_cid and not cast_title and cast_state in ['playing', 'paused', 'buffering'] -%}
+          {%- for player in states.media_player if "plex" in player.entity_id and "cast" in player.entity_id and player.state == cast_state and state_attr(player.entity_id, 'media_title') and not ns.plex_entity -%}
+            {%- set ns.plex_entity = player.entity_id -%}
+          {%- endfor -%}
+        {%- endif -%}
+        {#- Always prefer the found Plex entity while it is playing / paused / idle. -#}
+        {%- if ns.plex_entity and states(ns.plex_entity) in ['playing', 'paused', 'idle'] -%}
+          {%- set ns.active = ns.plex_entity -%}
+        {%- elif cast_state in ['playing', 'paused', 'buffering'] -%}
+          {%- set ns.active = cast -%}
+        {%- elif states(brav) == 'on' -%}
+          {%- set ns.active = brav -%}
+        {%- elif cast_state not in ['off', 'unavailable', 'unknown'] -%}
+          {%- set ns.active = cast -%}
+        {%- else -%}
+          {%- set ns.active = atv -%}
+        {%- endif -%}
+      {%- endif -%}
+      {{- ns.active -}}
+    state_template: >-
+      {#- bravia_4k_ae2 (Android TV Remote) is the power authority: not 'on' -> off. -#}
+      {#- androidtv_remote + braviatv only report on/off; cast reports real playing/paused only for true Cast sessions. -#}
+      {#- Infer 'playing' from the Android TV foreground app_id. Caveat: a native app cannot expose pause -> a paused native app reads as 'playing'. -#}
+      {%- set cast = "media_player.salon_chromecast" -%}
+      {%- set atv = "media_player.bravia_4k_ae2" -%}
+      {%- set cs = states(cast) -%}
+      {%- set atv_app = (state_attr(atv, 'app_id') or '') | lower -%}
+      {%- set home_apps = ['', 'none', 'com.google.android.tvlauncher', 'com.google.android.apps.tv.launcherx', 'com.sony.dtv.tvx', 'com.sony.dtv.smarthome'] -%}
+      {{- 'off' if states(atv) != 'on' else (cs if cs in ['playing', 'buffering', 'paused'] else ('playing' if atv_app not in home_apps else 'on')) -}}
     commands:
+      media_pause:
+        service: media_player.media_pause
+        target: &salon_transport_target
+          entity_id: >-
+            {%- if states('media_player.salon_chromecast') in ['playing', 'paused', 'buffering'] -%}
+            media_player.salon_chromecast
+            {%- else -%}
+            media_player.bravia_4k_ae2
+            {%- endif -%}
+      media_play:
+        service: media_player.media_play
+        target: *salon_transport_target
+      media_play_pause:
+        service: media_player.media_play_pause
+        target: *salon_transport_target
+      media_stop:
+        service: media_player.media_stop
+        target: *salon_transport_target
+      media_next_track:
+        service: media_player.media_next_track
+        target: *salon_transport_target
+      media_previous_track:
+        service: media_player.media_previous_track
+        target: *salon_transport_target
+      media_seek:
+        service: media_player.media_seek
+        target: *salon_transport_target
+        data:
+          seek_position: "{{ seek_position }}"
       volume_mute:
         service: media_player.volume_mute
         target:
-          entity_id: 
-            - media_player.salon_chromecast            
+          entity_id:
+            - media_player.salon_salon_bravia_tv
         data:
           is_volume_muted: "{{ is_volume_muted }}"
       volume_set:
         service: media_player.volume_set
         target:
-          entity_id: 
-            - media_player.salon_chromecast            
+          entity_id:
+            - media_player.salon_salon_bravia_tv
         data:
           volume_level: "{{ volume_level }}"
       volume_up:
         service: media_player.volume_up
         target:
-          entity_id: 
-            - media_player.salon_chromecast            
+          entity_id:
+            - media_player.salon_salon_bravia_tv
       volume_down:
         service: media_player.volume_down
         target:
-          entity_id: 
-            - media_player.salon_chromecast              
-      media_pause:
-        service: media_player.media_pause
-        target:
-          entity_id: 
-            - media_player.salon_chromecast             
-      media_play_pause:
-        service: media_player.media_play_pause
-        target:
-          entity_id: 
-            - media_player.salon_chromecast            
+          entity_id:
+            - media_player.salon_salon_bravia_tv
       turn_on:
         service: media_player.turn_on
         target:
-          entity_id: 
-            - media_player.salon_chromecast            
+          entity_id:
+            - media_player.salon_salon_bravia_tv
+            - media_player.bravia_4k_ae2
       turn_off:
         service: media_player.turn_off
         target:
-          entity_id: 
-            - media_player.salon_chromecast         
-      media_stop:
-        service: media_player.media_stop
-        target:
-          entity_id: 
-            - media_player.salon_chromecast   
-      media_play:
-        service: media_player.media_play
-        target:
-          entity_id: 
-            - media_player.salon_chromecast    
-      play_media :
+          entity_id:
+            - media_player.salon_salon_bravia_tv
+            - media_player.bravia_4k_ae2
+      play_media:
         service: media_player.play_media
         data:
           media_content_type: '{{media_content_type}}'
           media_content_id: '{{media_content_id}}'
         target:
-          entity_id: 
-            - media_player.salon_chromecast            
+          entity_id:
+            - media_player.salon_chromecast
     attributes:
-      is_volume_muted: media_player.salon_chromecast|is_volume_muted
-      volume_level: media_player.salon_chromecast|volume_level
-      state: media_player.salon_chromecast
+      is_volume_muted: media_player.salon_salon_bravia_tv|is_volume_muted
+      volume_level: media_player.salon_salon_bravia_tv|volume_level
 
       
   ########################## Universal kitchen Chromecast  ########################## 
@@ -723,20 +808,41 @@
     children:
       - media_player.kitchen_google_hub
     active_child_template: >-
-      {% set cast = "media_player.kitchen_google_hub" %}
-      {% set ns = namespace(plex_entity = "") %}
-      {% set cast_title = state_attr(cast, 'media_title') | default("", true) %}
-      {% set cast_series = state_attr(cast, 'media_series_title') | default("", true) %}
-      {% for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" %}
-        {% set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) %}
-        {% set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) %}
-        {% if cast_title and plex_title == cast_title %}
-          {% set ns.plex_entity = player.entity_id %}
-        {% elif cast_series and plex_series == cast_series %}
-          {% set ns.plex_entity = player.entity_id %}
-        {% endif %}
-      {% endfor %}
-      {{ ns.plex_entity if ns.plex_entity else cast }}      
+      {%- set cast = "media_player.kitchen_google_hub" -%}
+      {%- set ns = namespace(plex_entity = "", active = "") -%}
+      {%- set cast_state = states(cast) -%}
+      {#- Correlate this room's Plex session by Plex ratingKey (media_content_id): cast may send a path/URL, plex sends the bare key. Strip query string, take last "/" segment. -#}
+      {%- set cast_cid = ((state_attr(cast, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
+      {%- set cast_title = state_attr(cast, 'media_title') | default("", true) -%}
+      {%- set cast_series = state_attr(cast, 'media_series_title') | default("", true) -%}
+      {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
+        {%- set plex_cid = ((state_attr(player.entity_id, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
+        {%- if cast_cid and plex_cid and cast_cid == plex_cid -%}
+          {%- set ns.plex_entity = player.entity_id -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- if not ns.plex_entity -%}
+        {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
+          {%- set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) -%}
+          {%- set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) -%}
+          {%- if cast_title and plex_title == cast_title -%}
+            {%- set ns.plex_entity = player.entity_id -%}
+          {%- elif cast_series and plex_series == cast_series -%}
+            {%- set ns.plex_entity = player.entity_id -%}
+          {%- endif -%}
+        {%- endfor -%}
+      {%- endif -%}
+      {%- if not ns.plex_entity and not cast_cid and not cast_title and cast_state in ['playing', 'paused', 'buffering'] -%}
+        {%- for player in states.media_player if "plex" in player.entity_id and "cast" in player.entity_id and player.state == cast_state and state_attr(player.entity_id, 'media_title') and not ns.plex_entity -%}
+          {%- set ns.plex_entity = player.entity_id -%}
+        {%- endfor -%}
+      {%- endif -%}
+      {%- if ns.plex_entity and states(ns.plex_entity) in ['playing', 'paused', 'idle'] -%}
+        {%- set ns.active = ns.plex_entity -%}
+      {%- else -%}
+        {%- set ns.active = cast -%}
+      {%- endif -%}
+      {{- ns.active -}}
     commands:
       volume_mute:
         service: media_player.volume_mute
@@ -814,20 +920,41 @@
     children:
       - media_player.hotbox_top_chromecast
     active_child_template: >-
-      {% set cast = "media_player.hotbox_top_chromecast" %}
-      {% set ns = namespace(plex_entity = "") %}
-      {% set cast_title = state_attr(cast, 'media_title') | default("", true) %}
-      {% set cast_series = state_attr(cast, 'media_series_title') | default("", true) %}
-      {% for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" %}
-        {% set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) %}
-        {% set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) %}
-        {% if cast_title and plex_title == cast_title %}
-          {% set ns.plex_entity = player.entity_id %}
-        {% elif cast_series and plex_series == cast_series %}
-          {% set ns.plex_entity = player.entity_id %}
-        {% endif %}
-      {% endfor %}
-      {{ ns.plex_entity if ns.plex_entity else cast }}          
+      {%- set cast = "media_player.hotbox_top_chromecast" -%}
+      {%- set ns = namespace(plex_entity = "", active = "") -%}
+      {%- set cast_state = states(cast) -%}
+      {#- Correlate this room's Plex session by Plex ratingKey (media_content_id): cast may send a path/URL, plex sends the bare key. Strip query string, take last "/" segment. -#}
+      {%- set cast_cid = ((state_attr(cast, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
+      {%- set cast_title = state_attr(cast, 'media_title') | default("", true) -%}
+      {%- set cast_series = state_attr(cast, 'media_series_title') | default("", true) -%}
+      {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
+        {%- set plex_cid = ((state_attr(player.entity_id, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
+        {%- if cast_cid and plex_cid and cast_cid == plex_cid -%}
+          {%- set ns.plex_entity = player.entity_id -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- if not ns.plex_entity -%}
+        {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
+          {%- set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) -%}
+          {%- set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) -%}
+          {%- if cast_title and plex_title == cast_title -%}
+            {%- set ns.plex_entity = player.entity_id -%}
+          {%- elif cast_series and plex_series == cast_series -%}
+            {%- set ns.plex_entity = player.entity_id -%}
+          {%- endif -%}
+        {%- endfor -%}
+      {%- endif -%}
+      {%- if not ns.plex_entity and not cast_cid and not cast_title and cast_state in ['playing', 'paused', 'buffering'] -%}
+        {%- for player in states.media_player if "plex" in player.entity_id and "cast" in player.entity_id and player.state == cast_state and state_attr(player.entity_id, 'media_title') and not ns.plex_entity -%}
+          {%- set ns.plex_entity = player.entity_id -%}
+        {%- endfor -%}
+      {%- endif -%}
+      {%- if ns.plex_entity and states(ns.plex_entity) in ['playing', 'paused', 'idle'] -%}
+        {%- set ns.active = ns.plex_entity -%}
+      {%- else -%}
+        {%- set ns.active = cast -%}
+      {%- endif -%}
+      {{- ns.active -}}
     commands:
       volume_mute:
         service: media_player.volume_mute
@@ -905,20 +1032,41 @@
     children:
       - media_player.patio_chromecast
     active_child_template: >-
-      {% set cast = "media_player.patio_chromecast" %}
-      {% set ns = namespace(plex_entity = "") %}
-      {% set cast_title = state_attr(cast, 'media_title') | default("", true) %}
-      {% set cast_series = state_attr(cast, 'media_series_title') | default("", true) %}
-      {% for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" %}
-        {% set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) %}
-        {% set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) %}
-        {% if cast_title and plex_title == cast_title %}
-          {% set ns.plex_entity = player.entity_id %}
-        {% elif cast_series and plex_series == cast_series %}
-          {% set ns.plex_entity = player.entity_id %}
-        {% endif %}
-      {% endfor %}
-      {{ ns.plex_entity if ns.plex_entity else cast }}             
+      {%- set cast = "media_player.patio_chromecast" -%}
+      {%- set ns = namespace(plex_entity = "", active = "") -%}
+      {%- set cast_state = states(cast) -%}
+      {#- Correlate this room's Plex session by Plex ratingKey (media_content_id): cast may send a path/URL, plex sends the bare key. Strip query string, take last "/" segment. -#}
+      {%- set cast_cid = ((state_attr(cast, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
+      {%- set cast_title = state_attr(cast, 'media_title') | default("", true) -%}
+      {%- set cast_series = state_attr(cast, 'media_series_title') | default("", true) -%}
+      {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
+        {%- set plex_cid = ((state_attr(player.entity_id, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
+        {%- if cast_cid and plex_cid and cast_cid == plex_cid -%}
+          {%- set ns.plex_entity = player.entity_id -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- if not ns.plex_entity -%}
+        {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
+          {%- set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) -%}
+          {%- set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) -%}
+          {%- if cast_title and plex_title == cast_title -%}
+            {%- set ns.plex_entity = player.entity_id -%}
+          {%- elif cast_series and plex_series == cast_series -%}
+            {%- set ns.plex_entity = player.entity_id -%}
+          {%- endif -%}
+        {%- endfor -%}
+      {%- endif -%}
+      {%- if not ns.plex_entity and not cast_cid and not cast_title and cast_state in ['playing', 'paused', 'buffering'] -%}
+        {%- for player in states.media_player if "plex" in player.entity_id and "cast" in player.entity_id and player.state == cast_state and state_attr(player.entity_id, 'media_title') and not ns.plex_entity -%}
+          {%- set ns.plex_entity = player.entity_id -%}
+        {%- endfor -%}
+      {%- endif -%}
+      {%- if ns.plex_entity and states(ns.plex_entity) in ['playing', 'paused', 'idle'] -%}
+        {%- set ns.active = ns.plex_entity -%}
+      {%- else -%}
+        {%- set ns.active = cast -%}
+      {%- endif -%}
+      {{- ns.active -}}
     commands:
       volume_mute:
         service: media_player.volume_mute
@@ -996,20 +1144,41 @@
     children:
       - media_player.workshop_chromecast
     active_child_template: >-
-      {% set cast = "media_player.workshop_chromecast" %}
-      {% set ns = namespace(plex_entity = "") %}
-      {% set cast_title = state_attr(cast, 'media_title') | default("", true) %}
-      {% set cast_series = state_attr(cast, 'media_series_title') | default("", true) %}
-      {% for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" %}
-        {% set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) %}
-        {% set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) %}
-        {% if cast_title and plex_title == cast_title %}
-          {% set ns.plex_entity = player.entity_id %}
-        {% elif cast_series and plex_series == cast_series %}
-          {% set ns.plex_entity = player.entity_id %}
-        {% endif %}
-      {% endfor %}
-      {{ ns.plex_entity if ns.plex_entity else cast }}         
+      {%- set cast = "media_player.workshop_chromecast" -%}
+      {%- set ns = namespace(plex_entity = "", active = "") -%}
+      {%- set cast_state = states(cast) -%}
+      {#- Correlate this room's Plex session by Plex ratingKey (media_content_id): cast may send a path/URL, plex sends the bare key. Strip query string, take last "/" segment. -#}
+      {%- set cast_cid = ((state_attr(cast, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
+      {%- set cast_title = state_attr(cast, 'media_title') | default("", true) -%}
+      {%- set cast_series = state_attr(cast, 'media_series_title') | default("", true) -%}
+      {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
+        {%- set plex_cid = ((state_attr(player.entity_id, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
+        {%- if cast_cid and plex_cid and cast_cid == plex_cid -%}
+          {%- set ns.plex_entity = player.entity_id -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- if not ns.plex_entity -%}
+        {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
+          {%- set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) -%}
+          {%- set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) -%}
+          {%- if cast_title and plex_title == cast_title -%}
+            {%- set ns.plex_entity = player.entity_id -%}
+          {%- elif cast_series and plex_series == cast_series -%}
+            {%- set ns.plex_entity = player.entity_id -%}
+          {%- endif -%}
+        {%- endfor -%}
+      {%- endif -%}
+      {%- if not ns.plex_entity and not cast_cid and not cast_title and cast_state in ['playing', 'paused', 'buffering'] -%}
+        {%- for player in states.media_player if "plex" in player.entity_id and "cast" in player.entity_id and player.state == cast_state and state_attr(player.entity_id, 'media_title') and not ns.plex_entity -%}
+          {%- set ns.plex_entity = player.entity_id -%}
+        {%- endfor -%}
+      {%- endif -%}
+      {%- if ns.plex_entity and states(ns.plex_entity) in ['playing', 'paused', 'idle'] -%}
+        {%- set ns.active = ns.plex_entity -%}
+      {%- else -%}
+        {%- set ns.active = cast -%}
+      {%- endif -%}
+      {{- ns.active -}}
     commands:
       volume_mute:
         service: media_player.volume_mute

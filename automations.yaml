@@ -1244,6 +1244,7 @@
     - media_player.universal_kitchen_chromecast
     to: playing
     trigger: state
+    enabled: true
   - alias: Chromecasts Muted Status
     entity_id:
     - media_player.universal_workshop_chromecast
@@ -1254,6 +1255,7 @@
     - media_player.universal_salon_chromecast
     trigger: state
     attribute: is_volume_muted
+    enabled: true
   - entity_id:
     - media_player.universal_workshop_chromecast
     - media_player.universal_hotbox_top_chromecast
@@ -1263,13 +1265,26 @@
     - media_player.universal_kitchen_chromecast
     trigger: state
     attribute: media_title
+    enabled: true
+  - entity_id:
+    - media_player.universal_workshop_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_patio_chromecast
+    - media_player.universal_bedroom_chromecast
+    - media_player.universal_salon_chromecast
+    - media_player.universal_kitchen_chromecast
+    trigger: state
+    attribute: media_library_title
+    to:
+    - Visuals
+    enabled: true
   conditions:
   - condition: template
     value_template: '{{ state_attr(state_attr(trigger.entity_id,''active_child''),''media_library_title'')
       == ''Visuals''}}'
   - alias: Check if the chromecast already muted
     condition: template
-    value_template: '{{trigger.to_state.attributes.is_volume_muted == false }}'
+    value_template: '{{trigger.to_state.attributes.is_volume_muted != true }}'
     enabled: true
   actions:
   - metadata: {}
@@ -1279,7 +1294,8 @@
       entity_id: '{{trigger.entity_id}}'
     alias: Mute the chromecast
     action: media_player.volume_mute
-  mode: restart
+  mode: parallel
+  max: 10
 - id: '1714151063007'
   alias: Turn off speakers after 1 minutes of pause
   description: Stops speakers that have been paused for 1 minutes, freeing them from
@@ -1784,7 +1800,7 @@
               title: Open Cameras
               uri: /maxi-mobile/main-view#cameras
       action: script.broadcast_alert_in_the_house
-    - action: script.quickbars_display_notification
+    - action: script.quickbars_display_camera_pip_on_all_android_tv
       metadata: {}
       data: {}
   - delay:
@@ -1908,11 +1924,9 @@
   actions:
   - metadata: {}
     data:
-      command: 'Power off {{ [area_id(trigger.entity_id)]    | map(''area_entities'')
-        | sum(start=[])  |    select(''search'', ''^media_player\.(?!.*?universal.*?).*chromecast'')
-        |  map(''state_attr'', ''friendly_name'') | unique | list | first }}
-
-        '
+      command: Power off {{ [area_id(trigger.entity_id)]      | map('area_entities')
+        | sum(start=[])  |    select('search', '^media_player\..*chromecast') |  map('state_attr',
+        'friendly_name') | unique | list | first }}
     action: google_assistant_sdk.send_text_command
   mode: parallel
   max: 7
@@ -10721,7 +10735,7 @@
         - if:
           - alias: 'If a chromecast is present '
             condition: template
-            value_template: '{% set chromecast = ''media_player.salon_chromecast''
+            value_template: '{% set chromecast = ''media_player.universal_salon_chromecast''
               %}
 
               {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
@@ -10743,7 +10757,7 @@
             metadata: {}
             data: {}
             target:
-              entity_id: media_player.salon_chromecast
+              entity_id: media_player.universal_salon_chromecast
           else:
           - action: media_player.volume_set
             data:
@@ -10766,7 +10780,7 @@
         - if:
           - alias: 'If a chromecast is present '
             condition: template
-            value_template: '{% set chromecast = ''media_player.salon_chromecast''
+            value_template: '{% set chromecast = ''media_player.universal_salon_chromecast''
               %}
 
               {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
@@ -10788,7 +10802,7 @@
             metadata: {}
             data: {}
             target:
-              entity_id: media_player.salon_chromecast
+              entity_id: media_player.universal_salon_chromecast
           else:
           - action: media_player.volume_set
             data:
@@ -10806,7 +10820,8 @@
       - if:
         - alias: 'If a chromecast is present '
           condition: template
-          value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
+          value_template: '{% set chromecast = ''media_player.universal_salon_chromecast''
+            %}
 
             {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
@@ -10826,7 +10841,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.salon_chromecast
+            entity_id: media_player.universal_salon_chromecast
         else:
         - action: media_player.turn_off
           metadata: {}
@@ -10837,7 +10852,8 @@
       - if:
         - alias: 'If a chromecast is present '
           condition: template
-          value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
+          value_template: '{% set chromecast = ''media_player.universal_salon_chromecast''
+            %}
 
             {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
@@ -10857,7 +10873,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.salon_chromecast
+            entity_id: media_player.universal_salon_chromecast
         else:
         - action: media_player.media_next_track
           metadata: {}
@@ -10868,7 +10884,8 @@
       - if:
         - alias: 'If a chromecast is present '
           condition: template
-          value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
+          value_template: '{% set chromecast = ''media_player.universal_salon_chromecast''
+            %}
 
             {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
 
@@ -10888,7 +10905,7 @@
           metadata: {}
           data: {}
           target:
-            entity_id: media_player.salon_chromecast
+            entity_id: media_player.universal_salon_chromecast
         else:
         - action: media_player.media_play_pause
           metadata: {}
@@ -11195,13 +11212,13 @@
     enabled: true
   actions:
   - variables:
-      lights_over_30_percent: '{{ [area_id(trigger.entity_id)]  | map(''area_id'')
-        | map(''area_entities'') | sum(start=[]) | select(''match'', ''^light.'')
-        | select(''is_state'',''on'')  | expand | selectattr(''attributes.brightness'',''>'',80)
-        | map(attribute=''entity_id'') | unique | list }}
+      entity_id: '{{ trigger.entity_id }}
 
         '
-      entity_id: '{{ trigger.entity_id }}
+      lights_over_30_percent: '{{ area_entities(area_id(trigger.entity_id))  | select(''match'',
+        ''^light.'')  | select(''is_state'', ''on'')  | expand  | selectattr(''attributes.brightness'',
+        ''defined'')  | selectattr(''attributes.brightness'', ''>'', 80)  | map(attribute=''entity_id'')  |
+        list }}
 
         '
       trigger_full: '{{ trigger.to_state.attributes }}
@@ -13164,9 +13181,10 @@
   mode: single
 - id: '1766817510039'
   alias: Vibrating color effect automation
-  description: Creates a vibrating color effect on all color-capable lights by oscillating
-    each light's hue 25 degrees above and below its current value at a configurable
-    speed, then restores adaptive lighting when turned off.
+  description: Fans out a parallel "vibrate one light" subscript for every color-capable
+    light while input_boolean.vibrating_colors_effect is on, so all lights oscillate
+    at once. When the toggle goes off, stops every instance and restores adaptive
+    lighting.
   triggers:
   - trigger: state
     entity_id:
@@ -13177,89 +13195,53 @@
   conditions:
   - condition: state
     entity_id: input_boolean.trippy_warm_colors_effect
-    state:
-    - 'off'
+    state: 'off'
   - condition: state
     entity_id: input_boolean.trippy_lights_effect
-    state:
-    - 'off'
+    state: 'off'
   actions:
-  - alias: Trippy Lights Effect Sequence
-    sequence:
-    - repeat:
-        while:
-        - condition: state
-          entity_id: input_boolean.vibrating_colors_effect
-          state:
-          - 'on'
-        sequence:
-        - variables:
-            lights: '{{ integration_entities(''group'')| select(''search'', ''light.group_all_lights'')   |
-              expand | selectattr("attributes.hs_color", "defined") | selectattr("attributes.supported_features",
-              ">", 33)| selectattr("attributes.color_mode", "eq", ''xy'') | selectattr("state",
-              "eq", "on") | map(attribute=''entity_id'')  | list }}
-
-              '
-        - repeat:
-            for_each: '{{lights}}'
-            sequence:
-            - sequence:
-              - variables:
-                  light_initial_hue: '{{ state_attr(repeat.item, ''hs_color'').0 }}
-
-                    '
-                  light_above_hue: "{% set number_positive = light_initial_hue + 25
-                    %}\n  {% if number_positive > 360 %}\n    {% set number_positive
-                    = (number_positive - 360) %}\n  {% endif %}\n{{ number_positive
-                    | int }}\n"
-                  light_below_hue: "{% set number_negative = light_initial_hue - 25
-                    %}\n  {% if number_negative < 0 %}\n    {% set number_negative
-                    = (number_negative | abs ) %}\n  {% endif %}\n{{ number_negative
-                    | int }}\n"
-              - action: light.turn_on
-                metadata: {}
-                data:
-                  transition: '{{ states(''input_number.vibrating_color_effect_speed'')}}'
-                  hs_color: '{{light_above_hue}},{{states(''input_number.vibrating_color_effect_saturation'')}}'
-                target:
-                  entity_id: '{{repeat.item}}'
-              - delay: 00:00:{{ states('input_number.vibrating_color_effect_speed')
-                  | int + 1}}
-              - action: light.turn_on
-                metadata: {}
-                data:
-                  transition: '{{ states(''input_number.vibrating_color_effect_speed'')
-                    | int * 2}}'
-                  hs_color: '{{light_below_hue}},{{states(''input_number.vibrating_color_effect_saturation'')}}'
-                target:
-                  entity_id: '{{repeat.item}}'
-              - delay: 00:00:{{ states('input_number.vibrating_color_effect_speed')
-                  | int * 2}}
-              - action: light.turn_on
-                metadata: {}
-                data:
-                  transition: '{{ states(''input_number.vibrating_color_effect_speed'')}}'
-                  hs_color: '{{light_initial_hue}},{{states(''input_number.vibrating_color_effect_saturation'')}}'
-                target:
-                  entity_id: '{{repeat.item}}'
-              - delay: 00:00:{{ states('input_number.vibrating_color_effect_speed')
-                  | int + 1}}
-  - alias: Restore Lights Sequence
-    sequence:
+  - choose:
+    - alias: Effect ON — fan out one subscript per light
+      conditions:
+      - condition: state
+        entity_id: input_boolean.vibrating_colors_effect
+        state: 'on'
+      sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.vibrate_one_light
+        data: {}
+      - variables:
+          lights: "{{ integration_entities('group') | select('search', 'light.group_all_lights')\n
+            \  | expand | selectattr(\"attributes.hs_color\", \"defined\")\n   | selectattr(\"attributes.supported_features\",
+            \">\", 33)\n   | selectattr(\"attributes.color_mode\", \"eq\", 'xy')\n
+            \  | selectattr(\"state\", \"eq\", \"on\") | map(attribute='entity_id')
+            | list | shuffle }}\n"
+      - repeat:
+          for_each: '{{ lights }}'
+          sequence:
+          - action: script.turn_on
+            target:
+              entity_id: script.vibrate_one_light
+            data:
+              variables:
+                target_light: '{{ repeat.item }}'
+          - delay: '{{ range(100, 3000) | random | int }}'
+    default:
+    - alias: Stop all vibrate subscripts
+      action: script.turn_off
+      target:
+        entity_id: script.vibrate_one_light
     - variables:
-        lights: '{{ integration_entities(''group'')| select(''search'', ''light.group_all_lights'')   |
-          expand | selectattr("attributes.hs_color", "defined") | selectattr("attributes.supported_features",
-          ">", 33)| selectattr("attributes.color_mode", "eq", ''xy'') | selectattr("state",
-          "eq", "on") | map(attribute=''entity_id'')  | list }}
-
-          '
+        lights: "{{ integration_entities('group') | select('search', 'light.group_all_lights')\n
+          \  | expand | selectattr(\"attributes.hs_color\", \"defined\")\n   | selectattr(\"attributes.supported_features\",
+          \">\", 33)\n   | selectattr(\"attributes.color_mode\", \"eq\", 'xy')\n   |
+          selectattr(\"state\", \"eq\", \"on\") | map(attribute='entity_id') | list
+          }}\n"
     - action: adaptive_lighting.apply
-      metadata: {}
       data:
-        lights: '{{ lights }}
-
-          '
-        transition: '3'
+        lights: '{{ lights }}'
+        transition: 3
         adapt_brightness: true
         adapt_color: true
         turn_on_lights: true
@@ -13634,8 +13616,8 @@
       - sensor.plug_kitchen_dishwasher_electric_consumption_w
       for:
         hours: 0
-        minutes: 0
-        seconds: 5
+        minutes: 1
+        seconds: 0
       below: 5
       trigger: numeric_state
     continue_on_timeout: false
@@ -13850,12 +13832,20 @@
   mode: single
 - id: merged_speaker_chromecast_mute
   alias: Speaker/Chromecast Mutual Mute Management
-  description: Ensures that when both speakers and Chromecasts are active in the same
-    room, only one device remains unmuted at a time. Muting occurs unconditionally
-    upon playback start or state change; unmuting is triggered only when motion is
-    detected and no active sleeper is present in the room. A 10-minute time gate on
-    chromecast state transitions prevents rapid playing→off→playing bounces (e.g.
-    caused by volume changes) from re-running unmute/volume logic.
+  description: "Ensures that when both speakers and Chromecasts are active in the
+    same room, only one device remains unmuted at a time. Policy is \"newest wins\":
+    the device that most recently started playing OR was manually unmuted takes audio,
+    and the other device is muted. Unmuting only occurs when motion is present and
+    no sleeper is in the room; muting is unconditional. A 10-minute anti-flap gate
+    on chromecast state transitions prevents rapid playing→off→playing bounces from
+    re-running logic.\nAnti-loop design:\n - The two MUTE blocks have DISJOINT triggers
+    (cc_* events mute the speaker;\n   spk_* events mute the TV), so no single event
+    can mute both devices at once —\n   it was that simultaneous double-mute that
+    produced the lockstep oscillation.\n - The mute-status triggers are direction-guarded:
+    a TV/​speaker UNMUTE drives the\n   \"mute the other\" block, a MUTE drives the
+    \"unmute the other\" block.\n - Every mute/unmute is idempotent (targets only
+    players not already in the desired\n   state, and is skipped if that target list
+    is empty), so each reaction chain\n   terminates instead of ping-ponging."
   triggers:
   - alias: Chromecasts → playing
     trigger: state
@@ -13915,6 +13905,10 @@
     - media_player.universal_salon_chromecast
     - media_player.universal_bedroom_chromecast
     - media_player.universal_kitchen_chromecast
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 1
   - alias: Speakers → playing (1 s)
     trigger: state
     id: spk_to_playing
@@ -13973,15 +13967,14 @@
   actions:
   - if:
     - condition: template
-      value_template: '{{ trigger.id in [''cc_to_playing'', ''spk_to_playing'', ''cc_mute_status'']
-        }}
-
-        '
+      value_template: "{{ trigger.id == 'cc_to_playing'\n   or (trigger.id == 'cc_mute_status'\n
+        \      and trigger.to_state.attributes.is_volume_muted == false) }}\n"
     then:
     - variables:
-        playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
+        speakers_to_mute: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
           \ | sum(start=[])\n  | select('search', 'speaker')\n  | select('is_state',
-          'playing')\n  | unique\n  | list }}\n"
+          'playing')\n  | expand\n  | selectattr('attributes.is_volume_muted', 'eq',
+          false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
         unmuted_player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
           \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
           'universal')\n  | expand\n  | rejectattr('state', 'eq', 'off')\n  | rejectattr('state',
@@ -13989,40 +13982,44 @@
           false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
     - if:
       - condition: template
-        value_template: '{{ unmuted_player_chromecasts != [] }}'
+        value_template: '{{ unmuted_player_chromecasts != [] and speakers_to_mute
+          != [] }}'
       then:
       - action: media_player.volume_mute
         data:
           is_volume_muted: true
         target:
-          entity_id: '{{ playing_speakers | list }}'
+          entity_id: '{{ speakers_to_mute | list }}'
   - if:
     - condition: template
-      value_template: "{{ trigger.id in ['cc_to_playing', 'spk_to_playing', 'spk_mute_status']\n
-        \  and (trigger.id != 'spk_mute_status'\n        or trigger.to_state.attributes.is_volume_muted
-        == false) }}\n"
+      value_template: "{{ trigger.id == 'spk_to_playing'\n   or (trigger.id == 'spk_mute_status'\n
+        \      and trigger.to_state.attributes.is_volume_muted == false) }}\n"
     then:
     - variables:
         unmuted_playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
           \ | sum(start=[])\n  | select('search', 'speaker')\n  | select('is_state',
           'playing')\n  | expand\n  | selectattr('attributes.is_volume_muted', 'eq',
           false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
-        player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
+        chromecasts_to_mute: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
           \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
-          'universal')\n  | unique\n  | list }}\n"
+          'universal')\n  | expand\n  | rejectattr('state', 'eq', 'off')\n  | rejectattr('state',
+          'eq', 'unavailable')\n  | selectattr('attributes.is_volume_muted', 'eq',
+          false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
     - if:
       - condition: template
-        value_template: '{{ unmuted_playing_speakers != [] }}'
+        value_template: '{{ unmuted_playing_speakers != [] and chromecasts_to_mute
+          != [] }}'
       then:
       - action: media_player.volume_mute
         data:
           is_volume_muted: true
         target:
-          entity_id: '{{ player_chromecasts | list }}'
+          entity_id: '{{ chromecasts_to_mute | list }}'
   - if:
     - condition: template
-      value_template: "{{ trigger.id in ['cc_from_off', 'spk_mute_status',\n                  'spk_from_playing',
-        'cc_to_playing', 'cc_to_idle'] }}\n"
+      value_template: "{{ trigger.id in ['cc_from_off', 'spk_from_playing', 'cc_to_playing',\n
+        \                 'cc_to_idle']\n   or (trigger.id == 'spk_mute_status'\n
+        \      and trigger.to_state.attributes.is_volume_muted == true) }}\n"
     - alias: 10-min anti-flap gate (cc_to_playing / cc_to_idle / cc_from_off)
       condition: template
       value_template: "{% if trigger.id in ['cc_to_playing', 'cc_to_idle', 'cc_from_off']
@@ -14049,24 +14046,29 @@
           \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
           'universal')\n  | select('is_state', ['playing', 'idle'])\n  | unique\n
           \ | list }}\n"
+        chromecasts_to_unmute: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
+          \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
+          'universal')\n  | select('is_state', ['playing', 'idle'])\n  | expand\n
+          \ | selectattr('attributes.is_volume_muted', 'eq', true)\n  | map(attribute='entity_id')\n
+          \ | unique\n  | list }}\n"
     - if:
       - condition: template
         value_template: '{{ unmuted_playing_speakers == [] }}'
       then:
-      - action: media_player.volume_mute
-        data:
-          is_volume_muted: false
-        target:
-          entity_id: '{{ playing_chromecasts | list }}'
-      - action: script.chromecast_automatic_volume_adjustment_script
-        data:
-          received_chromecast: '{{ playing_chromecasts | list }}'
+      - if:
+        - condition: template
+          value_template: '{{ chromecasts_to_unmute != [] }}'
+        then:
+        - action: media_player.volume_mute
+          data:
+            is_volume_muted: false
+          target:
+            entity_id: '{{ chromecasts_to_unmute | list }}'
   - if:
     - condition: template
-      value_template: '{{ trigger.id in [''cc_from_playing'', ''spk_to_playing'',
-        ''cc_mute_status''] }}
-
-        '
+      value_template: "{{ trigger.id in ['cc_from_playing', 'spk_to_playing']\n   or
+        (trigger.id == 'cc_mute_status'\n       and trigger.to_state.attributes.is_volume_muted
+        == true) }}\n"
     - alias: 10-min anti-flap gate (spk_to_playing / cc_from_playing)
       condition: template
       value_template: "{% if trigger.id in ['spk_to_playing', 'cc_from_playing'] %}\n
@@ -14083,9 +14085,10 @@
         \  | lower in states('sensor.active_motion_rooms') | string | lower }}\n"
     then:
     - variables:
-        playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
+        speakers_to_unmute: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
           \ | sum(start=[])\n  | select('search', 'speaker')\n  | select('search',
-          'mass')\n  | select('is_state', 'playing')\n  | unique\n  | list }}\n"
+          'mass')\n  | select('is_state', 'playing')\n  | expand\n  | selectattr('attributes.is_volume_muted',
+          'eq', true)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
         unmuted_player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
           \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
           'universal')\n  | select('is_state', ['playing', 'idle'])\n  | expand\n
@@ -14093,13 +14096,14 @@
           \ | unique\n  | list }}\n"
     - if:
       - condition: template
-        value_template: '{{ unmuted_player_chromecasts == [] }}'
+        value_template: '{{ unmuted_player_chromecasts == [] and speakers_to_unmute
+          != [] }}'
       then:
       - action: media_player.volume_mute
         data:
           is_volume_muted: false
         target:
-          entity_id: '{{ playing_speakers | list }}'
+          entity_id: '{{ speakers_to_unmute | list }}'
   mode: parallel
   max: 10
 - id: '1773975525008'
@@ -16125,4 +16129,54 @@
         '
     data:
       value: 4
+  mode: single
+- id: '1781915583649'
+  alias: Turn off Salon Tv when no one is in front of it for 20 minutes
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.salon_radar_occupancy_zone_2_occupancy
+    to:
+    - 'off'
+    for:
+      hours: 0
+      minutes: 20
+      seconds: 0
+  conditions:
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: media_player.salon_chromecast
+      state:
+      - playing
+  actions:
+  - action: remote.turn_off
+    metadata: {}
+    target:
+      entity_id: remote.bravia_4k_ae2
+    data: {}
+  mode: single
+- id: '1781971761795'
+  alias: Set Salon TV to Retro gaming station when a paired controller turns on
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.batocera_controller
+    from:
+    - 'off'
+    to:
+    - 'on'
+  conditions:
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: media_player.universal_salon_chromecast
+      state:
+      - playing
+  actions:
+  - action: script.start_retro_gaming_session
+    metadata: {}
+    data: {}
   mode: single

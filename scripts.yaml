@@ -2736,6 +2736,7 @@ chromecast_automatic_volume_adjustment_script:
         target:
           entity_id: '{{chromecast_id}}'
         action: media_player.volume_mute
+      enabled: true
   alias: Chromecast Automatic Volume Adjustment script
   description: This script will set the volume of the chromecast to a standard volume
     in relation to the time of the day
@@ -3187,7 +3188,7 @@ quickbars_display_notification:
       image_url: /api/camera_proxy/camera.front_door_camera
       transparency: 0
       interrupt: true
-      length: 60
+      length: 120
       sound_url: /config/www/sounds/ding-dong.mp3
       sound_volume_percent: 32
       action_1_id: unlock_door
@@ -4238,3 +4239,67 @@ start_retro_gaming_session:
     the Salon TV.
 
     It should be called whenever someone asks to play retro games or any retro title'
+vibrate_one_light:
+  alias: Vibrate one light
+  description: Randomized shimmer around a light's resting hue, looping while input_boolean.vibrating_colors_effect
+    is on AND the light is still on. Fanned out (one parallel instance per light)
+    by the Vibrating color effect automation.
+  mode: parallel
+  max: 100
+  icon: mdi:sine-wave
+  fields:
+    target_light:
+      name: Target light
+      required: true
+      selector:
+        entity:
+          domain: light
+  sequence:
+  - variables:
+      base_hue: '{{ state_attr(target_light, ''hs_color'')[0] if state_attr(target_light,
+        ''hs_color'') else 0 }}'
+  - delay:
+      seconds: '{{ (range(0, ((states(''input_number.vibrating_color_effect_speed'')
+        | float * 2) * 10) | int + 1) | random) / 10 }}'
+  - repeat:
+      while:
+      - condition: state
+        entity_id: input_boolean.vibrating_colors_effect
+        state: 'on'
+      - condition: template
+        value_template: '{{ is_state(target_light, ''on'') }}'
+      sequence:
+      - variables:
+          speed: '{{ states(''input_number.vibrating_color_effect_speed'') | float
+            }}'
+          sat: '{{ states(''input_number.vibrating_color_effect_saturation'') | int
+            }}'
+          offset: '{{ (range(12, 36) | random) * ([1, -1] | random) }}'
+          target_hue: '{{ ((base_hue + offset) % 360) | int }}'
+          move_time: '{{ ([0.5, speed * (range(60, 141) | random) / 100] | max) |
+            round(1) }}'
+          hold_time: '{{ ([0.4, speed * (range(70, 151) | random) / 100] | max) |
+            round(1) }}'
+      - action: light.turn_on
+        target:
+          entity_id: '{{ target_light }}'
+        data:
+          transition: '{{ move_time }}'
+          hs_color:
+          - '{{ target_hue }}'
+          - '{{ sat }}'
+      - delay:
+          seconds: '{{ hold_time }}'
+quickbars_display_camera_pip_on_all_android_tv:
+  alias: QuickBars - Display Camera PiP on all android TV
+  use_blueprint:
+    path: Trooped/camera.yaml
+    input:
+      camera_entity: camera.front_door_ptz_camera_fluent
+      rtsp_transport: udp
+      rtsp_latency: low
+      camera_title: Someone is at the door!
+      position: top_left
+      size: large
+      auto_hide: 120
+  description: ''
