@@ -346,7 +346,7 @@ broadcast_alert_tts_announce:
           entity_id: tts.piper_2
         data:
           cache: true
-          media_player_entity_id: media_player.mass_bedroom_wiim_speaker
+          media_player_entity_id: media_player.mass_bedroom_aux2_speaker
           message: '{{ message }}'
         continue_on_error: true
   mode: parallel
@@ -391,7 +391,7 @@ broadcast_alert_play_audio_url:
         url: '{{ broadcast_url }}'
         announce_volume: '{{ announce_volume | default(35) | int }}'
       target:
-        entity_id: media_player.mass_bedroom_wiim_speaker
+        entity_id: media_player.mass_bedroom_aux2_speaker
       continue_on_error: true
     - action: music_assistant.play_announcement
       data:
@@ -829,7 +829,8 @@ non_important_broadcast_alert_in_the_house:
       then:
       - alias: Announcements via Music Assistant
         parallel:
-        - alias: Announce in the home group
+        - alias: Disabled direct Music Assistant announcement; tts.speak handles this
+            without media-source URL failures
           action: music_assistant.play_announcement
           data:
             url: media-source://tts/tts.piper_2?message={{ message | urlencode }}&cache=true
@@ -837,6 +838,7 @@ non_important_broadcast_alert_in_the_house:
           target:
             entity_id: media_player.group_mass_home_group_speakers
           continue_on_error: true
+          enabled: false
         - action: tts.speak
           metadata: {}
           target:
@@ -857,7 +859,7 @@ non_important_broadcast_alert_in_the_house:
               entity_id: tts.piper_2
             data:
               cache: true
-              media_player_entity_id: media_player.mass_bedroom_wiim_speaker
+              media_player_entity_id: media_player.mass_bedroom_aux2_speaker
               message: '{{ message }}'
             continue_on_error: true
         - action: tts.speak
@@ -1160,7 +1162,7 @@ in_home_defense_script:
       volume_level: 1
     target:
       entity_id:
-      - media_player.mass_bedroom_wiim_speaker
+      - media_player.mass_bedroom_aux2_speaker
       - media_player.mass_hallway_wiim_speaker
       - media_player.mass_kitchen_wiim_speaker
       - media_player.mass_workshop_wiim_speaker
@@ -1179,7 +1181,7 @@ in_home_defense_script:
     action: media_player.play_media
     target:
       entity_id:
-      - media_player.mass_bedroom_wiim_speaker
+      - media_player.mass_bedroom_aux2_speaker
       - media_player.mass_hallway_wiim_speaker
       - media_player.mass_kitchen_wiim_speaker
       - media_player.mass_workshop_wiim_speaker
@@ -1195,7 +1197,7 @@ in_home_defense_script:
       volume_level: 1
     target:
       entity_id:
-      - media_player.mass_bedroom_wiim_speaker
+      - media_player.mass_bedroom_aux2_speaker
       - media_player.mass_hallway_wiim_speaker
       - media_player.mass_kitchen_wiim_speaker
       - media_player.mass_workshop_wiim_speaker
@@ -1212,7 +1214,7 @@ in_home_defense_script:
         data: {}
         target:
           entity_id:
-          - media_player.mass_bedroom_wiim_speaker
+          - media_player.mass_bedroom_aux2_speaker
           - media_player.mass_hallway_wiim_speaker
           - media_player.mass_kitchen_wiim_speaker
           - media_player.mass_workshop_wiim_speaker
@@ -1266,7 +1268,7 @@ in_home_defense_script:
         data: {}
         target:
           entity_id:
-          - media_player.mass_bedroom_wiim_speaker
+          - media_player.mass_bedroom_aux2_speaker
           - media_player.mass_hallway_wiim_speaker
           - media_player.mass_kitchen_wiim_speaker
           - media_player.mass_workshop_wiim_speaker
@@ -1300,7 +1302,7 @@ in_home_defense_script:
       data: {}
       target:
         entity_id:
-        - media_player.mass_bedroom_wiim_speaker
+        - media_player.mass_bedroom_aux2_speaker
         - media_player.mass_hallway_wiim_speaker
         - media_player.mass_kitchen_wiim_speaker
         - media_player.mass_workshop_wiim_speaker
@@ -1390,7 +1392,7 @@ inside_only_home_defense_script:
     target:
       entity_id:
       - media_player.group_mass_home_group_speakers
-      - media_player.mass_bedroom_wiim_speaker
+      - media_player.mass_bedroom_aux2_speaker
       - media_player.mass_kitchen_wiim_speaker
       - media_player.mass_workshop_wiim_speaker
       - media_player.mass_lounge_wiim_speaker
@@ -1403,7 +1405,7 @@ inside_only_home_defense_script:
       entity_id:
       - media_player.group_mass_home_group_speakers
       - media_player.mass_bathroom_vpe_speaker
-      - media_player.mass_bedroom_wiim_speaker
+      - media_player.mass_bedroom_aux2_speaker
       - media_player.mass_closet_vpe_speaker
     data:
       media:
@@ -1429,7 +1431,7 @@ inside_only_home_defense_script:
     target:
       entity_id:
       - media_player.group_mass_home_group_speakers
-      - media_player.mass_bedroom_wiim_speaker
+      - media_player.mass_bedroom_aux2_speaker
       - media_player.mass_kitchen_wiim_speaker
       - media_player.mass_workshop_wiim_speaker
       - media_player.mass_lounge_wiim_speaker
@@ -1464,7 +1466,7 @@ inside_only_home_defense_script:
       entity_id:
       - media_player.group_mass_home_group_speakers
       - media_player.mass_bathroom_vpe_speaker
-      - media_player.mass_bedroom_wiim_speaker
+      - media_player.mass_bedroom_aux2_speaker
       - media_player.mass_closet_vpe_speaker
     continue_on_error: true
   - action: input_boolean.turn_on
@@ -1642,15 +1644,13 @@ equalize_home_group_volume:
 speaker_automatic_volume_adjustment_script:
   sequence:
   - variables:
-      speaker_id: "{% if received_speaker is iterable and received_speaker is not
-        string %}\n  {{ received_speaker[0] }}\n{% else %}\n  {{ received_speaker
-        }}\n{% endif %}\n"
+      speaker_id: "{% set rs = received_speaker | default('', true) %}\n{% if rs is
+        string %}\n  {{ rs | trim }}\n{% elif rs is iterable %}\n  {{ (rs | list |
+        first) | default('', true) | string | trim }}\n{% else %}\n  {{ rs | string
+        | trim }}\n{% endif %}\n"
   - condition: template
-    value_template: '{{ speaker_id != ''[]'' }}'
-  - condition: template
-    value_template: '{{ speaker_id != '''' }}'
-  - condition: template
-    value_template: '{{ speaker_id != [] }}'
+    value_template: '{{ speaker_id | string | trim not in ['''', ''[]'', ''None'',
+      ''none''] }}'
   - alias: Set volume then mute if empty
     sequence:
     - choose:
@@ -3431,21 +3431,18 @@ vibe_arc_warming_up:
         - input_boolean.trippy_lights_effect
         - input_boolean.vibrating_colors_effect
       data: {}
+    - action: light.turn_on
+      target:
+        entity_id:
+        - light.kitchen_ceiling
+        - light.salon_wall_light
+        - light.lounge_ceiling_light
+        - light.workshop_wall_light
+      data:
+        effect: effect_flame
+        brightness_pct: 100
   - delay:
       seconds: 5
-  - action: script.1716330781093
-    data: {}
-  - action: lifx.effect_morph
-    metadata: {}
-    target:
-      entity_id:
-      - light.kitchen_ceiling
-      - light.salon_wall_light
-      - light.lounge_ceiling_light
-      - light.workshop_wall_light
-    data:
-      speed: 3
-      power_on: true
   - delay:
       seconds: 2
   - action: input_boolean.turn_off
@@ -3685,10 +3682,10 @@ llm_script_to_start_tv_shows_and_movies_on_tvs_duplicate:
       resolved_media_id: '{{ media_lookup.data.media_id_name if media_lookup is defined
         else media_id }}'
       resolved_media_type: '{{ media_lookup_type.data.media_type_name if media_lookup_type
-        else media_type }}'
+        is defined else media_type }}'
       resolved_media_library_name: "{% if resolved_media_type == 'movie' %}\n  Movies\n{%
         elif resolved_media_type == 'tvshow' %} TV Shows {% else %} {{ media_lookup_library_name.data.media_library_name
-        if media_lookup_library_name else library_name }} {% endif %}"
+        if media_lookup_library_name is defined else library_name }} {% endif %}"
   - variables:
       player_data: "{% if media_player | first %} \n{% set media_player_no_space =
         (media_player | lower).replace('universal_','').replace('universal ','').replace('media_player.','').replace('chromecast','').replace('_chromecast','').replace('tv','').replace('_tv','').split('
@@ -4303,3 +4300,41 @@ quickbars_display_camera_pip_on_all_android_tv:
       size: large
       auto_hide: 120
   description: ''
+favorite_currently_playing_song:
+  sequence:
+  - choose:
+    - conditions:
+      - condition: not
+        conditions:
+        - condition: state
+          entity_id: media_player.group_mass_home_group_speakers
+          state:
+          - 'off'
+      sequence:
+      - action: button.press
+        metadata: {}
+        target:
+          entity_id: button.group_mass_home_speakers_favorite_current_song
+        data: {}
+    - conditions:
+      - condition: state
+        entity_id: media_player.group_mass_home_group_speakers
+        state:
+        - 'off'
+      sequence:
+      - variables:
+          favorite_entity: "{{ integration_entities('music_assistant') \n | expand\n
+            | selectattr('entity_id', 'search', states('sensor.maxi_location_by_petro_v2')
+            )\n | selectattr('entity_id', 'search', 'favorite' )\n | map(attribute='entity_id')
+            | list }} \n"
+        alias: Define Closest speaker to maxi and its favorite button entity
+      - action: button.press
+        metadata: {}
+        target:
+          entity_id: '{{ favorite_entity }}
+
+            '
+        data: {}
+  alias: Favorite currently playing song
+  description: Favorites track on the home group if active, otherwise targets the
+    closest speaker to Maxi. Use the 'favorite_current_song' entity
