@@ -1,0 +1,145 @@
+# ─── Home Assistant Main Configuration ───
+# Central configuration file that sets up core components and includes
+# domain-specific config from the /config/includes/ directory.
+# Each include file handles one integration domain (sensors, lights, etc.).
+
+# Configure a default setup of Home Assistant (frontend, api, etc)
+default_config:
+
+# Text to speech (disabled - using alternative TTS solutions)
+#tts:
+#  - platform: google_translate
+
+# ─── HTTP / Reverse Proxy Settings ───
+http:
+  # For extra security set this to only accept connections on localhost if NGINX is on the same machine
+  # Uncommenting this will mean that you can only reach Home Assistant using the proxy, not directly via IP from other clients.
+  #server_host: 192.168.0.5
+  use_x_forwarded_for: true
+  # You must set the trusted proxy IP address so that Home Assistant will properly accept connections
+  # Set this to your NGINX machine IP, or localhost if hosted on the same machine.
+  trusted_proxies: 
+     - 172.30.33.13
+     - 192.168.0.5
+     - 192.168.0.1
+######################################################################
+# ─── Recorder ───
+# Stores entity state history in an external database (e.g., MariaDB/PostgreSQL).
+# Keeps 100 days of history before purging old records.
+recorder:
+  purge_keep_days: 100
+  db_url: !secret db_url
+  exclude:
+    entity_globs:
+      # Everything Presence Lite - raw target data (updates 5-10x/sec)
+      - sensor.everything_presence_lite_*_target_*_x
+      - sensor.everything_presence_lite_*_target_*_y
+      - sensor.everything_presence_lite_*_target_*_distance
+      - sensor.everything_presence_lite_*_target_*_angle
+      - sensor.everything_presence_lite_*_target_*_speed
+      # ESPresense raw RSSI (updates every few seconds per device)
+      - sensor.espresense_*
+      # Smart plug high-freq power monitoring
+      - sensor.plug_*_voltage
+      - sensor.plug_*_current
+      - sensor.plug_*_power
+      - sensor.plug_*_frequency
+      # Bed weight sensor (continuous ADC updates)
+      - sensor.bed_weight_sensor_hx711_*
+      # Desktop PC metrics (updates every few seconds)
+      - sensor.desktop_maxi_cpu*
+      - sensor.desktop_maxi_memory*
+logbook:
+  exclude:
+    entity_globs:
+      - sensor.everything_presence_lite_*_target_*
+      - sensor.espresense_*
+      - sensor.bed_weight_sensor_hx711_*
+history:
+  exclude:
+    entity_globs:
+      - sensor.everything_presence_lite_*_target_*
+      - sensor.espresense_*
+      - sensor.bed_weight_sensor_hx711_*
+######################################################################
+# ─── Frontend ───
+# Loads custom themes from the /config/themes/ directory.
+frontend:
+  themes: !include_dir_merge_named themes
+######################################################################
+# ─── Logger ───
+# Controls log verbosity. Set to 'warning' to reduce noise.
+# Uncomment specific component loggers below for debugging.
+logger:
+  default: warning
+#  logs:
+#      homeassistant.components.vacuum: debug
+#      homeassistant.helpers.intent: debug
+  # filters:
+    # homeassistant.components.websocket_api.http.connection: 
+      # - "espresense"
+      # - "speaker"
+      # - "ELECTRIC"
+      # - "motion"
+      # - "switch"
+      # - "unit_of_measurement"
+      # - ".*LOCAL.*"
+######################################################################
+# ─── Media Source ───
+# Enables the media source integration for browsing local media files.
+media_source:
+
+zha:
+  zigpy_config:
+    ota:
+      extra_providers:
+        - type: z2m
+    source_routing: false
+    ezsp_config:
+      CONFIG_SOURCE_ROUTE_TABLE_SIZE: 260
+      CONFIG_ROUTE_TABLE_SIZE: 250
+######################################################################
+# ─── Include Files ───
+# Each line below pulls in a separate YAML file for a specific domain.
+# This keeps the main config clean and each domain independently editable.
+notify: !include /config/includes/notify.yaml
+input_text: !include /config/includes/input_text.yaml
+mqtt: !include /config/includes/mqtt.yaml
+media_player: !include /config/includes/media_player.yaml
+binary_sensor: !include /config/includes/binsensors.yaml
+sensor: !include /config/includes/sensors.yaml
+light: !include /config/includes/lights.yaml
+group: !include /config/includes/groups.yaml
+automation: !include automations.yaml
+script: 
+    - !include /config/includes/scripts.yaml
+    - !include /config/scripts.yaml
+rest_command: !include /config/includes/rest_command.yaml
+alarm_control_panel: !include /config/includes/alarms.yaml
+switch: !include /config/includes/switch.yaml
+climate: !include /config/includes/climate.yaml
+#google_assistant: !include /config/includes/google_assistant.yaml
+camera: !include /config/includes/cameras.yaml
+# unused proxmoxve: !include /config/includes/proxmoxve.yaml
+template: !include /config/includes/template.yaml
+shell_command: !include /config/includes/shell_command.yaml
+######################################################################
+# ─── Home Assistant Core Settings ───
+# Defines media directories, authentication providers, and filesystem access.
+homeassistant:
+  media_dirs:
+    local: /media                        # General media files
+    llmvision: /config/media/llmvision   # LLM Vision camera snapshots
+  auth_providers:
+    - type: homeassistant                # Standard username/password auth
+    - type: trusted_networks             # Auto-login from trusted device IPs
+      trusted_networks:
+        - 192.168.0.40                   # Wall-mounted tablet / kiosk
+        - 192.168.0.45                   # Wall-mounted tablet / kiosk
+  allowlist_external_dirs:
+    - '/config'
+  packages: !include_dir_named packages/                          # Allow scripts to read files from /config
+#######################################################################
+#lovelace_gen:
+######################################################################
+intent_script: !include_dir_named intent_scripts/
