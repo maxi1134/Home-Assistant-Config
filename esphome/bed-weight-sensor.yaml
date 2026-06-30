@@ -204,7 +204,7 @@ globals:
 
 sensor:
   - platform: hx711
-    internal: false
+    internal: true
     accuracy_decimals: 2
     id: weight_top_left
     name: "HX711 Value Top Left"
@@ -245,7 +245,7 @@ sensor:
             }
 
   - platform: hx711
-    internal: false
+    internal: true
     accuracy_decimals: 2
     id: weight_top_right
     name: "HX711 Value Top Right"
@@ -286,7 +286,7 @@ sensor:
             }
 
   - platform: hx711
-    internal: false
+    internal: true
     accuracy_decimals: 2
     id: weight_bottom_right
     name: "HX711 Value Bottom Right"
@@ -327,7 +327,7 @@ sensor:
             }
 
   - platform: hx711
-    internal: false
+    internal: true
     accuracy_decimals: 2
     id: weight_bottom_left
     name: "HX711 Value Bottom Left"
@@ -382,6 +382,7 @@ sensor:
 
   - platform: template
     id: estimated_weight_top_left
+    internal: true
     name: "Estimated Weight Top Left Quarter"
     unit_of_measurement: lb
     accuracy_decimals: 2
@@ -395,6 +396,7 @@ sensor:
 
   - platform: template
     id: estimated_weight_top_right
+    internal: true
     name: "Estimated Weight Top Right Quarter"
     unit_of_measurement: lb
     accuracy_decimals: 2
@@ -408,6 +410,7 @@ sensor:
 
   - platform: template
     id: estimated_weight_bottom_left
+    internal: true
     name: "Estimated Weight Bottom Left Quarter"
     unit_of_measurement: lb
     accuracy_decimals: 2
@@ -421,6 +424,7 @@ sensor:
 
   - platform: template
     id: estimated_weight_bottom_right
+    internal: true
     name: "Estimated Weight Bottom Right Quarter"
     unit_of_measurement: lb
     accuracy_decimals: 2
@@ -432,17 +436,33 @@ sensor:
         id(inv_br_bl) * id(weight_bottom_left).state +
         id(inv_br_br) * id(weight_bottom_right).state;
 
-  - platform: combination
+  - platform: template
     id: total_weight
-    type: sum
     name: "Total Weight"
-    sources:
-      - source: estimated_weight_top_left
-      - source: estimated_weight_top_right
-      - source: estimated_weight_bottom_left
-      - source: estimated_weight_bottom_right
+    unit_of_measurement: lb
+    device_class: weight
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10s
+    lambda: |-
+      const float tl = id(estimated_weight_top_left).state;
+      const float tr = id(estimated_weight_top_right).state;
+      const float bl = id(estimated_weight_bottom_left).state;
+      const float br = id(estimated_weight_bottom_right).state;
+
+      if (isnan(tl) || isnan(tr) || isnan(bl) || isnan(br)) {
+        return {};
+      }
+
+      return tl + tr + bl + br;
     filters:
-      - delta: 0.005
+      - clamp:
+          min_value: -20
+          max_value: 1000
+          ignore_out_of_range: true
+      - round: 1
+      - delta: 1.0
+      - heartbeat: 5min
 
 # Mattress-aware calibration:
 # place the known weight near the center of the target quarter.
@@ -458,6 +478,17 @@ number:
     min_value: 1
     max_value: 400
     step: 0.5
+
+  - platform: template
+    id: side_occupied_threshold_lb
+    name: "Side Occupied Threshold"
+    unit_of_measurement: lb
+    optimistic: true
+    restore_value: true
+    initial_value: 40
+    min_value: 5
+    max_value: 300
+    step: 1
 
 script:
   - id: recompute_calibration_inverse
@@ -606,6 +637,49 @@ script:
       - script.execute: recompute_calibration_inverse
 
 binary_sensor:
+  - platform: template
+    id: left_side_occupied
+    name: "Left Side Occupied"
+    device_class: occupancy
+    lambda: |-
+      const float tl = id(estimated_weight_top_left).state;
+      const float bl = id(estimated_weight_bottom_left).state;
+      if (isnan(tl) || isnan(bl)) {
+        return {};
+      }
+      return (tl + bl) >= id(side_occupied_threshold_lb).state;
+    filters:
+      - delayed_on: 10s
+      - delayed_off: 30s
+
+  - platform: template
+    id: right_side_occupied
+    name: "Right Side Occupied"
+    device_class: occupancy
+    lambda: |-
+      const float tr = id(estimated_weight_top_right).state;
+      const float br = id(estimated_weight_bottom_right).state;
+      if (isnan(tr) || isnan(br)) {
+        return {};
+      }
+      return (tr + br) >= id(side_occupied_threshold_lb).state;
+    filters:
+      - delayed_on: 10s
+      - delayed_off: 30s
+
+  - platform: template
+    id: bed_moving
+    name: "Bed Moving"
+    device_class: moving
+    lambda: |-
+      const unsigned long MOVING_TIMEOUT_MS = 15000;
+      if (id(last_movement_time) == 0) {
+        return false;
+      }
+      return (millis() - id(last_movement_time)) < MOVING_TIMEOUT_MS;
+    filters:
+      - delayed_off: 5s
+
   - platform: template
     id: playing
     name: "Playing"
