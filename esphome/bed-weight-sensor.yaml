@@ -90,6 +90,14 @@ globals:
     type: bool
     restore_value: false
     initial_value: 'false'
+  - id: calibration_capture_active_state
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: calibration_capture_finished_state
+    type: bool
+    restore_value: false
+    initial_value: 'false'
   # Mattress spill-aware calibration.
   # m_<sensor>_<placement> stores the averaged observed bridge response per lb
   # for a known-weight capture centered over the named placement.
@@ -917,6 +925,14 @@ script:
           id(calibration_sample_count) = 0;
           id(calibration_motion_seen) = false;
           id(calibration_capture_valid) = false;
+          id(calibration_capture_active_state) = true;
+          id(calibration_capture_finished_state) = false;
+          id(calibration_capture_active).publish_state(true);
+          id(calibration_capture_finished).publish_state(false);
+
+          char start_status[96];
+          snprintf(start_status, sizeof(start_status), "running: %s", quarter_name.c_str());
+          id(calibration_capture_status).publish_state(start_status);
 
           ESP_LOGI(
             "bed_scale",
@@ -957,8 +973,17 @@ script:
           const float known = id(calibration_known_weight_lb).state;
           const int samples = id(calibration_sample_count);
 
+          auto finish_capture = [&](const char *status) {
+            id(calibration_capture_active_state) = false;
+            id(calibration_capture_finished_state) = true;
+            id(calibration_capture_active).publish_state(false);
+            id(calibration_capture_finished).publish_state(true);
+            id(calibration_capture_status).publish_state(status);
+          };
+
           if (known <= 0.0f) {
             ESP_LOGW("bed_scale", "Calibration aborted: known weight must be > 0");
+            finish_capture("aborted: known weight must be > 0");
             return;
           }
 
@@ -969,6 +994,9 @@ script:
               quarter_name.c_str(),
               samples
             );
+            char abort_status[128];
+            snprintf(abort_status, sizeof(abort_status), "aborted: %s only %d stable samples", quarter_name.c_str(), samples);
+            finish_capture(abort_status);
             return;
           }
 
@@ -980,6 +1008,9 @@ script:
           const float response_total = fabsf(s_tl) + fabsf(s_tr) + fabsf(s_bl) + fabsf(s_br);
           if (response_total < 0.01f) {
             ESP_LOGW("bed_scale", "Calibration aborted: averaged bridge response is too small");
+            char abort_status[128];
+            snprintf(abort_status, sizeof(abort_status), "aborted: %s response too small", quarter_name.c_str());
+            finish_capture(abort_status);
             return;
           }
 
@@ -1189,13 +1220,44 @@ script:
               c_br
             );
           }
+
+          char complete_status[128];
+          if (pass_count > 0) {
+            snprintf(complete_status, sizeof(complete_status), "complete: %s pass %d (%d samples)", quarter_name.c_str(), pass_count, samples);
+          } else {
+            snprintf(complete_status, sizeof(complete_status), "complete: %s total sample %d (%d samples)", quarter_name.c_str(), id(total_cal_sample_count), samples);
+          }
+          finish_capture(complete_status);
       - if:
           condition:
             lambda: return id(calibration_capture_valid);
           then:
             - script.execute: recompute_calibration_inverse
 
+text_sensor:
+  - platform: template
+    id: calibration_capture_status
+    name: "Calibration Capture Status"
+    icon: "mdi:scale-balance"
+    entity_category: diagnostic
+
 binary_sensor:
+  - platform: template
+    id: calibration_capture_active
+    name: "Calibration Capture Active"
+    icon: "mdi:timer-sand"
+    entity_category: diagnostic
+    lambda: |-
+      return id(calibration_capture_active_state);
+
+  - platform: template
+    id: calibration_capture_finished
+    name: "Calibration Capture Finished"
+    icon: "mdi:check-circle"
+    entity_category: diagnostic
+    lambda: |-
+      return id(calibration_capture_finished_state);
+
   - platform: template
     id: left_side_occupied
     name: "Left Side Occupied"
@@ -1396,6 +1458,12 @@ button:
           id(total_cal_xty_1) = 0.0f;
           id(total_cal_xty_2) = 0.0f;
           id(total_cal_xty_3) = 0.0f;
+
+          id(calibration_capture_active_state) = false;
+          id(calibration_capture_finished_state) = false;
+          id(calibration_capture_active).publish_state(false);
+          id(calibration_capture_finished).publish_state(false);
+          id(calibration_capture_status).publish_state("idle: calibration reset");
 
           id(inv_tl_tl) = 1.0f;
           id(inv_tl_tr) = 0.0f;
