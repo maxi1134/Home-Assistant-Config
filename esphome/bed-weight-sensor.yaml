@@ -306,6 +306,10 @@ sensor:
         return {};
       }
       return id(gain_top_right).state * tr + id(gain_bottom_right).state * br;
+    filters:
+      - or:
+          - delta: 0.5
+          - heartbeat: 60s
 
   # Fraction of the load on the left side. Lie on each edge and read this
   # sensor to choose a realistic "Side Share Threshold" for your mattress.
@@ -316,8 +320,13 @@ sensor:
     accuracy_decimals: 0
     update_interval: 1s
     lambda: |-
-      const float l = id(left_weight).state;
-      const float r = id(right_weight).state;
+      // Computed from the raw channels (not the throttled display sensors).
+      const float l =
+        id(gain_top_left).state * id(weight_top_left).state +
+        id(gain_bottom_left).state * id(weight_bottom_left).state;
+      const float r =
+        id(gain_top_right).state * id(weight_top_right).state +
+        id(gain_bottom_right).state * id(weight_bottom_right).state;
       if (isnan(l) || isnan(r)) {
         return {};
       }
@@ -326,6 +335,10 @@ sensor:
         return NAN;
       }
       return 100.0f * l / total;
+    filters:
+      - or:
+          - delta: 2.0
+          - heartbeat: 60s
 
   - platform: template
     id: total_weight
@@ -616,22 +629,22 @@ binary_sensor:
     name: "Left Side Occupied"
     device_class: occupancy
     lambda: |-
-      if (!id(bed_occupied).state) {
-        return false;
-      }
-
-      const float l = id(left_weight).state;
-      const float r = id(right_weight).state;
+      const float l =
+        id(gain_top_left).state * id(weight_top_left).state +
+        id(gain_bottom_left).state * id(weight_bottom_left).state;
+      const float r =
+        id(gain_top_right).state * id(weight_top_right).state +
+        id(gain_bottom_right).state * id(weight_bottom_right).state;
       if (isnan(l) || isnan(r)) {
         return {};
       }
 
       const float total = l + r;
+      if (total < id(side_occupied_threshold_lb).state) {
+        return false;
+      }
       if (total >= id(two_person_threshold_lb).state) {
         return true;
-      }
-      if (total < 1.0f) {
-        return false;
       }
 
       // Occupied unless the load is clearly on the right side. A centered
@@ -647,22 +660,22 @@ binary_sensor:
     name: "Right Side Occupied"
     device_class: occupancy
     lambda: |-
-      if (!id(bed_occupied).state) {
-        return false;
-      }
-
-      const float l = id(left_weight).state;
-      const float r = id(right_weight).state;
+      const float l =
+        id(gain_top_left).state * id(weight_top_left).state +
+        id(gain_bottom_left).state * id(weight_bottom_left).state;
+      const float r =
+        id(gain_top_right).state * id(weight_top_right).state +
+        id(gain_bottom_right).state * id(weight_bottom_right).state;
       if (isnan(l) || isnan(r)) {
         return {};
       }
 
       const float total = l + r;
+      if (total < id(side_occupied_threshold_lb).state) {
+        return false;
+      }
       if (total >= id(two_person_threshold_lb).state) {
         return true;
-      }
-      if (total < 1.0f) {
-        return false;
       }
 
       const float share_thr = id(side_share_threshold).state / 100.0f;
