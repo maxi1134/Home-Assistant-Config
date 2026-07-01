@@ -124,6 +124,31 @@ globals:
     type: int
     restore_value: false
     initial_value: '0'
+  - id: last_capture_ok
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: last_capture_scale
+    type: float
+    restore_value: false
+    initial_value: '0.0'
+
+  # Guided calibration session state.
+  - id: guided_attempts
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: guided_ok_count
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: guided_failed
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: guided_scales
+    type: std::vector<float>
+    restore_value: false
 
 sensor:
   - platform: hx711
@@ -519,6 +544,7 @@ script:
           id(cal_sum_bl) = 0.0f;
           id(cal_sum_br) = 0.0f;
           id(cal_sample_count) = 0;
+          id(last_capture_ok) = false;
           id(calibration_sample).publish_state("sampling: hold still for 12s");
           ESP_LOGI(
             "bed_scale",
@@ -569,10 +595,22 @@ script:
           const float bl = id(cal_sum_bl) / n;
           const float br = id(cal_sum_br) / n;
 
+          const float known = id(calibration_known_weight_lb).state;
+          const float sum = tl + tr + bl + br;
+          if (sum < 0.25f * known) {
+            char msg[96];
+            snprintf(msg, sizeof(msg), "ignored: load %.1f lb too small vs known %.1f lb", sum, known);
+            id(calibration_sample).publish_state(msg);
+            ESP_LOGW("bed_scale", "Calibration capture ignored: load %.1f lb too small vs known weight %.1f lb", sum, known);
+            return;
+          }
+          id(last_capture_ok) = true;
+          id(last_capture_scale) = known / sum;
+
           char msg[128];
           snprintf(
             msg, sizeof(msg), "%.3f,%.3f,%.3f,%.3f,%.1f",
-            tl, tr, bl, br, id(calibration_known_weight_lb).state
+            tl, tr, bl, br, known
           );
           id(calibration_sample).publish_state(msg);
           ESP_LOGI(
@@ -581,12 +619,154 @@ script:
             n, msg
           );
 
+  # Guided calibration: press Start with the bed EMPTY, then just follow the
+  # Calibration Progress messages (or hook an HA automation to them for TTS).
+  # No laptop needed: it tares, waits for you to settle at each position
+  # (movement-driven, positions are label-free so order does not matter),
+  # collects 7 captures, and applies the median sum-scale to all four gains.
+  # The CSV rows also land in Calibration Sample history for the finer
+  # per-corner solve with bed-scale-calibrate.py later.
+  - id: guided_calibration
+    mode: single
+    then:
+      - lambda: |-
+          id(guided_attempts) = 0;
+          id(guided_ok_count) = 0;
+          id(guided_failed) = false;
+          id(guided_scales).clear();
+      - if:
+          condition:
+            binary_sensor.is_on: bed_occupied
+          then:
+            - lambda: |-
+                id(calibration_progress).publish_state("aborted: bed must be empty when you press start");
+            - script.stop: guided_calibration
+      - lambda: |-
+          id(calibration_progress).publish_state("taring in 5s - keep the bed empty");
+      - delay: 5s
+      - lambda: |-
+          const float tl = id(no_tare_top_left).state;
+          const float tr = id(no_tare_top_right).state;
+          const float bl = id(no_tare_bottom_left).state;
+          const float br = id(no_tare_bottom_right).state;
+          if (isnan(tl) || isnan(tr) || isnan(bl) || isnan(br)) {
+            id(guided_failed) = true;
+            id(calibration_progress).publish_state("aborted: bridges not ready - try again in a minute");
+            return;
+          }
+          id(tare_top_left) = tl;
+          id(tare_top_right) = tr;
+          id(tare_bottom_left) = bl;
+          id(tare_bottom_right) = br;
+          id(calibration_progress).publish_state(
+            "tared - get on the bed. 7 positions: sit on each corner, then lie center, left edge, right edge. Hold each ~30s.");
+      - if:
+          condition:
+            lambda: return id(guided_failed);
+          then:
+            - script.stop: guided_calibration
+      - while:
+          condition:
+            lambda: |-
+              return id(guided_ok_count) < 7 && id(guided_attempts) < 15 && !id(guided_failed);
+          then:
+            # Wait for the person to (re)position...
+            - wait_until:
+                condition:
+                  lambda: |-
+                    return id(last_movement_time) != 0 && (millis() - id(last_movement_time)) < 2000UL;
+                timeout: 240s
+            - lambda: |-
+                if (!(id(last_movement_time) != 0 && (millis() - id(last_movement_time)) < 5000UL)) {
+                  id(guided_failed) = true;
+                  id(calibration_progress).publish_state("aborted: no movement for 4 min - press start to retry");
+                }
+            - if:
+                condition:
+                  lambda: return id(guided_failed);
+                then:
+                  - script.stop: guided_calibration
+            # ...then wait for them to hold still, and capture.
+            - wait_until:
+                condition:
+                  lambda: |-
+                    return id(last_movement_time) != 0 && (millis() - id(last_movement_time)) > 8000UL;
+                timeout: 180s
+            - lambda: id(guided_attempts) += 1;
+            - script.execute: capture_calibration_sample
+            - script.wait: capture_calibration_sample
+            - lambda: |-
+                if (id(last_capture_ok)) {
+                  id(guided_ok_count) += 1;
+                  id(guided_scales).push_back(id(last_capture_scale));
+                  char msg[128];
+                  if (id(guided_ok_count) < 7) {
+                    snprintf(msg, sizeof(msg),
+                             "captured %d/7 - move to the next position and hold still ~30s",
+                             id(guided_ok_count));
+                  } else {
+                    snprintf(msg, sizeof(msg), "captured 7/7 - computing gains");
+                  }
+                  id(calibration_progress).publish_state(msg);
+                } else {
+                  id(calibration_progress).publish_state(
+                    "capture failed (movement or no load) - hold the position ~30s");
+                }
+      - lambda: |-
+          if (id(guided_failed)) {
+            return;
+          }
+          const int n = (int) id(guided_scales).size();
+          if (n < 4) {
+            char msg[128];
+            snprintf(msg, sizeof(msg),
+                     "finished with only %d good captures - gains NOT changed; press start to retry", n);
+            id(calibration_progress).publish_state(msg);
+            return;
+          }
+          std::vector<float> v = id(guided_scales);
+          std::sort(v.begin(), v.end());
+          const float median = v[v.size() / 2];
+          if (median < 0.5f || median > 2.0f) {
+            char msg[128];
+            snprintf(msg, sizeof(msg),
+                     "aborted: solved scale %.3f outside 0.5-2.0 - check known weight and tare", median);
+            id(calibration_progress).publish_state(msg);
+            return;
+          }
+          auto c_tl = id(gain_top_left).make_call();
+          c_tl.set_value(median);
+          c_tl.perform();
+          auto c_tr = id(gain_top_right).make_call();
+          c_tr.set_value(median);
+          c_tr.perform();
+          auto c_bl = id(gain_bottom_left).make_call();
+          c_bl.set_value(median);
+          c_bl.perform();
+          auto c_br = id(gain_bottom_right).make_call();
+          c_br.set_value(median);
+          c_br.perform();
+          char msg[160];
+          snprintf(msg, sizeof(msg),
+                   "done: all gains set to %.4f from %d captures. Lie in the center to verify Total Weight.",
+                   median, n);
+          id(calibration_progress).publish_state(msg);
+          ESP_LOGI("bed_scale", "Guided calibration done: median scale %.4f from %d captures (%d attempts)",
+                   median, n, id(guided_attempts));
+
 text_sensor:
   # Latest capture as a CSV row: tl,tr,bl,br,known_lb
   - platform: template
     id: calibration_sample
     name: "Calibration Sample"
     icon: "mdi:scale-balance"
+    entity_category: diagnostic
+
+  # Instructions/status for the guided calibration session.
+  - platform: template
+    id: calibration_progress
+    name: "Calibration Progress"
+    icon: "mdi:progress-check"
     entity_category: diagnostic
 
 binary_sensor:
@@ -734,6 +914,23 @@ button:
     name: "Capture Calibration Sample"
     on_press:
       - script.execute: capture_calibration_sample
+
+  - platform: template
+    id: start_guided_calibration_button
+    name: "Start Guided Calibration"
+    icon: "mdi:play-circle"
+    on_press:
+      - script.execute: guided_calibration
+
+  - platform: template
+    id: cancel_guided_calibration_button
+    name: "Cancel Guided Calibration"
+    icon: "mdi:stop-circle"
+    on_press:
+      - script.stop: guided_calibration
+      - script.stop: capture_calibration_sample
+      - lambda: |-
+          id(calibration_progress).publish_state("cancelled");
 
   - platform: template
     id: reset_gains_button
