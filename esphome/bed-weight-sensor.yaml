@@ -146,6 +146,10 @@ globals:
     type: bool
     restore_value: false
     initial_value: 'false'
+  - id: guided_retry
+    type: bool
+    restore_value: false
+    initial_value: 'false'
   - id: guided_scales
     type: std::vector<float>
     restore_value: false
@@ -633,6 +637,7 @@ script:
           id(guided_attempts) = 0;
           id(guided_ok_count) = 0;
           id(guided_failed) = false;
+          id(guided_retry) = false;
           id(guided_scales).clear();
       - if:
           condition:
@@ -642,9 +647,26 @@ script:
                 id(calibration_progress).publish_state("aborted: bed must be empty when you press start");
             - script.stop: guided_calibration
       - lambda: |-
-          id(calibration_progress).publish_state("taring in 5s - keep the bed empty");
-      - delay: 5s
+          char msg[160];
+          snprintf(msg, sizeof(msg),
+                   "known weight is %.0f lb (must be YOUR weight!) - taring once the bed settles, keep it empty",
+                   id(calibration_known_weight_lb).state);
+          id(calibration_progress).publish_state(msg);
+      # Wait for the empty bed to be truly still (15s > bed_occupied's 10s
+      # delayed_on, so a person who just got on cannot slip past the check).
+      - wait_until:
+          condition:
+            lambda: |-
+              return id(last_movement_time) == 0 || (millis() - id(last_movement_time)) > 15000UL;
+          timeout: 90s
       - lambda: |-
+          const bool still_ok =
+            id(last_movement_time) == 0 || (millis() - id(last_movement_time)) > 15000UL;
+          if (id(bed_occupied).state || !still_ok) {
+            id(guided_failed) = true;
+            id(calibration_progress).publish_state("aborted: bed must be empty and still for taring - press start to retry");
+            return;
+          }
           const float tl = id(no_tare_top_left).state;
           const float tr = id(no_tare_top_right).state;
           const float bl = id(no_tare_bottom_left).state;
@@ -670,28 +692,44 @@ script:
             lambda: |-
               return id(guided_ok_count) < 7 && id(guided_attempts) < 15 && !id(guided_failed);
           then:
-            # Wait for the person to (re)position...
-            - wait_until:
-                condition:
-                  lambda: |-
-                    return id(last_movement_time) != 0 && (millis() - id(last_movement_time)) < 2000UL;
-                timeout: 240s
-            - lambda: |-
-                if (!(id(last_movement_time) != 0 && (millis() - id(last_movement_time)) < 5000UL)) {
-                  id(guided_failed) = true;
-                  id(calibration_progress).publish_state("aborted: no movement for 4 min - press start to retry");
-                }
+            # Wait for the person to (re)position — skipped when retrying the
+            # same position after a movement-spoiled capture.
             - if:
                 condition:
-                  lambda: return id(guided_failed);
+                  lambda: return !id(guided_retry);
                 then:
-                  - script.stop: guided_calibration
+                  - wait_until:
+                      condition:
+                        lambda: |-
+                          return id(last_movement_time) != 0 && (millis() - id(last_movement_time)) < 2000UL;
+                      timeout: 240s
+                  - lambda: |-
+                      if (!(id(last_movement_time) != 0 && (millis() - id(last_movement_time)) < 5000UL)) {
+                        id(guided_failed) = true;
+                        id(calibration_progress).publish_state("aborted: no movement for 4 min - press start to retry");
+                      }
+                  - if:
+                      condition:
+                        lambda: return id(guided_failed);
+                      then:
+                        - script.stop: guided_calibration
+            - lambda: id(guided_retry) = false;
             # ...then wait for them to hold still, and capture.
             - wait_until:
                 condition:
                   lambda: |-
                     return id(last_movement_time) != 0 && (millis() - id(last_movement_time)) > 8000UL;
                 timeout: 180s
+            - lambda: |-
+                if (!(id(last_movement_time) != 0 && (millis() - id(last_movement_time)) > 8000UL)) {
+                  id(guided_failed) = true;
+                  id(calibration_progress).publish_state("aborted: could not hold still for 8s - press start to retry");
+                }
+            - if:
+                condition:
+                  lambda: return id(guided_failed);
+                then:
+                  - script.stop: guided_calibration
             - lambda: id(guided_attempts) += 1;
             - script.execute: capture_calibration_sample
             - script.wait: capture_calibration_sample
@@ -708,9 +746,15 @@ script:
                     snprintf(msg, sizeof(msg), "captured 7/7 - computing gains");
                   }
                   id(calibration_progress).publish_state(msg);
+                } else if (id(cal_sample_count) < 8) {
+                  // Movement spoiled it: retry the SAME position without
+                  // demanding a reposition first.
+                  id(guided_retry) = true;
+                  id(calibration_progress).publish_state(
+                    "capture spoiled by movement - hold the same position ~30s");
                 } else {
                   id(calibration_progress).publish_state(
-                    "capture failed (movement or no load) - hold the position ~30s");
+                    "no load detected - get (back) on the bed and hold still ~30s");
                 }
       - lambda: |-
           if (id(guided_failed)) {
@@ -920,7 +964,14 @@ button:
     name: "Start Guided Calibration"
     icon: "mdi:play-circle"
     on_press:
-      - script.execute: guided_calibration
+      - if:
+          condition:
+            script.is_running: guided_calibration
+          then:
+            - lambda: |-
+                id(calibration_progress).publish_state("already running - press Cancel first to restart");
+          else:
+            - script.execute: guided_calibration
 
   - platform: template
     id: cancel_guided_calibration_button
@@ -931,6 +982,7 @@ button:
       - script.stop: capture_calibration_sample
       - lambda: |-
           id(calibration_progress).publish_state("cancelled");
+          id(calibration_sample).publish_state("cancelled");
 
   - platform: template
     id: reset_gains_button
