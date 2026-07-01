@@ -362,6 +362,69 @@ globals:
     restore_value: true
     initial_value: '0.0'
 
+  - id: side_sig_left_count
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: side_sig_left_tl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: side_sig_left_tr
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: side_sig_left_bl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: side_sig_left_br
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+
+  - id: side_sig_right_count
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: side_sig_right_tl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: side_sig_right_tr
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: side_sig_right_bl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: side_sig_right_br
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+
+  - id: side_sig_center_count
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: side_sig_center_tl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: side_sig_center_tr
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: side_sig_center_bl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: side_sig_center_br
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+
   - id: inv_tl_tl
     type: float
     restore_value: true
@@ -1143,6 +1206,57 @@ script:
           };
 
           int pass_count = 0;
+          bool side_signature_captured = false;
+          int side_signature_count = 0;
+
+          // Side classification learns normalized raw-load signatures from dedicated
+          // side/center captures. This is separate from total-weight calibration.
+          const float sig_tl = s_tl / response_total;
+          const float sig_tr = s_tr / response_total;
+          const float sig_bl = s_bl / response_total;
+          const float sig_br = s_br / response_total;
+
+          if (quarter_name == "left_side") {
+            const int n = id(side_sig_left_count);
+            id(side_sig_left_tl) = blend(id(side_sig_left_tl), sig_tl, n);
+            id(side_sig_left_tr) = blend(id(side_sig_left_tr), sig_tr, n);
+            id(side_sig_left_bl) = blend(id(side_sig_left_bl), sig_bl, n);
+            id(side_sig_left_br) = blend(id(side_sig_left_br), sig_br, n);
+            id(side_sig_left_count) = n + 1;
+            side_signature_count = n + 1;
+            side_signature_captured = true;
+          } else if (quarter_name == "right_side") {
+            const int n = id(side_sig_right_count);
+            id(side_sig_right_tl) = blend(id(side_sig_right_tl), sig_tl, n);
+            id(side_sig_right_tr) = blend(id(side_sig_right_tr), sig_tr, n);
+            id(side_sig_right_bl) = blend(id(side_sig_right_bl), sig_bl, n);
+            id(side_sig_right_br) = blend(id(side_sig_right_br), sig_br, n);
+            id(side_sig_right_count) = n + 1;
+            side_signature_count = n + 1;
+            side_signature_captured = true;
+          } else if (quarter_name == "center") {
+            const int n = id(side_sig_center_count);
+            id(side_sig_center_tl) = blend(id(side_sig_center_tl), sig_tl, n);
+            id(side_sig_center_tr) = blend(id(side_sig_center_tr), sig_tr, n);
+            id(side_sig_center_bl) = blend(id(side_sig_center_bl), sig_bl, n);
+            id(side_sig_center_br) = blend(id(side_sig_center_br), sig_br, n);
+            id(side_sig_center_count) = n + 1;
+            side_signature_count = n + 1;
+            side_signature_captured = true;
+          }
+
+          if (side_signature_captured) {
+            ESP_LOGI(
+              "bed_scale",
+              "Captured side signature for %s pass %d. Signature: TL=%.3f TR=%.3f BL=%.3f BR=%.3f",
+              quarter_name.c_str(),
+              side_signature_count,
+              sig_tl,
+              sig_tr,
+              sig_bl,
+              sig_br
+            );
+          }
 
           if (quarter_name == "top_left") {
             const int n = id(calibration_pass_count_top_left);
@@ -1195,7 +1309,9 @@ script:
           } else {
             ESP_LOGI(
               "bed_scale",
-              "Captured total-weight-only calibration sample for %s; quarter matrix unchanged.",
+              side_signature_captured
+                ? "Captured side-signature and total-weight calibration sample for %s; quarter matrix unchanged."
+                : "Captured total-weight-only calibration sample for %s; quarter matrix unchanged.",
               quarter_name.c_str()
             );
           }
@@ -1263,10 +1379,61 @@ binary_sensor:
     name: "Left Side Occupied"
     device_class: occupancy
     lambda: |-
+      const float raw_tl = id(weight_top_left).state;
+      const float raw_tr = id(weight_top_right).state;
+      const float raw_bl = id(weight_bottom_left).state;
+      const float raw_br = id(weight_bottom_right).state;
+
+      if (isnan(raw_tl) || isnan(raw_tr) || isnan(raw_bl) || isnan(raw_br)) {
+        return {};
+      }
+
+      const float total =
+        id(total_cal_coef_top_left) * raw_tl +
+        id(total_cal_coef_top_right) * raw_tr +
+        id(total_cal_coef_bottom_left) * raw_bl +
+        id(total_cal_coef_bottom_right) * raw_br;
+
+      if (total < id(side_occupied_threshold_lb).state) {
+        return false;
+      }
+
+      const float response_total = fabsf(raw_tl) + fabsf(raw_tr) + fabsf(raw_bl) + fabsf(raw_br);
+      if (response_total < 0.01f) {
+        return false;
+      }
+
+      const float sig_tl = raw_tl / response_total;
+      const float sig_tr = raw_tr / response_total;
+      const float sig_bl = raw_bl / response_total;
+      const float sig_br = raw_br / response_total;
+
+      auto dist = [](float a0, float a1, float a2, float a3, float b0, float b1, float b2, float b3) -> float {
+        const float d0 = a0 - b0;
+        const float d1 = a1 - b1;
+        const float d2 = a2 - b2;
+        const float d3 = a3 - b3;
+        return d0 * d0 + d1 * d1 + d2 * d2 + d3 * d3;
+      };
+
+      if (id(side_sig_left_count) > 0 && id(side_sig_right_count) > 0) {
+        const float left_distance = dist(sig_tl, sig_tr, sig_bl, sig_br, id(side_sig_left_tl), id(side_sig_left_tr), id(side_sig_left_bl), id(side_sig_left_br));
+        const float right_distance = dist(sig_tl, sig_tr, sig_bl, sig_br, id(side_sig_right_tl), id(side_sig_right_tr), id(side_sig_right_bl), id(side_sig_right_br));
+
+        if (id(side_sig_center_count) > 0) {
+          const float center_distance = dist(sig_tl, sig_tr, sig_bl, sig_br, id(side_sig_center_tl), id(side_sig_center_tr), id(side_sig_center_bl), id(side_sig_center_br));
+          if (center_distance <= left_distance * 0.85f && center_distance <= right_distance * 0.85f) {
+            return true;
+          }
+        }
+
+        return left_distance <= right_distance * 1.10f;
+      }
+
       const float tl = id(estimated_weight_top_left).state;
       const float bl = id(estimated_weight_bottom_left).state;
       if (isnan(tl) || isnan(bl)) {
-        return {};
+        return total >= id(side_occupied_threshold_lb).state;
       }
       return (tl + bl) >= id(side_occupied_threshold_lb).state;
     filters:
@@ -1278,10 +1445,61 @@ binary_sensor:
     name: "Right Side Occupied"
     device_class: occupancy
     lambda: |-
+      const float raw_tl = id(weight_top_left).state;
+      const float raw_tr = id(weight_top_right).state;
+      const float raw_bl = id(weight_bottom_left).state;
+      const float raw_br = id(weight_bottom_right).state;
+
+      if (isnan(raw_tl) || isnan(raw_tr) || isnan(raw_bl) || isnan(raw_br)) {
+        return {};
+      }
+
+      const float total =
+        id(total_cal_coef_top_left) * raw_tl +
+        id(total_cal_coef_top_right) * raw_tr +
+        id(total_cal_coef_bottom_left) * raw_bl +
+        id(total_cal_coef_bottom_right) * raw_br;
+
+      if (total < id(side_occupied_threshold_lb).state) {
+        return false;
+      }
+
+      const float response_total = fabsf(raw_tl) + fabsf(raw_tr) + fabsf(raw_bl) + fabsf(raw_br);
+      if (response_total < 0.01f) {
+        return false;
+      }
+
+      const float sig_tl = raw_tl / response_total;
+      const float sig_tr = raw_tr / response_total;
+      const float sig_bl = raw_bl / response_total;
+      const float sig_br = raw_br / response_total;
+
+      auto dist = [](float a0, float a1, float a2, float a3, float b0, float b1, float b2, float b3) -> float {
+        const float d0 = a0 - b0;
+        const float d1 = a1 - b1;
+        const float d2 = a2 - b2;
+        const float d3 = a3 - b3;
+        return d0 * d0 + d1 * d1 + d2 * d2 + d3 * d3;
+      };
+
+      if (id(side_sig_left_count) > 0 && id(side_sig_right_count) > 0) {
+        const float left_distance = dist(sig_tl, sig_tr, sig_bl, sig_br, id(side_sig_left_tl), id(side_sig_left_tr), id(side_sig_left_bl), id(side_sig_left_br));
+        const float right_distance = dist(sig_tl, sig_tr, sig_bl, sig_br, id(side_sig_right_tl), id(side_sig_right_tr), id(side_sig_right_bl), id(side_sig_right_br));
+
+        if (id(side_sig_center_count) > 0) {
+          const float center_distance = dist(sig_tl, sig_tr, sig_bl, sig_br, id(side_sig_center_tl), id(side_sig_center_tr), id(side_sig_center_bl), id(side_sig_center_br));
+          if (center_distance <= left_distance * 0.85f && center_distance <= right_distance * 0.85f) {
+            return true;
+          }
+        }
+
+        return right_distance <= left_distance * 1.10f;
+      }
+
       const float tr = id(estimated_weight_top_right).state;
       const float br = id(estimated_weight_bottom_right).state;
       if (isnan(tr) || isnan(br)) {
-        return {};
+        return total >= id(side_occupied_threshold_lb).state;
       }
       return (tr + br) >= id(side_occupied_threshold_lb).state;
     filters:
@@ -1458,6 +1676,24 @@ button:
           id(total_cal_xty_1) = 0.0f;
           id(total_cal_xty_2) = 0.0f;
           id(total_cal_xty_3) = 0.0f;
+
+          id(side_sig_left_count) = 0;
+          id(side_sig_left_tl) = 0.0f;
+          id(side_sig_left_tr) = 0.0f;
+          id(side_sig_left_bl) = 0.0f;
+          id(side_sig_left_br) = 0.0f;
+
+          id(side_sig_right_count) = 0;
+          id(side_sig_right_tl) = 0.0f;
+          id(side_sig_right_tr) = 0.0f;
+          id(side_sig_right_bl) = 0.0f;
+          id(side_sig_right_br) = 0.0f;
+
+          id(side_sig_center_count) = 0;
+          id(side_sig_center_tl) = 0.0f;
+          id(side_sig_center_tr) = 0.0f;
+          id(side_sig_center_bl) = 0.0f;
+          id(side_sig_center_br) = 0.0f;
 
           id(calibration_capture_active_state) = false;
           id(calibration_capture_finished_state) = false;
