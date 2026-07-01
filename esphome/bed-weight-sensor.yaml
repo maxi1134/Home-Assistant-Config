@@ -443,7 +443,8 @@ sensor:
     device_class: weight
     state_class: measurement
     accuracy_decimals: 1
-    update_interval: 10s
+    force_update: true
+    update_interval: 1s
     lambda: |-
       const float tl = id(estimated_weight_top_left).state;
       const float tr = id(estimated_weight_top_right).state;
@@ -454,15 +455,34 @@ sensor:
         return {};
       }
 
-      return tl + tr + bl + br;
+      const float total = tl + tr + bl + br;
+      if (total < -20.0f || total > 1000.0f) {
+        return {};
+      }
+
+      const uint32_t now = millis();
+      static uint32_t last_publish = 0;
+
+      const float threshold = id(side_occupied_threshold_lb).state;
+      const bool left_occupied = (tl + bl) >= threshold;
+      const bool right_occupied = (tr + br) >= threshold;
+      const bool any_side_occupied = left_occupied || right_occupied;
+      const bool active_motion =
+        id(last_movement_time) != 0 &&
+        (now - id(last_movement_time)) < 15000UL;
+
+      const uint32_t publish_interval_ms = active_motion
+        ? 5000UL
+        : (any_side_occupied ? 10000UL : 300000UL);
+
+      if (last_publish != 0 && (now - last_publish) < publish_interval_ms) {
+        return {};
+      }
+
+      last_publish = now;
+      return total;
     filters:
-      - clamp:
-          min_value: -20
-          max_value: 1000
-          ignore_out_of_range: true
       - round: 1
-      - delta: 1.0
-      - heartbeat: 5min
 
 # Mattress-aware calibration:
 # place the known weight near the center of the target quarter.
