@@ -62,6 +62,34 @@ globals:
     type: unsigned long
     restore_value: false
     initial_value: '0'
+  - id: calibration_sum_top_left
+    type: float
+    restore_value: false
+    initial_value: '0.0'
+  - id: calibration_sum_top_right
+    type: float
+    restore_value: false
+    initial_value: '0.0'
+  - id: calibration_sum_bottom_left
+    type: float
+    restore_value: false
+    initial_value: '0.0'
+  - id: calibration_sum_bottom_right
+    type: float
+    restore_value: false
+    initial_value: '0.0'
+  - id: calibration_sample_count
+    type: int
+    restore_value: false
+    initial_value: '0'
+  - id: calibration_motion_seen
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+  - id: calibration_capture_valid
+    type: bool
+    restore_value: false
+    initial_value: 'false'
   # Mattress spill-aware calibration matrix.
   # m_<sensor>_<load> stores the response of a bridge sensor for 1 lb placed
   # in a specific bed quarter. inv_<quarter>_<sensor> stores the inverse matrix
@@ -589,29 +617,80 @@ script:
           ESP_LOGI("bed_scale", "Calibration matrix inverse updated successfully");
 
   - id: capture_quarter_calibration
-    mode: restart
+    mode: single
     parameters:
       quarter_name: string
     then:
       - lambda: |-
+          id(calibration_sum_top_left) = 0.0f;
+          id(calibration_sum_top_right) = 0.0f;
+          id(calibration_sum_bottom_left) = 0.0f;
+          id(calibration_sum_bottom_right) = 0.0f;
+          id(calibration_sample_count) = 0;
+          id(calibration_motion_seen) = false;
+          id(calibration_capture_valid) = false;
+
+          ESP_LOGI(
+            "bed_scale",
+            "Calibration capture for %s started. Hold the %.1f lb known weight still for 12 seconds.",
+            quarter_name.c_str(),
+            id(calibration_known_weight_lb).state
+          );
+      - repeat:
+          count: 12
+          then:
+            - delay: 1s
+            - lambda: |-
+                const unsigned long STABLE_MS = 3000;
+                const unsigned long now = millis();
+
+                if (id(last_movement_time) != 0 && (now - id(last_movement_time)) < STABLE_MS) {
+                  id(calibration_motion_seen) = true;
+                  ESP_LOGW("bed_scale", "Calibration sample skipped: movement detected");
+                  return;
+                }
+
+                const float s_tl = id(weight_top_left).state;
+                const float s_tr = id(weight_top_right).state;
+                const float s_bl = id(weight_bottom_left).state;
+                const float s_br = id(weight_bottom_right).state;
+
+                if (isnan(s_tl) || isnan(s_tr) || isnan(s_bl) || isnan(s_br)) {
+                  ESP_LOGW("bed_scale", "Calibration sample skipped: one or more bridge readings are invalid");
+                  return;
+                }
+
+                id(calibration_sum_top_left) += s_tl;
+                id(calibration_sum_top_right) += s_tr;
+                id(calibration_sum_bottom_left) += s_bl;
+                id(calibration_sum_bottom_right) += s_br;
+                id(calibration_sample_count) += 1;
+      - lambda: |-
           const float known = id(calibration_known_weight_lb).state;
-          const float s_tl = id(weight_top_left).state;
-          const float s_tr = id(weight_top_right).state;
-          const float s_bl = id(weight_bottom_left).state;
-          const float s_br = id(weight_bottom_right).state;
+          const int samples = id(calibration_sample_count);
 
           if (known <= 0.0f) {
             ESP_LOGW("bed_scale", "Calibration aborted: known weight must be > 0");
             return;
           }
 
-          if (isnan(s_tl) || isnan(s_tr) || isnan(s_bl) || isnan(s_br)) {
-            ESP_LOGW("bed_scale", "Calibration aborted: one or more bridge readings are invalid");
+          if (samples < 8) {
+            ESP_LOGW(
+              "bed_scale",
+              "Calibration aborted for %s: only %d stable samples collected. Hold still and retry.",
+              quarter_name.c_str(),
+              samples
+            );
             return;
           }
 
+          const float s_tl = id(calibration_sum_top_left) / samples;
+          const float s_tr = id(calibration_sum_top_right) / samples;
+          const float s_bl = id(calibration_sum_bottom_left) / samples;
+          const float s_br = id(calibration_sum_bottom_right) / samples;
+
           if ((fabsf(s_tl) + fabsf(s_tr) + fabsf(s_bl) + fabsf(s_br)) < 0.01f) {
-            ESP_LOGW("bed_scale", "Calibration aborted: total bridge response is too small");
+            ESP_LOGW("bed_scale", "Calibration aborted: averaged bridge response is too small");
             return;
           }
 
@@ -645,16 +724,24 @@ script:
             return;
           }
 
+          id(calibration_capture_valid) = true;
+
           ESP_LOGI(
             "bed_scale",
-            "Captured calibration column for %s. Per-lb bridge responses: TL=%.6f TR=%.6f BL=%.6f BR=%.6f",
+            "Captured averaged calibration column for %s from %d stable samples%s. Per-lb bridge responses: TL=%.6f TR=%.6f BL=%.6f BR=%.6f",
             quarter_name.c_str(),
+            samples,
+            id(calibration_motion_seen) ? " after skipping moving samples" : "",
             c_tl,
             c_tr,
             c_bl,
             c_br
           );
-      - script.execute: recompute_calibration_inverse
+      - if:
+          condition:
+            lambda: return id(calibration_capture_valid);
+          then:
+            - script.execute: recompute_calibration_inverse
 
 binary_sensor:
   - platform: template
