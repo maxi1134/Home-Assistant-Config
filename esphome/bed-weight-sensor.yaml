@@ -33,10 +33,11 @@ esp32:
   framework:
     type: esp-idf
 
-# Tare and gains persist in flash; throttle writes to limit flash wear from
-# the auto-tare slew.
+# Tare and gains persist in flash (ESPHome default cadence; the auto-tare
+# slew writes at most once per minute anyway). After entering gains or
+# taring, wait ~1 min before pulling power so the values are committed.
 preferences:
-  flash_write_interval: 10min
+  flash_write_interval: 1min
 
 # Enable logging
 logger:
@@ -146,25 +147,19 @@ sensor:
     on_value:
       then:
         - lambda: |-
-            const float SWING_THRESHOLD = 2.0;
-            const unsigned long REQUIRED_MS = 45000;
-            static float last_val = 0.0;
-            float diff = fabs(x - last_val);
-            last_val = x;
-            unsigned long now = millis();
-
-            if (diff > SWING_THRESHOLD) {
-              id(last_movement_time) = now;
-              if (id(no_movement_start) != 0) id(no_movement_start) = 0;
-              if (id(movement_continuous_start) == 0) id(movement_continuous_start) = now;
-              if (!id(playing_state) && (now - id(movement_continuous_start) >= REQUIRED_MS)) {
-                id(playing_state) = true;
-                id(playing).publish_state(true);
-              }
-            } else {
-              if (id(movement_continuous_start) != 0) id(movement_continuous_start) = 0;
-              if (id(no_movement_start) == 0) id(no_movement_start) = now;
+            // Movement flag only. The playing/continuous-movement bookkeeping
+            // runs once per second in the interval block, so the four corners
+            // cannot overwrite each other's timers.
+            static float last_val = NAN;
+            if (isnan(last_val)) {
+              last_val = x;
+              return;
             }
+            const float SWING_THRESHOLD = 2.0f;
+            if (fabsf(x - last_val) > SWING_THRESHOLD) {
+              id(last_movement_time) = millis();
+            }
+            last_val = x;
 
   - platform: hx711
     internal: true
@@ -184,25 +179,19 @@ sensor:
     on_value:
       then:
         - lambda: |-
-            const float SWING_THRESHOLD = 2.0;
-            const unsigned long REQUIRED_MS = 45000;
-            static float last_val = 0.0;
-            float diff = fabs(x - last_val);
-            last_val = x;
-            unsigned long now = millis();
-
-            if (diff > SWING_THRESHOLD) {
-              id(last_movement_time) = now;
-              if (id(no_movement_start) != 0) id(no_movement_start) = 0;
-              if (id(movement_continuous_start) == 0) id(movement_continuous_start) = now;
-              if (!id(playing_state) && (now - id(movement_continuous_start) >= REQUIRED_MS)) {
-                id(playing_state) = true;
-                id(playing).publish_state(true);
-              }
-            } else {
-              if (id(movement_continuous_start) != 0) id(movement_continuous_start) = 0;
-              if (id(no_movement_start) == 0) id(no_movement_start) = now;
+            // Movement flag only. The playing/continuous-movement bookkeeping
+            // runs once per second in the interval block, so the four corners
+            // cannot overwrite each other's timers.
+            static float last_val = NAN;
+            if (isnan(last_val)) {
+              last_val = x;
+              return;
             }
+            const float SWING_THRESHOLD = 2.0f;
+            if (fabsf(x - last_val) > SWING_THRESHOLD) {
+              id(last_movement_time) = millis();
+            }
+            last_val = x;
 
   - platform: hx711
     internal: true
@@ -222,25 +211,19 @@ sensor:
     on_value:
       then:
         - lambda: |-
-            const float SWING_THRESHOLD = 2.0;
-            const unsigned long REQUIRED_MS = 45000;
-            static float last_val = 0.0;
-            float diff = fabs(x - last_val);
-            last_val = x;
-            unsigned long now = millis();
-
-            if (diff > SWING_THRESHOLD) {
-              id(last_movement_time) = now;
-              if (id(no_movement_start) != 0) id(no_movement_start) = 0;
-              if (id(movement_continuous_start) == 0) id(movement_continuous_start) = now;
-              if (!id(playing_state) && (now - id(movement_continuous_start) >= REQUIRED_MS)) {
-                id(playing_state) = true;
-                id(playing).publish_state(true);
-              }
-            } else {
-              if (id(movement_continuous_start) != 0) id(movement_continuous_start) = 0;
-              if (id(no_movement_start) == 0) id(no_movement_start) = now;
+            // Movement flag only. The playing/continuous-movement bookkeeping
+            // runs once per second in the interval block, so the four corners
+            // cannot overwrite each other's timers.
+            static float last_val = NAN;
+            if (isnan(last_val)) {
+              last_val = x;
+              return;
             }
+            const float SWING_THRESHOLD = 2.0f;
+            if (fabsf(x - last_val) > SWING_THRESHOLD) {
+              id(last_movement_time) = millis();
+            }
+            last_val = x;
 
   - platform: hx711
     internal: true
@@ -260,25 +243,19 @@ sensor:
     on_value:
       then:
         - lambda: |-
-            const float SWING_THRESHOLD = 2.0;
-            const unsigned long REQUIRED_MS = 45000;
-            static float last_val = 0.0;
-            float diff = fabs(x - last_val);
-            last_val = x;
-            unsigned long now = millis();
-
-            if (diff > SWING_THRESHOLD) {
-              id(last_movement_time) = now;
-              if (id(no_movement_start) != 0) id(no_movement_start) = 0;
-              if (id(movement_continuous_start) == 0) id(movement_continuous_start) = now;
-              if (!id(playing_state) && (now - id(movement_continuous_start) >= REQUIRED_MS)) {
-                id(playing_state) = true;
-                id(playing).publish_state(true);
-              }
-            } else {
-              if (id(movement_continuous_start) != 0) id(movement_continuous_start) = 0;
-              if (id(no_movement_start) == 0) id(no_movement_start) = now;
+            // Movement flag only. The playing/continuous-movement bookkeeping
+            // runs once per second in the interval block, so the four corners
+            // cannot overwrite each other's timers.
+            static float last_val = NAN;
+            if (isnan(last_val)) {
+              last_val = x;
+              return;
             }
+            const float SWING_THRESHOLD = 2.0f;
+            if (fabsf(x - last_val) > SWING_THRESHOLD) {
+              id(last_movement_time) = millis();
+            }
+            last_val = x;
 
   # Pre-tare channel values, used by the Tare button and auto-tare.
   - platform: template
@@ -309,6 +286,10 @@ sensor:
         return {};
       }
       return id(gain_top_left).state * tl + id(gain_bottom_left).state * bl;
+    filters:
+      - or:
+          - delta: 0.5
+          - heartbeat: 60s
 
   - platform: template
     id: right_weight
@@ -715,10 +696,19 @@ button:
     name: "Tare"
     on_press:
       - lambda: |-
-          id(tare_top_left) = id(no_tare_top_left).state;
-          id(tare_top_right) = id(no_tare_top_right).state;
-          id(tare_bottom_left) = id(no_tare_bottom_left).state;
-          id(tare_bottom_right) = id(no_tare_bottom_right).state;
+          const float tl = id(no_tare_top_left).state;
+          const float tr = id(no_tare_top_right).state;
+          const float bl = id(no_tare_bottom_left).state;
+          const float br = id(no_tare_bottom_right).state;
+          // Never persist NaN into the restored tare globals.
+          if (isnan(tl) || isnan(tr) || isnan(bl) || isnan(br)) {
+            ESP_LOGW("bed_scale", "Tare skipped: bridges not ready yet, retry in a few seconds");
+            return;
+          }
+          id(tare_top_left) = tl;
+          id(tare_top_right) = tr;
+          id(tare_bottom_left) = bl;
+          id(tare_bottom_right) = br;
           ESP_LOGI(
             "bed_scale",
             "Tare set: TL=%.2f TR=%.2f BL=%.2f BR=%.2f",
@@ -756,23 +746,36 @@ interval:
     then:
       - lambda: |-
           const unsigned long REQUIRED_MS = 45000;
-          unsigned long now = millis();
+          const unsigned long now = millis();
 
           if (id(bed_occupied).state) {
             id(last_occupied_time) = now;
+          }
+
+          // Any corner swing within the last 1.5s counts as movement this
+          // cycle. 45s of continuous movement latches Playing on; 45s of
+          // stillness latches it off.
+          const bool moving =
+            id(last_movement_time) != 0 &&
+            (now - id(last_movement_time)) < 1500UL;
+
+          if (moving) {
+            id(no_movement_start) = 0;
+            if (id(movement_continuous_start) == 0) id(movement_continuous_start) = now;
+          } else {
+            id(movement_continuous_start) = 0;
+            if (id(no_movement_start) == 0) id(no_movement_start) = now;
           }
 
           if (id(playing_state)) {
             if (id(no_movement_start) != 0 && (now - id(no_movement_start) >= REQUIRED_MS)) {
               id(playing_state) = false;
               id(playing).publish_state(false);
-              id(no_movement_start) = 0;
             }
           } else {
             if (id(movement_continuous_start) != 0 && (now - id(movement_continuous_start) >= REQUIRED_MS)) {
               id(playing_state) = true;
               id(playing).publish_state(true);
-              id(movement_continuous_start) = 0;
             }
           }
 
@@ -819,6 +822,10 @@ interval:
 
           auto slew = [](float &tare, float raw) {
             if (isnan(raw)) {
+              return;
+            }
+            if (isnan(tare)) {  // self-heal a corrupted tare
+              tare = raw;
               return;
             }
             const float MAX_STEP = 0.05f;  // lb per minute per channel
