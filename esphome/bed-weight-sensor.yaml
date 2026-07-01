@@ -14,8 +14,9 @@
 #  1. Bed empty (bedding on) -> press "Tare".
 #  2. Set "Calibration Known Weight" to the helper person's weight (lb).
 #  3. Person gets on the bed and holds still; press "Capture Calibration
-#     Sample". Sitting/kneeling directly on each corner gives the best data;
-#     add lying center / left edge / right edge. 6+ positions total.
+#     Sample". KNEEL directly on each corner (feet and hands OFF the floor -
+#     any weight leaking to the floor corrupts the fit); add lying center /
+#     left edge / right edge. 6+ positions total.
 #  4. Each capture logs a CSV row (also shown in the "Calibration Sample"
 #     text sensor): tl,tr,bl,br,known_lb. Collect the rows into samples.csv.
 #  5. Run: python bed-scale-calibrate.py samples.csv
@@ -681,7 +682,7 @@ script:
           id(tare_bottom_left) = bl;
           id(tare_bottom_right) = br;
           id(calibration_progress).publish_state(
-            "tared - get on the bed. 7 positions: sit on each corner, then lie center, left edge, right edge. Hold each ~30s.");
+            "tared - get on the bed. 7 positions: KNEEL on each corner, then lie center, left edge, right edge. Feet and hands OFF the floor! Hold each ~30s.");
       - if:
           condition:
             lambda: return id(guided_failed);
@@ -771,6 +772,20 @@ script:
           std::vector<float> v = id(guided_scales);
           std::sort(v.begin(), v.end());
           const float median = v[v.size() / 2];
+
+          // Statics: the summed reading must match the known weight at EVERY
+          // position. Captures disagreeing beyond ~20% mean weight bypassed
+          // the cells (feet on the floor, frame touching a wall, ...).
+          const float spread = v.back() / v.front();
+          if (spread > 1.20f) {
+            char msg[192];
+            snprintf(msg, sizeof(msg),
+                     "aborted: captures disagree by %.0f%% - weight bypassed the bed (feet on floor? frame touching something?). Gains NOT changed",
+                     (spread - 1.0f) * 100.0f);
+            id(calibration_progress).publish_state(msg);
+            return;
+          }
+
           if (median < 0.5f || median > 2.0f) {
             char msg[128];
             snprintf(msg, sizeof(msg),
@@ -792,8 +807,8 @@ script:
           c_br.perform();
           char msg[160];
           snprintf(msg, sizeof(msg),
-                   "done: all gains set to %.4f from %d captures. Lie in the center to verify Total Weight.",
-                   median, n);
+                   "done: all gains set to %.4f (%d captures agree within %.0f%%). Lie in the center to verify Total Weight.",
+                   median, n, (spread - 1.0f) * 100.0f);
           id(calibration_progress).publish_state(msg);
           ESP_LOGI("bed_scale", "Guided calibration done: median scale %.4f from %d captures (%d attempts)",
                    median, n, id(guided_attempts));
