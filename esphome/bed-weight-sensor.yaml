@@ -90,10 +90,14 @@ globals:
     type: bool
     restore_value: false
     initial_value: 'false'
-  # Mattress spill-aware calibration matrix.
-  # m_<sensor>_<load> stores the response of a bridge sensor for 1 lb placed
-  # in a specific bed quarter. inv_<quarter>_<sensor> stores the inverse matrix
-  # used to estimate actual quarter loads from the 4 live bridge readings.
+  # Mattress spill-aware calibration.
+  # m_<sensor>_<placement> stores the averaged observed bridge response per lb
+  # for a known-weight capture centered over the named placement.
+  # f_<actual_quarter>_<placement> stores the pro-rata fraction of the known
+  # weight assigned to each actual bed quarter for that capture. This accounts
+  # for mattress/platform spill into the other three quarters.
+  # recompute_calibration_inverse solves: observed_response = physical_matrix * spill_fraction,
+  # then stores inv_<quarter>_<sensor> to estimate actual quarter loads from live readings.
   - id: m_tl_tl
     type: float
     restore_value: true
@@ -161,6 +165,91 @@ globals:
     type: float
     restore_value: true
     initial_value: '1.0'
+
+  - id: f_tl_tl
+    type: float
+    restore_value: true
+    initial_value: '1.0'
+  - id: f_tl_tr
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: f_tl_bl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: f_tl_br
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+
+  - id: f_tr_tl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: f_tr_tr
+    type: float
+    restore_value: true
+    initial_value: '1.0'
+  - id: f_tr_bl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: f_tr_br
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+
+  - id: f_bl_tl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: f_bl_tr
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: f_bl_bl
+    type: float
+    restore_value: true
+    initial_value: '1.0'
+  - id: f_bl_br
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+
+  - id: f_br_tl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: f_br_tr
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: f_br_bl
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: f_br_br
+    type: float
+    restore_value: true
+    initial_value: '1.0'
+
+  - id: calibration_pass_count_top_left
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: calibration_pass_count_top_right
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: calibration_pass_count_bottom_left
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: calibration_pass_count_bottom_right
+    type: int
+    restore_value: true
+    initial_value: '0'
 
   - id: inv_tl_tl
     type: float
@@ -543,11 +632,87 @@ script:
     mode: restart
     then:
       - lambda: |-
+          const float response[4][4] = {
+            {id(m_tl_tl), id(m_tl_tr), id(m_tl_bl), id(m_tl_br)},
+            {id(m_tr_tl), id(m_tr_tr), id(m_tr_bl), id(m_tr_br)},
+            {id(m_bl_tl), id(m_bl_tr), id(m_bl_bl), id(m_bl_br)},
+            {id(m_br_tl), id(m_br_tr), id(m_br_bl), id(m_br_br)},
+          };
+
+          float f_aug[4][8] = {
+            {id(f_tl_tl), id(f_tl_tr), id(f_tl_bl), id(f_tl_br), 1.0f, 0.0f, 0.0f, 0.0f},
+            {id(f_tr_tl), id(f_tr_tr), id(f_tr_bl), id(f_tr_br), 0.0f, 1.0f, 0.0f, 0.0f},
+            {id(f_bl_tl), id(f_bl_tr), id(f_bl_bl), id(f_bl_br), 0.0f, 0.0f, 1.0f, 0.0f},
+            {id(f_br_tl), id(f_br_tr), id(f_br_bl), id(f_br_br), 0.0f, 0.0f, 0.0f, 1.0f},
+          };
+
+          for (int col = 0; col < 4; col++) {
+            int pivot_row = col;
+            float pivot_abs = fabsf(f_aug[col][col]);
+
+            for (int row = col + 1; row < 4; row++) {
+              const float candidate_abs = fabsf(f_aug[row][col]);
+              if (candidate_abs > pivot_abs) {
+                pivot_abs = candidate_abs;
+                pivot_row = row;
+              }
+            }
+
+            if (pivot_abs < 0.000001f) {
+              ESP_LOGW("bed_scale", "Inverse update failed: spill-fraction matrix is singular or incomplete");
+              return;
+            }
+
+            if (pivot_row != col) {
+              for (int j = 0; j < 8; j++) {
+                const float tmp = f_aug[col][j];
+                f_aug[col][j] = f_aug[pivot_row][j];
+                f_aug[pivot_row][j] = tmp;
+              }
+            }
+
+            const float pivot = f_aug[col][col];
+            for (int j = 0; j < 8; j++) {
+              f_aug[col][j] /= pivot;
+            }
+
+            for (int row = 0; row < 4; row++) {
+              if (row == col) {
+                continue;
+              }
+              const float factor = f_aug[row][col];
+              if (fabsf(factor) < 0.000001f) {
+                continue;
+              }
+              for (int j = 0; j < 8; j++) {
+                f_aug[row][j] -= factor * f_aug[col][j];
+              }
+            }
+          }
+
+          float fraction_inv[4][4] = {
+            {f_aug[0][4], f_aug[0][5], f_aug[0][6], f_aug[0][7]},
+            {f_aug[1][4], f_aug[1][5], f_aug[1][6], f_aug[1][7]},
+            {f_aug[2][4], f_aug[2][5], f_aug[2][6], f_aug[2][7]},
+            {f_aug[3][4], f_aug[3][5], f_aug[3][6], f_aug[3][7]},
+          };
+
+          float physical[4][4];
+          for (int row = 0; row < 4; row++) {
+            for (int col = 0; col < 4; col++) {
+              float value = 0.0f;
+              for (int k = 0; k < 4; k++) {
+                value += response[row][k] * fraction_inv[k][col];
+              }
+              physical[row][col] = value;
+            }
+          }
+
           float a[4][8] = {
-            {id(m_tl_tl), id(m_tl_tr), id(m_tl_bl), id(m_tl_br), 1.0f, 0.0f, 0.0f, 0.0f},
-            {id(m_tr_tl), id(m_tr_tr), id(m_tr_bl), id(m_tr_br), 0.0f, 1.0f, 0.0f, 0.0f},
-            {id(m_bl_tl), id(m_bl_tr), id(m_bl_bl), id(m_bl_br), 0.0f, 0.0f, 1.0f, 0.0f},
-            {id(m_br_tl), id(m_br_tr), id(m_br_bl), id(m_br_br), 0.0f, 0.0f, 0.0f, 1.0f},
+            {physical[0][0], physical[0][1], physical[0][2], physical[0][3], 1.0f, 0.0f, 0.0f, 0.0f},
+            {physical[1][0], physical[1][1], physical[1][2], physical[1][3], 0.0f, 1.0f, 0.0f, 0.0f},
+            {physical[2][0], physical[2][1], physical[2][2], physical[2][3], 0.0f, 0.0f, 1.0f, 0.0f},
+            {physical[3][0], physical[3][1], physical[3][2], physical[3][3], 0.0f, 0.0f, 0.0f, 1.0f},
           };
 
           for (int col = 0; col < 4; col++) {
@@ -563,7 +728,7 @@ script:
             }
 
             if (pivot_abs < 0.000001f) {
-              ESP_LOGW("bed_scale", "Inverse update failed: calibration matrix is singular or incomplete");
+              ESP_LOGW("bed_scale", "Inverse update failed: physical calibration matrix is singular or incomplete");
               return;
             }
 
@@ -614,7 +779,14 @@ script:
           id(inv_br_bl) = a[3][6];
           id(inv_br_br) = a[3][7];
 
-          ESP_LOGI("bed_scale", "Calibration matrix inverse updated successfully");
+          ESP_LOGI(
+            "bed_scale",
+            "Pro-rata calibration inverse updated successfully. Pass counts: TL=%d TR=%d BL=%d BR=%d",
+            id(calibration_pass_count_top_left),
+            id(calibration_pass_count_top_right),
+            id(calibration_pass_count_bottom_left),
+            id(calibration_pass_count_bottom_right)
+          );
 
   - id: capture_quarter_calibration
     mode: single
@@ -632,7 +804,7 @@ script:
 
           ESP_LOGI(
             "bed_scale",
-            "Calibration capture for %s started. Hold the %.1f lb known weight still for 12 seconds.",
+            "Pro-rata calibration capture for %s started. Hold the %.1f lb known weight still for 12 seconds.",
             quarter_name.c_str(),
             id(calibration_known_weight_lb).state
           );
@@ -689,7 +861,8 @@ script:
           const float s_bl = id(calibration_sum_bottom_left) / samples;
           const float s_br = id(calibration_sum_bottom_right) / samples;
 
-          if ((fabsf(s_tl) + fabsf(s_tr) + fabsf(s_bl) + fabsf(s_br)) < 0.01f) {
+          const float response_total = fabsf(s_tl) + fabsf(s_tr) + fabsf(s_bl) + fabsf(s_br);
+          if (response_total < 0.01f) {
             ESP_LOGW("bed_scale", "Calibration aborted: averaged bridge response is too small");
             return;
           }
@@ -699,26 +872,68 @@ script:
           const float c_bl = s_bl / known;
           const float c_br = s_br / known;
 
+          const float spill_tl = fabsf(s_tl) / response_total;
+          const float spill_tr = fabsf(s_tr) / response_total;
+          const float spill_bl = fabsf(s_bl) / response_total;
+          const float spill_br = fabsf(s_br) / response_total;
+
+          auto blend = [](float previous, float value, int previous_count) -> float {
+            if (previous_count <= 0) {
+              return value;
+            }
+            return ((previous * previous_count) + value) / (previous_count + 1);
+          };
+
+          int pass_count = 0;
+
           if (quarter_name == "top_left") {
-            id(m_tl_tl) = c_tl;
-            id(m_tr_tl) = c_tr;
-            id(m_bl_tl) = c_bl;
-            id(m_br_tl) = c_br;
+            const int n = id(calibration_pass_count_top_left);
+            id(m_tl_tl) = blend(id(m_tl_tl), c_tl, n);
+            id(m_tr_tl) = blend(id(m_tr_tl), c_tr, n);
+            id(m_bl_tl) = blend(id(m_bl_tl), c_bl, n);
+            id(m_br_tl) = blend(id(m_br_tl), c_br, n);
+            id(f_tl_tl) = blend(id(f_tl_tl), spill_tl, n);
+            id(f_tr_tl) = blend(id(f_tr_tl), spill_tr, n);
+            id(f_bl_tl) = blend(id(f_bl_tl), spill_bl, n);
+            id(f_br_tl) = blend(id(f_br_tl), spill_br, n);
+            id(calibration_pass_count_top_left) = n + 1;
+            pass_count = n + 1;
           } else if (quarter_name == "top_right") {
-            id(m_tl_tr) = c_tl;
-            id(m_tr_tr) = c_tr;
-            id(m_bl_tr) = c_bl;
-            id(m_br_tr) = c_br;
+            const int n = id(calibration_pass_count_top_right);
+            id(m_tl_tr) = blend(id(m_tl_tr), c_tl, n);
+            id(m_tr_tr) = blend(id(m_tr_tr), c_tr, n);
+            id(m_bl_tr) = blend(id(m_bl_tr), c_bl, n);
+            id(m_br_tr) = blend(id(m_br_tr), c_br, n);
+            id(f_tl_tr) = blend(id(f_tl_tr), spill_tl, n);
+            id(f_tr_tr) = blend(id(f_tr_tr), spill_tr, n);
+            id(f_bl_tr) = blend(id(f_bl_tr), spill_bl, n);
+            id(f_br_tr) = blend(id(f_br_tr), spill_br, n);
+            id(calibration_pass_count_top_right) = n + 1;
+            pass_count = n + 1;
           } else if (quarter_name == "bottom_left") {
-            id(m_tl_bl) = c_tl;
-            id(m_tr_bl) = c_tr;
-            id(m_bl_bl) = c_bl;
-            id(m_br_bl) = c_br;
+            const int n = id(calibration_pass_count_bottom_left);
+            id(m_tl_bl) = blend(id(m_tl_bl), c_tl, n);
+            id(m_tr_bl) = blend(id(m_tr_bl), c_tr, n);
+            id(m_bl_bl) = blend(id(m_bl_bl), c_bl, n);
+            id(m_br_bl) = blend(id(m_br_bl), c_br, n);
+            id(f_tl_bl) = blend(id(f_tl_bl), spill_tl, n);
+            id(f_tr_bl) = blend(id(f_tr_bl), spill_tr, n);
+            id(f_bl_bl) = blend(id(f_bl_bl), spill_bl, n);
+            id(f_br_bl) = blend(id(f_br_bl), spill_br, n);
+            id(calibration_pass_count_bottom_left) = n + 1;
+            pass_count = n + 1;
           } else if (quarter_name == "bottom_right") {
-            id(m_tl_br) = c_tl;
-            id(m_tr_br) = c_tr;
-            id(m_bl_br) = c_bl;
-            id(m_br_br) = c_br;
+            const int n = id(calibration_pass_count_bottom_right);
+            id(m_tl_br) = blend(id(m_tl_br), c_tl, n);
+            id(m_tr_br) = blend(id(m_tr_br), c_tr, n);
+            id(m_bl_br) = blend(id(m_bl_br), c_bl, n);
+            id(m_br_br) = blend(id(m_br_br), c_br, n);
+            id(f_tl_br) = blend(id(f_tl_br), spill_tl, n);
+            id(f_tr_br) = blend(id(f_tr_br), spill_tr, n);
+            id(f_bl_br) = blend(id(f_bl_br), spill_bl, n);
+            id(f_br_br) = blend(id(f_br_br), spill_br, n);
+            id(calibration_pass_count_bottom_right) = n + 1;
+            pass_count = n + 1;
           } else {
             ESP_LOGW("bed_scale", "Calibration aborted: unknown quarter '%s'", quarter_name.c_str());
             return;
@@ -728,10 +943,15 @@ script:
 
           ESP_LOGI(
             "bed_scale",
-            "Captured averaged calibration column for %s from %d stable samples%s. Per-lb bridge responses: TL=%.6f TR=%.6f BL=%.6f BR=%.6f",
+            "Captured pro-rata calibration for %s pass %d from %d stable samples%s. Spill fractions: TL=%.3f TR=%.3f BL=%.3f BR=%.3f. Per-lb responses: TL=%.6f TR=%.6f BL=%.6f BR=%.6f",
             quarter_name.c_str(),
+            pass_count,
             samples,
             id(calibration_motion_seen) ? " after skipping moving samples" : "",
+            spill_tl,
+            spill_tr,
+            spill_bl,
+            spill_br,
             c_tl,
             c_tr,
             c_bl,
@@ -860,6 +1080,31 @@ button:
           id(m_br_bl) = 0.0f;
           id(m_br_br) = 1.0f;
 
+          id(f_tl_tl) = 1.0f;
+          id(f_tl_tr) = 0.0f;
+          id(f_tl_bl) = 0.0f;
+          id(f_tl_br) = 0.0f;
+
+          id(f_tr_tl) = 0.0f;
+          id(f_tr_tr) = 1.0f;
+          id(f_tr_bl) = 0.0f;
+          id(f_tr_br) = 0.0f;
+
+          id(f_bl_tl) = 0.0f;
+          id(f_bl_tr) = 0.0f;
+          id(f_bl_bl) = 1.0f;
+          id(f_bl_br) = 0.0f;
+
+          id(f_br_tl) = 0.0f;
+          id(f_br_tr) = 0.0f;
+          id(f_br_bl) = 0.0f;
+          id(f_br_br) = 1.0f;
+
+          id(calibration_pass_count_top_left) = 0;
+          id(calibration_pass_count_top_right) = 0;
+          id(calibration_pass_count_bottom_left) = 0;
+          id(calibration_pass_count_bottom_right) = 0;
+
           id(inv_tl_tl) = 1.0f;
           id(inv_tl_tr) = 0.0f;
           id(inv_tl_bl) = 0.0f;
@@ -880,7 +1125,7 @@ button:
           id(inv_br_bl) = 0.0f;
           id(inv_br_br) = 1.0f;
 
-          ESP_LOGI("bed_scale", "Calibration matrix and inverse reset to identity");
+          ESP_LOGI("bed_scale", "Calibration response matrix, spill fractions, pass counts and inverse reset to identity");
 
 interval:
   - interval: 1s
