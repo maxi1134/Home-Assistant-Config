@@ -251,6 +251,109 @@ globals:
     restore_value: true
     initial_value: '0'
 
+  - id: total_cal_sample_count
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: total_cal_coef_top_left
+    type: float
+    restore_value: true
+    initial_value: '1.0'
+  - id: total_cal_coef_top_right
+    type: float
+    restore_value: true
+    initial_value: '1.0'
+  - id: total_cal_coef_bottom_left
+    type: float
+    restore_value: true
+    initial_value: '1.0'
+  - id: total_cal_coef_bottom_right
+    type: float
+    restore_value: true
+    initial_value: '1.0'
+
+  - id: total_cal_xtx_00
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xtx_01
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xtx_02
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xtx_03
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xtx_10
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xtx_11
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xtx_12
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xtx_13
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xtx_20
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xtx_21
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xtx_22
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xtx_23
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xtx_30
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xtx_31
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xtx_32
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xtx_33
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+
+  - id: total_cal_xty_0
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xty_1
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xty_2
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+  - id: total_cal_xty_3
+    type: float
+    restore_value: true
+    initial_value: '0.0'
+
   - id: inv_tl_tl
     type: float
     restore_value: true
@@ -563,16 +666,21 @@ sensor:
     force_update: true
     update_interval: 1s
     lambda: |-
-      const float tl = id(estimated_weight_top_left).state;
-      const float tr = id(estimated_weight_top_right).state;
-      const float bl = id(estimated_weight_bottom_left).state;
-      const float br = id(estimated_weight_bottom_right).state;
+      const float raw_tl = id(weight_top_left).state;
+      const float raw_tr = id(weight_top_right).state;
+      const float raw_bl = id(weight_bottom_left).state;
+      const float raw_br = id(weight_bottom_right).state;
 
-      if (isnan(tl) || isnan(tr) || isnan(bl) || isnan(br)) {
+      if (isnan(raw_tl) || isnan(raw_tr) || isnan(raw_bl) || isnan(raw_br)) {
         return {};
       }
 
-      const float total = tl + tr + bl + br;
+      const float total =
+        id(total_cal_coef_top_left) * raw_tl +
+        id(total_cal_coef_top_right) * raw_tr +
+        id(total_cal_coef_bottom_left) * raw_bl +
+        id(total_cal_coef_bottom_right) * raw_br;
+
       if (total < -20.0f || total > 1000.0f) {
         return {};
       }
@@ -580,9 +688,17 @@ sensor:
       const uint32_t now = millis();
       static uint32_t last_publish = 0;
 
+      const float est_tl = id(estimated_weight_top_left).state;
+      const float est_tr = id(estimated_weight_top_right).state;
+      const float est_bl = id(estimated_weight_bottom_left).state;
+      const float est_br = id(estimated_weight_bottom_right).state;
       const float threshold = id(side_occupied_threshold_lb).state;
-      const bool left_occupied = (tl + bl) >= threshold;
-      const bool right_occupied = (tr + br) >= threshold;
+      const bool left_occupied =
+        (!isnan(est_tl) && !isnan(est_bl) && (est_tl + est_bl) >= threshold) ||
+        total >= threshold;
+      const bool right_occupied =
+        (!isnan(est_tr) && !isnan(est_br) && (est_tr + est_br) >= threshold) ||
+        total >= threshold;
       const bool any_side_occupied = left_occupied || right_occupied;
       const bool active_motion =
         id(last_movement_time) != 0 &&
@@ -872,6 +988,117 @@ script:
           const float c_bl = s_bl / known;
           const float c_br = s_br / known;
 
+          // Direct total-weight calibration: every stable capture, regardless of position,
+          // adds one equation: coef dot bridge_readings = known_weight. This avoids
+          // forcing side/center positions through a guessed quarter-distribution model.
+          const float r0 = s_tl;
+          const float r1 = s_tr;
+          const float r2 = s_bl;
+          const float r3 = s_br;
+
+          id(total_cal_xtx_00) += r0 * r0;
+          id(total_cal_xtx_01) += r0 * r1;
+          id(total_cal_xtx_02) += r0 * r2;
+          id(total_cal_xtx_03) += r0 * r3;
+          id(total_cal_xtx_10) += r1 * r0;
+          id(total_cal_xtx_11) += r1 * r1;
+          id(total_cal_xtx_12) += r1 * r2;
+          id(total_cal_xtx_13) += r1 * r3;
+          id(total_cal_xtx_20) += r2 * r0;
+          id(total_cal_xtx_21) += r2 * r1;
+          id(total_cal_xtx_22) += r2 * r2;
+          id(total_cal_xtx_23) += r2 * r3;
+          id(total_cal_xtx_30) += r3 * r0;
+          id(total_cal_xtx_31) += r3 * r1;
+          id(total_cal_xtx_32) += r3 * r2;
+          id(total_cal_xtx_33) += r3 * r3;
+
+          id(total_cal_xty_0) += r0 * known;
+          id(total_cal_xty_1) += r1 * known;
+          id(total_cal_xty_2) += r2 * known;
+          id(total_cal_xty_3) += r3 * known;
+          id(total_cal_sample_count) += 1;
+
+          if (id(total_cal_sample_count) < 4) {
+            ESP_LOGI(
+              "bed_scale",
+              "Stored total-weight calibration sample %d/4 for %s. Capture at least 4 diverse positions before the direct total model updates.",
+              id(total_cal_sample_count),
+              quarter_name.c_str()
+            );
+          } else {
+            const float RIDGE = 0.001f;
+            float a[4][5] = {
+              {id(total_cal_xtx_00) + RIDGE, id(total_cal_xtx_01), id(total_cal_xtx_02), id(total_cal_xtx_03), id(total_cal_xty_0)},
+              {id(total_cal_xtx_10), id(total_cal_xtx_11) + RIDGE, id(total_cal_xtx_12), id(total_cal_xtx_13), id(total_cal_xty_1)},
+              {id(total_cal_xtx_20), id(total_cal_xtx_21), id(total_cal_xtx_22) + RIDGE, id(total_cal_xtx_23), id(total_cal_xty_2)},
+              {id(total_cal_xtx_30), id(total_cal_xtx_31), id(total_cal_xtx_32), id(total_cal_xtx_33) + RIDGE, id(total_cal_xty_3)},
+            };
+
+            bool solved = true;
+            for (int col = 0; col < 4; col++) {
+              int pivot_row = col;
+              float pivot_abs = fabsf(a[col][col]);
+
+              for (int row = col + 1; row < 4; row++) {
+                const float candidate_abs = fabsf(a[row][col]);
+                if (candidate_abs > pivot_abs) {
+                  pivot_abs = candidate_abs;
+                  pivot_row = row;
+                }
+              }
+
+              if (pivot_abs < 0.000001f) {
+                solved = false;
+                break;
+              }
+
+              if (pivot_row != col) {
+                for (int j = 0; j < 5; j++) {
+                  const float tmp = a[col][j];
+                  a[col][j] = a[pivot_row][j];
+                  a[pivot_row][j] = tmp;
+                }
+              }
+
+              const float pivot = a[col][col];
+              for (int j = col; j < 5; j++) {
+                a[col][j] /= pivot;
+              }
+
+              for (int row = 0; row < 4; row++) {
+                if (row == col) {
+                  continue;
+                }
+                const float factor = a[row][col];
+                if (fabsf(factor) < 0.000001f) {
+                  continue;
+                }
+                for (int j = col; j < 5; j++) {
+                  a[row][j] -= factor * a[col][j];
+                }
+              }
+            }
+
+            if (solved) {
+              id(total_cal_coef_top_left) = a[0][4];
+              id(total_cal_coef_top_right) = a[1][4];
+              id(total_cal_coef_bottom_left) = a[2][4];
+              id(total_cal_coef_bottom_right) = a[3][4];
+              ESP_LOGI(
+                "bed_scale",
+                "Direct total-weight model updated from %d captures. Coefs: TL=%.6f TR=%.6f BL=%.6f BR=%.6f",
+                id(total_cal_sample_count),
+                id(total_cal_coef_top_left),
+                id(total_cal_coef_top_right),
+                id(total_cal_coef_bottom_left),
+                id(total_cal_coef_bottom_right)
+              );
+            } else {
+              ESP_LOGW("bed_scale", "Direct total-weight model update skipped: calibration samples are not diverse enough yet");
+            }
+          }
+
           const float spill_tl = fabsf(s_tl) / response_total;
           const float spill_tr = fabsf(s_tr) / response_total;
           const float spill_bl = fabsf(s_bl) / response_total;
@@ -935,28 +1162,33 @@ script:
             id(calibration_pass_count_bottom_right) = n + 1;
             pass_count = n + 1;
           } else {
-            ESP_LOGW("bed_scale", "Calibration aborted: unknown quarter '%s'", quarter_name.c_str());
-            return;
+            ESP_LOGI(
+              "bed_scale",
+              "Captured total-weight-only calibration sample for %s; quarter matrix unchanged.",
+              quarter_name.c_str()
+            );
           }
 
-          id(calibration_capture_valid) = true;
+          if (pass_count > 0) {
+            id(calibration_capture_valid) = true;
 
-          ESP_LOGI(
-            "bed_scale",
-            "Captured pro-rata calibration for %s pass %d from %d stable samples%s. Spill fractions: TL=%.3f TR=%.3f BL=%.3f BR=%.3f. Per-lb responses: TL=%.6f TR=%.6f BL=%.6f BR=%.6f",
-            quarter_name.c_str(),
-            pass_count,
-            samples,
-            id(calibration_motion_seen) ? " after skipping moving samples" : "",
-            spill_tl,
-            spill_tr,
-            spill_bl,
-            spill_br,
-            c_tl,
-            c_tr,
-            c_bl,
-            c_br
-          );
+            ESP_LOGI(
+              "bed_scale",
+              "Captured pro-rata calibration for %s pass %d from %d stable samples%s. Spill fractions: TL=%.3f TR=%.3f BL=%.3f BR=%.3f. Per-lb responses: TL=%.6f TR=%.6f BL=%.6f BR=%.6f",
+              quarter_name.c_str(),
+              pass_count,
+              samples,
+              id(calibration_motion_seen) ? " after skipping moving samples" : "",
+              spill_tl,
+              spill_tr,
+              spill_bl,
+              spill_br,
+              c_tl,
+              c_tr,
+              c_bl,
+              c_br
+            );
+          }
       - if:
           condition:
             lambda: return id(calibration_capture_valid);
@@ -1056,6 +1288,38 @@ button:
           quarter_name: "bottom_right"
 
   - platform: template
+    id: calibrate_current_position_button
+    name: "Capture Current Position"
+    on_press:
+      - script.execute:
+          id: capture_quarter_calibration
+          quarter_name: "current_position"
+
+  - platform: template
+    id: calibrate_left_side_button
+    name: "Capture Left Side"
+    on_press:
+      - script.execute:
+          id: capture_quarter_calibration
+          quarter_name: "left_side"
+
+  - platform: template
+    id: calibrate_right_side_button
+    name: "Capture Right Side"
+    on_press:
+      - script.execute:
+          id: capture_quarter_calibration
+          quarter_name: "right_side"
+
+  - platform: template
+    id: calibrate_center_button
+    name: "Capture Center"
+    on_press:
+      - script.execute:
+          id: capture_quarter_calibration
+          quarter_name: "center"
+
+  - platform: template
     id: reset_quarter_calibration
     name: "Reset Matrix Calibration"
     on_press:
@@ -1105,6 +1369,34 @@ button:
           id(calibration_pass_count_bottom_left) = 0;
           id(calibration_pass_count_bottom_right) = 0;
 
+          id(total_cal_sample_count) = 0;
+          id(total_cal_coef_top_left) = 1.0f;
+          id(total_cal_coef_top_right) = 1.0f;
+          id(total_cal_coef_bottom_left) = 1.0f;
+          id(total_cal_coef_bottom_right) = 1.0f;
+
+          id(total_cal_xtx_00) = 0.0f;
+          id(total_cal_xtx_01) = 0.0f;
+          id(total_cal_xtx_02) = 0.0f;
+          id(total_cal_xtx_03) = 0.0f;
+          id(total_cal_xtx_10) = 0.0f;
+          id(total_cal_xtx_11) = 0.0f;
+          id(total_cal_xtx_12) = 0.0f;
+          id(total_cal_xtx_13) = 0.0f;
+          id(total_cal_xtx_20) = 0.0f;
+          id(total_cal_xtx_21) = 0.0f;
+          id(total_cal_xtx_22) = 0.0f;
+          id(total_cal_xtx_23) = 0.0f;
+          id(total_cal_xtx_30) = 0.0f;
+          id(total_cal_xtx_31) = 0.0f;
+          id(total_cal_xtx_32) = 0.0f;
+          id(total_cal_xtx_33) = 0.0f;
+
+          id(total_cal_xty_0) = 0.0f;
+          id(total_cal_xty_1) = 0.0f;
+          id(total_cal_xty_2) = 0.0f;
+          id(total_cal_xty_3) = 0.0f;
+
           id(inv_tl_tl) = 1.0f;
           id(inv_tl_tr) = 0.0f;
           id(inv_tl_bl) = 0.0f;
@@ -1125,7 +1417,7 @@ button:
           id(inv_br_bl) = 0.0f;
           id(inv_br_br) = 1.0f;
 
-          ESP_LOGI("bed_scale", "Calibration response matrix, spill fractions, pass counts and inverse reset to identity");
+          ESP_LOGI("bed_scale", "Calibration response matrix, spill fractions, direct total model, pass counts and inverse reset to identity");
 
 interval:
   - interval: 1s
