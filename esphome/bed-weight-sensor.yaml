@@ -1,3 +1,29 @@
+# Bed weight sensor — 4x HX711 corner bridges under the bed platform.
+#
+# Design notes (2026-07 redesign):
+#  - Total weight is the gain-weighted sum of the 4 tared corner channels.
+#    Statics guarantees the sum of corner reactions equals the applied load
+#    regardless of how the mattress spreads it, so ONLY the total (and the
+#    left/right split) are calibrated. Per-quarter weight is not observable
+#    from 4 corner reactions and is not attempted.
+#  - Per-corner gains are solved OFF-CHIP (see bed-scale-calibrate.py in this
+#    folder) and entered into the four "Gain ..." number entities. The ESP
+#    does no matrix math.
+#
+# Calibration procedure:
+#  1. Bed empty (bedding on) -> press "Tare".
+#  2. Set "Calibration Known Weight" to the helper person's weight (lb).
+#  3. Person gets on the bed and holds still; press "Capture Calibration
+#     Sample". Sitting/kneeling directly on each corner gives the best data;
+#     add lying center / left edge / right edge. 6+ positions total.
+#  4. Each capture logs a CSV row (also shown in the "Calibration Sample"
+#     text sensor): tl,tr,bl,br,known_lb. Collect the rows into samples.csv.
+#  5. Run: python bed-scale-calibrate.py samples.csv
+#     and enter the recommended gains into the Gain number entities.
+#  6. Lie in the center to verify Total Weight reads the known weight.
+#  7. Lie on the left, then right edge, and check the "Left Share" sensor to
+#     pick a realistic "Side Share Threshold" for your mattress.
+
 esphome:
   name: bed-weight-sensor
   friendly_name: Bed Weight Sensor
@@ -6,6 +32,11 @@ esp32:
   board: esp32dev
   framework:
     type: esp-idf
+
+# Tare and gains persist in flash; throttle writes to limit flash wear from
+# the auto-tare slew.
+preferences:
+  flash_write_interval: 10min
 
 # Enable logging
 logger:
@@ -30,22 +61,25 @@ wifi:
 captive_portal:
 
 globals:
-  - id: weigth_tare_top_left
+  # Per-channel tare in nominal lb. Persisted so a reboot does not
+  # invalidate readings mid-night.
+  - id: tare_top_left
     type: float
-    restore_value: False
+    restore_value: true
     initial_value: '0.0'
-  - id: weigth_tare_top_right
+  - id: tare_top_right
     type: float
-    restore_value: False
+    restore_value: true
     initial_value: '0.0'
-  - id: weigth_tare_bottom_left
+  - id: tare_bottom_left
     type: float
-    restore_value: False
+    restore_value: true
     initial_value: '0.0'
-  - id: weigth_tare_bottom_right
+  - id: tare_bottom_right
     type: float
-    restore_value: False
+    restore_value: true
     initial_value: '0.0'
+
   - id: playing_state
     type: bool
     restore_value: false
@@ -62,436 +96,33 @@ globals:
     type: unsigned long
     restore_value: false
     initial_value: '0'
-  - id: calibration_sum_top_left
+  # Auto-tare interlock: last time the bed was seen occupied.
+  - id: last_occupied_time
+    type: unsigned long
+    restore_value: false
+    initial_value: '0'
+
+  # Scratch for calibration sample capture.
+  - id: cal_sum_tl
     type: float
     restore_value: false
     initial_value: '0.0'
-  - id: calibration_sum_top_right
+  - id: cal_sum_tr
     type: float
     restore_value: false
     initial_value: '0.0'
-  - id: calibration_sum_bottom_left
+  - id: cal_sum_bl
     type: float
     restore_value: false
     initial_value: '0.0'
-  - id: calibration_sum_bottom_right
+  - id: cal_sum_br
     type: float
     restore_value: false
     initial_value: '0.0'
-  - id: calibration_sample_count
+  - id: cal_sample_count
     type: int
     restore_value: false
     initial_value: '0'
-  - id: calibration_motion_seen
-    type: bool
-    restore_value: false
-    initial_value: 'false'
-  - id: calibration_capture_valid
-    type: bool
-    restore_value: false
-    initial_value: 'false'
-  - id: calibration_capture_active_state
-    type: bool
-    restore_value: false
-    initial_value: 'false'
-  - id: calibration_capture_finished_state
-    type: bool
-    restore_value: false
-    initial_value: 'false'
-  # Mattress spill-aware calibration.
-  # m_<sensor>_<placement> stores the averaged observed bridge response per lb
-  # for a known-weight capture centered over the named placement.
-  # f_<actual_quarter>_<placement> stores the pro-rata fraction of the known
-  # weight assigned to each actual bed quarter for that capture. This accounts
-  # for mattress/platform spill into the other three quarters.
-  # recompute_calibration_inverse solves: observed_response = physical_matrix * spill_fraction,
-  # then stores inv_<quarter>_<sensor> to estimate actual quarter loads from live readings.
-  - id: m_tl_tl
-    type: float
-    restore_value: true
-    initial_value: '1.0'
-  - id: m_tl_tr
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: m_tl_bl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: m_tl_br
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-
-  - id: m_tr_tl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: m_tr_tr
-    type: float
-    restore_value: true
-    initial_value: '1.0'
-  - id: m_tr_bl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: m_tr_br
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-
-  - id: m_bl_tl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: m_bl_tr
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: m_bl_bl
-    type: float
-    restore_value: true
-    initial_value: '1.0'
-  - id: m_bl_br
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-
-  - id: m_br_tl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: m_br_tr
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: m_br_bl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: m_br_br
-    type: float
-    restore_value: true
-    initial_value: '1.0'
-
-  - id: f_tl_tl
-    type: float
-    restore_value: true
-    initial_value: '1.0'
-  - id: f_tl_tr
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: f_tl_bl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: f_tl_br
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-
-  - id: f_tr_tl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: f_tr_tr
-    type: float
-    restore_value: true
-    initial_value: '1.0'
-  - id: f_tr_bl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: f_tr_br
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-
-  - id: f_bl_tl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: f_bl_tr
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: f_bl_bl
-    type: float
-    restore_value: true
-    initial_value: '1.0'
-  - id: f_bl_br
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-
-  - id: f_br_tl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: f_br_tr
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: f_br_bl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: f_br_br
-    type: float
-    restore_value: true
-    initial_value: '1.0'
-
-  - id: calibration_pass_count_top_left
-    type: int
-    restore_value: true
-    initial_value: '0'
-  - id: calibration_pass_count_top_right
-    type: int
-    restore_value: true
-    initial_value: '0'
-  - id: calibration_pass_count_bottom_left
-    type: int
-    restore_value: true
-    initial_value: '0'
-  - id: calibration_pass_count_bottom_right
-    type: int
-    restore_value: true
-    initial_value: '0'
-
-  - id: total_cal_sample_count
-    type: int
-    restore_value: true
-    initial_value: '0'
-  - id: total_cal_coef_top_left
-    type: float
-    restore_value: true
-    initial_value: '1.0'
-  - id: total_cal_coef_top_right
-    type: float
-    restore_value: true
-    initial_value: '1.0'
-  - id: total_cal_coef_bottom_left
-    type: float
-    restore_value: true
-    initial_value: '1.0'
-  - id: total_cal_coef_bottom_right
-    type: float
-    restore_value: true
-    initial_value: '1.0'
-
-  - id: total_cal_xtx_00
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xtx_01
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xtx_02
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xtx_03
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xtx_10
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xtx_11
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xtx_12
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xtx_13
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xtx_20
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xtx_21
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xtx_22
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xtx_23
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xtx_30
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xtx_31
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xtx_32
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xtx_33
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-
-  - id: total_cal_xty_0
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xty_1
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xty_2
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: total_cal_xty_3
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-
-  - id: side_sig_left_count
-    type: int
-    restore_value: true
-    initial_value: '0'
-  - id: side_sig_left_tl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: side_sig_left_tr
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: side_sig_left_bl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: side_sig_left_br
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-
-  - id: side_sig_right_count
-    type: int
-    restore_value: true
-    initial_value: '0'
-  - id: side_sig_right_tl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: side_sig_right_tr
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: side_sig_right_bl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: side_sig_right_br
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-
-  - id: side_sig_center_count
-    type: int
-    restore_value: true
-    initial_value: '0'
-  - id: side_sig_center_tl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: side_sig_center_tr
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: side_sig_center_bl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: side_sig_center_br
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-
-  - id: inv_tl_tl
-    type: float
-    restore_value: true
-    initial_value: '1.0'
-  - id: inv_tl_tr
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: inv_tl_bl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: inv_tl_br
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-
-  - id: inv_tr_tl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: inv_tr_tr
-    type: float
-    restore_value: true
-    initial_value: '1.0'
-  - id: inv_tr_bl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: inv_tr_br
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-
-  - id: inv_bl_tl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: inv_bl_tr
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: inv_bl_bl
-    type: float
-    restore_value: true
-    initial_value: '1.0'
-  - id: inv_bl_br
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-
-  - id: inv_br_tl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: inv_br_tr
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: inv_br_bl
-    type: float
-    restore_value: true
-    initial_value: '0.0'
-  - id: inv_br_br
-    type: float
-    restore_value: true
-    initial_value: '1.0'
 
 sensor:
   - platform: hx711
@@ -505,13 +136,13 @@ sensor:
     update_interval: 1s
     unit_of_measurement: lb
     filters:
-      - calibrate_linear:
-          - 57000 -> 4
-          - 13000 -> 8
+      # Nominal counts->lb slope (same magnitude/sign as the previous
+      # calibrate_linear). Per-corner differences are corrected by the
+      # "Gain ..." numbers, applied in the total/side sums.
+      - multiply: -0.0000909091
       - lambda: |-
-          id(weigth_no_tare_top_left).publish_state(x);
-          const float untared = x - id(weigth_tare_top_left);
-          return untared;
+          id(no_tare_top_left).publish_state(x);
+          return x - id(tare_top_left);
     on_value:
       then:
         - lambda: |-
@@ -546,13 +177,10 @@ sensor:
     update_interval: 1s
     unit_of_measurement: lb
     filters:
-      - calibrate_linear:
-          - 57000 -> 4
-          - 13000 -> 8
+      - multiply: -0.0000909091
       - lambda: |-
-          id(weigth_no_tare_top_right).publish_state(x);
-          const float untared = x - id(weigth_tare_top_right);
-          return untared;
+          id(no_tare_top_right).publish_state(x);
+          return x - id(tare_top_right);
     on_value:
       then:
         - lambda: |-
@@ -587,13 +215,10 @@ sensor:
     update_interval: 1s
     unit_of_measurement: lb
     filters:
-      - calibrate_linear:
-          - 57000 -> 4
-          - 13000 -> 8
+      - multiply: -0.0000909091
       - lambda: |-
-          id(weigth_no_tare_bottom_right).publish_state(x);
-          const float untared = x - id(weigth_tare_bottom_right);
-          return untared;
+          id(no_tare_bottom_right).publish_state(x);
+          return x - id(tare_bottom_right);
     on_value:
       then:
         - lambda: |-
@@ -628,13 +253,10 @@ sensor:
     update_interval: 1s
     unit_of_measurement: lb
     filters:
-      - calibrate_linear:
-          - 57000 -> 4
-          - 13000 -> 8
+      - multiply: -0.0000909091
       - lambda: |-
-          id(weigth_no_tare_bottom_left).publish_state(x);
-          const float untared = x - id(weigth_tare_bottom_left);
-          return untared;
+          id(no_tare_bottom_left).publish_state(x);
+          return x - id(tare_bottom_left);
     on_value:
       then:
         - lambda: |-
@@ -658,74 +280,71 @@ sensor:
               if (id(no_movement_start) == 0) id(no_movement_start) = now;
             }
 
+  # Pre-tare channel values, used by the Tare button and auto-tare.
   - platform: template
-    id: weigth_no_tare_top_left
-    internal: True
+    id: no_tare_top_left
+    internal: true
   - platform: template
-    id: weigth_no_tare_top_right
-    internal: True
+    id: no_tare_top_right
+    internal: true
   - platform: template
-    id: weigth_no_tare_bottom_left
-    internal: True
+    id: no_tare_bottom_left
+    internal: true
   - platform: template
-    id: weigth_no_tare_bottom_right
-    internal: True
+    id: no_tare_bottom_right
+    internal: true
 
   - platform: template
-    id: estimated_weight_top_left
-    internal: true
-    name: "Estimated Weight Top Left Quarter"
+    id: left_weight
+    name: "Left Side Weight"
     unit_of_measurement: lb
-    accuracy_decimals: 2
+    device_class: weight
+    state_class: measurement
+    accuracy_decimals: 1
     update_interval: 1s
     lambda: |-
-      return
-        id(inv_tl_tl) * id(weight_top_left).state +
-        id(inv_tl_tr) * id(weight_top_right).state +
-        id(inv_tl_bl) * id(weight_bottom_left).state +
-        id(inv_tl_br) * id(weight_bottom_right).state;
+      const float tl = id(weight_top_left).state;
+      const float bl = id(weight_bottom_left).state;
+      if (isnan(tl) || isnan(bl)) {
+        return {};
+      }
+      return id(gain_top_left).state * tl + id(gain_bottom_left).state * bl;
 
   - platform: template
-    id: estimated_weight_top_right
-    internal: true
-    name: "Estimated Weight Top Right Quarter"
+    id: right_weight
+    name: "Right Side Weight"
     unit_of_measurement: lb
-    accuracy_decimals: 2
+    device_class: weight
+    state_class: measurement
+    accuracy_decimals: 1
     update_interval: 1s
     lambda: |-
-      return
-        id(inv_tr_tl) * id(weight_top_left).state +
-        id(inv_tr_tr) * id(weight_top_right).state +
-        id(inv_tr_bl) * id(weight_bottom_left).state +
-        id(inv_tr_br) * id(weight_bottom_right).state;
+      const float tr = id(weight_top_right).state;
+      const float br = id(weight_bottom_right).state;
+      if (isnan(tr) || isnan(br)) {
+        return {};
+      }
+      return id(gain_top_right).state * tr + id(gain_bottom_right).state * br;
 
+  # Fraction of the load on the left side. Lie on each edge and read this
+  # sensor to choose a realistic "Side Share Threshold" for your mattress.
   - platform: template
-    id: estimated_weight_bottom_left
-    internal: true
-    name: "Estimated Weight Bottom Left Quarter"
-    unit_of_measurement: lb
-    accuracy_decimals: 2
+    id: left_share
+    name: "Left Share"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
     update_interval: 1s
     lambda: |-
-      return
-        id(inv_bl_tl) * id(weight_top_left).state +
-        id(inv_bl_tr) * id(weight_top_right).state +
-        id(inv_bl_bl) * id(weight_bottom_left).state +
-        id(inv_bl_br) * id(weight_bottom_right).state;
-
-  - platform: template
-    id: estimated_weight_bottom_right
-    internal: true
-    name: "Estimated Weight Bottom Right Quarter"
-    unit_of_measurement: lb
-    accuracy_decimals: 2
-    update_interval: 1s
-    lambda: |-
-      return
-        id(inv_br_tl) * id(weight_top_left).state +
-        id(inv_br_tr) * id(weight_top_right).state +
-        id(inv_br_bl) * id(weight_bottom_left).state +
-        id(inv_br_br) * id(weight_bottom_right).state;
+      const float l = id(left_weight).state;
+      const float r = id(right_weight).state;
+      if (isnan(l) || isnan(r)) {
+        return {};
+      }
+      const float total = l + r;
+      if (total < 10.0f) {
+        return NAN;
+      }
+      return 100.0f * l / total;
 
   - platform: template
     id: total_weight
@@ -747,10 +366,10 @@ sensor:
       }
 
       const float total =
-        id(total_cal_coef_top_left) * raw_tl +
-        id(total_cal_coef_top_right) * raw_tr +
-        id(total_cal_coef_bottom_left) * raw_bl +
-        id(total_cal_coef_bottom_right) * raw_br;
+        id(gain_top_left).state * raw_tl +
+        id(gain_top_right).state * raw_tr +
+        id(gain_bottom_left).state * raw_bl +
+        id(gain_bottom_right).state * raw_br;
 
       if (total < -20.0f || total > 1000.0f) {
         return {};
@@ -759,25 +378,14 @@ sensor:
       const uint32_t now = millis();
       static uint32_t last_publish = 0;
 
-      const float est_tl = id(estimated_weight_top_left).state;
-      const float est_tr = id(estimated_weight_top_right).state;
-      const float est_bl = id(estimated_weight_bottom_left).state;
-      const float est_br = id(estimated_weight_bottom_right).state;
-      const float threshold = id(side_occupied_threshold_lb).state;
-      const bool left_occupied =
-        (!isnan(est_tl) && !isnan(est_bl) && (est_tl + est_bl) >= threshold) ||
-        total >= threshold;
-      const bool right_occupied =
-        (!isnan(est_tr) && !isnan(est_br) && (est_tr + est_br) >= threshold) ||
-        total >= threshold;
-      const bool any_side_occupied = left_occupied || right_occupied;
+      const bool occupied = total >= id(side_occupied_threshold_lb).state;
       const bool active_motion =
         id(last_movement_time) != 0 &&
         (now - id(last_movement_time)) < 15000UL;
 
       const uint32_t publish_interval_ms = active_motion
         ? 5000UL
-        : (any_side_occupied ? 10000UL : 300000UL);
+        : (occupied ? 10000UL : 300000UL);
 
       if (last_publish != 0 && (now - last_publish) < publish_interval_ms) {
         return {};
@@ -788,21 +396,70 @@ sensor:
     filters:
       - round: 1
 
-# Mattress-aware calibration:
-# place the known weight near the center of the target quarter.
-# Each capture stores the response of all 4 bridge sensors.
 number:
+  # Per-corner gains, solved off-chip by bed-scale-calibrate.py.
+  - platform: template
+    id: gain_top_left
+    name: "Gain Top Left"
+    optimistic: true
+    restore_value: true
+    initial_value: 1.0
+    min_value: 0.2
+    max_value: 3.0
+    step: 0.0001
+    mode: box
+    entity_category: config
+
+  - platform: template
+    id: gain_top_right
+    name: "Gain Top Right"
+    optimistic: true
+    restore_value: true
+    initial_value: 1.0
+    min_value: 0.2
+    max_value: 3.0
+    step: 0.0001
+    mode: box
+    entity_category: config
+
+  - platform: template
+    id: gain_bottom_left
+    name: "Gain Bottom Left"
+    optimistic: true
+    restore_value: true
+    initial_value: 1.0
+    min_value: 0.2
+    max_value: 3.0
+    step: 0.0001
+    mode: box
+    entity_category: config
+
+  - platform: template
+    id: gain_bottom_right
+    name: "Gain Bottom Right"
+    optimistic: true
+    restore_value: true
+    initial_value: 1.0
+    min_value: 0.2
+    max_value: 3.0
+    step: 0.0001
+    mode: box
+    entity_category: config
+
   - platform: template
     id: calibration_known_weight_lb
     name: "Calibration Known Weight"
     unit_of_measurement: lb
     optimistic: true
     restore_value: true
-    initial_value: 50
+    initial_value: 150
     min_value: 1
     max_value: 400
     step: 0.5
+    mode: box
+    entity_category: config
 
+  # Total weight above which the bed counts as occupied.
   - platform: template
     id: side_occupied_threshold_lb
     name: "Side Occupied Threshold"
@@ -813,194 +470,65 @@ number:
     min_value: 5
     max_value: 300
     step: 1
+    mode: box
+    entity_category: config
+
+  # Total weight above which both sides are considered occupied regardless
+  # of the left/right split.
+  - platform: template
+    id: two_person_threshold_lb
+    name: "Two Person Threshold"
+    unit_of_measurement: lb
+    optimistic: true
+    restore_value: true
+    initial_value: 220
+    min_value: 100
+    max_value: 600
+    step: 5
+    mode: box
+    entity_category: config
+
+  # A side counts as clearly occupied when its share exceeds this. Between
+  # (100 - threshold) and threshold the sleeper is centered -> both sides
+  # report occupied. Tune using the "Left Share" sensor.
+  - platform: template
+    id: side_share_threshold
+    name: "Side Share Threshold"
+    unit_of_measurement: "%"
+    optimistic: true
+    restore_value: true
+    initial_value: 58
+    min_value: 50
+    max_value: 90
+    step: 1
+    mode: box
+    entity_category: config
+
+switch:
+  # Slow re-zeroing while the bed is empty, to counter HX711/load-cell
+  # thermal drift and creep.
+  - platform: template
+    id: auto_tare_enabled
+    name: "Auto Tare"
+    icon: "mdi:scale-balance"
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    entity_category: config
 
 script:
-  - id: recompute_calibration_inverse
-    mode: restart
-    then:
-      - lambda: |-
-          const float response[4][4] = {
-            {id(m_tl_tl), id(m_tl_tr), id(m_tl_bl), id(m_tl_br)},
-            {id(m_tr_tl), id(m_tr_tr), id(m_tr_bl), id(m_tr_br)},
-            {id(m_bl_tl), id(m_bl_tr), id(m_bl_bl), id(m_bl_br)},
-            {id(m_br_tl), id(m_br_tr), id(m_br_bl), id(m_br_br)},
-          };
-
-          float f_aug[4][8] = {
-            {id(f_tl_tl), id(f_tl_tr), id(f_tl_bl), id(f_tl_br), 1.0f, 0.0f, 0.0f, 0.0f},
-            {id(f_tr_tl), id(f_tr_tr), id(f_tr_bl), id(f_tr_br), 0.0f, 1.0f, 0.0f, 0.0f},
-            {id(f_bl_tl), id(f_bl_tr), id(f_bl_bl), id(f_bl_br), 0.0f, 0.0f, 1.0f, 0.0f},
-            {id(f_br_tl), id(f_br_tr), id(f_br_bl), id(f_br_br), 0.0f, 0.0f, 0.0f, 1.0f},
-          };
-
-          for (int col = 0; col < 4; col++) {
-            int pivot_row = col;
-            float pivot_abs = fabsf(f_aug[col][col]);
-
-            for (int row = col + 1; row < 4; row++) {
-              const float candidate_abs = fabsf(f_aug[row][col]);
-              if (candidate_abs > pivot_abs) {
-                pivot_abs = candidate_abs;
-                pivot_row = row;
-              }
-            }
-
-            if (pivot_abs < 0.000001f) {
-              ESP_LOGW("bed_scale", "Inverse update failed: spill-fraction matrix is singular or incomplete");
-              return;
-            }
-
-            if (pivot_row != col) {
-              for (int j = 0; j < 8; j++) {
-                const float tmp = f_aug[col][j];
-                f_aug[col][j] = f_aug[pivot_row][j];
-                f_aug[pivot_row][j] = tmp;
-              }
-            }
-
-            const float pivot = f_aug[col][col];
-            for (int j = 0; j < 8; j++) {
-              f_aug[col][j] /= pivot;
-            }
-
-            for (int row = 0; row < 4; row++) {
-              if (row == col) {
-                continue;
-              }
-              const float factor = f_aug[row][col];
-              if (fabsf(factor) < 0.000001f) {
-                continue;
-              }
-              for (int j = 0; j < 8; j++) {
-                f_aug[row][j] -= factor * f_aug[col][j];
-              }
-            }
-          }
-
-          float fraction_inv[4][4] = {
-            {f_aug[0][4], f_aug[0][5], f_aug[0][6], f_aug[0][7]},
-            {f_aug[1][4], f_aug[1][5], f_aug[1][6], f_aug[1][7]},
-            {f_aug[2][4], f_aug[2][5], f_aug[2][6], f_aug[2][7]},
-            {f_aug[3][4], f_aug[3][5], f_aug[3][6], f_aug[3][7]},
-          };
-
-          float physical[4][4];
-          for (int row = 0; row < 4; row++) {
-            for (int col = 0; col < 4; col++) {
-              float value = 0.0f;
-              for (int k = 0; k < 4; k++) {
-                value += response[row][k] * fraction_inv[k][col];
-              }
-              physical[row][col] = value;
-            }
-          }
-
-          float a[4][8] = {
-            {physical[0][0], physical[0][1], physical[0][2], physical[0][3], 1.0f, 0.0f, 0.0f, 0.0f},
-            {physical[1][0], physical[1][1], physical[1][2], physical[1][3], 0.0f, 1.0f, 0.0f, 0.0f},
-            {physical[2][0], physical[2][1], physical[2][2], physical[2][3], 0.0f, 0.0f, 1.0f, 0.0f},
-            {physical[3][0], physical[3][1], physical[3][2], physical[3][3], 0.0f, 0.0f, 0.0f, 1.0f},
-          };
-
-          for (int col = 0; col < 4; col++) {
-            int pivot_row = col;
-            float pivot_abs = fabsf(a[col][col]);
-
-            for (int row = col + 1; row < 4; row++) {
-              const float candidate_abs = fabsf(a[row][col]);
-              if (candidate_abs > pivot_abs) {
-                pivot_abs = candidate_abs;
-                pivot_row = row;
-              }
-            }
-
-            if (pivot_abs < 0.000001f) {
-              ESP_LOGW("bed_scale", "Inverse update failed: physical calibration matrix is singular or incomplete");
-              return;
-            }
-
-            if (pivot_row != col) {
-              for (int j = 0; j < 8; j++) {
-                const float tmp = a[col][j];
-                a[col][j] = a[pivot_row][j];
-                a[pivot_row][j] = tmp;
-              }
-            }
-
-            const float pivot = a[col][col];
-            for (int j = 0; j < 8; j++) {
-              a[col][j] /= pivot;
-            }
-
-            for (int row = 0; row < 4; row++) {
-              if (row == col) {
-                continue;
-              }
-              const float factor = a[row][col];
-              if (fabsf(factor) < 0.000001f) {
-                continue;
-              }
-              for (int j = 0; j < 8; j++) {
-                a[row][j] -= factor * a[col][j];
-              }
-            }
-          }
-
-          id(inv_tl_tl) = a[0][4];
-          id(inv_tl_tr) = a[0][5];
-          id(inv_tl_bl) = a[0][6];
-          id(inv_tl_br) = a[0][7];
-
-          id(inv_tr_tl) = a[1][4];
-          id(inv_tr_tr) = a[1][5];
-          id(inv_tr_bl) = a[1][6];
-          id(inv_tr_br) = a[1][7];
-
-          id(inv_bl_tl) = a[2][4];
-          id(inv_bl_tr) = a[2][5];
-          id(inv_bl_bl) = a[2][6];
-          id(inv_bl_br) = a[2][7];
-
-          id(inv_br_tl) = a[3][4];
-          id(inv_br_tr) = a[3][5];
-          id(inv_br_bl) = a[3][6];
-          id(inv_br_br) = a[3][7];
-
-          ESP_LOGI(
-            "bed_scale",
-            "Pro-rata calibration inverse updated successfully. Pass counts: TL=%d TR=%d BL=%d BR=%d",
-            id(calibration_pass_count_top_left),
-            id(calibration_pass_count_top_right),
-            id(calibration_pass_count_bottom_left),
-            id(calibration_pass_count_bottom_right)
-          );
-
-  - id: capture_quarter_calibration
+  - id: capture_calibration_sample
     mode: single
-    parameters:
-      quarter_name: string
     then:
       - lambda: |-
-          id(calibration_sum_top_left) = 0.0f;
-          id(calibration_sum_top_right) = 0.0f;
-          id(calibration_sum_bottom_left) = 0.0f;
-          id(calibration_sum_bottom_right) = 0.0f;
-          id(calibration_sample_count) = 0;
-          id(calibration_motion_seen) = false;
-          id(calibration_capture_valid) = false;
-          id(calibration_capture_active_state) = true;
-          id(calibration_capture_finished_state) = false;
-          id(calibration_capture_active).publish_state(true);
-          id(calibration_capture_finished).publish_state(false);
-
-          char start_status[96];
-          snprintf(start_status, sizeof(start_status), "running: %s", quarter_name.c_str());
-          id(calibration_capture_status).publish_state(start_status);
-
+          id(cal_sum_tl) = 0.0f;
+          id(cal_sum_tr) = 0.0f;
+          id(cal_sum_bl) = 0.0f;
+          id(cal_sum_br) = 0.0f;
+          id(cal_sample_count) = 0;
+          id(calibration_sample).publish_state("sampling: hold still for 12s");
           ESP_LOGI(
             "bed_scale",
-            "Pro-rata calibration capture for %s started. Hold the %.1f lb known weight still for 12 seconds.",
-            quarter_name.c_str(),
+            "Calibration capture started (known weight %.1f lb). Hold still for 12 seconds.",
             id(calibration_known_weight_lb).state
           );
       - repeat:
@@ -1012,7 +540,6 @@ script:
                 const unsigned long now = millis();
 
                 if (id(last_movement_time) != 0 && (now - id(last_movement_time)) < STABLE_MS) {
-                  id(calibration_motion_seen) = true;
                   ESP_LOGW("bed_scale", "Calibration sample skipped: movement detected");
                   return;
                 }
@@ -1023,360 +550,55 @@ script:
                 const float s_br = id(weight_bottom_right).state;
 
                 if (isnan(s_tl) || isnan(s_tr) || isnan(s_bl) || isnan(s_br)) {
-                  ESP_LOGW("bed_scale", "Calibration sample skipped: one or more bridge readings are invalid");
+                  ESP_LOGW("bed_scale", "Calibration sample skipped: invalid bridge reading");
                   return;
                 }
 
-                id(calibration_sum_top_left) += s_tl;
-                id(calibration_sum_top_right) += s_tr;
-                id(calibration_sum_bottom_left) += s_bl;
-                id(calibration_sum_bottom_right) += s_br;
-                id(calibration_sample_count) += 1;
+                id(cal_sum_tl) += s_tl;
+                id(cal_sum_tr) += s_tr;
+                id(cal_sum_bl) += s_bl;
+                id(cal_sum_br) += s_br;
+                id(cal_sample_count) += 1;
       - lambda: |-
-          const float known = id(calibration_known_weight_lb).state;
-          const int samples = id(calibration_sample_count);
+          const int n = id(cal_sample_count);
 
-          auto finish_capture = [&](const char *status) {
-            id(calibration_capture_active_state) = false;
-            id(calibration_capture_finished_state) = true;
-            id(calibration_capture_active).publish_state(false);
-            id(calibration_capture_finished).publish_state(true);
-            id(calibration_capture_status).publish_state(status);
-          };
-
-          if (known <= 0.0f) {
-            ESP_LOGW("bed_scale", "Calibration aborted: known weight must be > 0");
-            finish_capture("aborted: known weight must be > 0");
+          if (n < 8) {
+            char msg[96];
+            snprintf(msg, sizeof(msg), "aborted: only %d stable samples, retry", n);
+            id(calibration_sample).publish_state(msg);
+            ESP_LOGW("bed_scale", "Calibration capture aborted: only %d stable samples. Hold still and retry.", n);
             return;
           }
 
-          if (samples < 8) {
-            ESP_LOGW(
-              "bed_scale",
-              "Calibration aborted for %s: only %d stable samples collected. Hold still and retry.",
-              quarter_name.c_str(),
-              samples
-            );
-            char abort_status[128];
-            snprintf(abort_status, sizeof(abort_status), "aborted: %s only %d stable samples", quarter_name.c_str(), samples);
-            finish_capture(abort_status);
-            return;
-          }
+          const float tl = id(cal_sum_tl) / n;
+          const float tr = id(cal_sum_tr) / n;
+          const float bl = id(cal_sum_bl) / n;
+          const float br = id(cal_sum_br) / n;
 
-          const float s_tl = id(calibration_sum_top_left) / samples;
-          const float s_tr = id(calibration_sum_top_right) / samples;
-          const float s_bl = id(calibration_sum_bottom_left) / samples;
-          const float s_br = id(calibration_sum_bottom_right) / samples;
-
-          const float response_total = fabsf(s_tl) + fabsf(s_tr) + fabsf(s_bl) + fabsf(s_br);
-          if (response_total < 0.01f) {
-            ESP_LOGW("bed_scale", "Calibration aborted: averaged bridge response is too small");
-            char abort_status[128];
-            snprintf(abort_status, sizeof(abort_status), "aborted: %s response too small", quarter_name.c_str());
-            finish_capture(abort_status);
-            return;
-          }
-
-          const float c_tl = s_tl / known;
-          const float c_tr = s_tr / known;
-          const float c_bl = s_bl / known;
-          const float c_br = s_br / known;
-
-          // Direct total-weight calibration: every stable capture, regardless of position,
-          // adds one equation: coef dot bridge_readings = known_weight. This avoids
-          // forcing side/center positions through a guessed quarter-distribution model.
-          const float r0 = s_tl;
-          const float r1 = s_tr;
-          const float r2 = s_bl;
-          const float r3 = s_br;
-
-          id(total_cal_xtx_00) += r0 * r0;
-          id(total_cal_xtx_01) += r0 * r1;
-          id(total_cal_xtx_02) += r0 * r2;
-          id(total_cal_xtx_03) += r0 * r3;
-          id(total_cal_xtx_10) += r1 * r0;
-          id(total_cal_xtx_11) += r1 * r1;
-          id(total_cal_xtx_12) += r1 * r2;
-          id(total_cal_xtx_13) += r1 * r3;
-          id(total_cal_xtx_20) += r2 * r0;
-          id(total_cal_xtx_21) += r2 * r1;
-          id(total_cal_xtx_22) += r2 * r2;
-          id(total_cal_xtx_23) += r2 * r3;
-          id(total_cal_xtx_30) += r3 * r0;
-          id(total_cal_xtx_31) += r3 * r1;
-          id(total_cal_xtx_32) += r3 * r2;
-          id(total_cal_xtx_33) += r3 * r3;
-
-          id(total_cal_xty_0) += r0 * known;
-          id(total_cal_xty_1) += r1 * known;
-          id(total_cal_xty_2) += r2 * known;
-          id(total_cal_xty_3) += r3 * known;
-          id(total_cal_sample_count) += 1;
-
-          if (id(total_cal_sample_count) < 4) {
-            ESP_LOGI(
-              "bed_scale",
-              "Stored total-weight calibration sample %d/4 for %s. Capture at least 4 diverse positions before the direct total model updates.",
-              id(total_cal_sample_count),
-              quarter_name.c_str()
-            );
-          } else {
-            const float RIDGE = 0.001f;
-            float a[4][5] = {
-              {id(total_cal_xtx_00) + RIDGE, id(total_cal_xtx_01), id(total_cal_xtx_02), id(total_cal_xtx_03), id(total_cal_xty_0)},
-              {id(total_cal_xtx_10), id(total_cal_xtx_11) + RIDGE, id(total_cal_xtx_12), id(total_cal_xtx_13), id(total_cal_xty_1)},
-              {id(total_cal_xtx_20), id(total_cal_xtx_21), id(total_cal_xtx_22) + RIDGE, id(total_cal_xtx_23), id(total_cal_xty_2)},
-              {id(total_cal_xtx_30), id(total_cal_xtx_31), id(total_cal_xtx_32), id(total_cal_xtx_33) + RIDGE, id(total_cal_xty_3)},
-            };
-
-            bool solved = true;
-            for (int col = 0; col < 4; col++) {
-              int pivot_row = col;
-              float pivot_abs = fabsf(a[col][col]);
-
-              for (int row = col + 1; row < 4; row++) {
-                const float candidate_abs = fabsf(a[row][col]);
-                if (candidate_abs > pivot_abs) {
-                  pivot_abs = candidate_abs;
-                  pivot_row = row;
-                }
-              }
-
-              if (pivot_abs < 0.000001f) {
-                solved = false;
-                break;
-              }
-
-              if (pivot_row != col) {
-                for (int j = 0; j < 5; j++) {
-                  const float tmp = a[col][j];
-                  a[col][j] = a[pivot_row][j];
-                  a[pivot_row][j] = tmp;
-                }
-              }
-
-              const float pivot = a[col][col];
-              for (int j = col; j < 5; j++) {
-                a[col][j] /= pivot;
-              }
-
-              for (int row = 0; row < 4; row++) {
-                if (row == col) {
-                  continue;
-                }
-                const float factor = a[row][col];
-                if (fabsf(factor) < 0.000001f) {
-                  continue;
-                }
-                for (int j = col; j < 5; j++) {
-                  a[row][j] -= factor * a[col][j];
-                }
-              }
-            }
-
-            if (solved) {
-              id(total_cal_coef_top_left) = a[0][4];
-              id(total_cal_coef_top_right) = a[1][4];
-              id(total_cal_coef_bottom_left) = a[2][4];
-              id(total_cal_coef_bottom_right) = a[3][4];
-              ESP_LOGI(
-                "bed_scale",
-                "Direct total-weight model updated from %d captures. Coefs: TL=%.6f TR=%.6f BL=%.6f BR=%.6f",
-                id(total_cal_sample_count),
-                id(total_cal_coef_top_left),
-                id(total_cal_coef_top_right),
-                id(total_cal_coef_bottom_left),
-                id(total_cal_coef_bottom_right)
-              );
-            } else {
-              ESP_LOGW("bed_scale", "Direct total-weight model update skipped: calibration samples are not diverse enough yet");
-            }
-          }
-
-          const float spill_tl = fabsf(s_tl) / response_total;
-          const float spill_tr = fabsf(s_tr) / response_total;
-          const float spill_bl = fabsf(s_bl) / response_total;
-          const float spill_br = fabsf(s_br) / response_total;
-
-          auto blend = [](float previous, float value, int previous_count) -> float {
-            if (previous_count <= 0) {
-              return value;
-            }
-            return ((previous * previous_count) + value) / (previous_count + 1);
-          };
-
-          int pass_count = 0;
-          bool side_signature_captured = false;
-          int side_signature_count = 0;
-
-          // Side classification learns normalized raw-load signatures from dedicated
-          // side/center captures. This is separate from total-weight calibration.
-          const float sig_tl = s_tl / response_total;
-          const float sig_tr = s_tr / response_total;
-          const float sig_bl = s_bl / response_total;
-          const float sig_br = s_br / response_total;
-
-          if (quarter_name == "left_side") {
-            const int n = id(side_sig_left_count);
-            id(side_sig_left_tl) = blend(id(side_sig_left_tl), sig_tl, n);
-            id(side_sig_left_tr) = blend(id(side_sig_left_tr), sig_tr, n);
-            id(side_sig_left_bl) = blend(id(side_sig_left_bl), sig_bl, n);
-            id(side_sig_left_br) = blend(id(side_sig_left_br), sig_br, n);
-            id(side_sig_left_count) = n + 1;
-            side_signature_count = n + 1;
-            side_signature_captured = true;
-          } else if (quarter_name == "right_side") {
-            const int n = id(side_sig_right_count);
-            id(side_sig_right_tl) = blend(id(side_sig_right_tl), sig_tl, n);
-            id(side_sig_right_tr) = blend(id(side_sig_right_tr), sig_tr, n);
-            id(side_sig_right_bl) = blend(id(side_sig_right_bl), sig_bl, n);
-            id(side_sig_right_br) = blend(id(side_sig_right_br), sig_br, n);
-            id(side_sig_right_count) = n + 1;
-            side_signature_count = n + 1;
-            side_signature_captured = true;
-          } else if (quarter_name == "center") {
-            const int n = id(side_sig_center_count);
-            id(side_sig_center_tl) = blend(id(side_sig_center_tl), sig_tl, n);
-            id(side_sig_center_tr) = blend(id(side_sig_center_tr), sig_tr, n);
-            id(side_sig_center_bl) = blend(id(side_sig_center_bl), sig_bl, n);
-            id(side_sig_center_br) = blend(id(side_sig_center_br), sig_br, n);
-            id(side_sig_center_count) = n + 1;
-            side_signature_count = n + 1;
-            side_signature_captured = true;
-          }
-
-          if (side_signature_captured) {
-            ESP_LOGI(
-              "bed_scale",
-              "Captured side signature for %s pass %d. Signature: TL=%.3f TR=%.3f BL=%.3f BR=%.3f",
-              quarter_name.c_str(),
-              side_signature_count,
-              sig_tl,
-              sig_tr,
-              sig_bl,
-              sig_br
-            );
-          }
-
-          if (quarter_name == "top_left") {
-            const int n = id(calibration_pass_count_top_left);
-            id(m_tl_tl) = blend(id(m_tl_tl), c_tl, n);
-            id(m_tr_tl) = blend(id(m_tr_tl), c_tr, n);
-            id(m_bl_tl) = blend(id(m_bl_tl), c_bl, n);
-            id(m_br_tl) = blend(id(m_br_tl), c_br, n);
-            id(f_tl_tl) = blend(id(f_tl_tl), spill_tl, n);
-            id(f_tr_tl) = blend(id(f_tr_tl), spill_tr, n);
-            id(f_bl_tl) = blend(id(f_bl_tl), spill_bl, n);
-            id(f_br_tl) = blend(id(f_br_tl), spill_br, n);
-            id(calibration_pass_count_top_left) = n + 1;
-            pass_count = n + 1;
-          } else if (quarter_name == "top_right") {
-            const int n = id(calibration_pass_count_top_right);
-            id(m_tl_tr) = blend(id(m_tl_tr), c_tl, n);
-            id(m_tr_tr) = blend(id(m_tr_tr), c_tr, n);
-            id(m_bl_tr) = blend(id(m_bl_tr), c_bl, n);
-            id(m_br_tr) = blend(id(m_br_tr), c_br, n);
-            id(f_tl_tr) = blend(id(f_tl_tr), spill_tl, n);
-            id(f_tr_tr) = blend(id(f_tr_tr), spill_tr, n);
-            id(f_bl_tr) = blend(id(f_bl_tr), spill_bl, n);
-            id(f_br_tr) = blend(id(f_br_tr), spill_br, n);
-            id(calibration_pass_count_top_right) = n + 1;
-            pass_count = n + 1;
-          } else if (quarter_name == "bottom_left") {
-            const int n = id(calibration_pass_count_bottom_left);
-            id(m_tl_bl) = blend(id(m_tl_bl), c_tl, n);
-            id(m_tr_bl) = blend(id(m_tr_bl), c_tr, n);
-            id(m_bl_bl) = blend(id(m_bl_bl), c_bl, n);
-            id(m_br_bl) = blend(id(m_br_bl), c_br, n);
-            id(f_tl_bl) = blend(id(f_tl_bl), spill_tl, n);
-            id(f_tr_bl) = blend(id(f_tr_bl), spill_tr, n);
-            id(f_bl_bl) = blend(id(f_bl_bl), spill_bl, n);
-            id(f_br_bl) = blend(id(f_br_bl), spill_br, n);
-            id(calibration_pass_count_bottom_left) = n + 1;
-            pass_count = n + 1;
-          } else if (quarter_name == "bottom_right") {
-            const int n = id(calibration_pass_count_bottom_right);
-            id(m_tl_br) = blend(id(m_tl_br), c_tl, n);
-            id(m_tr_br) = blend(id(m_tr_br), c_tr, n);
-            id(m_bl_br) = blend(id(m_bl_br), c_bl, n);
-            id(m_br_br) = blend(id(m_br_br), c_br, n);
-            id(f_tl_br) = blend(id(f_tl_br), spill_tl, n);
-            id(f_tr_br) = blend(id(f_tr_br), spill_tr, n);
-            id(f_bl_br) = blend(id(f_bl_br), spill_bl, n);
-            id(f_br_br) = blend(id(f_br_br), spill_br, n);
-            id(calibration_pass_count_bottom_right) = n + 1;
-            pass_count = n + 1;
-          } else {
-            ESP_LOGI(
-              "bed_scale",
-              side_signature_captured
-                ? "Captured side-signature and total-weight calibration sample for %s; quarter matrix unchanged."
-                : "Captured total-weight-only calibration sample for %s; quarter matrix unchanged.",
-              quarter_name.c_str()
-            );
-          }
-
-          if (pass_count > 0) {
-            id(calibration_capture_valid) = true;
-
-            ESP_LOGI(
-              "bed_scale",
-              "Captured pro-rata calibration for %s pass %d from %d stable samples%s. Spill fractions: TL=%.3f TR=%.3f BL=%.3f BR=%.3f. Per-lb responses: TL=%.6f TR=%.6f BL=%.6f BR=%.6f",
-              quarter_name.c_str(),
-              pass_count,
-              samples,
-              id(calibration_motion_seen) ? " after skipping moving samples" : "",
-              spill_tl,
-              spill_tr,
-              spill_bl,
-              spill_br,
-              c_tl,
-              c_tr,
-              c_bl,
-              c_br
-            );
-          }
-
-          char complete_status[128];
-          if (pass_count > 0) {
-            snprintf(complete_status, sizeof(complete_status), "complete: %s pass %d (%d samples)", quarter_name.c_str(), pass_count, samples);
-          } else {
-            snprintf(complete_status, sizeof(complete_status), "complete: %s total sample %d (%d samples)", quarter_name.c_str(), id(total_cal_sample_count), samples);
-          }
-          finish_capture(complete_status);
-      - if:
-          condition:
-            lambda: return id(calibration_capture_valid);
-          then:
-            - script.execute: recompute_calibration_inverse
+          char msg[128];
+          snprintf(
+            msg, sizeof(msg), "%.3f,%.3f,%.3f,%.3f,%.1f",
+            tl, tr, bl, br, id(calibration_known_weight_lb).state
+          );
+          id(calibration_sample).publish_state(msg);
+          ESP_LOGI(
+            "bed_scale",
+            "Calibration sample from %d readings. CSV row for bed-scale-calibrate.py: %s",
+            n, msg
+          );
 
 text_sensor:
+  # Latest capture as a CSV row: tl,tr,bl,br,known_lb
   - platform: template
-    id: calibration_capture_status
-    name: "Calibration Capture Status"
+    id: calibration_sample
+    name: "Calibration Sample"
     icon: "mdi:scale-balance"
     entity_category: diagnostic
 
 binary_sensor:
   - platform: template
-    id: calibration_capture_active
-    name: "Calibration Capture Active"
-    icon: "mdi:timer-sand"
-    entity_category: diagnostic
-    lambda: |-
-      return id(calibration_capture_active_state);
-
-  - platform: template
-    id: calibration_capture_finished
-    name: "Calibration Capture Finished"
-    icon: "mdi:check-circle"
-    entity_category: diagnostic
-    lambda: |-
-      return id(calibration_capture_finished_state);
-
-  - platform: template
-    id: left_side_occupied
-    name: "Left Side Occupied"
+    id: bed_occupied
+    name: "Bed Occupied"
     device_class: occupancy
     lambda: |-
       const float raw_tl = id(weight_top_left).state;
@@ -1389,53 +611,52 @@ binary_sensor:
       }
 
       const float total =
-        id(total_cal_coef_top_left) * raw_tl +
-        id(total_cal_coef_top_right) * raw_tr +
-        id(total_cal_coef_bottom_left) * raw_bl +
-        id(total_cal_coef_bottom_right) * raw_br;
+        id(gain_top_left).state * raw_tl +
+        id(gain_top_right).state * raw_tr +
+        id(gain_bottom_left).state * raw_bl +
+        id(gain_bottom_right).state * raw_br;
 
-      if (total < id(side_occupied_threshold_lb).state) {
+      const float thr = id(side_occupied_threshold_lb).state;
+
+      // Hysteresis: on above the threshold, off below 80% of it.
+      if (total >= thr) {
+        return true;
+      }
+      if (total < 0.8f * thr) {
+        return false;
+      }
+      return id(bed_occupied).state;
+    filters:
+      - delayed_on: 10s
+      - delayed_off: 30s
+
+  - platform: template
+    id: left_side_occupied
+    name: "Left Side Occupied"
+    device_class: occupancy
+    lambda: |-
+      if (!id(bed_occupied).state) {
         return false;
       }
 
-      const float response_total = fabsf(raw_tl) + fabsf(raw_tr) + fabsf(raw_bl) + fabsf(raw_br);
-      if (response_total < 0.01f) {
+      const float l = id(left_weight).state;
+      const float r = id(right_weight).state;
+      if (isnan(l) || isnan(r)) {
+        return {};
+      }
+
+      const float total = l + r;
+      if (total >= id(two_person_threshold_lb).state) {
+        return true;
+      }
+      if (total < 1.0f) {
         return false;
       }
 
-      const float sig_tl = raw_tl / response_total;
-      const float sig_tr = raw_tr / response_total;
-      const float sig_bl = raw_bl / response_total;
-      const float sig_br = raw_br / response_total;
-
-      auto dist = [](float a0, float a1, float a2, float a3, float b0, float b1, float b2, float b3) -> float {
-        const float d0 = a0 - b0;
-        const float d1 = a1 - b1;
-        const float d2 = a2 - b2;
-        const float d3 = a3 - b3;
-        return d0 * d0 + d1 * d1 + d2 * d2 + d3 * d3;
-      };
-
-      if (id(side_sig_left_count) > 0 && id(side_sig_right_count) > 0) {
-        const float left_distance = dist(sig_tl, sig_tr, sig_bl, sig_br, id(side_sig_left_tl), id(side_sig_left_tr), id(side_sig_left_bl), id(side_sig_left_br));
-        const float right_distance = dist(sig_tl, sig_tr, sig_bl, sig_br, id(side_sig_right_tl), id(side_sig_right_tr), id(side_sig_right_bl), id(side_sig_right_br));
-
-        if (id(side_sig_center_count) > 0) {
-          const float center_distance = dist(sig_tl, sig_tr, sig_bl, sig_br, id(side_sig_center_tl), id(side_sig_center_tr), id(side_sig_center_bl), id(side_sig_center_br));
-          if (center_distance <= left_distance * 0.85f && center_distance <= right_distance * 0.85f) {
-            return true;
-          }
-        }
-
-        return left_distance <= right_distance * 1.10f;
-      }
-
-      const float tl = id(estimated_weight_top_left).state;
-      const float bl = id(estimated_weight_bottom_left).state;
-      if (isnan(tl) || isnan(bl)) {
-        return total >= id(side_occupied_threshold_lb).state;
-      }
-      return (tl + bl) >= id(side_occupied_threshold_lb).state;
+      // Occupied unless the load is clearly on the right side. A centered
+      // sleeper therefore reports both sides occupied.
+      const float share_thr = id(side_share_threshold).state / 100.0f;
+      return (l / total) > (1.0f - share_thr);
     filters:
       - delayed_on: 10s
       - delayed_off: 30s
@@ -1445,63 +666,26 @@ binary_sensor:
     name: "Right Side Occupied"
     device_class: occupancy
     lambda: |-
-      const float raw_tl = id(weight_top_left).state;
-      const float raw_tr = id(weight_top_right).state;
-      const float raw_bl = id(weight_bottom_left).state;
-      const float raw_br = id(weight_bottom_right).state;
+      if (!id(bed_occupied).state) {
+        return false;
+      }
 
-      if (isnan(raw_tl) || isnan(raw_tr) || isnan(raw_bl) || isnan(raw_br)) {
+      const float l = id(left_weight).state;
+      const float r = id(right_weight).state;
+      if (isnan(l) || isnan(r)) {
         return {};
       }
 
-      const float total =
-        id(total_cal_coef_top_left) * raw_tl +
-        id(total_cal_coef_top_right) * raw_tr +
-        id(total_cal_coef_bottom_left) * raw_bl +
-        id(total_cal_coef_bottom_right) * raw_br;
-
-      if (total < id(side_occupied_threshold_lb).state) {
+      const float total = l + r;
+      if (total >= id(two_person_threshold_lb).state) {
+        return true;
+      }
+      if (total < 1.0f) {
         return false;
       }
 
-      const float response_total = fabsf(raw_tl) + fabsf(raw_tr) + fabsf(raw_bl) + fabsf(raw_br);
-      if (response_total < 0.01f) {
-        return false;
-      }
-
-      const float sig_tl = raw_tl / response_total;
-      const float sig_tr = raw_tr / response_total;
-      const float sig_bl = raw_bl / response_total;
-      const float sig_br = raw_br / response_total;
-
-      auto dist = [](float a0, float a1, float a2, float a3, float b0, float b1, float b2, float b3) -> float {
-        const float d0 = a0 - b0;
-        const float d1 = a1 - b1;
-        const float d2 = a2 - b2;
-        const float d3 = a3 - b3;
-        return d0 * d0 + d1 * d1 + d2 * d2 + d3 * d3;
-      };
-
-      if (id(side_sig_left_count) > 0 && id(side_sig_right_count) > 0) {
-        const float left_distance = dist(sig_tl, sig_tr, sig_bl, sig_br, id(side_sig_left_tl), id(side_sig_left_tr), id(side_sig_left_bl), id(side_sig_left_br));
-        const float right_distance = dist(sig_tl, sig_tr, sig_bl, sig_br, id(side_sig_right_tl), id(side_sig_right_tr), id(side_sig_right_bl), id(side_sig_right_br));
-
-        if (id(side_sig_center_count) > 0) {
-          const float center_distance = dist(sig_tl, sig_tr, sig_bl, sig_br, id(side_sig_center_tl), id(side_sig_center_tr), id(side_sig_center_bl), id(side_sig_center_br));
-          if (center_distance <= left_distance * 0.85f && center_distance <= right_distance * 0.85f) {
-            return true;
-          }
-        }
-
-        return right_distance <= left_distance * 1.10f;
-      }
-
-      const float tr = id(estimated_weight_top_right).state;
-      const float br = id(estimated_weight_bottom_right).state;
-      if (isnan(tr) || isnan(br)) {
-        return total >= id(side_occupied_threshold_lb).state;
-      }
-      return (tr + br) >= id(side_occupied_threshold_lb).state;
+      const float share_thr = id(side_share_threshold).state / 100.0f;
+      return (r / total) > (1.0f - share_thr);
     filters:
       - delayed_on: 10s
       - delayed_off: 30s
@@ -1527,205 +711,45 @@ binary_sensor:
 
 button:
   - platform: template
-    id: weigth_tare_set
-    name: 'Tare'
+    id: tare_button
+    name: "Tare"
     on_press:
-      - lambda: id(weigth_tare_top_left) = id(weigth_no_tare_top_left).state;
-      - lambda: id(weigth_tare_top_right) = id(weigth_no_tare_top_right).state;
-      - lambda: id(weigth_tare_bottom_left) = id(weigth_no_tare_bottom_left).state;
-      - lambda: id(weigth_tare_bottom_right) = id(weigth_no_tare_bottom_right).state;
-
-  - platform: template
-    id: calibrate_top_left_quarter_button
-    name: "Capture Top Left Quarter"
-    on_press:
-      - script.execute:
-          id: capture_quarter_calibration
-          quarter_name: "top_left"
-
-  - platform: template
-    id: calibrate_top_right_quarter_button
-    name: "Capture Top Right Quarter"
-    on_press:
-      - script.execute:
-          id: capture_quarter_calibration
-          quarter_name: "top_right"
-
-  - platform: template
-    id: calibrate_bottom_left_quarter_button
-    name: "Capture Bottom Left Quarter"
-    on_press:
-      - script.execute:
-          id: capture_quarter_calibration
-          quarter_name: "bottom_left"
-
-  - platform: template
-    id: calibrate_bottom_right_quarter_button
-    name: "Capture Bottom Right Quarter"
-    on_press:
-      - script.execute:
-          id: capture_quarter_calibration
-          quarter_name: "bottom_right"
-
-  - platform: template
-    id: calibrate_current_position_button
-    name: "Capture Current Position"
-    on_press:
-      - script.execute:
-          id: capture_quarter_calibration
-          quarter_name: "current_position"
-
-  - platform: template
-    id: calibrate_left_side_button
-    name: "Capture Left Side"
-    on_press:
-      - script.execute:
-          id: capture_quarter_calibration
-          quarter_name: "left_side"
-
-  - platform: template
-    id: calibrate_right_side_button
-    name: "Capture Right Side"
-    on_press:
-      - script.execute:
-          id: capture_quarter_calibration
-          quarter_name: "right_side"
-
-  - platform: template
-    id: calibrate_center_button
-    name: "Capture Center"
-    on_press:
-      - script.execute:
-          id: capture_quarter_calibration
-          quarter_name: "center"
-
-  - platform: template
-    id: reset_quarter_calibration
-    name: "Reset Matrix Calibration"
-    on_press:
-      - script.stop: capture_quarter_calibration
       - lambda: |-
-          id(m_tl_tl) = 1.0f;
-          id(m_tl_tr) = 0.0f;
-          id(m_tl_bl) = 0.0f;
-          id(m_tl_br) = 0.0f;
+          id(tare_top_left) = id(no_tare_top_left).state;
+          id(tare_top_right) = id(no_tare_top_right).state;
+          id(tare_bottom_left) = id(no_tare_bottom_left).state;
+          id(tare_bottom_right) = id(no_tare_bottom_right).state;
+          ESP_LOGI(
+            "bed_scale",
+            "Tare set: TL=%.2f TR=%.2f BL=%.2f BR=%.2f",
+            id(tare_top_left), id(tare_top_right),
+            id(tare_bottom_left), id(tare_bottom_right)
+          );
 
-          id(m_tr_tl) = 0.0f;
-          id(m_tr_tr) = 1.0f;
-          id(m_tr_bl) = 0.0f;
-          id(m_tr_br) = 0.0f;
+  - platform: template
+    id: capture_calibration_sample_button
+    name: "Capture Calibration Sample"
+    on_press:
+      - script.execute: capture_calibration_sample
 
-          id(m_bl_tl) = 0.0f;
-          id(m_bl_tr) = 0.0f;
-          id(m_bl_bl) = 1.0f;
-          id(m_bl_br) = 0.0f;
-
-          id(m_br_tl) = 0.0f;
-          id(m_br_tr) = 0.0f;
-          id(m_br_bl) = 0.0f;
-          id(m_br_br) = 1.0f;
-
-          id(f_tl_tl) = 1.0f;
-          id(f_tl_tr) = 0.0f;
-          id(f_tl_bl) = 0.0f;
-          id(f_tl_br) = 0.0f;
-
-          id(f_tr_tl) = 0.0f;
-          id(f_tr_tr) = 1.0f;
-          id(f_tr_bl) = 0.0f;
-          id(f_tr_br) = 0.0f;
-
-          id(f_bl_tl) = 0.0f;
-          id(f_bl_tr) = 0.0f;
-          id(f_bl_bl) = 1.0f;
-          id(f_bl_br) = 0.0f;
-
-          id(f_br_tl) = 0.0f;
-          id(f_br_tr) = 0.0f;
-          id(f_br_bl) = 0.0f;
-          id(f_br_br) = 1.0f;
-
-          id(calibration_pass_count_top_left) = 0;
-          id(calibration_pass_count_top_right) = 0;
-          id(calibration_pass_count_bottom_left) = 0;
-          id(calibration_pass_count_bottom_right) = 0;
-
-          id(total_cal_sample_count) = 0;
-          id(total_cal_coef_top_left) = 1.0f;
-          id(total_cal_coef_top_right) = 1.0f;
-          id(total_cal_coef_bottom_left) = 1.0f;
-          id(total_cal_coef_bottom_right) = 1.0f;
-
-          id(total_cal_xtx_00) = 0.0f;
-          id(total_cal_xtx_01) = 0.0f;
-          id(total_cal_xtx_02) = 0.0f;
-          id(total_cal_xtx_03) = 0.0f;
-          id(total_cal_xtx_10) = 0.0f;
-          id(total_cal_xtx_11) = 0.0f;
-          id(total_cal_xtx_12) = 0.0f;
-          id(total_cal_xtx_13) = 0.0f;
-          id(total_cal_xtx_20) = 0.0f;
-          id(total_cal_xtx_21) = 0.0f;
-          id(total_cal_xtx_22) = 0.0f;
-          id(total_cal_xtx_23) = 0.0f;
-          id(total_cal_xtx_30) = 0.0f;
-          id(total_cal_xtx_31) = 0.0f;
-          id(total_cal_xtx_32) = 0.0f;
-          id(total_cal_xtx_33) = 0.0f;
-
-          id(total_cal_xty_0) = 0.0f;
-          id(total_cal_xty_1) = 0.0f;
-          id(total_cal_xty_2) = 0.0f;
-          id(total_cal_xty_3) = 0.0f;
-
-          id(side_sig_left_count) = 0;
-          id(side_sig_left_tl) = 0.0f;
-          id(side_sig_left_tr) = 0.0f;
-          id(side_sig_left_bl) = 0.0f;
-          id(side_sig_left_br) = 0.0f;
-
-          id(side_sig_right_count) = 0;
-          id(side_sig_right_tl) = 0.0f;
-          id(side_sig_right_tr) = 0.0f;
-          id(side_sig_right_bl) = 0.0f;
-          id(side_sig_right_br) = 0.0f;
-
-          id(side_sig_center_count) = 0;
-          id(side_sig_center_tl) = 0.0f;
-          id(side_sig_center_tr) = 0.0f;
-          id(side_sig_center_bl) = 0.0f;
-          id(side_sig_center_br) = 0.0f;
-
-          id(calibration_sample_count) = 0;
-          id(calibration_motion_seen) = false;
-          id(calibration_capture_valid) = false;
-          id(calibration_capture_active_state) = false;
-          id(calibration_capture_finished_state) = false;
-          id(calibration_capture_active).publish_state(false);
-          id(calibration_capture_finished).publish_state(false);
-          id(calibration_capture_status).publish_state("idle: calibration reset; next quarter pass 1; next total sample 1");
-
-          id(inv_tl_tl) = 1.0f;
-          id(inv_tl_tr) = 0.0f;
-          id(inv_tl_bl) = 0.0f;
-          id(inv_tl_br) = 0.0f;
-
-          id(inv_tr_tl) = 0.0f;
-          id(inv_tr_tr) = 1.0f;
-          id(inv_tr_bl) = 0.0f;
-          id(inv_tr_br) = 0.0f;
-
-          id(inv_bl_tl) = 0.0f;
-          id(inv_bl_tr) = 0.0f;
-          id(inv_bl_bl) = 1.0f;
-          id(inv_bl_br) = 0.0f;
-
-          id(inv_br_tl) = 0.0f;
-          id(inv_br_tr) = 0.0f;
-          id(inv_br_bl) = 0.0f;
-          id(inv_br_br) = 1.0f;
-
-          ESP_LOGI("bed_scale", "Calibration response matrix, spill fractions, direct total model, side signatures, pass counts and inverse reset to identity; next capture starts at pass/sample 1");
+  - platform: template
+    id: reset_gains_button
+    name: "Reset Gains"
+    on_press:
+      - number.set:
+          id: gain_top_left
+          value: 1.0
+      - number.set:
+          id: gain_top_right
+          value: 1.0
+      - number.set:
+          id: gain_bottom_left
+          value: 1.0
+      - number.set:
+          id: gain_bottom_right
+          value: 1.0
+      - lambda: |-
+          ESP_LOGI("bed_scale", "All corner gains reset to 1.0");
 
 interval:
   - interval: 1s
@@ -1733,6 +757,10 @@ interval:
       - lambda: |-
           const unsigned long REQUIRED_MS = 45000;
           unsigned long now = millis();
+
+          if (id(bed_occupied).state) {
+            id(last_occupied_time) = now;
+          }
 
           if (id(playing_state)) {
             if (id(no_movement_start) != 0 && (now - id(no_movement_start) >= REQUIRED_MS)) {
@@ -1747,3 +775,60 @@ interval:
               id(movement_continuous_start) = 0;
             }
           }
+
+  # Guarded auto-tare: only when enabled, bed empty for 15+ min, no movement
+  # for 10+ min, and the total already reads near zero. Slew is capped so a
+  # slowly-appearing real load cannot be tared away quickly.
+  - interval: 60s
+    then:
+      - lambda: |-
+          if (!id(auto_tare_enabled).state) {
+            return;
+          }
+          if (id(bed_occupied).state) {
+            return;
+          }
+
+          const unsigned long now = millis();
+          if (id(last_occupied_time) != 0 && (now - id(last_occupied_time)) < 900000UL) {
+            return;
+          }
+          if (id(last_movement_time) != 0 && (now - id(last_movement_time)) < 600000UL) {
+            return;
+          }
+
+          const float raw_tl = id(weight_top_left).state;
+          const float raw_tr = id(weight_top_right).state;
+          const float raw_bl = id(weight_bottom_left).state;
+          const float raw_br = id(weight_bottom_right).state;
+
+          if (isnan(raw_tl) || isnan(raw_tr) || isnan(raw_bl) || isnan(raw_br)) {
+            return;
+          }
+
+          const float total =
+            id(gain_top_left).state * raw_tl +
+            id(gain_top_right).state * raw_tr +
+            id(gain_bottom_left).state * raw_bl +
+            id(gain_bottom_right).state * raw_br;
+
+          // Only re-zero when the bed already reads (near) empty.
+          if (fabsf(total) > 3.0f) {
+            return;
+          }
+
+          auto slew = [](float &tare, float raw) {
+            if (isnan(raw)) {
+              return;
+            }
+            const float MAX_STEP = 0.05f;  // lb per minute per channel
+            float d = raw - tare;
+            if (d > MAX_STEP) d = MAX_STEP;
+            if (d < -MAX_STEP) d = -MAX_STEP;
+            tare += d;
+          };
+
+          slew(id(tare_top_left), id(no_tare_top_left).state);
+          slew(id(tare_top_right), id(no_tare_top_right).state);
+          slew(id(tare_bottom_left), id(no_tare_bottom_left).state);
+          slew(id(tare_bottom_right), id(no_tare_bottom_right).state);
