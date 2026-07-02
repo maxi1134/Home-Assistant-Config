@@ -737,7 +737,7 @@ script:
           id(tare_bottom_left) = bl;
           id(tare_bottom_right) = br;
           id(calibration_progress).publish_state(
-            "tared - get on the bed. 7 positions: KNEEL on each corner, then lie center, left edge, right edge. Feet and hands OFF the floor! Hold each ~30s.");
+            "tared - get on the bed. 9 positions: KNEEL on each corner, lie center, left edge, right edge, high (head) and low (foot). Feet OFF the floor! Hold each ~30s.");
       - if:
           condition:
             lambda: return id(guided_failed);
@@ -746,7 +746,7 @@ script:
       - while:
           condition:
             lambda: |-
-              return id(guided_ok_count) < 7 && id(guided_attempts) < 15 && !id(guided_failed);
+              return id(guided_ok_count) < 9 && id(guided_attempts) < 20 && !id(guided_failed);
           then:
             # Wait for the person to (re)position — skipped when retrying the
             # same position after a movement-spoiled capture.
@@ -794,12 +794,12 @@ script:
                   id(guided_ok_count) += 1;
                   id(guided_scales).push_back(id(last_capture_scale));
                   char msg[128];
-                  if (id(guided_ok_count) < 7) {
+                  if (id(guided_ok_count) < 9) {
                     snprintf(msg, sizeof(msg),
-                             "captured %d/7 - move to the next position and hold still ~30s",
+                             "captured %d/9 - move to the next position and hold still ~30s",
                              id(guided_ok_count));
                   } else {
-                    snprintf(msg, sizeof(msg), "captured 7/7 - computing gains");
+                    snprintf(msg, sizeof(msg), "captured 9/9 - computing gains");
                   }
                   id(calibration_progress).publish_state(msg);
                 } else if (id(cal_sample_count) < 8) {
@@ -828,14 +828,17 @@ script:
           std::sort(v.begin(), v.end());
           const float median = v[v.size() / 2];
 
-          // Statics: the summed reading must match the known weight at EVERY
-          // position. Captures disagreeing beyond ~20% mean weight bypassed
-          // the cells (feet on the floor, frame touching a wall, ...).
+          // Statics: the summed reading matches the known weight at every
+          // position ONLY if all load goes through the cells. On this bed the
+          // frame carries a position-dependent share, so disagreeing captures
+          // are expected: keep the rows (already in Calibration Sample
+          // history) for the external 4-gain least-squares solve and leave
+          // the gains alone. The uniform median scale would be wrong.
           const float spread = v.back() / v.front();
           if (spread > 1.20f) {
             char msg[192];
             snprintf(msg, sizeof(msg),
-                     "aborted: captures disagree by %.0f%% - weight bypassed the bed (feet on floor? frame touching something?). Gains NOT changed",
+                     "captures done - they disagree by %.0f%% (frame carries part of the load), gains unchanged: run the external 4-gain solve on the rows",
                      (spread - 1.0f) * 100.0f);
             id(calibration_progress).publish_state(msg);
             return;
