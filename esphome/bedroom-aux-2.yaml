@@ -1,25 +1,478 @@
 esphome:
-  name: bedroom-aux-2
-  friendly_name: Bedroom Aux-2
+  friendly_name: Home Assistant Connect Aux-2
+  name: connect-aux-2
+  name_add_mac_suffix: true
+  min_version: 2026.6.0
+  project:
+    name: Nabu Casa.Home Assistant Connect Aux-2
+    version: dev
+  on_boot:
+    # Must run before improv_serial::setup() but still after the
+    # 250-priority network components (wifi (250), ethernet (250)), and
+    # w5500_link_monitor (250) have all completed setup() — all DISABLED.
+    # Activate exactly one interface based on the persisted use_wifi flag;
+    # the inactive component leaves SPI / the W5500 untouched so whichever
+    # wins owns the bus alone. Transitions to the other interface cross a
+    # reboot, driven by w5500_link_monitor (in Wi-Fi mode, on cable insert)
+    # or ethernet.on_disconnect (in Ethernet mode, on cable removal).
+    priority: 205
+    then:
+      - if:
+          condition:
+            lambda: 'return id(use_wifi);'
+          then:
+            - wifi.enable:
+            - w5500_link_monitor.start: link_monitor
+          else:
+            - ethernet.enable:
 
-# Replace this with your actual platform if you aren't using ESP32.
 esp32:
-  board: esp32dev
+  board: esp32-s3-devkitc-1
+  cpu_frequency: 240MHz
+  variant: esp32s3
+  flash_size: 8MB
+  framework:
+    type: esp-idf
+    version: recommended
+    sdkconfig_options:
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+      CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB: "y"
+
+      # Moves instructions and read only data from flash into PSRAM on boot.
+      # Both enabled allows instructions to execute while a flash operation is in progress without needing to be placed in IRAM.
+      # Considerably speeds up mWW at the cost of using more PSRAM.
+      CONFIG_SPIRAM_RODATA: "y"
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"
+
+      CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST: "y"
+      CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY: "y"
+
+sensor:
+  # 3.5 mm combo-jack detect (v3+ hardware only — pin floats on v2, so the
+  # auto_output_mode_switch defaults OFF). Voltage rails:
+  #   ~0.00 V → analog TRS plug
+  #   ~1.65 V → nothing inserted
+  #   ~2.20 V → TOSLink-mini plug
+  - platform: adc
+    pin: 8
+    id: jack_detect_voltage
+    name: Audio Jack Detect Voltage
+    entity_category: diagnostic
+    attenuation: 12db
+    update_interval: 1s
+    on_value_range:
+      - below: 0.8
+        then:
+          - if:
+              condition:
+                switch.is_on: auto_output_mode_switch
+              then:
+                - select.set:
+                    id: audio_output_selector
+                    option: "Analog (PCM5122 DAC)"
+      - above: 2.0
+        then:
+          - if:
+              condition:
+                switch.is_on: auto_output_mode_switch
+              then:
+                - select.set:
+                    id: audio_output_selector
+                    option: "SPDIF (TOSLink)"
+
+psram:
+  mode: octal
+  speed: 80MHz
+  ignore_not_found: false  # Aux-2 has PSRAM, so this is safe
+
+external_components:
+  - source: github://pr#14255
+    components: [ethernet, network, wifi]
+    refresh: always
+  - source:
+      type: local
+      path: components
+    components: [w5500_link_monitor]
+
+# Restored from NVS at boot. Drives which network interface comes up via the
+# on_boot lambda above. The "Network Interface" select component updates this
+# value and reboots so the change takes effect.
+globals:
+  - id: use_wifi
+    type: bool
+    restore_value: yes
+    # Default Wi-Fi on a fresh/factory-reset device so improv_serial and the AP are
+    # available immediately for provisioning (no startup wait). w5500_link_monitor
+    # runs in Wi-Fi mode and, if a cable is present, fires on_link_up on its first
+    # poll (~2s) -> sets use_wifi=false -> reboot into Ethernet. restore_value keeps
+    # the learned interface across reboots, so this initial_value only applies on the
+    # very first boot (or after a factory reset).
+    initial_value: 'true'
+
+network:
+  priority:
+    - ethernet
+    - wifi
+
+ethernet:
+  id: eth_component
+  enable_on_boot: false
+  type: W5500
+  clock_speed: 80MHz
+  clk_pin: 12
+  mosi_pin: 11
+  miso_pin: 13
+  cs_pin: 10
+  interrupt_pin: 14
+  reset_pin: 39
+  # Cable unplugged while running on ethernet → reboot into wifi. The
+  # disconnect_trigger only fires after we've reached CONNECTED at least
+  # once (see ethernet_component_esp32.cpp), so initial CONNECTING-state
+  # retries on a no-cable boot don't churn this action.
+  on_disconnect:
+    - globals.set:
+        id: use_wifi
+        value: 'true'
+    - lambda: 'global_preferences->sync();'
+    - delay: 500ms
+    - button.press: restart_button
+
+# Active only on Wi-Fi-mode boots. Polls the W5500's PHYCFGR register over
+# SPI and fires on_link_up when a cable is detected, so we reboot into
+# ethernet mode. Inherits SPI host, pins, and clock speed from the ethernet
+# component above — only one of the two ever calls spi_bus_initialize() on
+# a given boot.
+w5500_link_monitor:
+  id: link_monitor
+  ethernet_id: eth_component
+  on_link_up:
+    - globals.set:
+        id: use_wifi
+        value: 'false'
+    - lambda: 'global_preferences->sync();'
+    - delay: 500ms
+    - button.press: restart_button
+
+wifi:
+  id: wifi_component
+  enable_btm: true
+  enable_rrm: true
+  enable_on_boot: false
+  power_save_mode: none
+  use_psram: true
+
+improv_serial:
+  id: improv_serial_component
 
 logger:
+  hardware_uart: UART0
 
 api:
-  encryption:
-    key: "HL5P1k1b4ZThWf8n41YNQeC8x6IkOMl/gO7lC+knwdw="
+  # Device runs standalone as a SendSpin audio device; don't reboot
+  # when no Home Assistant client is connected.
+  reboot_timeout: 0s
 
 ota:
   - platform: esphome
 
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-  ap:
-    ssid: Bedroom Aux-2 Fallback Hotspot
-    password: "WsiU6k0Gs3Pw"
+http_request:
 
-captive_portal:
+##### Bluetooth Proxy
+bluetooth_proxy:
+  id: proxy_bt_proxy
+
+esp32_ble_tracker:
+  id: proxy_ble_tracker
+
+select:
+  - platform: template
+    name: Bluetooth Scanner Mode
+    id: scanner_mode_selector
+    entity_category: config
+    options:
+      - "Passive"
+      - "Active"
+    lambda: |-
+      if (id(proxy_ble_tracker).get_scan_active()) {
+        return {"Active"};
+      } else {
+        return {"Passive"};
+      }
+    set_action:
+      - lambda: |-
+          id(proxy_bt_proxy).bluetooth_scanner_set_mode(x == "Active");
+      - component.update: scanner_mode_selector
+  - platform: template
+    id: audio_output_selector
+    name: Audio Output
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    options:
+      - "Analog (PCM5122 DAC)"
+      - "SPDIF (TOSLink)"
+    on_value:
+      - router.speaker.switch_output:
+          id: audio_router_speaker
+          target_speaker: !lambda |-
+            if (x == "SPDIF (TOSLink)") {
+              return id(i2s_audio_spdif_speaker);
+            }
+            return id(i2s_audio_dac_speaker);
+
+##### Z-Wave Proxy
+mdns:
+  services:
+    - service: "_zwave"
+      protocol: "_tcp"
+      port: 6053
+      txt:
+        protocol: "esphome"
+
+usb_uart:
+  - type: CDC_ACM
+    vid: 0x303A
+    pid: 0x4001
+    channels:
+      - id: uch_1
+        baud_rate: 115200
+        buffer_size: 1024
+
+zwave_proxy:
+  id: zw_proxy
+  uart_id: uch_1
+
+##### UARTs & Serial Proxies
+uart:
+  - id: uart_rs232_port_1
+    tx_pin: 17
+    rx_pin: 18
+    baud_rate: 9600
+  - id: uart_rs232_port_2
+    tx_pin: 47
+    rx_pin: 48
+    baud_rate: 9600
+
+serial_proxy:
+  - id: rs232_proxy_1
+    uart_id: uart_rs232_port_1
+    name: RS-232 Port 1
+    port_type: RS232
+  - id: rs232_proxy_2
+    uart_id: uart_rs232_port_2
+    name: RS-232 Port 2
+    port_type: RS232
+
+##### I2C Components
+i2c:
+  # Audio codec
+  - id: i2c_audio
+    scl: 16
+    sda: 15
+    frequency: 400kHz
+    scan: true
+  # Grove
+  - id: i2s_grove
+    scl: 2
+    sda: 1
+    frequency: 400kHz
+    scan: true
+
+##### Audio Components
+i2s_audio:
+  - id: i2s_bus
+    i2s_bclk_pin: 5
+    i2s_mclk_pin: 4
+    i2s_lrclk_pin: 6
+
+audio_dac:
+  - platform: pcm5122
+    id: pcm5122_dac
+    i2c_id: i2c_audio
+    address: 0x4C   # Board straps ADR1=ADR2=0 (driver default is 0x4D)
+    # enable_pin: 3   # Codec_XSMT (mute)
+
+speaker:
+  # Router speaker to allow user to select between the DAC and TOSLink outputs
+  - platform: router
+    id: audio_router_speaker
+    output_speakers:
+      - i2s_audio_dac_speaker
+      - i2s_audio_spdif_speaker
+    bits_per_sample: 16
+    num_channels: 2
+    sample_rate: 48000
+
+  # Hardware speaker output (via PCM5122 DAC)
+  - platform: i2s_audio
+    id: i2s_audio_dac_speaker
+    sample_rate: 48000
+    i2s_dout_pin: 7
+    bits_per_sample: 16bit
+    i2s_audio_id: i2s_bus
+    dac_type: external
+    channel: stereo
+    timeout: never
+    buffer_duration: 100ms
+    audio_dac: pcm5122_dac
+
+  # Hardware speaker output (via TOSLink)
+  - platform: i2s_audio
+    id: i2s_audio_spdif_speaker
+    sample_rate: 48000
+    i2s_dout_pin: 40
+    spdif_mode: true
+    bits_per_sample: 16bit
+    i2s_audio_id: i2s_bus
+    dac_type: external
+    channel: stereo
+    timeout: 2s
+    buffer_duration: 100ms
+    use_apll: true
+
+  # Virtual speakers to combine the announcement and media streams together into one output
+  - platform: mixer
+    id: mixing_speaker
+    task_stack_in_psram: true
+    output_speaker: audio_router_speaker
+    num_channels: 2
+    source_speakers:
+      - id: announcement_mixing_input
+        timeout: never
+      - id: media_mixing_input
+        timeout: never
+
+  # Virtual speakers to resample each pipeline's audio, if necessary, as the mixer speaker requires the same sample rate
+  - platform: resampler
+    id: announcement_resampling_speaker
+    task_stack_in_psram: true
+    output_speaker: announcement_mixing_input
+    sample_rate: 48000
+    bits_per_sample: 16
+  - platform: resampler
+    id: media_resampling_speaker
+    task_stack_in_psram: true
+    output_speaker: media_mixing_input
+    sample_rate: 48000
+    bits_per_sample: 16
+
+##### Sendspin Configuration
+sendspin:
+  id: sendspin_hub
+  task_stack_in_psram: true
+
+audio:
+  codecs:
+    flac:
+      # buffer_memory: internal # Unnecessary on an ESP32-S3; uses more internal memory
+    opus:
+      # state_memory: internal # Unnecessary on an ESP32-S3; uses more internal memory
+      pseudostack:
+        # threadsafe: false # Unnecessary on an ESP32-S3; prevents decoding two Opus streams simultaneously
+
+media_source:
+  - platform: audio_http
+    id: announcement_http_source
+    task_stack_in_psram: true
+  - platform: audio_http
+    id: media_http_source
+    task_stack_in_psram: true
+  - platform: sendspin
+    id: sendspin_source
+    task_stack_in_psram: true
+    # decode_memory: internal # Unnecessary on an ESP32-S3; uses more internal memory
+
+media_player:
+  - platform: speaker_source
+    id: external_media_player
+    name: Media Player
+    internal: false
+    volume_increment: 0.05
+    volume_min: 0.4
+    volume_max: 0.85
+    announcement_pipeline:
+      speaker: announcement_resampling_speaker
+      format: FLAC  # FLAC is the least processor intensive codec
+      num_channels: 1  # Stereo audio is unnecessary for announcements
+      sample_rate: 48000
+      sources:
+        - announcement_http_source
+    media_pipeline:
+      speaker: media_resampling_speaker
+      format: FLAC  # FLAC is the least processor intensive codec
+      num_channels: 2
+      sample_rate: 48000
+      sources:
+        - media_http_source
+        - sendspin_source
+    on_announcement:
+      - mixer_speaker.apply_ducking:
+          id: media_mixing_input
+          decibel_reduction: 20
+          duration: 0.0s
+
+##### Other Components
+power_supply:
+  - id: led_power
+    pin: 45
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: status_light
+    name: Status Light
+    entity_category: config
+    pin: 38
+    chipset: ws2812
+    rgb_order: GRB
+    num_leds: 1
+    power_supply: led_power
+    effects:
+      - strobe:
+      - addressable_rainbow:
+
+button:
+  - platform: restart
+    id: restart_button
+    name: Restart
+    entity_category: diagnostic
+  - platform: factory_reset
+    id: factory_reset_button
+    name: Wipe Preferences
+    entity_category: diagnostic
+
+switch:
+  - platform: gpio
+    id: grove_power_switch
+    name: Grove Power
+    pin: 46
+    restore_mode: RESTORE_DEFAULT_ON
+    entity_category: config
+  - platform: gpio
+    id: usb_device_power_switch
+    name: USB Device Power
+    pin: 42
+    restore_mode: RESTORE_DEFAULT_ON
+    entity_category: config
+  # Defaults OFF: jack-detect circuit only exists on v3+ hardware. On v2, GPIO 8
+  # is floating and the ADC reading is meaningless — leave the switch off.
+  - platform: template
+    id: auto_output_mode_switch
+    name: Automatic output mode selection
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    entity_category: config
+    # disabled_by_default: true
+    on_turn_on:
+      - lambda: |-
+          float v = id(jack_detect_voltage).state;
+          if (std::isnan(v)) return;
+          if (v < 0.8f) {
+            auto call = id(audio_output_selector).make_call();
+            call.set_option("Analog (PCM5122 DAC)");
+            call.perform();
+          } else if (v > 2.0f) {
+            auto call = id(audio_output_selector).make_call();
+            call.set_option("SPDIF (TOSLink)");
+            call.perform();
+          }
