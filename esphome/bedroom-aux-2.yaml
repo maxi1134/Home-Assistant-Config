@@ -2,10 +2,10 @@ esphome:
   friendly_name: Home Assistant Connect Aux-2
   name: connect-aux-2
   name_add_mac_suffix: true
-  min_version: 2026.6.0
+  min_version: 2026.7.0
   project:
     name: Nabu Casa.Home Assistant Connect Aux-2
-    version: dev
+    version: 2026.7.1
   on_boot:
     # Must run before improv_serial::setup() but still after the
     # 250-priority network components (wifi (250), ethernet (250)), and
@@ -26,6 +26,9 @@ esphome:
           else:
             - ethernet.enable:
 
+provisioning:
+  timeout: 15min
+
 esp32:
   board: esp32-s3-devkitc-1
   cpu_frequency: 240MHz
@@ -34,6 +37,17 @@ esp32:
   framework:
     type: esp-idf
     version: recommended
+    advanced:
+      nvs_encryption:
+        key_id: 0
+      # External-signing mode: no key here. With Secure Boot V2 (rsa3072)
+      # the public key travels in each image's signature block; binaries
+      # are signed after the build by Autograph, and
+      # publish-signed-firmware.yml verifies them against the KMS public
+      # key before publishing.
+      signed_ota_verification:
+        signing_scheme: rsa3072
+      enable_ota_downgrade_protection: true
     sdkconfig_options:
       CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
       CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
@@ -48,39 +62,6 @@ esp32:
       CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST: "y"
       CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY: "y"
 
-sensor:
-  # 3.5 mm combo-jack detect (v3+ hardware only — pin floats on v2, so the
-  # auto_output_mode_switch defaults OFF). Voltage rails:
-  #   ~0.00 V → analog TRS plug
-  #   ~1.65 V → nothing inserted
-  #   ~2.20 V → TOSLink-mini plug
-  - platform: adc
-    pin: 8
-    id: jack_detect_voltage
-    name: Audio Jack Detect Voltage
-    entity_category: diagnostic
-    attenuation: 12db
-    update_interval: 1s
-    on_value_range:
-      - below: 0.8
-        then:
-          - if:
-              condition:
-                switch.is_on: auto_output_mode_switch
-              then:
-                - select.set:
-                    id: audio_output_selector
-                    option: "Analog (PCM5122 DAC)"
-      - above: 2.0
-        then:
-          - if:
-              condition:
-                switch.is_on: auto_output_mode_switch
-              then:
-                - select.set:
-                    id: audio_output_selector
-                    option: "SPDIF (TOSLink)"
-
 psram:
   mode: octal
   speed: 80MHz
@@ -89,6 +70,9 @@ psram:
 external_components:
   - source: github://pr#14255
     components: [ethernet, network, wifi]
+    refresh: always
+  - source: github://pr#17598
+    components: [improv_serial]
     refresh: always
   - source:
       type: local
@@ -165,6 +149,10 @@ wifi:
 improv_serial:
   id: improv_serial_component
 
+esp32_improv:
+  id: esp32_improv_component
+  authorizer: none
+
 logger:
   hardware_uart: UART0
 
@@ -172,6 +160,7 @@ api:
   # Device runs standalone as a SendSpin audio device; don't reboot
   # when no Home Assistant client is connected.
   reboot_timeout: 0s
+  encryption:
 
 ota:
   - platform: esphome
@@ -187,36 +176,19 @@ esp32_ble_tracker:
 
 select:
   - platform: template
-    name: Bluetooth Scanner Mode
-    id: scanner_mode_selector
-    entity_category: config
-    options:
-      - "Passive"
-      - "Active"
-    lambda: |-
-      if (id(proxy_ble_tracker).get_scan_active()) {
-        return {"Active"};
-      } else {
-        return {"Passive"};
-      }
-    set_action:
-      - lambda: |-
-          id(proxy_bt_proxy).bluetooth_scanner_set_mode(x == "Active");
-      - component.update: scanner_mode_selector
-  - platform: template
     id: audio_output_selector
     name: Audio Output
     entity_category: config
     optimistic: true
     restore_value: true
     options:
-      - "Analog (PCM5122 DAC)"
-      - "SPDIF (TOSLink)"
+      - "Analog"
+      - "Digital"
     on_value:
       - router.speaker.switch_output:
           id: audio_router_speaker
           target_speaker: !lambda |-
-            if (x == "SPDIF (TOSLink)") {
+            if (x == "Digital") {
               return id(i2s_audio_spdif_speaker);
             }
             return id(i2s_audio_dac_speaker);
@@ -291,7 +263,7 @@ audio_dac:
     id: pcm5122_dac
     i2c_id: i2c_audio
     address: 0x4C   # Board straps ADR1=ADR2=0 (driver default is 0x4D)
-    # enable_pin: 3   # Codec_XSMT (mute)
+    enable_pin: 3   # Codec_XSMT (mute)
 
 speaker:
   # Router speaker to allow user to select between the DAC and TOSLink outputs
@@ -460,19 +432,52 @@ switch:
     id: auto_output_mode_switch
     name: Automatic output mode selection
     optimistic: true
-    restore_mode: RESTORE_DEFAULT_OFF
+    restore_mode: RESTORE_DEFAULT_ON
     entity_category: config
-    # disabled_by_default: true
+    disabled_by_default: true
     on_turn_on:
       - lambda: |-
           float v = id(jack_detect_voltage).state;
           if (std::isnan(v)) return;
           if (v < 0.8f) {
             auto call = id(audio_output_selector).make_call();
-            call.set_option("Analog (PCM5122 DAC)");
+            call.set_option("Analog");
             call.perform();
           } else if (v > 2.0f) {
             auto call = id(audio_output_selector).make_call();
-            call.set_option("SPDIF (TOSLink)");
+            call.set_option("Digital");
             call.perform();
           }
+
+sensor:
+  # 3.5 mm combo-jack detect (v3+ hardware only — pin floats on v2, so the
+  # auto_output_mode_switch defaults OFF). Voltage rails:
+  #   ~0.00 V → analog TRS plug
+  #   ~1.65 V → nothing inserted
+  #   ~2.20 V → TOSLink-mini plug
+  - platform: adc
+    pin: 8
+    id: jack_detect_voltage
+    # name: Audio Jack Detect Voltage
+    entity_category: diagnostic
+    attenuation: 12db
+    update_interval: 1s
+    on_value_range:
+      - below: 0.8
+        then:
+          - if:
+              condition:
+                switch.is_on: auto_output_mode_switch
+              then:
+                - select.set:
+                    id: audio_output_selector
+                    option: "Analog"
+      - above: 2.0
+        then:
+          - if:
+              condition:
+                switch.is_on: auto_output_mode_switch
+              then:
+                - select.set:
+                    id: audio_output_selector
+                    option: "Digital"
