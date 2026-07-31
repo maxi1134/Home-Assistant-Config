@@ -43,7 +43,8 @@ substitutions:
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
-  min_version: 2026.5.0  # esphome-intercom 2026.6.x requires ESPHome 2026.5.x or newer
+  min_version: 2026.7.0  # esphome-audio-stack v2026.7.0 + the intercom v2026.7.1 speaker
+                         # fork both use the 2026.7 psram task-stack helpers
   name_add_mac_suffix: false
   on_boot:
     - priority: 600
@@ -63,9 +64,16 @@ esphome:
         - script.execute: apply_speaker_gain
 
 external_components:
-  # n-IA-hane/esphome-intercom, pinned to a validated release.
-  - source: github://n-IA-hane/esphome-intercom@v2026.6.2
-    components: [audio_processor, esp_aec, esp_audio_stack, speaker]
+  # Audio backend (esp_audio_stack + esp_aec) lives in the dedicated
+  # esphome-audio-stack repo since 2026.7.0; v2026.7.0 is validated against
+  # ESPHome 2026.7 (pins esp_codec_dev 1.5.10 — the 2026.6.x line left it
+  # unpinned, which breaks ES8311 init at runtime on 2026.7 builds).
+  - source: github://n-IA-hane/esphome-audio-stack@v2026.7.0
+    components: [esp_audio_stack, esp_aec]
+  # The speaker/media_player fork (pause_releases_pipeline) still ships with
+  # esphome-intercom; v2026.7.1 tracks the ESPHome 2026.7-era core.
+  - source: github://n-IA-hane/esphome-intercom@v2026.7.1
+    components: [speaker]
 
 
 esp32:
@@ -148,7 +156,6 @@ logger:
     media_player: INFO
     mdns: INFO
     wifi: INFO
-    audio_processor: INFO
 
 wifi:
   ssid: !secret wifi_ssid
@@ -401,6 +408,9 @@ speaker:
     id: box_speaker
     esp_audio_stack_id: audio_stack
     sample_rate: 48000
+    # audio-stack v2026.7.0 changed the platform default from 500ms to
+    # 'never' — keep the validated auto-stop behavior explicit.
+    timeout: 500ms
 
 media_player:
   - platform: speaker
@@ -1397,39 +1407,48 @@ globals:
     initial_value: "-1"
 
 image:
-  - file: ${error_illustration_file}
+  - platform: file
+    file: ${error_illustration_file}
     id: casita_error
     resize: 320x240
     type: RGB565
-  - file: ${idle_illustration_file}
+  - platform: file
+    file: ${idle_illustration_file}
     id: casita_idle
     resize: 320x240
     type: RGB565
-  - file: ${listening_illustration_file}
+  - platform: file
+    file: ${listening_illustration_file}
     id: casita_listening
     resize: 320x240
     type: RGB565
-  - file: ${thinking_illustration_file}
+  - platform: file
+    file: ${thinking_illustration_file}
     id: casita_thinking
     resize: 320x240
     type: RGB565
-  - file: ${replying_illustration_file}
+  - platform: file
+    file: ${replying_illustration_file}
     id: casita_replying
     resize: 320x240
     type: RGB565
-  - file: ${timer_finished_illustration_file}
+  - platform: file
+    file: ${timer_finished_illustration_file}
     id: casita_timer_finished
     resize: 320x240
     type: RGB565
-  - file: ${loading_illustration_file}
+  - platform: file
+    file: ${loading_illustration_file}
     id: casita_initializing
     resize: 320x240
     type: RGB565
-  - file: https://github.com/esphome/wake-word-voice-assistants/raw/main/error_box_illustrations/error-no-wifi.png
+  - platform: file
+    file: https://github.com/esphome/wake-word-voice-assistants/raw/main/error_box_illustrations/error-no-wifi.png
     id: error_no_wifi
     resize: 320x240
     type: RGB565
-  - file: https://github.com/esphome/wake-word-voice-assistants/raw/main/error_box_illustrations/error-no-ha.png
+  - platform: file
+    file: https://github.com/esphome/wake-word-voice-assistants/raw/main/error_box_illustrations/error-no-ha.png
     id: error_no_ha
     resize: 320x240
     type: RGB565

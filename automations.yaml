@@ -968,6 +968,7 @@
     - binary_sensor.group_workstation_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
     - binary_sensor.group_bathroom_motion_occupancy
+    - binary_sensor.group_hotbox_motion_occupancy
     for:
       hours: 0
       minutes: 0
@@ -1004,6 +1005,7 @@
         target:
           entity_id: '{{off_lights_in_room[repeat.index - 1]    }}'
         action: light.turn_on
+        continue_on_error: true
       for_each: '{{off_lights_in_room}}'
   mode: parallel
   max: 25
@@ -1062,8 +1064,6 @@
   triggers:
   - entity_id:
     - sensor.dryer_current_status
-    from:
-    - running
     to:
     - end
     trigger: state
@@ -1363,7 +1363,7 @@
   actions:
   - variables:
       playing_speakers: '{{ [area_id(states(''sensor.maxi_location_by_petro_v2''))]   |
-        map(''area_entities'') | sum(start=[]) |    select(''search'', ''speakers'')
+        map(''area_entities'') | sum(start=[]) |    select(''search'', ''speaker'')
         | select(''is_state'',''playing'') | unique | list }}
 
         '
@@ -1777,6 +1777,12 @@
     target:
       entity_id: sensor.latest_frigate_event_id
     action: homeassistant.update_entity
+  - metadata: {}
+    data:
+      filename: /media/front_door_capture_on_ringing.png
+    action: camera.snapshot
+    target:
+      entity_id: camera.front_door_ptz_camera_fluent
   - parallel:
     - metadata: {}
       data:
@@ -1789,18 +1795,15 @@
           message: Someone is at the door!
           data:
             channel: doorbell_notifications
-            image: 'https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
-
-              '
+            image: /media/local/front_door_capture_on_ringing.png
             actions:
-            - action: URI
-              title: Security Tab
-              uri: /maxi-mobile/main-view#security_popup
+            - title: Unlock Front Door
+              action: UNLOCK_FRONT_DOOR
             - action: REPLY
               title: Enter Text
             - action: URI
-              title: Open Cameras
-              uri: /maxi-mobile/main-view#cameras
+              title: Security Tab
+              uri: /maxi-mobile/main-view#security_popup
       action: script.broadcast_alert_in_the_house
     - action: script.quickbars_display_camera_pip_on_all_android_tv
       metadata: {}
@@ -1873,13 +1876,13 @@
     charging, so he knows to unplug it.
   triggers:
   - entity_id:
-    - sensor.oneplus_watch_3_battery_level
+    - sensor.maxi_watch_battery_level
     to:
     - '100'
     trigger: state
   conditions:
   - condition: state
-    entity_id: sensor.oneplus_watch_3_battery_state
+    entity_id: sensor.maxi_watch_battery_level
     state:
     - charging
   actions:
@@ -1899,7 +1902,10 @@
     event_type: mobile_app_notification_action
     event_data:
       action: REPLY
-      title: Doorbell Alert
+      channel: doorbell_notifications
+    context:
+      user_id:
+      - 7f1de31122574f6fa2215e519d6083ea
   conditions: []
   actions:
   - action: input_text.set_value
@@ -2037,7 +2043,8 @@
         until:
         - condition: template
           value_template: '{{ wait.trigger is not none }}'
-  mode: single
+  mode: queued
+  max: 4
 - id: '1716566146304'
   alias: Assist play next song
   description: Allows skipping to the next track on the home group speakers via a
@@ -2376,12 +2383,12 @@
     data:
       volume_level: 0.56
     target:
-      entity_id: media_player.home_assistant_voice_09e4a7_media_player
+      entity_id: media_player.mass_bedroom_vpe_speaker
   - action: tts.speak
     data:
       message: Someone has entered, '{{trigger.id}}' has been opened
       cache: true
-      media_player_entity_id: media_player.home_assistant_voice_09e4a7_media_player
+      media_player_entity_id: media_player.mass_bedroom_vpe_speaker
     target:
       entity_id:
       - tts.piper_2
@@ -2389,7 +2396,7 @@
     metadata: {}
     data: {}
     target:
-      entity_id: media_player.home_assistant_voice_09e4a7_media_player
+      entity_id: media_player.mass_bedroom_vpe_speaker
   mode: restart
 - id: '1717038729859'
   alias: Set front door screen text
@@ -2476,6 +2483,17 @@
       seconds: 0
     trigger: state
     from: 'on'
+  - entity_id:
+    - sensor.is_maxi_asleep
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+    trigger: state
+    from:
+    - asleep
+    to:
+    - awake
   conditions:
   - condition: state
     entity_id: alarm_control_panel.home_alarm
@@ -2624,8 +2642,12 @@
   - entity_id:
     - switch.zooz_workshop_ac
     - switch.zooz_bedroom_plug
-    to: 'on'
-    from: 'off'
+    - button.plug_salon_air_purifier_reset_accumulated_values
+    - switch.zooz_hotbox_ac
+    to:
+    - 'on'
+    from:
+    - 'off'
     trigger: state
   conditions: []
   actions:
@@ -2633,8 +2655,8 @@
     data: {}
     target:
       entity_id: '{{ area_entities(area_id(trigger.entity_id))|select(''search'',
-        ''media_player.universal'')|select(''is_state_attr'', ''is_volume_muted'',
-        false)|select(''is_state'', ''playing'')| list }}'
+        ''media_player.mass'')|select(''is_state_attr'', ''is_volume_muted'', false)|select(''is_state'',
+        ''playing'')| list }}'
     action: media_player.volume_up
   mode: single
 - id: '1717290684944'
@@ -2645,8 +2667,12 @@
   - entity_id:
     - switch.zooz_workshop_ac
     - switch.zooz_bedroom_plug
-    to: 'off'
-    from: 'on'
+    - switch.zooz_hotbox_ac
+    - switch.zooz_salon_ac
+    to:
+    - 'off'
+    from:
+    - 'on'
     trigger: state
   conditions: []
   actions:
@@ -2654,8 +2680,8 @@
     data: {}
     target:
       entity_id: '{{ area_entities(area_id(trigger.entity_id))|select(''search'',
-        ''media_player.universal'')|select(''is_state_attr'', ''is_volume_muted'',
-        false)|select(''is_state'', ''playing'')| list }}'
+        ''media_player.mass'')|select(''is_state_attr'', ''is_volume_muted'', false)|select(''is_state'',
+        ''playing'')| list }}'
     action: media_player.volume_down
   mode: single
 - id: '1717291435116'
@@ -3515,14 +3541,16 @@
       area_id: workshop
       entity_id:
       - light.group_workshop_lights
-      - light.workshop_assistant_059a5c_screen
       - light.workshop_table_assistant_04dc50_screen
+      - light.workshop_window_assistant_screen
   - action: number.set_value
     metadata: {}
     data:
       value: '1'
     target:
-      entity_id: number.workshop_tablet_screen_brightness
+      entity_id:
+      - number.workshop_tablet_screen_brightness
+      - number.workshop_secondary_tablet_screen_brightness
   - action: switch.turn_off
     metadata: {}
     data: {}
@@ -3978,11 +4006,16 @@
   description: Broadcasts a non-important alert when the front door is manually unlocked
     from inside, indicating someone is leaving.
   triggers:
-  - entity_id:
-    - sensor.lock_front_door_action
-    trigger: state
-    to: manual_unlock
-  conditions: []
+  - device_id: ee2552d06c36532d24970f8168e9af7e
+    domain: lock
+    entity_id: aa803e0ef9750defe48030e184ec2360
+    type: unlocked
+    trigger: device
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.sensor_front_outside_door_contact
+    state:
+    - 'on'
   actions:
   - action: script.non_important_broadcast_alert_in_the_house
     metadata: {}
@@ -4032,8 +4065,9 @@
           entity_id: binary_sensor.sensor_bedroom_door_contact
           state: 'on'
         - condition: state
-          entity_id: binary_sensor.everything_presence_lite_73fc48_occupancy
-          state: 'on'
+          entity_id: binary_sensor.group_bedroom_motion_occupancy
+          state:
+          - 'on'
       - condition: state
         entity_id: alarm_control_panel.home_alarm
         state: armed_home
@@ -5521,25 +5555,38 @@
     trigger: state
   conditions: []
   actions:
+  - action: cover.close_cover
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - cover.cover_hotbox_blinds
+      - cover.cover_hotbox_bed_door
+    enabled: true
+  - action: light.turn_off
+    metadata: {}
+    data:
+      transition: 10
+    target:
+      area_id: hotbox
+      entity_id:
+      - light.group_hotbox_lights
+      - light.server_assistant_screen
+  - action: switch.turn_off
+    metadata: {}
+    target:
+      entity_id: switch.hotbox_hotbox_tablet_screen
+    data: {}
   - action: remote.turn_off
     metadata: {}
     data: {}
     target:
       entity_id: remote.hotbox_roku
-  - action: cover.close_cover
+  - action: switch.turn_off
     metadata: {}
+    target:
+      entity_id: switch.hotbox_hotbox_tablet_screen
     data: {}
-    target:
-      entity_id: cover.cover_hotbox_blinds
-    enabled: true
-  - action: light.turn_off
-    metadata: {}
-    data:
-      transition: 2
-    target:
-      area_id: hotbox
-      entity_id:
-      - light.group_hotbox_lights
   mode: single
 - id: '1740690697244'
   alias: Control brightness of Front door Phone to avoid discharge
@@ -6054,7 +6101,7 @@
     data:
       cache: true
       media_player_entity_id: "{{ speaker }} \n"
-      message: Phone ringing near the {{states('sensor.bermuda_bc4bcf440a7d4d358cd961821d36ca57_100_40004_bps_zone')}}
+      message: Phone ringing near the {{states('sensor.bermuda_maxi_phone_bps_zone')}}
     target:
       entity_id:
       - tts.piper_2
@@ -6291,10 +6338,13 @@
     continue_on_timeout: false
     timeout:
       hours: 0
-      minutes: 3
+      minutes: 4
       seconds: 0
       milliseconds: 0
-  - action: notify.mobile_app_phone_maxi
+  - action: switch.turn_on
+    metadata: {}
+    target:
+      entity_id: switch.plug_parking_horn
     data: {}
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
@@ -6308,6 +6358,11 @@
       minutes: 3
       seconds: 0
       milliseconds: 0
+  - action: switch.turn_off
+    metadata: {}
+    target:
+      entity_id: switch.plug_parking_horn
+    data: {}
   - action: siren.turn_off
     metadata: {}
     data: {}
@@ -7313,6 +7368,7 @@
       shuffle: true
     target:
       entity_id: media_player.mass_bathroom_vpe_speaker
+    continue_on_error: true
   - action: music_assistant.play_media
     metadata: {}
     data:
@@ -8055,10 +8111,11 @@
   description: Toggles the sleeper-in-hotbox mode when the hotbox sleeper button remote
     is pressed.
   triggers:
-  - trigger: state
-    entity_id:
-    - sensor.remote_hotbox_sleeper_button_action
-    to: 'off'
+  - device_id: cbfe4c29ff6b44e667ff66fd43056d57
+    domain: zha
+    type: remote_button_double_press
+    subtype: turn_on
+    trigger: device
   conditions: []
   actions:
   - action: input_boolean.toggle
@@ -8223,16 +8280,6 @@
       false
 
       {% endif %}'
-  - alias: Stop if myriam's tablet is active in the room
-    condition: template
-    value_template: '{% if (states(''binary_sensor.tablet_myriam_interactive'') ==
-      ''on'' and states(''sensor.myriam_talet_location_compounded'') | lower in [area_id(trigger.entity_id)]
-      | lower) %} false {% else %} true {%endif%}'
-  - alias: Stop if myriam's phone is active in the room
-    condition: template
-    value_template: '{% if (states(''binary_sensor.phone_myriam_interactive'') ==
-      ''on'' and states(''sensor.bermuda_myriam_phone_area'') | lower in [area_id(trigger.entity_id)]
-      | lower) %} false {% else %} true {%endif%}'
   - condition: state
     entity_id: input_boolean.kink_party
     state: 'off'
@@ -8326,28 +8373,6 @@
     data: {}
     target:
       entity_id: input_boolean.following_music
-  mode: single
-- id: '1748287626823'
-  alias: Enable automatic Back Door Horn when Lylou is alone
-  description: This will enable `Maxi is scared` when lylou is home alone for ovr
-    10 minutes
-  triggers:
-  - trigger: state
-    entity_id:
-    - binary_sensor.lylou_alone
-    to: 'on'
-    from: 'off'
-    for:
-      hours: 0
-      minutes: 10
-      seconds: 0
-  conditions: []
-  actions:
-  - action: input_boolean.turn_on
-    metadata: {}
-    data: {}
-    target:
-      entity_id: input_boolean.maxi_is_scared
   mode: single
 - id: '1748329710904'
   alias: 'Disable automatic back horn when Alarm system is disarmed '
@@ -8557,14 +8582,15 @@
         entity_id: climate.bedroom_ac
     - sequence:
       - condition: state
-        entity_id: media_player.mass_bedroom_aux2_speaker
+        entity_id: media_player.mass_bedroom_vpe_speaker
+        state:
+        - thunderstorm
         attribute: media_title
-        state: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
       - action: media_player.media_stop
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.mass_bedroom_aux2_speaker
+          entity_id: media_player.mass_bedroom_vpe_speaker
   mode: single
 - id: '1748845278340'
   alias: execute Sleep actions when "sleeper in bedroom" is turned on
@@ -8613,14 +8639,14 @@
       - condition: or
         conditions:
         - condition: template
-          value_template: '{{ ''thunderstorm'' not in (state_attr(''media_player.mass_bedroom_aux2_speaker'',''media_title'')
+          value_template: '{{ ''thunderstorm'' not in (state_attr(''media_player.mass_bedroom_vpe_speaker'',''media_title'')
             | default('''', true)) }}
 
             '
         - condition: not
           conditions:
           - condition: state
-            entity_id: media_player.mass_bedroom_aux2_speaker
+            entity_id: media_player.mass_bedroom_vpe_speaker
             state:
             - playing
       - condition: state
@@ -8632,7 +8658,7 @@
         metadata: {}
         data: {}
         target:
-          entity_id: media_player.mass_bedroom_aux2_speaker
+          entity_id: media_player.mass_bedroom_vpe_speaker
         continue_on_error: true
       - delay:
           hours: 0
@@ -8645,30 +8671,30 @@
           volume_level: 0.36
         target:
           entity_id:
-          - media_player.mass_bedroom_aux2_speaker
-          - media_player.mass_bedroom_aux2_speaker
+          - media_player.mass_bedroom_vpe_speaker
+          - media_player.mass_bedroom_vpe_speaker
       - data:
           media:
             media_content_id: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
             media_content_type: audio
             metadata: {}
         target:
-          entity_id: media_player.mass_bedroom_aux2_speaker
+          entity_id: media_player.mass_bedroom_vpe_speaker
         action: media_player.play_media
       - metadata: {}
         data:
           is_volume_muted: true
         action: media_player.volume_mute
         target:
-          entity_id: media_player.mass_bedroom_aux2_speaker
+          entity_id: media_player.mass_bedroom_vpe_speaker
       - action: media_player.volume_set
         metadata: {}
         data:
           volume_level: 0.36
         target:
           entity_id:
-          - media_player.mass_bedroom_aux2_speaker
-          - media_player.mass_bedroom_aux2_speaker
+          - media_player.mass_bedroom_vpe_speaker
+          - media_player.mass_bedroom_vpe_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -8678,70 +8704,12 @@
         data:
           is_volume_muted: false
         target:
-          entity_id: media_player.mass_bedroom_aux2_speaker
+          entity_id: media_player.mass_bedroom_vpe_speaker
         action: media_player.volume_mute
     - action: google_assistant_sdk.send_text_command
       metadata: {}
       data:
         command: Power off bedroom TV
-  mode: single
-- id: '1748845695784'
-  alias: Control volume of kitchen to prevent noise in children room while she sleeps
-  description: Caps the kitchen speaker volume at 29% during nighttime hours (9:30
-    PM to 9:00 AM) when a child is sleeping in the hotbox, preventing loud audio from
-    disturbing their sleep.
-  triggers:
-  - trigger: state
-    entity_id:
-    - input_boolean.sleeper_in_hotbox
-    from: 'off'
-    to: 'on'
-  - trigger: state
-    entity_id:
-    - media_player.mass_kitchen_wiim_speaker
-    attribute: volume_level
-  conditions:
-  - condition: state
-    entity_id: input_boolean.sleeper_in_hotbox
-    state: 'on'
-  - condition: time
-    after: '21:30:00'
-    before: 09:00:00
-  - condition: template
-    value_template: '{{ state_attr(''media_player.mass_kitchen_wiim_speaker'',''volume_level'')
-      > 0.28 }}'
-  actions:
-  - action: media_player.volume_set
-    metadata: {}
-    data:
-      volume_level: 0.29
-    target:
-      entity_id: media_player.mass_kitchen_wiim_speaker
-  mode: single
-- id: '1748898158918'
-  alias: Disable Sleeper in children room when children leaves
-  description: Turns off the sleeper-in-hotbox mode 10 minutes after Lylou leaves
-    home, since the sleep protection is no longer needed when the child is away.
-  triggers:
-  - trigger: state
-    entity_id:
-    - person.lylou
-    from: home
-    to: not_home
-    for:
-      hours: 0
-      minutes: 10
-      seconds: 0
-  conditions:
-  - condition: state
-    entity_id: input_boolean.sleeper_in_hotbox
-    state: 'on'
-  actions:
-  - action: input_boolean.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: input_boolean.sleeper_in_hotbox
   mode: single
 - id: '1748927820689'
   alias: UnMute chromecasts when no unmuted speakers in the same room
@@ -9028,15 +8996,17 @@
   - trigger: state
     entity_id:
     - sensor.maxi_location_by_petro_v2
-    from: salon
+    from:
+    - salon
     for:
-      hours: 0
-      minutes: 20
+      hours: 1
+      minutes: 30
       seconds: 0
   conditions:
   - condition: state
-    entity_id: sensor.maxis_current_game
-    state: idle
+    entity_id: sensor.maxi_current_game
+    state:
+    - idle
   actions:
   - action: button.press
     metadata: {}
@@ -9123,28 +9093,6 @@
     target:
       entity_id: input_boolean.sleeper_in_bedroom
     enabled: true
-  mode: single
-- id: '1749057091718'
-  alias: Close hotbox blinds when children leaves for 10 minutes
-  description: Closes the hotbox blinds 10 minutes after Lylou leaves home for privacy
-    and energy savings.
-  triggers:
-  - trigger: state
-    entity_id:
-    - person.lylou
-    from: home
-    to: not_home
-    for:
-      hours: 0
-      minutes: 10
-      seconds: 0
-  conditions: []
-  actions:
-  - action: cover.close_cover
-    metadata: {}
-    data: {}
-    target:
-      entity_id: cover.cover_hotbox_blinds
   mode: single
 - id: '1749235496765'
   alias: Skips song's myriam don't like whe she is home
@@ -9500,7 +9448,7 @@
     state: 'on'
   actions:
   - variables:
-      playing_speakers: '{{ [area_id(states(''sensor.bermuda_59bf2e2b6e484b479cbe6dafc2cfacc0_100_40004_bps_zone''))]   |
+      playing_speakers: '{{ [area_id(states(''sensor.bermuda_myriam_phone_bps_zone''))]   |
         map(''area_entities'') | sum(start=[]) |    select(''search'', ''speakers'')
         | select(''is_state'',''playing'') | unique | list }}
 
@@ -9529,32 +9477,6 @@
     action: media_player.volume_mute
   mode: parallel
   max: 10
-- id: '1750437590850'
-  alias: Turn on Bedroom mirror smart plug when myriam awakes
-  description: Turns on the bedroom mirror lamp plug when Myriam wakes up or 1 minute
-    before her next alarm, provided she has been asleep for at least 30 minutes.
-  triggers:
-  - trigger: state
-    entity_id:
-    - sensor.is_myriam_asleep
-    from: asleep
-    to: awake
-  - trigger: template
-    value_template: '{{ ((state_attr(''sensor.phone_myriam_next_alarm'',''Time in
-      Milliseconds'') / 1000 ) | int - now().timestamp() | int ) < 60 }} '
-    alias: 1  minutes before myriam's next alarm is due
-  conditions:
-  - condition: template
-    value_template: '{{  ((as_timestamp((now()) )   - (as_timestamp(trigger.from_state.last_changed))))
-      | float > 1800}}'
-    alias: If `Myriam is asleep' was on for over 1800 seconds
-  actions:
-  - action: switch.turn_on
-    metadata: {}
-    data: {}
-    target:
-      entity_id: switch.plug_bedroom_mirror_lamp
-  mode: single
 - id: '1750443660133'
   alias: Turn off sleep mode for adaptative lighting when myriam awakes
   description: Turn off sleep mode for adaptative lighting when myriam awakes
@@ -9674,36 +9596,6 @@
             '
       for_each: '{{ playing_speakers }}'
   mode: restart
-- id: '1750625732180'
-  alias: Disable automatic back horn when myriam awakes
-  description: Turns off the "maxi is scared" security mode 3 minutes after Myriam
-    wakes up during daytime hours (6:45 AM to 8:00 PM), since an adult is now awake
-    and aware.
-  triggers:
-  - trigger: state
-    entity_id:
-    - sensor.myriam_is_sleeping_at_home
-    from: asleep
-    to: awake
-    for:
-      hours: 0
-      minutes: 3
-      seconds: 0
-  conditions:
-  - condition: time
-    after: 06:45:00
-    before: '20:00:00'
-  - condition: state
-    entity_id: input_boolean.maximum_back_exit_security
-    state:
-    - 'off'
-  actions:
-  - action: input_boolean.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: input_boolean.maxi_is_scared
-  mode: single
 - id: '1751133520036'
   alias: AI Event Summary (v1.4.3) (Front and Back Door)
   description: Uses AI vision to generate event summaries from the front and back
@@ -9998,38 +9890,6 @@
     data: {}
     target:
       entity_id: input_boolean.maxi_is_scared
-  mode: single
-- id: '1752076862818'
-  alias: Turn on Listening Chime on assist endpoints when screen turns off
-  description: Enables the wake sound chime on ESP32 voice assistant devices when
-    their LCD backlight turns off, so users get an audible confirmation that the assistant
-    is listening.
-  triggers:
-  - trigger: state
-    entity_id:
-    - light.bedroom_assistant_lcd_backlight
-    - light.desktop_assistant_lcd_backlight
-    - light.esp32_s3_box_kitchen_assistant_lcd_backlight
-    - light.lv_assistant_lcd_backlight
-    - light.lounge_assistant_lcd_backlight
-    - light.saloon_assistant_lcd_backlight
-    from: 'on'
-    to: 'off'
-  conditions: []
-  actions:
-  - variables:
-      esp32_wake_sound_entities: '{{([device_id(trigger.entity_id)]  | map(''device_entities'')
-        | sum(start=[]) |select(''match'', ''.*play_wake_sound$'') |  unique | list
-        ) }}
-
-        '
-  - action: switch.turn_on
-    metadata: {}
-    data: {}
-    target:
-      entity_id: '{{esp32_wake_sound_entities}}
-
-        '
   mode: single
 - id: '1752195988065'
   alias: Close salon blind upon sunset
@@ -11246,7 +11106,7 @@
   actions:
   - variables:
       media_players: "{{ area_entities(area_id(trigger.to_state.state) | lower )|select('search',\n
-        \ 'media_player.universal')|select('is_state_attr', 'is_volume_muted',\n  false)|select('is_state',
+        \ 'media_player.mass')|select('is_state_attr', 'is_volume_muted',\n  false)|select('is_state',
         'playing')| list }}\n"
   - action: media_player.volume_up
     metadata: {}
@@ -11314,7 +11174,6 @@
     - switch.group_patio_uv_lamps
     - switch.group_workshop_uv_lamps
     - switch.group_salon_uv_lamps
-    - switch.group_entrance_uv_lamps
     to:
     - 'off'
     from:
@@ -11516,27 +11375,6 @@
         \ |  unique | list ) \n }}"
   mode: parallel
   max: 7
-- id: '1756344417569'
-  alias: Partial sleep actions in hotbox when Lylou falls asleep
-  description: Turns off the hotbox Roku TV when Lylou falls asleep during nighttime
-    hours (8 PM to 7 AM), performing partial sleep actions to reduce stimulation.
-  triggers:
-  - entity_id:
-    - sensor.is_lylou_asleep
-    to: asleep
-    from: awake
-    trigger: state
-  conditions:
-  - condition: time
-    after: '20:00:00'
-    before: 07:00:00
-  actions:
-  - action: remote.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: remote.hotbox_roku
-  mode: single
 - id: '1756568623181'
   alias: Dial Lounge Tree Automation New
   description: Handles an IKEA SYMFONISK dial near the lounge tree, providing volume,
@@ -11647,7 +11485,7 @@
     on the phone, then unmutes them when she leaves or stops talking.
   triggers:
   - entity_id:
-    - sensor.bermuda_59bf2e2b6e484b479cbe6dafc2cfacc0_100_40004_bps_floor
+    - sensor.bermuda_myriam_phone_bps_zone
     trigger: state
   conditions:
   - condition: state
@@ -11658,7 +11496,7 @@
     state: 'on'
   actions:
   - variables:
-      playing_speakers: '{{ [area_id(states(''sensor.bermuda_59bf2e2b6e484b479cbe6dafc2cfacc0_100_40004_bps_zone''))]   |
+      playing_speakers: '{{ [area_id(states(''sensor.bermuda_myriam_phone_bps_zone''))]   |
         map(''area_entities'') | sum(start=[]) |    select(''search'', ''speakers'')
         | select(''is_state'',''playing'') | unique | list }}
 
@@ -11674,7 +11512,7 @@
   - wait_for_trigger:
     - trigger: state
       entity_id:
-      - sensor.bermuda_59bf2e2b6e484b479cbe6dafc2cfacc0_100_40004_bps_floor
+      - sensor.bermuda_myriam_phone_bps_zone
       for:
         hours: 0
         minutes: 0
@@ -11694,32 +11532,6 @@
     action: media_player.volume_mute
   mode: parallel
   max: 10
-- id: '1757805301673'
-  alias: Turn on sleeper in hotbox when Lylou falls asleep
-  description: Activates the 'sleeper in hotbox' boolean when the Lylou sleeping Bayesian
-    sensor has been on for 5 minutes during nighttime, signaling that someone is sleeping
-    in the hotbox.
-  triggers:
-  - trigger: state
-    entity_id:
-    - binary_sensor.lylou_is_asleep_bayesian
-    from: 'off'
-    to: 'on'
-    for:
-      hours: 0
-      minutes: 5
-      seconds: 0
-  conditions:
-  - condition: sun
-    before: sunrise
-    after: sunset
-  actions:
-  - action: input_boolean.turn_on
-    metadata: {}
-    data: {}
-    target:
-      entity_id: input_boolean.sleeper_in_hotbox
-  mode: single
 - id: '1757814887686'
   alias: Add playing Spotify or tidal artist to Lidarr
   description: Automatically adds the currently playing Spotify or Tidal artist to
@@ -11756,31 +11568,6 @@
     response_variable: return
   mode: queued
   max: 4
-- id: '1757861158274'
-  alias: Turn off hotbox sleeper when lylou sleeping bayesian turns off
-  description: Turns off the hotbox sleeper mode 20 minutes after the Lylou sleeping
-    Bayesian sensor switches off, indicating Lylou has woken up.
-  triggers:
-  - trigger: state
-    entity_id:
-    - binary_sensor.lylou_is_asleep_bayesian
-    from: 'on'
-    to: 'off'
-    for:
-      hours: 0
-      minutes: 20
-      seconds: 0
-  conditions:
-  - condition: state
-    entity_id: input_boolean.sleeper_in_hotbox
-    state: 'on'
-  actions:
-  - action: input_boolean.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: input_boolean.sleeper_in_hotbox
-  mode: single
 - id: '1757892274893'
   alias: Lower loud volume when someone exits the shower
   description: Lowers the bathroom speaker volume to 67% when someone exits the shower
@@ -11821,36 +11608,6 @@
       volume_level: 0.67
     target:
       entity_id: media_player.mass_bathroom_vpe_speaker
-  mode: single
-- id: '1758115238753'
-  alias: Disable automatic back horn when lylou awakes between 7:45 and 8:45
-  description: Disables the automatic back horn alert by turning off the 'maxi is
-    scared' boolean when Lylou wakes up between 7:45 and 8:45 AM, preventing unnecessary
-    alarms during morning routines.
-  triggers:
-  - trigger: state
-    entity_id:
-    - binary_sensor.lylou_is_asleep_bayesian
-    from: 'on'
-    to: 'off'
-    for:
-      hours: 0
-      minutes: 3
-      seconds: 0
-  conditions:
-  - condition: time
-    after: 07:45:00
-    before: 08:45:00
-  - condition: state
-    entity_id: input_boolean.maximum_back_exit_security
-    state:
-    - 'off'
-  actions:
-  - action: input_boolean.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: input_boolean.maxi_is_scared
   mode: single
 - id: '1759251745280'
   alias: Notify maxi when myriam arrives at home
@@ -12093,7 +11850,7 @@
     entity_id: alarm_control_panel.home_alarm
     state: armed_night
   - condition: state
-    entity_id: binary_sensor.all_residents_sleeping
+    entity_id: binary_sensor.maxi_sleeping
     state:
     - 'off'
   actions:
@@ -13338,7 +13095,6 @@
   - trigger: state
     entity_id:
     - media_player.universal_salon_chromecast
-    - media_player.salon_roku_tv
     from:
     to:
     - 'off'
@@ -15889,7 +15645,8 @@
       | lower }}'
   - condition: template
     value_template: '{{ states(area_entities(area_id(trigger.entity_id)) | select(''search'',
-      ''mass'') | first | default(''media_player.none'')) == ''playing'' }}
+      ''mass'') | first | default(''media_player.universal_following_media'')) ==
+      ''playing'' }}
 
       '
   actions:
@@ -16020,7 +15777,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - light.patio_patio_wave_projector_light
+    - light.patio_patio_projector_light
     from:
     - 'off'
     to:
@@ -16049,7 +15806,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - light.patio_patio_wave_projector_light
+    - light.patio_patio_projector_light
     from:
     - 'on'
     to:
@@ -16116,3 +15873,293 @@
         transition: '1'
   mode: parallel
   max: 10
+- id: '1783090179161'
+  alias: Re-enable adguard after 2 hours being off
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - switch.adguard_protection_group
+    to:
+    - 'off'
+    for:
+      hours: 1
+      minutes: 0
+      seconds: 0
+  conditions: []
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    target:
+      entity_id: switch.adguard_protection_group
+    data: {}
+  mode: single
+- id: '1785014768103'
+  alias: Close hotbox blind in relationship to ac
+  description: Fully closes the hotbox  blinds when the AC is turned off and the blinds
+    are at or below 30% position, since the partial opening is no longer needed for
+    airflow.
+  triggers:
+  - trigger: state
+    entity_id:
+    - cover.cover_hotbox_blinds
+    attribute: current_position
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 5
+  - trigger: state
+    entity_id:
+    - switch.zooz_salon_ac
+    from:
+    to: 'off'
+  conditions:
+  - condition: state
+    entity_id: switch.zooz_hotbox_ac
+    state:
+    - 'off'
+  - condition: numeric_state
+    entity_id: cover.cover_hotbox_blinds
+    attribute: current_position
+    below: 19
+  actions:
+  - action: cover.set_cover_position
+    metadata: {}
+    data:
+      position: 0
+    target:
+      entity_id: cover.cover_hotbox_blinds
+  mode: single
+- id: '1785014822588'
+  alias: Open hotbox Blind in relation to AC
+  description: Opens the hotbox blinds to at least 29% position when the salon AC
+    is on and the blinds are below that threshold, ensuring adequate airflow for the
+    air conditioner.
+  triggers:
+  - trigger: state
+    entity_id:
+    - cover.cover_hotbox_blinds
+    attribute: current_position
+  - trigger: state
+    entity_id:
+    - switch.zooz_hotbox_ac
+    from:
+    to: 'on'
+  - trigger: state
+    entity_id:
+    - climate.hotbox_ac
+    attribute: hvac_action
+    to:
+    - cooling
+  - trigger: state
+    entity_id:
+    - cover.cover_hotbox_blinds
+    to:
+    - closed
+    from:
+  - trigger: state
+    entity_id:
+    - cover.cover_hotbox_blinds
+    to:
+    - closing
+    from:
+  conditions:
+  - condition: numeric_state
+    entity_id: cover.cover_hotbox_blinds
+    attribute: current_position
+    below: 18
+  - condition: not
+    conditions:
+    - condition: state
+      entity_id: switch.zooz_hotbox_ac
+      state: 'off'
+  actions:
+  - action: cover.set_cover_position
+    metadata: {}
+    data:
+      position: 18
+    target:
+      entity_id: cover.cover_hotbox_blinds
+  mode: restart
+- id: '1785014860283'
+  alias: Close hotbox blind at sunset
+  description: Closes the hotbox  blinds 10 minutes after sunset for privacy and energy
+    efficiency.
+  triggers:
+  - trigger: state
+    entity_id:
+    - sun.sun
+    from: above_horizon
+    to: below_horizon
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+  conditions: []
+  actions:
+  - action: cover.close_cover
+    metadata: {}
+    data: {}
+    target:
+      entity_id: cover.cover_hotbox_blinds
+  mode: single
+- id: '1785357740452'
+  alias: Control Hotbox Circulator in relation to AC plug
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - switch.zooz_hotbox_ac
+    from:
+    - 'off'
+    to:
+    - 'on'
+    id: 'on'
+  - trigger: state
+    entity_id:
+    - switch.zooz_hotbox_ac
+    from:
+    - 'on'
+    to:
+    - 'off'
+    id: 'off'
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - 'on'
+      sequence:
+      - action: switch.turn_on
+        metadata: {}
+        target:
+          entity_id: switch.plug_hotbox_circulator_fan
+        data: {}
+    - conditions:
+      - condition: trigger
+        id:
+        - 'off'
+      sequence:
+      - action: switch.turn_off
+        metadata: {}
+        target:
+          entity_id: switch.plug_hotbox_circulator_fan
+        data: {}
+  mode: single
+- id: '1785451195460'
+  alias: Confirm unlock front door on doorbell action
+  description: Sends a notification with a snapshot asking for confirmation to unlock
+    the front door, then unlocks if confirmed.
+  triggers:
+  - trigger: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: UNLOCK_FRONT_DOOR
+      channel: doorbell_notifications
+    context:
+      user_id:
+      - 7f1de31122574f6fa2215e519d6083ea
+  conditions: []
+  actions:
+  - metadata: {}
+    data:
+      filename: /media/front_door_capture_on_ringing_confirmation.png
+    action: camera.snapshot
+    target:
+      entity_id: camera.front_door_ptz_camera_fluent
+  - action: notify.maxi_notification_group
+    data:
+      message: Unlock Front Door?
+      data:
+        channel: security_alerts_notifications
+        image: /media/local/front_door_capture_on_ringing_confirmation.png
+        actions:
+        - title: Unlock Front Door!
+          action: UNLOCK_FRONT_DOOR_CONFIRMED
+  - wait_for_trigger:
+    - trigger: event
+      event_type: mobile_app_notification_action
+      event_data:
+        action: UNLOCK_FRONT_DOOR_CONFIRMED
+        channel: security_alerts_notifications
+      context:
+        user_id:
+        - 7f1de31122574f6fa2215e519d6083ea
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 7
+      seconds: 30
+      milliseconds: 0
+  - choose:
+    - conditions:
+      - condition: state
+        entity_id: lock.lock_front_door
+        state:
+        - locked
+      sequence:
+      - action: lock.unlock
+        metadata: {}
+        target:
+          entity_id: lock.lock_front_door
+        data: {}
+      - wait_for_trigger:
+        - trigger: state
+          entity_id:
+          - lock.lock_front_door
+          to:
+          - unlocked
+        continue_on_timeout: false
+        timeout:
+          hours: 0
+          minutes: 7
+          seconds: 30
+          milliseconds: 0
+      - action: notify.maxi_notification_group
+        data:
+          message: Door Unlocked!
+          data:
+            channel: security_alerts_notifications
+    - conditions:
+      - condition: state
+        entity_id: lock.lock_front_door
+        state:
+        - unlocked
+      sequence:
+      - action: notify.maxi_notification_group
+        data:
+          message: Door Already Unlocked!
+          data:
+            channel: security_alerts_notifications
+  mode: single
+- id: '1785527528280'
+  alias: Undo sleeper actions in hotbox
+  description: ''
+  triggers:
+  - entity_id:
+    - input_boolean.sleeper_in_hotbox
+    to:
+    - 'off'
+    trigger: state
+    from:
+    - 'on'
+  conditions: []
+  actions:
+  - action: cover.open_cover
+    metadata: {}
+    data: {}
+    target:
+      entity_id:
+      - cover.cover_hotbox_blinds
+      - cover.cover_hotbox_bed_door
+    enabled: true
+  - action: light.turn_on
+    metadata: {}
+    data:
+      transition: 33
+    target:
+      area_id: hotbox
+      entity_id:
+      - light.group_hotbox_lights
+  mode: single

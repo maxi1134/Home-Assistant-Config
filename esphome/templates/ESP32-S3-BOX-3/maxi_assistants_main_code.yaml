@@ -43,7 +43,8 @@ substitutions:
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
-  min_version: 2026.5.0  # esphome-intercom 2026.6.x requires ESPHome 2026.5.x or newer
+  min_version: 2026.7.0  # esphome-audio-stack v2026.7.0 + the intercom v2026.7.1 speaker
+                         # fork both use the 2026.7 psram task-stack helpers
   name_add_mac_suffix: false
   on_boot:
     - priority: 600
@@ -65,9 +66,22 @@ esphome:
         - script.execute: apply_speaker_gain
 
 external_components:
-  # n-IA-hane/esphome-intercom, pinned to a validated release.
-  - source: github://n-IA-hane/esphome-intercom@v2026.6.2
-    components: [audio_processor, esp_aec, esp_audio_stack, speaker]
+  # The audio backend moved out of esphome-intercom in its 2026.7.0 release:
+  # esp_audio_stack + esp_aec now live in the dedicated esphome-audio-stack
+  # repo. v2026.7.0 is the first tag validated against ESPHome 2026.7 — it
+  # pins espressif/esp_codec_dev to 1.5.10 and drops the GMF backend. The old
+  # 2026.6.2 line left esp_codec_dev unpinned (ref "*"), which breaks ES8311
+  # init at runtime on ESPHome 2026.7 builds ("Failed to create ES8311 DAC
+  # codec interface" -> "Failed to start I2S").
+  # NOTE: audio_processor no longer exists as a component — the processor
+  # interface is now internal to esp_audio_stack (audio_core namespace).
+  - source: github://n-IA-hane/esphome-audio-stack@v2026.7.0
+    components: [esp_audio_stack, esp_aec]
+  # The speaker/media_player fork (pause_releases_pipeline) still ships with
+  # esphome-intercom; v2026.7.1 is rebased onto the ESPHome 2026.7-era core
+  # (see the fork's UPSTREAM.md).
+  - source: github://n-IA-hane/esphome-intercom@v2026.7.1
+    components: [speaker]
 
 esp32:
   board: esp32s3box
@@ -83,8 +97,8 @@ esp32:
       CONFIG_SPIRAM_RODATA: "y"
       CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL: "65536"
       CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC: "y"
-      # esp_audio_stack 2026.6.x: GMF / esp-sr / esp_audio_effects allocate via
-      # plain malloc (not ESPHome's RAMAllocator), so route ordinary large
+      # esp_audio_stack: esp-sr / esp_audio_effects / esp_codec_dev allocate
+      # via plain malloc (not ESPHome's RAMAllocator), so route ordinary large
       # mallocs to PSRAM and keep internal RAM for DMA/Wi-Fi/latency-critical
       # use. Mirrors the repo's packages/platform/esp32s3_base.yaml.
       CONFIG_SPIRAM_USE_CAPS_ALLOC: "n"
@@ -162,7 +176,6 @@ logger:
     media_player: INFO
     mdns: INFO
     wifi: INFO
-    audio_processor: INFO
 
 wifi:
   ssid: !secret wifi_ssid
@@ -374,14 +387,11 @@ esp_aec:
   filter_length: 4
   mode: sr_low_cost
 
-# esp_audio_stack (2026.6.x) — successor of i2s_audio_duplex. 1:1 option
-# carry-over, run in "no-codec" mode (no codec: block): the stack does raw
-# I2S read/write and the ESPHome core audio_adc/audio_dac blocks below keep
-# initializing the ES7210/ES8311 over I2C, exactly like the old setup.
-# (The canonical-but-untested-on-Box-3 alternative is the stack's built-in
-# codec: {input: es7210, output: es8311} block with use_tdm_reference for a
-# hardware AEC reference — needs on-device slot-map bring-up, see repo's
-# waveshare-s3 profile and packages/codec/es7210_tdm.yaml before attempting.)
+# esp_audio_stack — successor of i2s_audio_duplex, since 2026.7.0 maintained
+# in the dedicated esphome-audio-stack repo. Runs in codec mode: esp_codec_dev
+# owns the ES7210 (4-ch TDM ADC) and ES8311 (DAC), with one TDM slot carrying
+# the DAC loopback as a hardware AEC reference (bring-up + slot map measured
+# on hallway, 2026-06-11).
 esp_audio_stack:
   id: audio_stack
   i2s_lrclk_pin: GPIO45
@@ -423,11 +433,11 @@ esp_audio_stack:
   tdm_ref_slot: 1          # MEASURED: DAC loopback on slot 1 (= MIC3)
   use_tdm_reference: true
   buffers_in_psram: true
-  audio_task_stack_in_psram: true # new in 2026.6.x — frees ~8 KB internal heap, used by
-                                  # all maintained S3 profiles (helps the LVGL+VA heap budget)
-  aec_reference: previous_frame   # parity with the old duplex config. The 2026.6.x DEFAULT
-                                  # changed to ring_buffer (ADF TYPE2, 80 ms ring) — keep this
-                                  # explicit or the AEC reference timing changes silently.
+  audio_task_stack_in_psram: true # frees ~8 KB internal heap, used by all maintained
+                                  # S3 profiles (helps the LVGL+VA heap budget)
+  aec_reference: previous_frame   # parity with the old duplex config. The component
+                                  # DEFAULT is ring_buffer (ADF TYPE2, 80 ms ring) — keep
+                                  # this explicit or the AEC reference timing changes silently.
 
 microphone:
   - platform: esp_audio_stack
@@ -439,14 +449,19 @@ speaker:
     id: box_speaker
     esp_audio_stack_id: audio_stack
     sample_rate: 48000
+    # audio-stack v2026.7.0 changed the platform default from 500ms to
+    # 'never'. Keep the validated 2026.6.x behavior explicit: auto-stop the
+    # speaker wrapper 500 ms after the last write so an idle stream releases
+    # the stack instead of holding it open indefinitely.
+    timeout: 500ms
 
 media_player:
   - platform: speaker
     name: None
     id: speaker_media_player
-    # Option from the repo's 'speaker' fork (2026.6.2): HA media pause RELEASES
-    # the media pipeline (instead of parking it half-owned) so TTS and timer
-    # alarms can take the speaker graph while a stream is paused.
+    # Option from the esphome-intercom 'speaker' fork (v2026.7.1): HA media
+    # pause RELEASES the media pipeline (instead of parking it half-owned) so
+    # TTS and timer alarms can take the speaker graph while a stream is paused.
     pause_releases_pipeline: true
     volume_min: 0.8
     volume_max: 1.0
@@ -1911,62 +1926,76 @@ globals:
     initial_value: "-1"
 
 image:
-  - file: ${error_illustration_file}
+  - platform: file
+    file: ${error_illustration_file}
     id: casita_error
     resize: 320x240
     type: RGB565
-  - file: ${idle_illustration_file}
+  - platform: file
+    file: ${idle_illustration_file}
     id: casita_idle
     resize: 320x240
     type: RGB565
-  - file: ${listening_illustration_file}
+  - platform: file
+    file: ${listening_illustration_file}
     id: casita_listening
     resize: 320x240
     type: RGB565
-  - file: ${thinking_illustration_file}
+  - platform: file
+    file: ${thinking_illustration_file}
     id: casita_thinking
     resize: 320x240
     type: RGB565
-  - file: ${replying_illustration_file}
+  - platform: file
+    file: ${replying_illustration_file}
     id: casita_replying
     resize: 320x240
     type: RGB565
-  - file: ${timer_finished_illustration_file}
+  - platform: file
+    file: ${timer_finished_illustration_file}
     id: casita_timer_finished
     resize: 320x240
     type: RGB565
-  - file: ${loading_illustration_file}
+  - platform: file
+    file: ${loading_illustration_file}
     id: casita_initializing
     resize: 320x240
     type: RGB565
   # Night variants — swapped in by draw_display when sun.sun is below_horizon.
   # Each RGB565 320x240 image adds ~150 KB to the flash image (rodata), not to
   # internal RAM, so the heap budget is unaffected.
-  - file: ${error_night_illustration_file}
+  - platform: file
+    file: ${error_night_illustration_file}
     id: casita_error_night
     resize: 320x240
     type: RGB565
-  - file: ${idle_night_illustration_file}
+  - platform: file
+    file: ${idle_night_illustration_file}
     id: casita_idle_night
     resize: 320x240
     type: RGB565
-  - file: ${listening_night_illustration_file}
+  - platform: file
+    file: ${listening_night_illustration_file}
     id: casita_listening_night
     resize: 320x240
     type: RGB565
-  - file: ${thinking_night_illustration_file}
+  - platform: file
+    file: ${thinking_night_illustration_file}
     id: casita_thinking_night
     resize: 320x240
     type: RGB565
-  - file: ${replying_night_illustration_file}
+  - platform: file
+    file: ${replying_night_illustration_file}
     id: casita_replying_night
     resize: 320x240
     type: RGB565
-  - file: https://github.com/esphome/wake-word-voice-assistants/raw/main/error_box_illustrations/error-no-wifi.png
+  - platform: file
+    file: https://github.com/esphome/wake-word-voice-assistants/raw/main/error_box_illustrations/error-no-wifi.png
     id: error_no_wifi
     resize: 320x240
     type: RGB565
-  - file: https://github.com/esphome/wake-word-voice-assistants/raw/main/error_box_illustrations/error-no-ha.png
+  - platform: file
+    file: https://github.com/esphome/wake-word-voice-assistants/raw/main/error_box_illustrations/error-no-ha.png
     id: error_no_ha
     resize: 320x240
     type: RGB565

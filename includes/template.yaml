@@ -951,20 +951,20 @@
           - binary_sensor.phone_maxi_interactive
           - binary_sensor.maxi_alone
           - sensor.last_active_room
-          - sensor.bermuda_5f62ef7629b24f70b1bd9a60847429cb_100_40004_area
-          - sensor.bermuda_5f62ef7629b24f70b1bd9a60847429cb_100_40004_bps_zone
-          - sensor.bermuda_fea50693a4e24fb1afcfc6eb07647825_10001_19641_area
-          - sensor.bermuda_fea50693a4e24fb1afcfc6eb07647825_10001_19641_bps_zone
-          - sensor.bermuda_bc4bcf440a7d4d358cd961821d36ca57_100_40004_area
-          - sensor.bermuda_bc4bcf440a7d4d358cd961821d36ca57_100_40004_bps_zone
+          - sensor.bermuda_maxi_watch_area
+          - sensor.bermuda_maxi_watch_bps_zone
+          - sensor.bermuda_maxi_ankle_beacon_area
+          - sensor.bermuda_maxi_ankle_beacon_bps_zone
+          - sensor.bermuda_maxi_phone_area
+          - sensor.bermuda_maxi_phone_bps_zone
     sensor:
       - name: "Maxi Location by petro v2"
         unique_id: maxi_location_by_petro_v2
         state: >-
             {% set info = [
-              ('watch', 'sensor.bermuda_5f62ef7629b24f70b1bd9a60847429cb_100_40004_area', 'sensor.bermuda_5f62ef7629b24f70b1bd9a60847429cb_100_40004_bps_zone'),
-              ('bracelet', 'sensor.bermuda_fea50693a4e24fb1afcfc6eb07647825_10001_19641_area', 'sensor.bermuda_fea50693a4e24fb1afcfc6eb07647825_10001_19641_bps_zone'),
-              ('phone', 'sensor.bermuda_bc4bcf440a7d4d358cd961821d36ca57_100_40004_area', 'sensor.bermuda_bc4bcf440a7d4d358cd961821d36ca57_100_40004_bps_zone'),
+              ('watch', 'sensor.bermuda_maxi_watch_area', 'sensor.bermuda_maxi_watch_bps_zone'),
+              ('bracelet', 'sensor.bermuda_maxi_ankle_beacon_area', 'sensor.bermuda_maxi_ankle_beacon_bps_zone'),
+              ('phone', 'sensor.bermuda_maxi_phone_area', 'sensor.bermuda_maxi_phone_bps_zone'),
               ] %}
               {% set invalid = ['not_home', 'away', 'main floor', 'unknown', 'home', 'unavailable', 'none', ''] %}
               {% set occupied = states('sensor.active_motion_rooms')[1:-1].split(',')
@@ -972,6 +972,8 @@
               {% set gpslocation = states('device_tracker.phone_maxi') | lower %}
               {% set raw_current_room = this.state | lower %}
               {% set current_room = raw_current_room if raw_current_room not in invalid and not raw_current_room.startswith('at ') else '' %}
+              {% set phone_bps_value = states('sensor.bermuda_maxi_phone_bps_zone') | lower %}
+              {% set phone_bps_home = phone_bps_value not in invalid %}
               {% set ns = namespace(votes=[], results=[]) %}
               {% for name, room_entity, zone_entity in info if (name == 'watch' and is_state('binary_sensor.oneplus_watch_3_on_body_sensor', 'on') and is_state('sensor.oneplus_watch_3_charger_type', 'none')) or
                                                               (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on')) or
@@ -1021,7 +1023,7 @@
                   {% set ns.votes = ns.votes + [(last_room, 1, as_timestamp(states['sensor.last_active_room'].last_changed, 0))] %}
                 {% endif %}
               {% endif %}
-              {% if gpslocation == 'home' and current_room != '' %}
+              {% if (gpslocation == 'home' or phone_bps_home) and current_room != '' %}
                 {% set ns.votes = ns.votes + [(current_room, 1, 0)] %}
               {% endif %}
               {% for room, votes in ns.votes | groupby(attribute='0') %}
@@ -1030,7 +1032,7 @@
                 {% set bonus = 1 if room in occupied else 0 %}
                 {% set ns.results = ns.results + [(room, total + bonus, latest)] %}
               {% endfor %}
-              {% if is_state('device_tracker.phone_maxi', 'home') %}
+              {% if is_state('device_tracker.phone_maxi', 'home') or phone_bps_home %}
                 {% set allowed_rooms = occupied %}
                 {% if current_room != '' and current_room not in allowed_rooms %}
                   {% set allowed_rooms = allowed_rooms + [current_room] %}
@@ -1061,9 +1063,9 @@
                  | map('replace', "'", '') | map('trim') | list }}
           devices: >-
             {% set info = [
-              ('watch', 'sensor.bermuda_5f62ef7629b24f70b1bd9a60847429cb_100_40004_area', 'sensor.bermuda_5f62ef7629b24f70b1bd9a60847429cb_100_40004_bps_zone'),
-              ('bracelet', 'sensor.bermuda_fea50693a4e24fb1afcfc6eb07647825_10001_19641_area', 'sensor.bermuda_fea50693a4e24fb1afcfc6eb07647825_10001_19641_bps_zone'),
-              ('phone', 'sensor.bermuda_bc4bcf440a7d4d358cd961821d36ca57_100_40004_area', 'sensor.bermuda_bc4bcf440a7d4d358cd961821d36ca57_100_40004_bps_zone'),
+              ('watch', 'sensor.bermuda_maxi_watch_area', 'sensor.bermuda_maxi_watch_bps_zone'),
+              ('bracelet', 'sensor.bermuda_maxi_ankle_beacon_area', 'sensor.bermuda_maxi_ankle_beacon_bps_zone'),
+              ('phone', 'sensor.bermuda_maxi_phone_area', 'sensor.bermuda_maxi_phone_bps_zone'),
             ] %}
             {% set ns = namespace(lines=[]) %}
             {% for name, area, bps in info if (name == 'watch' and is_state('binary_sensor.oneplus_watch_3_on_body_sensor', 'on') and is_state('sensor.oneplus_watch_3_charger_type', 'none')) or

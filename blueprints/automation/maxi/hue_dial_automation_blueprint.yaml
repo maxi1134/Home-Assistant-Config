@@ -4,7 +4,10 @@ blueprint:
     Controls a light group using a Hue dial remote, supporting light toggle,
     full brightness, brightness adjustment via dial rotation, color effects,
     and dim-to-minimum via button presses. Select the dial device and the light
-    (group) to control.
+    (group) to control. Button 2 additionally turns off any UV switch
+    (switch.*uv*) in the room and stops running light effects (via
+    'effect_stop' for LIFX, 'Solid' for WLED, or 'off' for a ZHA colorloop,
+    depending on what the device supports).
   domain: automation
   input:
     dial_device:
@@ -18,6 +21,9 @@ blueprint:
       description: >-
         The light or light group to control. A light group entity works best so
         the brightness conditions and color logic operate on the whole group.
+        For button 2's room logic (UV switches off, effect stop) use a Home
+        Assistant helper light group or an entity with an area assigned —
+        native ZHA/Hue group entities cannot be expanded into their members.
       selector:
         entity:
           domain: light
@@ -132,6 +138,92 @@ actions:
             id:
               - button_2_press
         sequence:
+          - variables:
+              # Areas the controlled light(s) live in: each member's area plus
+              # the group entity's own area, if assigned.
+              room_areas: >-
+                {{ ((expand(controlled_light) | map(attribute='entity_id')
+                     | map('area_id') | list)
+                    + [area_id(controlled_light)])
+                   | reject('none') | unique | list }}
+              uv_switches: >-
+                {{ room_areas | map('area_entities') | sum(start=[])
+                   | select('match', 'switch\.')
+                   | select('search', '(\.|_)uv([0-9]*)(_|$)')
+                   | unique | list }}
+              # Lights that get an effect-stop: every member of the controlled
+              # group (they are being turned on anyway) plus any other light in
+              # the room that is already on — never turns on an unrelated light.
+              effect_candidates: >-
+                {{ ((expand(controlled_light) | map(attribute='entity_id') | list)
+                    + (expand(room_areas | map('area_entities') | sum(start=[])
+                              | select('match', 'light\.') | list)
+                       | selectattr('state', 'eq', 'on')
+                       | map(attribute='entity_id') | list))
+                   | unique | list }}
+              # Effect names verified against the entity registry (2026-07-25):
+              # LIFX lights expose 'effect_stop', the WLED strip exposes
+              # 'Solid', ZHA bulbs expose 'off' (only sent when a colorloop is
+              # actually running, to avoid flooding the Zigbee network).
+              effect_stop_lights: >-
+                {{ expand(effect_candidates)
+                   | selectattr('attributes.effect_list', 'defined')
+                   | rejectattr('attributes.effect_list', 'none')
+                   | selectattr('attributes.effect_list', 'contains', 'effect_stop')
+                   | map(attribute='entity_id') | unique | list }}
+              solid_lights: >-
+                {{ expand(effect_candidates)
+                   | selectattr('attributes.effect_list', 'defined')
+                   | rejectattr('attributes.effect_list', 'none')
+                   | selectattr('attributes.effect_list', 'contains', 'Solid')
+                   | rejectattr('attributes.effect_list', 'contains', 'effect_stop')
+                   | map(attribute='entity_id') | unique | list }}
+              zha_colorloop_lights: >-
+                {{ expand(effect_candidates)
+                   | selectattr('attributes.effect_list', 'defined')
+                   | rejectattr('attributes.effect_list', 'none')
+                   | selectattr('attributes.effect_list', 'contains', 'off')
+                   | selectattr('attributes.effect', 'defined')
+                   | selectattr('attributes.effect', 'eq', 'colorloop')
+                   | map(attribute='entity_id') | unique | list }}
+          # UV projectors cut out first, before any light command.
+          - if:
+              - condition: template
+                value_template: "{{ uv_switches | count > 0 }}"
+            then:
+              - action: switch.turn_off
+                target:
+                  entity_id: "{{ uv_switches }}"
+          # Stop effects BEFORE the white/max command so the white command has
+          # the final word on color and brightness (a 'Solid' effect sent
+          # afterwards could override the white with a stored color).
+          - if:
+              - condition: template
+                value_template: "{{ effect_stop_lights | count > 0 }}"
+            then:
+              - action: light.turn_on
+                data:
+                  effect: effect_stop
+                target:
+                  entity_id: "{{ effect_stop_lights }}"
+          - if:
+              - condition: template
+                value_template: "{{ solid_lights | count > 0 }}"
+            then:
+              - action: light.turn_on
+                data:
+                  effect: Solid
+                target:
+                  entity_id: "{{ solid_lights }}"
+          - if:
+              - condition: template
+                value_template: "{{ zha_colorloop_lights | count > 0 }}"
+            then:
+              - action: light.turn_on
+                data:
+                  effect: "off"
+                target:
+                  entity_id: "{{ zha_colorloop_lights }}"
           - action: light.turn_on
             metadata: {}
             data:
