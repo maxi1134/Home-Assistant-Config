@@ -38,7 +38,8 @@
         state: >-
           {{ is_state('person.lylou', 'home')
              and is_state('zone.home', '1')
-             and is_state('sensor.chilling_hotspot_client_count', '0') }}
+             and is_state('sensor.chilling_hotspot_client_count', '0')
+             and is_state('sensor.chilling_family', '0') }}
 
       - name: "Myriam is Alone"
         unique_id: myriam_alone
@@ -133,21 +134,26 @@
         event: start
     binary_sensor:
       # True when at least 2 of the 3 residents (Maxi, Myriam, Lylou) are asleep at home.
+      # Exception: when Maxi is home alone, it's True as soon as Maxi is asleep.
       # Used by automations to enter "night mode" (dim lights, lower speaker volumes, etc.)
       - name: "All residents Sleeping"
         unique_id: all_residents_sleeping
         state: >
             {% set myriam_sleeping_state = states('sensor.myriam_is_sleeping_at_home') %}
             {% set maxi_sleeping_state = states('sensor.is_maxi_asleep') %}
-            {% set lylou_sleeping_state = states('sensor.is_lylou_asleep') %}
-
-            {% set asleep_count = 
-              [myriam_sleeping_state, maxi_sleeping_state, lylou_sleeping_state]
-              | select('equalto', 'asleep') 
-              | list 
-              | length 
-            %}
-            {{ asleep_count >= 2 }}
+            {% set maxi_asleep = maxi_sleeping_state == 'asleep' %}
+            {# When Maxi is home alone, just require Maxi to be asleep #}
+            {% if is_state('binary_sensor.maxi_alone', 'on') %}
+              {{ maxi_asleep }}
+            {% else %}
+              {% set asleep_count = 
+                [myriam_sleeping_state, maxi_sleeping_state]
+                | select('equalto', 'asleep') 
+                | list 
+                | length
+              %}
+              {{ asleep_count >= 2 }}
+            {% endif %}
 
   - binary_sensor:
       # ─── Communication Detection Binary Sensors ───

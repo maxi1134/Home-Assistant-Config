@@ -351,17 +351,23 @@
       minutes: 20
       seconds: 0
   conditions:
-  - condition: time
-    after: '10:00:00'
-    before: '22:00:00'
-    weekday:
-    - fri
-    - thu
-    - wed
-    - tue
-    - mon
-    - sat
-    - sun
+  - condition: or
+    conditions:
+    - condition: time
+      after: 08:00:00
+      before: '22:00:00'
+      weekday:
+      - fri
+      - thu
+      - wed
+      - tue
+      - mon
+    - condition: time
+      after: '10:00:00'
+      before: '22:00:00'
+      weekday:
+      - sun
+      - sat
   actions:
   - target:
       entity_id: switch.adaptive_lighting_sleep_mode_adaptive_lighting
@@ -1021,12 +1027,14 @@
     - binary_sensor.group_workshop_motion_occupancy
     - binary_sensor.group_workstation_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
+    - binary_sensor.group_hotbox_motion_occupancy
     for:
       hours: 0
       minutes: 5
       seconds: 0
     trigger: state
-    to: 'off'
+    to:
+    - 'off'
   conditions:
   - condition: state
     entity_id: input_boolean.following_music
@@ -1377,68 +1385,6 @@
     action: media_player.volume_mute
   mode: parallel
   max: 10
-- id: '1714403972538'
-  alias: Mute speakers when unmuted chromecast plays in the same room
-  description: Auto-mutes speakers in a room when a Chromecast in the same room starts
-    playing, preventing audio overlap.
-  triggers:
-  - alias: Chromecasts
-    entity_id:
-    - media_player.universal_workshop_chromecast
-    - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_patio_chromecast
-    - media_player.universal_salon_chromecast
-    - media_player.universal_bedroom_chromecast
-    - media_player.universal_kitchen_chromecast
-    - media_player.universal_tablet_myriam_s8
-    to: playing
-    trigger: state
-  - alias: Speakers
-    entity_id:
-    - media_player.mass_workshop_wiim_speaker
-    - media_player.mass_salon_wiim_speaker
-    - media_player.mass_bedroom_aux2_speaker
-    - media_player.mass_kitchen_wiim_speaker
-    to: playing
-    trigger: state
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 2
-  - alias: Chromecasts Muted status
-    entity_id:
-    - media_player.universal_workshop_chromecast
-    - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_patio_chromecast
-    - media_player.universal_salon_chromecast
-    - media_player.universal_bedroom_chromecast
-    - media_player.universal_kitchen_chromecast
-    trigger: state
-    attribute: is_volume_muted
-  conditions:
-  - condition: template
-    value_template: '{{trigger.to_state.state != ''unavailable''}}'
-  actions:
-  - variables:
-      playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-        \ | sum(start=[])\n  | select('search', 'speakers')\n  | select('is_state','playing')\n
-        \ | unique\n  | list \n}}\n"
-      unmuted_player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-        \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
-        'universal')\n  | expand\n  | rejectattr('state', 'eq', 'off')\n  | rejectattr('state',
-        'eq', 'unavailable')\n  | selectattr('attributes.is_volume_muted', 'eq', false)\n
-        \ | map(attribute='entity_id')\n  | unique\n  | list \n}}\n"
-  - if:
-    - condition: template
-      value_template: '{{ unmuted_player_chromecasts != [] }}'
-    then:
-    - action: media_player.volume_mute
-      metadata: {}
-      data:
-        is_volume_muted: true
-      target:
-        entity_id: '{{playing_speakers | list}}'
-  mode: restart
 - id: '1714405984049'
   alias: Reload tablets when frigate changes state
   description: Reloads the hallway and salon desk tablets when Frigate's status changes,
@@ -2045,24 +1991,6 @@
           value_template: '{{ wait.trigger is not none }}'
   mode: queued
   max: 4
-- id: '1716566146304'
-  alias: Assist play next song
-  description: Allows skipping to the next track on the home group speakers via a
-    voice conversation command.
-  triggers:
-  - trigger: conversation
-    command:
-    - '[Play] [the] next song'
-    - Skip [this/the] song
-  conditions: []
-  actions:
-  - metadata: {}
-    data: {}
-    target:
-      entity_id:
-      - media_player.group_mass_home_group_speakers
-    action: media_player.media_next_track
-  mode: single
 - id: '1716912930623'
   alias: Turn camera to doorway on doorbell action
   description: Points the front door PTZ camera to the doorway preset whenever the
@@ -2207,59 +2135,6 @@
       entity_id: switch.plug_front_door_horn
     data: {}
     action: switch.turn_off
-  mode: restart
-- id: '1717016815299'
-  alias: Alert when someone is in the back (old)
-  description: Sends a security notification with a camera snapshot when someone is
-    detected near the back entrance, offering the option to sound the back horn.
-  triggers:
-  - trigger: state
-    entity_id:
-    - binary_sensor.back_entrance_presence_person_occupancy
-    - binary_sensor.back_door_loitering_all_occupancy
-    from:
-    to: 'on'
-  conditions:
-  - condition: state
-    entity_id: input_boolean.party_in_the_back_yard
-    state: 'off'
-  actions:
-  - metadata: {}
-    data:
-      filename: /media/backdoor_movement.png
-    target:
-      entity_id: camera.back_door_camera
-    action: camera.snapshot
-  - metadata: {}
-    data:
-      message: Someone is in the back!
-      title: Someone is in the back!
-      data:
-        ttl: 0
-        priority: high
-        image: /media/local/backdoor_movement.png
-        actions:
-        - action: blow_horn_back
-          title: Blow the horn for 2 minutes?
-        channel: security_alerts_notifications
-    action: notify.maxi_notification_group
-  - wait_for_trigger:
-    - event_type: mobile_app_notification_action
-      context: {}
-      event_data:
-        action: blow_horn_back
-      trigger: event
-    continue_on_timeout: false
-    timeout:
-      hours: 0
-      minutes: 5
-      seconds: 0
-      milliseconds: 0
-  - metadata: {}
-    data: {}
-    target:
-      entity_id: switch.plug_back_door_horn
-    action: switch.turn_on
   mode: restart
 - id: '1717016954049'
   alias: Automatically turn off the back security horn after 2 minutes and ask if
@@ -2684,27 +2559,6 @@
         ''playing'')| list }}'
     action: media_player.volume_down
   mode: single
-- id: '1717291435116'
-  alias: Reload tablet page when motion is detected in the kitchen
-  description: Reloads the kitchen tablet to its start URL after 5 minutes of no motion,
-    keeping the dashboard fresh for the next visitor.
-  triggers:
-  - entity_id:
-    - binary_sensor.group_kitchen_motion_occupancy
-    to: 'off'
-    trigger: state
-    for:
-      hours: 0
-      minutes: 5
-      seconds: 0
-  conditions: []
-  actions:
-  - metadata: {}
-    data: {}
-    action: button.press
-    target:
-      entity_id: button.tablet_kitchen_s6_lite_load_start_url
-  mode: single
 - id: '1717354512446'
   alias: Alert when there is motion inside during arm away and trigger alarm
   description: Triggers a full security alert when doors open or interior motion is
@@ -2730,6 +2584,12 @@
   - trigger: state
     entity_id:
     - binary_sensor.multi_room_security_motion_occupancy
+    to:
+    - 'on'
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 0
   conditions:
   - condition: or
     conditions:
@@ -4220,7 +4080,7 @@
   - trigger: numeric_state
     entity_id:
     - sensor.patio_camera_sound_level
-    above: -20
+    above: -25
   conditions:
   - condition: state
     entity_id: binary_sensor.group_patio_motion_occupancy
@@ -4257,7 +4117,7 @@
       sequence:
       - action: script.broadcast_alert_in_the_house
         data:
-          message: Please reduce the volume on the Patio!
+          message: Please reduce the noise on the Patio!
       - action: notify.maxi_notification_group
         metadata: {}
         data:
@@ -4762,6 +4622,11 @@
       entity_id: media_player.kitchen_google_hub
       attribute: app_id
       state: A078F6B0
+    - condition: state
+      entity_id: media_player.kitchen_google_hub
+      attribute: app_id
+      state:
+      - '84912283'
   - condition: not
     conditions:
     - condition: and
@@ -4786,6 +4651,13 @@
       entity_id: media_player.kitchen_google_hub
       dashboard_path: lovelace-hub
       view_path: kitchen-google-hub
+    enabled: false
+  - action: dash_cast.load_url
+    metadata: {}
+    data:
+      entity_id: media_player.kitchen_google_hub
+      url: http://192.168.0.15:8099/lovelace-hub/kitchen-google-hub?kiosk
+      force: false
   - action: media_player.volume_set
     metadata: {}
     data:
@@ -5428,15 +5300,11 @@
     entity_id: media_player.kitchen_google_hub
     attribute: app_name
     state: Plex
-  - condition: template
-    value_template: '{{ (now() - trigger.from_state.last_changed) > timedelta(seconds=120)}}'
-    enabled: false
-    alias: Only continue if non-playing for over 120 seconds
   actions:
   - action: media_player.volume_set
     metadata: {}
     data:
-      volume_level: 1
+      volume_level: 0.8
     target:
       entity_id: media_player.kitchen_google_hub
   mode: single
@@ -5555,6 +5423,11 @@
     trigger: state
   conditions: []
   actions:
+  - action: media_player.unjoin
+    metadata: {}
+    target:
+      entity_id: media_player.mass_hotbox_wiim_speaker
+    data: {}
   - action: cover.close_cover
     metadata: {}
     data: {}
@@ -5575,7 +5448,9 @@
   - action: switch.turn_off
     metadata: {}
     target:
-      entity_id: switch.hotbox_hotbox_tablet_screen
+      entity_id:
+      - switch.hotbox_hotbox_tablet_screen
+      - switch.hotbox_hotbox_bed_tablet_screen
     data: {}
   - action: remote.turn_off
     metadata: {}
@@ -5585,7 +5460,9 @@
   - action: switch.turn_off
     metadata: {}
     target:
-      entity_id: switch.hotbox_hotbox_tablet_screen
+      entity_id:
+      - switch.hotbox_hotbox_tablet_screen
+      - switch.hotbox_hotbox_bed_tablet_screen
     data: {}
   mode: single
 - id: '1740690697244'
@@ -7244,47 +7121,6 @@
         target:
           entity_id: light.plug_parking_lamp
   mode: single
-- id: '1744572056958'
-  alias: Toggle parking audio detection based on patio occupancy
-  description: Disables parking camera audio detection when patio is occupied (to
-    avoid false alerts from patio activity). Re-enables it 1 minute after patio clears.
-  triggers:
-  - trigger: state
-    entity_id:
-    - binary_sensor.group_patio_motion_occupancy
-    to: 'on'
-    id: patio_occupied
-  - trigger: state
-    entity_id:
-    - binary_sensor.group_patio_motion_occupancy
-    to: 'off'
-    for:
-      hours: 0
-      minutes: 1
-      seconds: 0
-    id: patio_clear
-  conditions: []
-  actions:
-  - choose:
-    - conditions:
-      - condition: trigger
-        id: patio_occupied
-      sequence:
-      - alias: Disable audio detection to avoid false alerts from patio
-        action: switch.turn_off
-        data: {}
-        target:
-          entity_id: switch.parking_exit_camera_audio_detection
-    - conditions:
-      - condition: trigger
-        id: patio_clear
-      sequence:
-      - alias: Re-enable audio detection now that patio is clear
-        action: switch.turn_on
-        data: {}
-        target:
-          entity_id: switch.parking_exit_camera_audio_detection
-  mode: single
 - id: '1744744086412'
   alias: 'Frigate back Doors Notifications '
   description: Always run, even if maxi is sleeping
@@ -7607,58 +7443,6 @@
     target:
       entity_id: switch.reolink_parking_camera_infrared_lights_in_night_mode
   mode: single
-- id: '1745467773993'
-  alias: Frigate Parking notifications
-  description: Only runs if maxi is NOT asleep
-  use_blueprint:
-    path: SgtBatten/Stable.yaml
-    input:
-      presence_filter:
-      - ''
-      camera:
-      - camera.parking_camera
-      - camera.parking_exit_camera
-      notify_device: 76061f2c15b668e8ebc77cfaf47e5b64
-      title: 'Movement on {{ camera_name }} '
-      message: '{{ label }} detected - {{ camera_name }} at {{event[''after''][''start_time'']|timestamp_custom(''%H:%M'')}}'
-      update_sub_label: false
-      subtitle: '{{ camera_name }}  presence triggered'
-      critical: 'false'
-      tts: false
-      tts_helper: input_text.frigate_alerted_ids
-      video: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/clip.mp4'
-      attachment_2: '{{base_url}}/api/frigate{{client_id}}/notifications/{{review_id}}/review_preview.gif'
-      final_update: false
-      color: '#f44336'
-      icon: mdi:cctv
-      sticky: true
-      channel: security_alerts_notifications
-      url_1: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/clip.mp4'
-      button_2: View Stream
-      url_2: '{{base_url}}/api/camera_proxy_stream/camera.{{trigger.payload_json[''after''][''camera'']
-        | lower | replace(''-'',''_'')}}?token={{state_attr( ''camera.'' ~ camera,
-        ''access_token'')}}'
-      cooldown: 2
-      attachment: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1'
-      alert_once: true
-      labels:
-      - person
-      review_severity:
-      - alert
-      - detection
-      sound: default
-      master_condition:
-      - condition: state
-        entity_id: binary_sensor.maxi_sleeping
-        state: 'off'
-      - condition: not
-        conditions:
-        - condition: state
-          entity_id: alarm_control_panel.home_alarm
-          state: armed_away
-      - condition: state
-        entity_id: input_boolean.party_in_the_back_yard
-        state: 'off'
 - id: '1745468097447'
   alias: 'Frigate front Doors Notifications '
   description: Always run, even if maxi is sleeping
@@ -8146,12 +7930,12 @@
   - condition: numeric_state
     entity_id: cover.cover_workshop_blinds
     attribute: current_position
-    below: 26
+    below: 29
   actions:
   - action: cover.set_cover_position
     metadata: {}
     data:
-      position: 26
+      position: 29
     target:
       entity_id:
       - cover.cover_workshop_blinds
@@ -8182,7 +7966,7 @@
   - condition: numeric_state
     entity_id: cover.cover_workshop_blinds
     attribute: current_position
-    below: 27
+    below: 30
   actions:
   - action: cover.set_cover_position
     metadata: {}
@@ -8653,6 +8437,12 @@
         entity_id: input_boolean.house_sitting_mode
         state:
         - 'off'
+      - condition: not
+        conditions:
+        - condition: state
+          entity_id: media_player.esphome_bedroom_vpe_speaker
+          state:
+          - playing
       then:
       - action: media_player.unjoin
         metadata: {}
@@ -8711,309 +8501,6 @@
       data:
         command: Power off bedroom TV
   mode: single
-- id: '1748927820689'
-  alias: UnMute chromecasts when no unmuted speakers in the same room
-  description: Unmutes and adjusts the volume of Chromecasts in a room when no unmuted
-    speakers are playing in the same room, ensuring at least one audio output is active
-    when someone is present and no one is sleeping.
-  triggers:
-  - alias: Chromecasts
-    entity_id:
-    - media_player.universal_workshop_chromecast
-    - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_patio_chromecast
-    - media_player.universal_salon_chromecast
-    - media_player.universal_bedroom_chromecast
-    to:
-    trigger: state
-    id: chromecast_from_off
-    from: 'off'
-  - alias: Speakers muted status
-    entity_id:
-    - media_player.mass_workshop_wiim_speaker
-    - media_player.mass_salon_wiim_speaker
-    - media_player.mass_bedroom_aux2_speaker
-    trigger: state
-    attribute: is_volume_muted
-  - alias: Speakers
-    entity_id:
-    - media_player.mass_workshop_wiim_speaker
-    - media_player.mass_salon_wiim_speaker
-    - media_player.mass_bedroom_aux2_speaker
-    to:
-    trigger: state
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 2
-    from: playing
-    id: speakers_from_play
-  - alias: Chromecasts
-    entity_id:
-    - media_player.universal_workshop_chromecast
-    - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_patio_chromecast
-    - media_player.universal_salon_chromecast
-    - media_player.universal_bedroom_chromecast
-    to: playing
-    trigger: state
-    id: chromecast_to_play
-    from:
-  - alias: Chromecasts
-    entity_id:
-    - media_player.universal_workshop_chromecast
-    - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_patio_chromecast
-    - media_player.universal_salon_chromecast
-    - media_player.universal_bedroom_chromecast
-    to: idle
-    trigger: state
-    id: chromecast_to_idle
-    from:
-  conditions:
-  - alias: Make sure no sleeper is present
-    condition: template
-    value_template: '{{ area_id(trigger.entity_id) | replace(''_top'','''') | replace(''_down'','''')
-      not  in states(''sensor.active_sleeper_rooms'') | string  }}'
-  - alias: Make sure motion is present
-    condition: template
-    value_template: '{{ area_id(trigger.entity_id) | replace(''_top'','''') | replace(''_down'','''')
-      | lower in  states(''sensor.active_motion_rooms'') | string | lower  }}'
-  - condition: or
-    conditions:
-    - condition: template
-      value_template: '{{  trigger.id != ''chromecast_to_play'' }}'
-    - condition: and
-      conditions:
-      - condition: template
-        value_template: '{{ trigger.id == ''chromecast_to_play'' }}    '
-      - condition: template
-        value_template: '{{ ((now() - trigger.from_state.last_changed) > timedelta(seconds=60))
-          }}  '
-    - condition: and
-      conditions:
-      - condition: template
-        value_template: '{{ trigger.id == ''chromecast_to_idle'' }}    '
-      - condition: template
-        value_template: '{{ ((now() - trigger.from_state.last_changed) > timedelta(seconds=60))
-          }}  '
-    - condition: and
-      conditions:
-      - condition: template
-        value_template: '{{ trigger.id == ''speakers_from_play'' }}    '
-      - condition: template
-        value_template: '{{ trigger.to_state.state != ''unavailable'' }}  '
-  actions:
-  - variables:
-      unmuted_playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-        \ | sum(start=[])\n  | select('search', 'speaker')\n  | select('search', 'mass')\n
-        \ | select('is_state','playing')\n  | expand\n  | selectattr('attributes.is_volume_muted',
-        'eq', false)\n  | map(attribute='entity_id')\n  | unique\n  | list \n}}\n"
-      playing_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-        \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
-        'universal')\n  | reject('is_state','off')\n  | expand\n  | map(attribute='entity_id')\n
-        \ | unique\n  | list \n}}\n"
-  - if:
-    - condition: template
-      value_template: '{{ unmuted_playing_speakers == [] }}'
-    then:
-    - action: media_player.volume_mute
-      metadata: {}
-      data:
-        is_volume_muted: false
-      target:
-        entity_id: '{{playing_chromecasts | list}}'
-    - action: script.chromecast_automatic_volume_adjustment_script
-      metadata: {}
-      data:
-        received_chromecast: '{{playing_chromecasts | list}}'
-      enabled: true
-  mode: restart
-- id: '1748928181744'
-  alias: UnMute speakers when no unmuted chromecast in the same room
-  description: Unmutes speakers in a room when no unmuted Chromecast is playing in
-    the same room, ensuring audio output is available when someone is present and
-    no one is sleeping.
-  triggers:
-  - alias: Chromecasts
-    entity_id:
-    - media_player.universal_workshop_chromecast
-    - media_player.universal_patio_chromecast
-    - media_player.universal_salon_chromecast
-    - media_player.universal_bedroom_chromecast
-    - media_player.universal_tablet_myriam_s8
-    trigger: state
-    from: playing
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 2
-  - alias: Speakers
-    entity_id:
-    - media_player.mass_workshop_wiim_speaker
-    - media_player.mass_salon_wiim_speaker
-    - media_player.mass_bedroom_aux2_speaker
-    to: playing
-    trigger: state
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 2
-    from:
-    id: speakers
-  - alias: Chromecasts mute status
-    entity_id:
-    - media_player.universal_workshop_chromecast
-    - media_player.universal_patio_chromecast
-    - media_player.universal_salon_chromecast
-    - media_player.universal_bedroom_chromecast
-    trigger: state
-    attribute: is_volume_muted
-  conditions:
-  - condition: template
-    value_template: '{{ trigger.id == ''speakers'' and ((now() - trigger.from_state.last_changed)
-      > timedelta(seconds=600)) or trigger.id != ''speakers'' }}'
-  - alias: Make sure no sleeper is present
-    condition: template
-    value_template: '{{ area_id(trigger.entity_id) | string | lower not in states(''sensor.active_sleeper_rooms'')
-      | string | lower }}'
-  - alias: Make sure motion is present
-    condition: template
-    value_template: '{{ area_id(trigger.entity_id) | replace(''_top'','''') | replace(''_down'','''')
-      | lower in  states(''sensor.active_motion_rooms'') | string | lower   }}'
-  actions:
-  - variables:
-      playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-        \ | sum(start=[])\n  | select('search', 'speaker')\n  | select('search', 'mass')\n
-        \ | select('is_state','playing')\n  | unique\n  | list \n}}\n"
-      unmuted_player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-        \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
-        'universal')\n  | select('is_state','playing')\n  | expand\n  | selectattr('attributes.is_volume_muted',
-        'eq', false)\n  | map(attribute='entity_id')\n  | unique\n  | list \n}}\n"
-  - if:
-    - condition: template
-      value_template: '{{ unmuted_player_chromecasts == [] }}'
-    then:
-    - action: media_player.volume_mute
-      metadata: {}
-      data:
-        is_volume_muted: false
-      target:
-        entity_id: '{{playing_speakers | list}}'
-  mode: restart
-- id: '1748932635965'
-  alias: Mute Chromecasts when unmuted speakers plays in the same room
-  description: Auto-mutes Chromecasts in a room when a speaker in the same room starts
-    playing, preventing audio conflicts.
-  triggers:
-  - alias: Chromecasts
-    entity_id:
-    - media_player.universal_workshop_chromecast
-    - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_patio_chromecast
-    - media_player.universal_salon_chromecast
-    - media_player.universal_bedroom_chromecast
-    to: playing
-    trigger: state
-  - alias: Speakers mute states
-    entity_id:
-    - media_player.mass_workshop_wiim_speaker
-    - media_player.mass_salon_wiim_speaker
-    - media_player.mass_bedroom_aux2_speaker
-    trigger: state
-    enabled: true
-    attribute: is_volume_muted
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 1
-    id: speaker_unmuted
-  - alias: Speakers
-    entity_id:
-    - media_player.mass_workshop_wiim_speaker
-    - media_player.mass_salon_wiim_speaker
-    - media_player.mass_bedroom_aux2_speaker
-    to: playing
-    trigger: state
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 2
-    enabled: true
-  conditions:
-  - condition: template
-    value_template: '{% if trigger.id == ''speaker_unmuted'' %}
-
-      {{ trigger.to_state.attributes.is_volume_muted == false }}
-
-      {% endif %}'
-  actions:
-  - variables:
-      unmuted_playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-        \ | sum(start=[])\n  | select('search', 'speakers')\n  | select('is_state','playing')\n
-        \ | expand\n  | selectattr('attributes.is_volume_muted', 'eq', false)\n  |
-        map(attribute='entity_id')\n  | unique\n  | list \n}}\n"
-      player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-        \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
-        'universal')\n  | unique\n  | list \n}}\n"
-  - if:
-    - condition: template
-      value_template: '{{ unmuted_playing_speakers != [] }}'
-    then:
-    - action: media_player.volume_mute
-      metadata: {}
-      data:
-        is_volume_muted: true
-      target:
-        entity_id: '{{player_chromecasts | list}}'
-  mode: restart
-- id: '1748938722404'
-  alias: Hibernate Maxi Desktop when he sleeps for over 40 minutes
-  description: Hibernates Maxi's desktop PC after he has been sleeping for 40 minutes
-    to save power.
-  triggers:
-  - trigger: state
-    entity_id:
-    - binary_sensor.maxi_sleeping
-    for:
-      hours: 0
-      minutes: 40
-      seconds: 0
-    to: 'on'
-    from: 'off'
-  conditions: []
-  actions:
-  - action: button.press
-    metadata: {}
-    data: {}
-    target:
-      entity_id: button.desktop_maxi_hibernate
-  mode: single
-- id: '1748938888873'
-  alias: Hibernate Maxi Desktop when he leaves the Salon for more than 20 minutes
-  description: also checks for an active game as condition
-  triggers:
-  - trigger: state
-    entity_id:
-    - sensor.maxi_location_by_petro_v2
-    from:
-    - salon
-    for:
-      hours: 1
-      minutes: 30
-      seconds: 0
-  conditions:
-  - condition: state
-    entity_id: sensor.maxi_current_game
-    state:
-    - idle
-  actions:
-  - action: button.press
-    metadata: {}
-    data: {}
-    target:
-      entity_id: button.desktop_maxi_hibernate
-  mode: single
 - id: '1748939696079'
   alias: Immediately mute bathroom speaker when door open if all residents are sleeping
   description: Instantly mutes the bathroom speaker when the bathroom door opens while
@@ -9039,41 +8526,6 @@
       is_volume_muted: true
     target:
       entity_id: media_player.mass_bathroom_vpe_speaker
-  mode: restart
-- id: '1749001900174'
-  alias: Adjust Chromecast volume when unmuted after a long moment
-  description: Runs the automatic volume adjustment script on a Chromecast when it
-    transitions from muted to unmuted, ensuring the volume is set appropriately for
-    the time of day.
-  triggers:
-  - alias: Chromecasts mute status
-    entity_id:
-    - media_player.universal_workshop_chromecast
-    - media_player.universal_hotbox_top_chromecast
-    - media_player.universal_patio_chromecast
-    - media_player.universal_salon_chromecast
-    - media_player.universal_bedroom_chromecast
-    trigger: state
-    attribute: is_volume_muted
-  conditions:
-  - condition: template
-    value_template: '{{ trigger.from_state.state == trigger.to_state.state }}'
-    enabled: true
-    alias: Unchanged state
-  - condition: template
-    value_template: '{{ trigger.from_state.attributes.is_volume_muted == true and
-      trigger.to_state.attributes.is_volume_muted == false }}'
-    alias: If volume went from muted to unmuted
-  - alias: Not during an active broadcast announcement
-    condition: template
-    value_template: '{{ is_state(''script.broadcast_alert_in_the_house'', ''off'')
-      and is_state(''script.non_important_broadcast_alert_in_the_house'', ''off'')
-      }}'
-  actions:
-  - action: script.speaker_automatic_volume_adjustment_script
-    metadata: {}
-    data:
-      received_speaker: '{{trigger.entity_id}}'
   mode: restart
 - id: '1749014947859'
   alias: Toggle sleeper in bedroom on button press
@@ -9596,36 +9048,6 @@
             '
       for_each: '{{ playing_speakers }}'
   mode: restart
-- id: '1751133520036'
-  alias: AI Event Summary (v1.4.3) (Front and Back Door)
-  description: Uses AI vision to generate event summaries from the front and back
-    door cameras when person occupancy is detected, sending notifications with snapshots
-    and analysis.
-  use_blueprint:
-    path: valentinfrlch/event_summary.yaml
-    input:
-      run_conditions: []
-      camera_entities:
-      - camera.front_door_camera
-      - camera.back_door_camera
-      motion_sensors:
-      - binary_sensor.front_door_camera_person_occupancy
-      - binary_sensor.back_entrance_presence_person_occupancy
-      max_frames: 5
-      remember: true
-      provider: 01JKZVKXSB5ZD4KDXQ1JG81CXH
-      temperature: 0.1
-      notify_device:
-      - c05131fc3bc6fcb2ce597a5d15723962
-      - a2b26cc7447631cbaa5892a2573bfe42
-      tap_navigate: /maxi-mobile/main-view#cameras
-      delay_notification: 0
-      notification_color: '#f44336'
-      notification_channel: alarm_stream
-      tts_volume: alarm_stream_max
-      tts_notification: false
-      model: gemma3:4b
-      file_path: /media/local/snapshots/{{ camera_file_path }}/last_motion.jpg
 - id: '1751301093156'
   alias: Mute speakers in room when Myriam's tablet starts jellyfin playback
   description: Mutes the speakers in whatever room Myriam's tablet is located in when
@@ -11006,7 +10428,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - light.group_kitchen_lights
+    - light.hotbox_hotbox_bed_lights
     for:
       hours: 0
       minutes: 0
@@ -11022,7 +10444,7 @@
     data:
       value: '{{brightness}}'
     target:
-      entity_id: number.tablet_kitchen_s6_lite_screen_brightness
+      entity_id: number.hotbox_hotbox_bed_tablet_screen_brightness
   mode: restart
 - id: '1753418041554'
   alias: Turn off lights automatically when room is empty and sleep mode is on
@@ -13217,62 +12639,6 @@
       data:
         message: The Toaster has finished
   mode: restart
-- id: '1772244438943'
-  alias: Isolate front salon when active smoking is present
-  description: Closes the lounge door cover to isolate the front salon area when active
-    smoking is detected by the air quality sensor, unless the vacuum is currently
-    cleaning in the salon or lounge.
-  triggers:
-  - trigger: state
-    entity_id:
-    - binary_sensor.active_smoking_in_the_salon
-    to:
-    - 'on'
-  conditions:
-  - condition: not
-    conditions:
-    - condition: or
-      conditions:
-      - condition: state
-        entity_id: sensor.roborock_qrevo_curv_series_current_room
-        state:
-        - Salon
-      - condition: state
-        entity_id: sensor.roborock_qrevo_curv_series_current_room
-        state:
-        - Lounge
-    enabled: true
-  actions:
-  - action: cover.close_cover
-    metadata: {}
-    target:
-      entity_id:
-      - cover.cover_lounge_door
-    data: {}
-  mode: single
-- id: '1772328254331'
-  alias: Open front salon when smoke is gone
-  description: Opens the lounge door cover when the PM 1mm particle concentration
-    drops below 10, indicating smoke has cleared, provided no one is sleeping in the
-    salon.
-  triggers:
-  - trigger: numeric_state
-    entity_id:
-    - sensor.apollo_air_1_7b76cc_pm_1mm_weight_concentration
-    below: 10
-  conditions:
-  - condition: state
-    entity_id: input_boolean.sleeper_in_salon
-    state:
-    - 'off'
-  actions:
-  - action: cover.open_cover
-    metadata: {}
-    target:
-      entity_id:
-      - cover.cover_lounge_door
-    data: {}
-  mode: single
 - id: '1772565586854'
   alias: Dial hallway automation new
   description: Handles an IKEA SYMFONISK dial in the hallway, providing volume, play/pause,
@@ -14730,11 +14096,21 @@
   - trigger: state
     entity_id:
     - media_player.universal_kitchen_chromecast
+    attribute: app_id
+    to:
+    - A078F6B0
+    - '84912283'
   conditions:
   - condition: state
     entity_id: media_player.universal_kitchen_chromecast
-    state: A078F6B0
+    state:
+    - A078F6B0
+    - '84912283'
     attribute: app_id
+  - alias: Chromecast is not already muted
+    condition: template
+    value_template: '{{ state_attr(''media_player.universal_kitchen_chromecast'',
+      ''is_volume_muted'') != true }}'
   actions:
   - action: media_player.volume_mute
     metadata: {}
@@ -14757,7 +14133,9 @@
   conditions:
   - condition: state
     entity_id: media_player.universal_kitchen_chromecast
-    state: A078F6B0
+    state:
+    - A078F6B0
+    - '84912283'
     attribute: app_id
   - alias: Chromecast is not already muted
     condition: template
@@ -16158,8 +15536,74 @@
     metadata: {}
     data:
       transition: 33
+      brightness_pct: 9
     target:
       area_id: hotbox
       entity_id:
       - light.group_hotbox_lights
+  - action: switch.turn_on
+    metadata: {}
+    target:
+      entity_id: switch.hotbox_hotbox_bed_tablet_screen
+    data: {}
+  mode: single
+- id: '1785800985888'
+  alias: Turn on Hotbox Bed ventilation fan when side curtain closes
+  description: ''
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - cover.cover_hotbox_bed_door
+    below: 5
+    attribute: current_position
+  - trigger: state
+    entity_id:
+    - cover.cover_hotbox_bed_door
+    to:
+    - closed
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
+  conditions:
+  - condition: state
+    entity_id: switch.plug_hotbox_bed_fan
+    state:
+    - 'off'
+  actions:
+  - action: switch.turn_on
+    metadata: {}
+    target:
+      entity_id: switch.plug_hotbox_bed_fan
+    data: {}
+  mode: single
+- id: '1785801084863'
+  alias: Turn off Hotbox bed fan when curtain opens
+  description: ''
+  triggers:
+  - trigger: numeric_state
+    entity_id:
+    - cover.cover_hotbox_bed_door
+    attribute: current_position
+    above: 50
+  - trigger: state
+    entity_id:
+    - cover.cover_hotbox_bed_door
+    to:
+    - open
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
+  conditions:
+  - condition: state
+    entity_id: switch.plug_hotbox_bed_fan
+    state:
+    - 'on'
+  actions:
+  - action: switch.turn_off
+    metadata: {}
+    target:
+      entity_id: switch.plug_hotbox_bed_fan
+    data: {}
   mode: single
