@@ -60,15 +60,6 @@ broadcast_alert_in_the_house:
       has_url: '{{ url is defined and url is not none and (url | string | trim) !=
         '''' }}'
   - parallel:
-    - alias: Flash hotbox lights (Lylou-alone mode)
-      if:
-      - condition: template
-        value_template: '{{ lylou_alone and has_color }}'
-      then:
-      - action: script.broadcast_alert_flash_hotbox_lights
-        data:
-          color: '{{ color }}'
-        continue_on_error: true
     - alias: Flash whole-house notification lights
       if:
       - condition: template
@@ -349,6 +340,89 @@ broadcast_alert_tts_announce:
           media_player_entity_id: media_player.mass_bedroom_aux2_speaker
           message: '{{ message }}'
         continue_on_error: true
+    enabled: false
+  - alias: 'Announcements '
+    if:
+    - condition: not
+      conditions:
+      - condition: state
+        entity_id: tts.openai_tts_nabudemon
+        state:
+        - unavailable
+    then:
+    - alias: Announcements via Music Assistant with Nabu Demon Voice
+      parallel:
+      - action: tts.speak
+        metadata: {}
+        target:
+          entity_id:
+          - tts.openai_tts_nabudemon
+        data:
+          cache: true
+          media_player_entity_id: media_player.group_mass_home_group_speakers
+          message: '{{ message }}'
+        continue_on_error: true
+      - if:
+        - condition: state
+          entity_id: input_boolean.sleeper_in_bedroom
+          state: 'off'
+        then:
+        - action: tts.speak
+          metadata: {}
+          target:
+            entity_id: tts.openai_tts_nabudemon
+          data:
+            cache: true
+            media_player_entity_id: media_player.mass_bedroom_vpe_speaker
+            message: '{{ message }}'
+          continue_on_error: true
+      - action: tts.speak
+        metadata: {}
+        target:
+          entity_id: tts.openai_tts_nabudemon
+        data:
+          cache: true
+          media_player_entity_id: media_player.mass_bathroom_vpe_speaker
+          message: '{{ message }}'
+        continue_on_error: true
+    enabled: true
+    else:
+    - if: []
+      then:
+      - alias: Announcements via Music Assistant with Nabu Demon Voice
+        parallel:
+        - action: tts.speak
+          metadata: {}
+          target:
+            entity_id: tts.piper_2
+          data:
+            cache: true
+            media_player_entity_id: media_player.group_mass_home_group_speakers
+            message: '{{ message }}'
+          continue_on_error: true
+        - if:
+          - condition: state
+            entity_id: input_boolean.sleeper_in_bedroom
+            state: 'off'
+          then:
+          - action: tts.speak
+            metadata: {}
+            target:
+              entity_id: tts.piper_2
+            data:
+              cache: true
+              media_player_entity_id: media_player.mass_bedroom_vpe_speaker
+              message: '{{ message }}'
+            continue_on_error: true
+        - action: tts.speak
+          metadata: {}
+          target:
+            entity_id: tts.piper_2
+          data:
+            cache: true
+            media_player_entity_id: media_player.mass_bathroom_vpe_speaker
+            message: '{{ message }}'
+          continue_on_error: true
   mode: parallel
   max: 10
   icon: mdi:bullhorn
@@ -645,11 +719,13 @@ change_received_lights_to_random_colors:
   sequence:
   - variables:
       lights: "{# 1. Get entities from the selected areas #} {% set area_list = []
-        %} {% if area is defined and area %}\n  {% set area_list = area\n    | map('area_entities')\n
-        \   | sum(start=[])\n    | select('search', '^light\\.')\n    | list %}\n{%
-        endif %} {# 2. Get entities from the manual 'light' field #} {% set manual_list
-        = light if light is defined and light else [] %} {# 3. Combine and dedupe
-        #} {% set combined = (area_list + manual_list) | unique | list %} {# 4. Expand,
+        %} {% if area is defined and area %}\n  {% set areas = [area] if area is string
+        else area %}\n  {% set area_list = areas\n    | map('area_entities')\n    |
+        sum(start=[])\n    | select('search', '^light\\.')\n    | list %}\n{% endif
+        %} {# 2. Get entities from the manual 'light' field #} {% set manual_list
+        = light if light is defined and light else [] %} {% set manual_list = [manual_list]
+        if manual_list is string else manual_list %} {# 3. Combine and dedupe #} {%
+        set combined = (area_list + manual_list) | unique | list %} {# 4. Expand,
         filter to color-capable lights, drop decorative/main #} {{ expand(combined)\n
         \     | selectattr('domain', 'eq', 'light')\n      | selectattr('attributes.supported_color_modes',
         'defined')\n      | selectattr('attributes.supported_color_modes', 'search',
@@ -676,9 +752,8 @@ start_visual_playlist_on_plex:
   sequence:
   - variables:
       chromecasts: '{{(integration_entities(''cast'')  |  select(''search'', ''chromecast'')|
-        reject(''search'', ''hotbox'')| reject(''search'', ''bedroom'') | list ) +
-        (integration_entities(''cast'')  |  select(''search'', ''hub'')| reject(''search'',
-        ''hotbox'')| reject(''search'', ''salon'') | list ) }}
+        reject(''search'', ''bedroom'') | list ) + (integration_entities(''cast'')  |  select(''search'',
+        ''hub'') | list ) }}
 
         '
   - repeat:
@@ -696,8 +771,10 @@ start_visual_playlist_on_plex:
 
               '
         - data:
-            media_content_id: '{{playlist}}'
-            media_content_type: playlist
+            media:
+              media_content_id: '{{playlist}}'
+              media_content_type: playlist
+              metadata: {}
           target:
             entity_id: '{{chromecasts[repeat.index -1]}}'
           action: media_player.play_media
@@ -723,6 +800,12 @@ start_visual_playlist_on_plex:
       for_each: '{{ chromecasts }}'
   mode: single
   icon: mdi:led-strip-variant
+  fields:
+    requested_playlist:
+      selector:
+        text:
+      name: requested_playlist
+      required: true
 non_important_broadcast_alert_in_the_house:
   alias: non-important broadcast alert in the house
   description: Sends a low-priority broadcast alert through the house by briefly flashing
@@ -811,7 +894,7 @@ non_important_broadcast_alert_in_the_house:
                 'on' else 'off' }}
             alias: Turn on lights back to their original colors
           count: '{{ light_entity_ids | length }}'
-    - alias: 'Announcements '
+    - alias: TTS announcement on speakers
       if:
       - condition: template
         value_template: '{% if message is defined %}
@@ -828,22 +911,40 @@ non_important_broadcast_alert_in_the_house:
         state:
         - 'off'
       then:
-      - alias: Announcements via Music Assistant
+      - action: script.broadcast_alert_tts_announce
+        data:
+          message: '{{ message }}'
+        continue_on_error: true
+    - alias: Announcements (old )
+      if:
+      - condition: template
+        value_template: '{% if message is defined %}
+
+          true
+
+          {% else %}
+
+          false
+
+          {% endif %}'
+      - condition: state
+        entity_id: input_boolean.party_mode
+        state:
+        - 'off'
+      - condition: not
+        conditions:
+        - condition: state
+          entity_id: tts.openai_tts_nabudemon
+          state:
+          - unavailable
+      then:
+      - alias: Announcements via Music Assistant with Nabu Demon Voice
         parallel:
-        - alias: Disabled direct Music Assistant announcement; tts.speak handles this
-            without media-source URL failures
-          action: music_assistant.play_announcement
-          data:
-            url: media-source://tts/tts.piper_2?message={{ message | urlencode }}&cache=true
-            announce_volume: 35
-          target:
-            entity_id: media_player.group_mass_home_group_speakers
-          continue_on_error: true
-          enabled: false
         - action: tts.speak
           metadata: {}
           target:
-            entity_id: tts.piper_2
+            entity_id:
+            - tts.openai_tts_nabudemon
           data:
             cache: true
             media_player_entity_id: media_player.group_mass_home_group_speakers
@@ -857,22 +958,73 @@ non_important_broadcast_alert_in_the_house:
           - action: tts.speak
             metadata: {}
             target:
-              entity_id: tts.piper_2
+              entity_id: tts.openai_tts_nabudemon
             data:
               cache: true
-              media_player_entity_id: media_player.mass_bedroom_aux2_speaker
+              media_player_entity_id: media_player.mass_bedroom_vpe_speaker
               message: '{{ message }}'
             continue_on_error: true
         - action: tts.speak
           metadata: {}
           target:
-            entity_id: tts.piper_2
+            entity_id: tts.openai_tts_nabudemon
           data:
             cache: true
             media_player_entity_id: media_player.mass_bathroom_vpe_speaker
             message: '{{ message }}'
           continue_on_error: true
-      enabled: true
+      enabled: false
+      else:
+      - if:
+        - condition: template
+          value_template: '{% if message is defined %}
+
+            true
+
+            {% else %}
+
+            false
+
+            {% endif %}'
+        - condition: state
+          entity_id: input_boolean.party_mode
+          state:
+          - 'off'
+        then:
+        - alias: Announcements via Music Assistant with Nabu Demon Voice
+          parallel:
+          - action: tts.speak
+            metadata: {}
+            target:
+              entity_id: tts.piper_2
+            data:
+              cache: true
+              media_player_entity_id: media_player.group_mass_home_group_speakers
+              message: '{{ message }}'
+            continue_on_error: true
+          - if:
+            - condition: state
+              entity_id: input_boolean.sleeper_in_bedroom
+              state: 'off'
+            then:
+            - action: tts.speak
+              metadata: {}
+              target:
+                entity_id: tts.piper_2
+              data:
+                cache: true
+                media_player_entity_id: media_player.mass_bedroom_vpe_speaker
+                message: '{{ message }}'
+              continue_on_error: true
+          - action: tts.speak
+            metadata: {}
+            target:
+              entity_id: tts.piper_2
+            data:
+              cache: true
+              media_player_entity_id: media_player.mass_bathroom_vpe_speaker
+              message: '{{ message }}'
+            continue_on_error: true
     - alias: TVs
       parallel:
       - alias: Broadcast image to paused TVs if image is present
@@ -2777,7 +2929,7 @@ llm_script_for_music_assistant_voice_requests:
     path: music-assistant/llm_voice_script.yaml
     input:
       default_player: media_player.group_mass_home_group_speakers
-      play_continuously: Never
+      play_continuously: Use player settings
   description: 'This script is used to play music based on a voice request. The tool
     takes the following arguments: media_type, artist, album, media_id, radio_mode,
     area, shuffle. media_id, media_type, and shuffle are always required and must
@@ -2819,15 +2971,16 @@ script_to_launch_movie_from_jellyfin_on_a_tv:
 changes_selected_light_group_to_single_warm_colors:
   sequence:
   - variables:
-      on_lights: "{% set ns = namespace()  %}  \n{% set ns.entity_ids = [] %}  \n{%
-        if area %}  \n{% for a in area %}  \n{% set ns.entity_ids = [a] | map('area_entities')\n
-        \ | sum(start=[])\n  | select('search', 'group_')\n  | select('search', '_lights')\n
-        \ | reject('search', 'decorative')\n  | reject('search', 'main')\n  | list
-        + ns.entity_ids %} \n {% endfor %}\n{% else %}  {%- set lights = states.light
-        | selectattr('entity_id', 'in', \nstate_attr(selected_group, 'entity_id'))
-        \ | list -%}\n\n{%- set ns.entity_ids = lights | map(attribute='entity_id')
-        | list -%}    \n\n {% endif %}\n {{ ns.entity_ids | expand |  map(attribute='entity_id')
-        \ | list }}\n"
+      on_lights: "{% set ns = namespace() %}\n{% set ns.entity_ids = [] %}\n{% if
+        area %}\n  {% set areas = [area] if area is string else area %}\n  {% for
+        a in areas %}\n    {% set ns.entity_ids = [a] | map('area_entities')\n      |
+        sum(start=[])\n      | select('search', 'group_')\n      | select('search',
+        '_lights')\n      | reject('search', 'decorative')\n      | reject('search',
+        'main')\n      | list + ns.entity_ids %}\n  {% endfor %}\n{% else %}\n  {%-
+        set lights = states.light\n     | selectattr('entity_id', 'in', state_attr(selected_group,
+        'entity_id') or [])\n     | list -%}\n  {%- set ns.entity_ids = lights | map(attribute='entity_id')
+        | list -%}\n{% endif %}\n{{ ns.entity_ids | expand | map(attribute='entity_id')
+        | list }}\n"
   - repeat:
       sequence:
       - metadata: {}
@@ -3014,15 +3167,15 @@ change_received_lights_to_random_pastel_colors:
 changes_selected_lights_to_warm_pale_colors:
   sequence:
   - variables:
-      lights: "{% set ns = namespace()  %}   {% set ns.entity_ids = [] %}   {% if
-        area %}   {% for a in area %}   {% set ns.entity_ids = [a] | map('area_entities')\n
-        \ | sum(start=[])\n  | select('search', 'group_')\n  | select('search', '_lights')\n
-        \ | reject('search', 'decorative')\n  | reject('search', 'main')\n  | list
-        + ns.entity_ids %} \n {% endfor %}\n{% else %}  {%- set lights = states.light
-        | selectattr('entity_id', 'in',  state_attr(selected_group, 'entity_id'))
-        \ | list -%}\n{%- set ns.entity_ids = lights | map(attribute='entity_id')
-        | list -%}    \n\n {% endif %}\n {{ ns.entity_ids | expand |  map(attribute='entity_id')
-        \ | list }}"
+      lights: "{% set areas = [area] if area is string else area %} {% set ns = namespace()
+        \ %}   {% set ns.entity_ids = [] %}    {% if area %}  \n  {% for a in areas
+        %}   \n  {% set ns.entity_ids = [a] | map('area_entities')\n  | sum(start=[])\n
+        \ | select('search', 'group_')\n  | select('search', '_lights')\n  | reject('search',
+        'decorative')\n  | reject('search', 'main')\n  | list + ns.entity_ids %} \n
+        {% endfor %}\n{% else %}  {%- set lights = states.light | selectattr('entity_id',
+        'in',  state_attr(selected_group, 'entity_id'))  | list -%}\n{%- set ns.entity_ids
+        = lights | map(attribute='entity_id') | list -%}    \n\n {% endif %}\n {{
+        ns.entity_ids | expand |  map(attribute='entity_id')  | list }}"
   - repeat:
       sequence:
       - metadata: {}
@@ -3296,7 +3449,7 @@ launch_party_mode_on_all_kiosks:
     - action: fully_kiosk.load_url
       data:
         url: http://192.168.0.15:8095/#/party?frameless=true
-        device_id: 3855559a40e217d20c661fd5e6e1b452
+        device_id: 9e6b82b1f2fa641af98d847cc1cf06a6
       continue_on_error: true
     - action: fully_kiosk.load_url
       data:
@@ -3837,7 +3990,7 @@ generate_security_audit_and_text_it_to_maxi:
 
 
         Be brief! This is an emergency situation.'
-      entity_id: ai_task.remote_llama_qwen3_5_4b_ud_mtp_q8_k_xl_ai_task
+      entity_id: ai_task.remote_llama_qwen3_5_4b_general_ai_task
     response_variable: final_audit
   - metadata: {}
     data:
@@ -4327,3 +4480,32 @@ favorite_currently_playing_song:
   alias: Favorite currently playing song
   description: Favorites track on the home group if active, otherwise targets the
     closest speaker to Maxi. Use the 'favorite_current_song' entity
+find_phone_duplicate:
+  sequence:
+  - action: notify.mobile_app_phone_myriam_s26
+    data:
+      message: command_volume_level
+      data:
+        media_stream: ring_stream
+        command: 100
+  - action: notify.mobile_app_phone_myriam_s26
+    data:
+      message: command_dnd
+      data:
+        command: 'off'
+  - action: notify.mobile_app_phone_myriam_s26
+    data:
+      title: Phone Lost?
+      message: Phone Found!
+      data:
+        ttl: 0
+        priority: high
+        tag: Find
+        importance: high
+        channel: alarm_stream
+  alias: Find myriam phone
+  description: 'This script can be used by an LLM in order to help Myriam find her
+    phone.
+
+
+    This makes the phone ring for her.'

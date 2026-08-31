@@ -49,36 +49,34 @@
              and is_state('sensor.chilling_hotspot_client_count', '0') }}
 
       # ─── Sleep Detection Binary Sensors ───
-      # Hysteresis wrapper for Maxi's CPAP power:
-      # - turns on immediately above 3.0 W
-      # - only turns off after staying below 2.5 W for 5 minutes
-      # - holds its previous state between 2.5 W and 3.0 W
+      # Hysteresis wrapper for Maxi's CPAP power (plug idles ~2.0-2.5 W):
+      # - needs above 5.0 W sustained for 2 minutes to turn on
+      # - only turns off after staying below 4.0 W for 5 minutes
+      # - holds its previous state between 4.0 W and 5.0 W
+      #
+      # delay_on exists because the plug emits short bursts that are not the
+      # machine running: on 2026-08-23 a 15-second spike to ~7.1 W (14:54:20 ->
+      # 14:54:35, idle either side) turned this on, which set sensor
+      # .is_maxi_asleep and pinned activity V3 to "Sleeping" (score 100) for
+      # over 5 minutes while Maxi was up. A real session is nothing like that -
+      # the same night ran 7.9 hours continuously - so requiring 2 minutes
+      # rejects the bursts with a large margin and costs almost no detection lag.
       - name: "Maxi CPAP Running Hysteresis"
         unique_id: maxi_cpap_running_hysteresis
+        delay_on:
+          minutes: 2
         delay_off:
           minutes: 5
         state: >-
           {% set cpap_power = states('sensor.bedroom_plug_bedroom_cpap_machine_power') | float(0) %}
-          {% if cpap_power > 3.0 %}
+          {% if cpap_power > 5.0 %}
             true
-          {% elif cpap_power < 2.5 %}
+          {% elif cpap_power < 4.0 %}
             false
           {% else %}
             {{ this is defined and this.state == 'on' }}
           {% endif %}
 
-  - trigger:
-      - trigger: state
-        entity_id:
-          - sensor.where_is_maxi_sleeping
-      - trigger: homeassistant
-        event: start
-    binary_sensor:
-      # Simple wrapper: true if the "where is maxi sleeping" sensor has a value
-      - name: "Maxi is sleeping"
-        unique_id: maxi_sleeping
-        state: >-
-          {{ not is_state('sensor.where_is_maxi_sleeping', '') }}
 
   - binary_sensor:
       # ─── Bathroom & Utility Binary Sensors ───
@@ -104,7 +102,7 @@
       - name: "All Present Sleeping"
         unique_id: all_present_sleeping
         state: >
-          {% if ( states('person.maximiliano') == 'home' and states('sensor.is_maxi_asleep') == 'asleep' ) and (states('sensor.active_sleeper_amount') | int(0) != 0 and states('sensor.active_sleeper_amount') | int(0) >= 2 and states('sensor.active_sleeper_amount') | int(0) >= states('sensor.total_amount_people_home') | int(0) ) %}
+          {% if ( states('person.maximiliano') == 'home' and states('sensor.is_maxi_asleep') == 'on' ) and (states('sensor.active_sleeper_amount') | int(0) != 0 and states('sensor.active_sleeper_amount') | int(0) >= 2 and states('sensor.active_sleeper_amount') | int(0) >= states('sensor.total_amount_people_home') | int(0) ) %}
             on
           {% else %}
             off
@@ -129,31 +127,30 @@
         entity_id:
           - sensor.myriam_is_sleeping_at_home
           - sensor.is_maxi_asleep
-          - sensor.is_lylou_asleep
+          - sensor.phone_myriam_s26_wi_fi_connection
+          - person.maximiliano
       - trigger: homeassistant
         event: start
     binary_sensor:
-      # True when at least 2 of the 3 residents (Maxi, Myriam, Lylou) are asleep at home.
-      # Exception: when Maxi is home alone, it's True as soon as Maxi is asleep.
+      # True when Maxi is home and asleep AND Myriam is either asleep at home or not home.
+      # (Maxi and Myriam are the only tracked residents, so an absent resident
+      # doesn't block "all residents sleeping" — Maxi home+asleep + Myriam away = True.)
       # Used by automations to enter "night mode" (dim lights, lower speaker volumes, etc.)
+      #
+      # Myriam's presence is keyed off her phone's WiFi SSID, not GPS. Every home SSID
+      # contains "Chilling"; anything else (incl. "<not connected>"/unknown) counts as away.
+      # GPS was dropped here on 2026-08-22: the home zone radius is 13 m but her phone rests
+      # ~101 m from its centre, so any fix reporting worse than ~88 m accuracy satisfied HA's
+      # "distance - accuracy < radius" test and registered a false arrival. That produced 23
+      # false flips between 02:00 and 11:45 while she was motionless and away.
       - name: "All residents Sleeping"
         unique_id: all_residents_sleeping
         state: >
-            {% set myriam_sleeping_state = states('sensor.myriam_is_sleeping_at_home') %}
-            {% set maxi_sleeping_state = states('sensor.is_maxi_asleep') %}
-            {% set maxi_asleep = maxi_sleeping_state == 'asleep' %}
-            {# When Maxi is home alone, just require Maxi to be asleep #}
-            {% if is_state('binary_sensor.maxi_alone', 'on') %}
-              {{ maxi_asleep }}
-            {% else %}
-              {% set asleep_count = 
-                [myriam_sleeping_state, maxi_sleeping_state]
-                | select('equalto', 'asleep') 
-                | list 
-                | length
-              %}
-              {{ asleep_count >= 2 }}
-            {% endif %}
+            {% set maxi_home = is_state('person.maximiliano', 'home') %}
+            {% set maxi_asleep = is_state('sensor.is_maxi_asleep', 'on') %}
+            {% set myriam_asleep = is_state('sensor.myriam_is_sleeping_at_home', 'on') %}
+            {% set myriam_away = 'chilling' not in (states('sensor.phone_myriam_s26_wi_fi_connection') | lower) %}
+            {{ maxi_home and maxi_asleep and (myriam_asleep or myriam_away) }}
 
   - binary_sensor:
       # ─── Communication Detection Binary Sensors ───
@@ -289,10 +286,10 @@
   - trigger:
       - trigger: state
         entity_id:
-          - sensor.b7bracelet1
-          - sensor.watch_galaxy4
-          - binary_sensor.galaxy_watch_4_on_body_sensor
-          - sensor.phone_fold4
+          - sensor.bermuda_maxi_ankle_beacon_bps_zone
+          - sensor.bermuda_maxi_watch_bps_zone
+          - binary_sensor.maxi_watch_on_body_sensor
+          - sensor.bermuda_maxi_phone_bps_zone
           - device_tracker.phone_maxi
       - trigger: homeassistant
         event: start
@@ -301,10 +298,10 @@
       - name: "Maxi Location"
         unique_id: "maxi_location" 
         state: >-            
-            {% set braceletroom = states('sensor.b7bracelet1') %}
-            {% set watchroom = states('sensor.watch_galaxy4') %}
-            {% set watchonbody = states('binary_sensor.galaxy_watch_4_on_body_sensor') %}
-            {% set phoneroom = states('sensor.phone_fold4') %}
+            {% set braceletroom = states('sensor.bermuda_maxi_ankle_beacon_bps_zone') %}
+            {% set watchroom = states('sensor.bermuda_maxi_watch_bps_zone') %}
+            {% set watchonbody = states('binary_sensor.maxi_watch_on_body_sensor') %}
+            {% set phoneroom = states('sensor.bermuda_maxi_phone_bps_zone') %}
             {% set gpslocation = states('device_tracker.phone_maxi') %}
 
               {% if watchonbody == "on" and watchroom != "not_home" %}                   
@@ -427,7 +424,7 @@
             {% set computer_state = states('device_tracker.computer_lylou') %}
             {% set light_state  = states('light.group_hotbox_lights') %}
             {% set lylou_home = states('person.lylou') %}
-            {% set sleepingstate = "awake" %}
+            {% set sleepingstate = "on" %}
             {% if  lylou_home == 'home' %}
             {% if phone_interactive == 'off' and light_state == 'off' and sleep_confidence > 80 and computer_state == 'not_home' %}
                 {% set sleepingstate = "asleep" %}
@@ -462,7 +459,7 @@
             {% set activesleeperrooms = (state_attr('sensor.active_sleepers', 'rooms') or {}).values() | list %}
             {% set lasttvactiveroom = states('sensor.last_active_room') %}
             {% set phone_sleep_confidence = states('sensor.phone_myriam_sleep_confidence') | int(0) %}
-            {% set sleepingstate = "awake" %}
+            {% set sleepingstate = "on" %}
                 {% if states('binary_sensor.myriam_alone') == "on" %}
                     {# if the myriam_alone sensor is on, indicating there is only myriam present #}
                     {% if sleeperamount > 1 %}
@@ -505,9 +502,9 @@
             {% set sleeping_state = states('sensor.is_myriam_asleep') %}  
             {% set myriam_home = states('person.myriam') %}
                 {% if myriam_home == "home" and sleeping_state == "asleep" %}
-                  asleep
+                  on
                 {% else %}
-                  awake                  
+                  off
                 {% endif %}
 
   - trigger:
@@ -545,31 +542,31 @@
             {% set lasttvactiveroom = states('sensor.last_active_room') %}
             {% set phone_sleep_confidence = states('sensor.phone_maxi_sleep_confidence') | int(0) %}
             {% set c_pap_running = is_state('binary_sensor.maxi_cpap_running_hysteresis', 'on') %}
-            {% set sleepingstate = "awake" %}
+            {% set sleepingstate = "off" %}
             {% if c_pap_running %}
-                {% set sleepingstate = "asleep" %}
+                {% set sleepingstate = "on" %}
             {% else %}
                 {% if states('binary_sensor.maxi_alone') == "on" %}
                     {# if the maxi_alone sensor is on, indicating there is only maxi present #}
                     {% if sleeperamount > 1 %}
                         {# if there is more than one "sleeper" input_boolean that is "on" #}
                         {% if room in activesleeperrooms %}
-                            {% set sleepingstate = "asleep" %}
+                            {% set sleepingstate = "on" %}
                         {% elif lasttvactiveroom in activesleeperrooms  %}
-                           {% set sleepingstate = "asleep" %}
+                           {% set sleepingstate = "on" %}
                         {% endif %}
                     {% elif sleeperamount == 1 %}
                         {# if there is only one "sleeper" input_boolean that is "on" #}
-                        {% set sleepingstate = "asleep" %}   {# set the roomname to the only "sleeper" input_boolean that is "on" #}
+                        {% set sleepingstate = "on" %}   {# set the roomname to the only "sleeper" input_boolean that is "on" #}
                     {% endif %}
                 {% elif states('binary_sensor.maxi_alone') == "off" and room != '' and room in activesleeperrooms %}
                     {# if the maxi_alone sensor is off, it indicates that there is more than maxi present #}
-                    {% set sleepingstate = "asleep" %}
+                    {% set sleepingstate = "on" %}
                 {% elif states('person.maximiliano') != "home" %}             {# if maxi is not home #}
                     {# check phone sleep confidence to determine if I am sleeping #}
                     {% if phone_sleep_confidence > 94  %}
                         {# Assume I am sleeping if confidence is over 94% #}
-                        {% set sleepingstate = "asleep" %} {# set sleeping  state as asleep #}
+                        {% set sleepingstate = "on" %} {# set sleeping  state as on #}
                     {% endif %}
                 {% endif %}
               {% endif %}
@@ -689,9 +686,11 @@
             {% set crashershome = states("sensor.amount_crashing_home") | int(0)   %}{# Set peoplehome to the amount of people #}
             {% set ns.active_sleepers_amount = states("sensor.active_sleeper_amount") | int(0) %}
             {% set is_maxi_sleeping = states("sensor.is_maxi_asleep") %}
-            {% set maxis_current_game = state_attr('sensor.maxi1134_8202', 'game') or state_attr('sensor.steam_maxi', 'game') or 'idle' %}
-            {% set ns.active_chromecasts_room = state_attr("sensor.active_media_playback", "chromecasts")  %} 
-            {% set ns.active_speakers_room = state_attr('sensor.active_media_playback', 'speakers')  %}   
+            {% set maxi_current_game = state_attr('sensor.maxi1134_8202', 'game') or state_attr('sensor.steam_maxi', 'game') or 'idle' %}
+            {# 'or []' is required: when sensor.active_media_playback is unavailable these
+               attributes are None, and both '| length' and 'in' raise TypeError on None. #}
+            {% set ns.active_chromecasts_room = state_attr("sensor.active_media_playback", "chromecasts") or [] %} 
+            {% set ns.active_speakers_room = state_attr('sensor.active_media_playback', 'speakers') or [] %}   
             {# code down here, variables up there #}
             {% if is_maxi_sleeping  == "asleep" %}  {# if the maxi_alone sensor is on, indicating there is only maxi present #}
               {%set ns.activityname = "Sleeping"%}
@@ -699,7 +698,7 @@
               {%set ns.activityname = "Adventuring"%}
             {% elif is_maxi_alone == "on" %}
               {% if is_computer_active  == 'true' and room == "salon" %}
-                  {% if maxis_current_game != "idle" %}
+                  {% if maxi_current_game != "idle" %}
                     {%set ns.activityname = "Gaming"%}
                   {% else %}                    
                     {%set ns.activityname = "Using the Computer"%}
@@ -728,10 +727,10 @@
             {% elif partnershome > 0 %}
               {% if kink_mode == "on" %}                                    
                 {% set ns.activityname = "Playing" %}
-              {% elif room in ns.active_chromecasts_room %}   
+              {% elif ns.active_chromecasts_room | length > 0 and room in ns.active_chromecasts_room %}   
                 {% set ns.activityname = "Watching TV"  %}
               {% elif is_computer_active  == "true" and room == "salon" %}
-                  {% if maxis_current_game != "idle" %}
+                  {% if maxi_current_game != "idle" %}
                     {%set ns.activityname = "Gaming"%}
                   {% else %}                    
                     {%set ns.activityname = "Using the Computer"%}
@@ -749,7 +748,7 @@
               {% endif %}
             {% else %}            
               {% if is_computer_active  == "true" and room == "salon" %}
-                  {% if maxis_current_game != "idle" %}
+                  {% if maxi_current_game != "idle" %}
                     {%set ns.activityname = "Gaming"%}
                   {% else %}                    
                     {%set ns.activityname = "Using the Computer"%}
@@ -784,16 +783,16 @@
 #           {% set ns = namespace(counted_list=[]) %}       
 #           {% set lastactiveroom = states('sensor.last_active_room') %}     
 #           {% set maxialone = states('binary_sensor.maxi_alone') %}
-#           {% set braceletroom = states('sensor.b7bracelet1') %}
-#           {% set braceletespresenseroom = states('device_tracker.maxi_bracelet_espresense') | lower%}
+#           {% set braceletroom = states('sensor.bermuda_maxi_ankle_beacon_bps_zone') %}
+#           {% set braceletespresenseroom = states('sensor.bermuda_maxi_ankle_beacon_bps_zone') | lower%}
 #             {% if braceletroom == braceletespresenseroom %}
 #                 {% set final_bracelet_room = braceletespresenseroom %}
 #               {% else %}
 #                 {% set final_bracelet_room = braceletroom %}
 #             {% endif %}            
-#           {% set watchroom = states('sensor.watch_galaxy4') | lower %}
+#           {% set watchroom = states('sensor.bermuda_maxi_watch_bps_zone') | lower %}
 #           {% set watchespresenseroom = states('device_tracker.maxi_watch_4_espresense') | lower %}
-#           {% set watchonbody = states('binary_sensor.galaxy_watch_4_on_body_sensor')| lower %}
+#           {% set watchonbody = states('binary_sensor.maxi_watch_on_body_sensor')| lower %}
 #           {% if (watchroom == watchespresenseroom) and (watchonbody =="on")%}
 #                 {% set final_watch_room = watchespresenseroom %}
 #               {% else %}
@@ -951,8 +950,8 @@
       - trigger: state
         entity_id:
           - device_tracker.phone_maxi
-          - binary_sensor.oneplus_watch_3_on_body_sensor
-          - sensor.oneplus_watch_3_charger_type
+          - binary_sensor.maxi_watch_on_body_sensor
+          - sensor.maxi_watch_charger_type
           - sensor.phone_maxi_charger_type
           - binary_sensor.phone_maxi_interactive
           - binary_sensor.maxi_alone
@@ -963,6 +962,10 @@
           - sensor.bermuda_maxi_ankle_beacon_bps_zone
           - sensor.bermuda_maxi_phone_area
           - sensor.bermuda_maxi_phone_bps_zone
+      # Without this the sensor sits at 'unknown' after a restart until the next
+      # BLE update arrives, which starves every downstream room-based sensor.
+      - trigger: homeassistant
+        event: start
     sensor:
       - name: "Maxi Location by petro v2"
         unique_id: maxi_location_by_petro_v2
@@ -981,7 +984,7 @@
               {% set phone_bps_value = states('sensor.bermuda_maxi_phone_bps_zone') | lower %}
               {% set phone_bps_home = phone_bps_value not in invalid %}
               {% set ns = namespace(votes=[], results=[]) %}
-              {% for name, room_entity, zone_entity in info if (name == 'watch' and is_state('binary_sensor.oneplus_watch_3_on_body_sensor', 'on') and is_state('sensor.oneplus_watch_3_charger_type', 'none')) or
+              {% for name, room_entity, zone_entity in info if (name == 'watch' and is_state('binary_sensor.maxi_watch_on_body_sensor', 'on') and is_state('sensor.maxi_watch_charger_type', 'none')) or
                                                               (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on')) or
                                                               (name == 'bracelet')
               %}
@@ -999,11 +1002,10 @@
                     {% set chosen_room = bps_room %}
                     {% set chosen_score = 3 %}
                     {% set chosen_ts = [as_timestamp(states[room_entity].last_changed, 0), as_timestamp(states[zone_entity].last_changed, 0)] | max %}
-                  {% elif current_room != '' and (area_room == current_room or bps_room == current_room) %}
-                    {% set chosen_room = current_room %}
-                    {% set chosen_score = 2 %}
-                    {% set chosen_ts = [as_timestamp(states[room_entity].last_changed, 0), as_timestamp(states[zone_entity].last_changed, 0)] | max %}
                   {% else %}
+                    {# area and bps disagree: trust the trilaterated zone over the
+                       incumbent state. Nearest-scanner area loses at room boundaries,
+                       where a probe on the far side of a wall can be the closest one. #}
                     {% set chosen_room = bps_room %}
                     {% set chosen_score = 2 %}
                     {% set chosen_ts = as_timestamp(states[zone_entity].last_changed, 0) %}
@@ -1025,9 +1027,9 @@
               {% endfor %}
               {% if is_state('binary_sensor.maxi_alone', 'on') and states('sensor.last_active_room') | lower not in invalid %}
                 {% set last_room = states('sensor.last_active_room') | lower %}
-                {% if current_room == '' or last_room == current_room %}
-                  {% set ns.votes = ns.votes + [(last_room, 1, as_timestamp(states['sensor.last_active_room'].last_changed, 0))] %}
-                {% endif %}
+                {# No incumbency gate: this vote's only value is correcting a stale
+                   state, which it can only do when it disagrees with one. #}
+                {% set ns.votes = ns.votes + [(last_room, 1, as_timestamp(states['sensor.last_active_room'].last_changed, 0))] %}
               {% endif %}
               {% if (gpslocation == 'home' or phone_bps_home) and current_room != '' %}
                 {% set ns.votes = ns.votes + [(current_room, 1, 0)] %}
@@ -1074,7 +1076,7 @@
               ('phone', 'sensor.bermuda_maxi_phone_area', 'sensor.bermuda_maxi_phone_bps_zone'),
             ] %}
             {% set ns = namespace(lines=[]) %}
-            {% for name, area, bps in info if (name == 'watch' and is_state('binary_sensor.oneplus_watch_3_on_body_sensor', 'on') and is_state('sensor.oneplus_watch_3_charger_type', 'none')) or
+            {% for name, area, bps in info if (name == 'watch' and is_state('binary_sensor.maxi_watch_on_body_sensor', 'on') and is_state('sensor.maxi_watch_charger_type', 'none')) or
                                               (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on')) or
                                               (name == 'bracelet')
             %}
@@ -1099,12 +1101,15 @@
           - media_player.group_mass_home_group_speakers
           - media_player.mass_bathroom_vpe_speaker
           - media_player.mass_bedroom_aux2_speaker
-          - media_player.mass_closet_wiim_speaker
+          - media_player.mass_closet_vpe_speaker
           - media_player.mass_lounge_wiim_speaker
           - media_player.mass_kitchen_wiim_speaker
           - media_player.mass_hallway_wiim_speaker
           - media_player.mass_salon_wiim_speaker
           - media_player.mass_workshop_wiim_speaker
+          - media_player.mass_patio_wiim_speaker
+          - media_player.mass_hotbox_wiim_speaker
+          - media_player.mass_bedroom_vpe_speaker
       - trigger: homeassistant
         event: start
     sensor:
@@ -1175,7 +1180,9 @@
       - name: "Playing on Bedroom Speaker"
         unique_id: playing_on_bedroom_speaker
         state: >-
-          {% set e = 'media_player.mass_bedroom_aux2_speaker' %}
+          {% set e = 'media_player.mass_bedroom_aux2_speaker'
+                     if is_state('media_player.mass_bedroom_aux2_speaker', 'playing')
+                     else 'media_player.mass_bedroom_vpe_speaker' %}
           {% if state_attr(e, 'media_album_name') %}
             {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_artist') }}
           {% elif state_attr(e, 'media_title') %}
@@ -1186,7 +1193,7 @@
       - name: "Playing on Closet Speaker"
         unique_id: playing_on_closet_speaker
         state: >-
-          {% set e = 'media_player.mass_closet_wiim_speaker' %}
+          {% set e = 'media_player.mass_closet_vpe_speaker' %}
           {% if state_attr(e, 'media_album_name') %}
             {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_artist') }}
           {% elif state_attr(e, 'media_title') %}
@@ -1250,6 +1257,30 @@
             {{ state_attr(e, 'app_name') }}
           {% endif %}
 
+      - name: "Playing on Patio Speaker"
+        unique_id: playing_on_patio_speaker
+        state: >-
+          {% set e = 'media_player.mass_patio_wiim_speaker' %}
+          {% if state_attr(e, 'media_album_name') %}
+            {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_artist') }}
+          {% elif state_attr(e, 'media_title') %}
+            {{ state_attr(e, 'media_title') }}
+          {% elif state_attr(e, 'app_name') %}
+            {{ state_attr(e, 'app_name') }}
+          {% endif %}
+
+      - name: "Playing on Hotbox Speaker"
+        unique_id: playing_on_hotbox_speaker
+        state: >-
+          {% set e = 'media_player.mass_hotbox_wiim_speaker' %}
+          {% if state_attr(e, 'media_album_name') %}
+            {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_artist') }}
+          {% elif state_attr(e, 'media_title') %}
+            {{ state_attr(e, 'media_title') }}
+          {% elif state_attr(e, 'app_name') %}
+            {{ state_attr(e, 'app_name') }}
+          {% endif %}
+
   # ─── Person Counting & Presence Sensors ───
   # Counts partners, crashers, and residents at home using HA labels on person entities.
   # Also provides a "Users Present" binary sensor with a 7-minute delay-off.
@@ -1258,10 +1289,7 @@
         entity_id:
           - person.maximiliano
           - person.myriam
-          - person.carla
           - person.fay
-          - person.cindy
-          - person.gnome
           - person.lylou
       - trigger: homeassistant
         event: start
@@ -1312,7 +1340,7 @@
           rooms: >
             {% set info = [
               ('watch', 'sensor.bermuda_maxi_watch_bps_zone', 'sensor.bermuda_maxi_watch_area'),
-              ('bracelet', 'device_tracker.maxi_bracelet_espresense', 'sensor.bermuda_maxi_ankle_monitor_area'),
+              ('bracelet', 'sensor.bermuda_maxi_ankle_beacon_bps_zone', 'sensor.bermuda_maxi_ankle_beacon_bps_zone'),
               ('phone', 'device_tracker.espresense_phone_maxi', 'sensor.bermuda_maxi_phone_area'),
             ] %}
             {% set gpslocation = states('device_tracker.phone_maxi') | lower %}
@@ -1394,17 +1422,23 @@
           - media_player.universal_tablet_myriam_s8
           - media_player.mass_bathroom_vpe_speaker
           - media_player.mass_bedroom_aux2_speaker
-          - media_player.mass_closet_wiim_speaker
+          - media_player.mass_closet_vpe_speaker
           - media_player.mass_lounge_wiim_speaker
           - media_player.mass_kitchen_wiim_speaker
           - media_player.mass_hallway_wiim_speaker
           - media_player.mass_salon_wiim_speaker
           - media_player.mass_workshop_wiim_speaker
+          - media_player.mass_patio_wiim_speaker
+          - media_player.mass_hotbox_wiim_speaker
+          - media_player.mass_bedroom_vpe_speaker
       - trigger: homeassistant
         event: start
     sensor:
       # Lists room names where a universal Chromecast media player is currently playing.
       # Also provides muted_rooms/unmuted_rooms attributes for volume-aware automations.
+      # Cast app_ids 84912283 and A078F6B0 are the Home Assistant dashboard receivers:
+      # a device showing a dashboard reports 'playing' permanently (the kitchen Google
+      # Hub does, 24/7) but is not media, so those are rejected from all three lists.
       - name: "active_chromecast_rooms"
         unique_id: "active_chromecast_rooms"
         state: >-
@@ -1415,7 +1449,8 @@
               'media_player.universal_hotbox_top_chromecast',
               'media_player.universal_patio_chromecast',
               'media_player.universal_workshop_chromecast')
-              | selectattr('state', 'eq', 'playing') %}
+              | selectattr('state', 'eq', 'playing')
+              | rejectattr('attributes.app_id', 'in', ['84912283', 'A078F6B0']) %}
             {{ playing
               | map(attribute='entity_id')
               | map('regex_replace', 'media_player.universal_', '')
@@ -1431,6 +1466,7 @@
                 'media_player.universal_patio_chromecast',
                 'media_player.universal_workshop_chromecast')
                 | selectattr('state', 'eq', 'playing')
+                | rejectattr('attributes.app_id', 'in', ['84912283', 'A078F6B0'])
                 | selectattr('attributes.is_volume_muted', 'eq', true) %}
               {{ playing
                 | map(attribute='entity_id')
@@ -1446,6 +1482,7 @@
                 'media_player.universal_patio_chromecast',
                 'media_player.universal_workshop_chromecast')
                 | selectattr('state', 'eq', 'playing')
+                | rejectattr('attributes.app_id', 'in', ['84912283', 'A078F6B0'])
                 | selectattr('attributes.is_volume_muted', 'eq', false) %}
               {{ playing
                 | map(attribute='entity_id')
@@ -1461,30 +1498,37 @@
             {% set playing = expand(
               'media_player.mass_bathroom_vpe_speaker',
               'media_player.mass_bedroom_aux2_speaker',
-              'media_player.mass_closet_wiim_speaker',
+              'media_player.mass_closet_vpe_speaker',
               'media_player.mass_lounge_wiim_speaker',
               'media_player.mass_kitchen_wiim_speaker',
               'media_player.mass_hallway_wiim_speaker',
               'media_player.mass_salon_wiim_speaker',
-              'media_player.mass_workshop_wiim_speaker')
+              'media_player.mass_workshop_wiim_speaker',
+              'media_player.mass_patio_wiim_speaker',
+              'media_player.mass_hotbox_wiim_speaker',
+              'media_player.mass_bedroom_vpe_speaker')
               | selectattr('state', 'eq', 'playing') %}
             {{ playing
               | map(attribute='entity_id')
               | map('regex_replace', 'media_player.mass_', '')
               | map('regex_replace', '_wiim_speaker', '')
               | map('regex_replace', '_vpe_speaker', '')
-              | list }}
+              | map('regex_replace', '_aux2_speaker', '')
+              | unique | list }}
         attributes:
           muted_rooms: >-
               {% set playing = expand(
                 'media_player.mass_bathroom_vpe_speaker',
                 'media_player.mass_bedroom_aux2_speaker',
-                'media_player.mass_closet_wiim_speaker',
+                'media_player.mass_closet_vpe_speaker',
                 'media_player.mass_lounge_wiim_speaker',
                 'media_player.mass_kitchen_wiim_speaker',
                 'media_player.mass_hallway_wiim_speaker',
                 'media_player.mass_salon_wiim_speaker',
-                'media_player.mass_workshop_wiim_speaker')
+                'media_player.mass_workshop_wiim_speaker',
+                'media_player.mass_patio_wiim_speaker',
+                'media_player.mass_hotbox_wiim_speaker',
+                'media_player.mass_bedroom_vpe_speaker')
                 | selectattr('state', 'eq', 'playing')
                 | selectattr('attributes.is_volume_muted', 'eq', true) %}
               {{ playing
@@ -1492,17 +1536,21 @@
                 | map('regex_replace', 'media_player.mass_', '')
                 | map('regex_replace', '_wiim_speaker', '')
                 | map('regex_replace', '_vpe_speaker', '')
-                | list }}
+                | map('regex_replace', '_aux2_speaker', '')
+                | unique | list }}
           unmuted_rooms: >-
               {% set playing = expand(
                 'media_player.mass_bathroom_vpe_speaker',
                 'media_player.mass_bedroom_aux2_speaker',
-                'media_player.mass_closet_wiim_speaker',
+                'media_player.mass_closet_vpe_speaker',
                 'media_player.mass_lounge_wiim_speaker',
                 'media_player.mass_kitchen_wiim_speaker',
                 'media_player.mass_hallway_wiim_speaker',
                 'media_player.mass_salon_wiim_speaker',
-                'media_player.mass_workshop_wiim_speaker')
+                'media_player.mass_workshop_wiim_speaker',
+                'media_player.mass_patio_wiim_speaker',
+                'media_player.mass_hotbox_wiim_speaker',
+                'media_player.mass_bedroom_vpe_speaker')
                 | selectattr('state', 'eq', 'playing')
                 | selectattr('attributes.is_volume_muted', 'eq', false) %}
               {{ playing
@@ -1510,7 +1558,8 @@
                 | map('regex_replace', 'media_player.mass_', '')
                 | map('regex_replace', '_wiim_speaker', '')
                 | map('regex_replace', '_vpe_speaker', '')
-                | list }}
+                | map('regex_replace', '_aux2_speaker', '')
+                | unique | list }}
 
       # Master "is anything playing?" sensor. Combines both speakers AND chromecasts.
       # State is true/false; attributes 'speakers' and 'chromecasts' list room names.
@@ -1521,17 +1570,21 @@
             {% set speakers = expand(
               'media_player.mass_bathroom_vpe_speaker',
               'media_player.mass_bedroom_aux2_speaker',
-              'media_player.mass_closet_wiim_speaker',
+              'media_player.mass_closet_vpe_speaker',
               'media_player.mass_lounge_wiim_speaker',
               'media_player.mass_kitchen_wiim_speaker',
               'media_player.mass_hallway_wiim_speaker',
               'media_player.mass_salon_wiim_speaker',
-              'media_player.mass_workshop_wiim_speaker')
+              'media_player.mass_workshop_wiim_speaker',
+              'media_player.mass_patio_wiim_speaker',
+              'media_player.mass_hotbox_wiim_speaker',
+              'media_player.mass_bedroom_vpe_speaker')
               | selectattr('state', 'eq', 'playing')
               | map(attribute='entity_id')
               | map('regex_replace', 'media_player.mass_', '')
               | map('regex_replace', '_wiim_speaker', '')
               | map('regex_replace', '_vpe_speaker', '')
+              | map('regex_replace', '_aux2_speaker', '')
               | list %}
             {% set chromecasts = expand(
               'media_player.universal_bedroom_chromecast',
@@ -1541,6 +1594,7 @@
               'media_player.universal_patio_chromecast',
               'media_player.universal_workshop_chromecast')
               | selectattr('state', 'eq', 'playing')
+              | rejectattr('attributes.app_id', 'in', ['84912283', 'A078F6B0'])
               | map(attribute='entity_id')
               | map('regex_replace', 'media_player.universal_', '')
               | map('regex_replace', '_chromecast', '')
@@ -1553,18 +1607,22 @@
               {{ expand(
                 'media_player.mass_bathroom_vpe_speaker',
                 'media_player.mass_bedroom_aux2_speaker',
-                'media_player.mass_closet_wiim_speaker',
+                'media_player.mass_closet_vpe_speaker',
                 'media_player.mass_lounge_wiim_speaker',
                 'media_player.mass_kitchen_wiim_speaker',
                 'media_player.mass_hallway_wiim_speaker',
                 'media_player.mass_salon_wiim_speaker',
-                'media_player.mass_workshop_wiim_speaker')
+                'media_player.mass_workshop_wiim_speaker',
+                'media_player.mass_patio_wiim_speaker',
+                'media_player.mass_hotbox_wiim_speaker',
+                'media_player.mass_bedroom_vpe_speaker')
                 | selectattr('state', 'eq', 'playing')
                 | map(attribute='entity_id')
                 | map('regex_replace', 'media_player.mass_', '')
                 | map('regex_replace', '_wiim_speaker', '')
                 | map('regex_replace', '_vpe_speaker', '')
-                | list }}
+                | map('regex_replace', '_aux2_speaker', '')
+                | unique | list }}
           chromecasts: >-
               {{ expand(
                 'media_player.universal_bedroom_chromecast',
@@ -1574,9 +1632,12 @@
                 'media_player.universal_patio_chromecast',
                 'media_player.universal_workshop_chromecast')
                 | selectattr('state', 'eq', 'playing')
+                | rejectattr('attributes.app_id', 'in', ['84912283', 'A078F6B0'])
                 | map(attribute='entity_id')
                 | map('regex_replace', 'media_player.universal_', '')
                 | map('regex_replace', '_chromecast', '')
+                | map('regex_replace', '_top', '')
+                | map('regex_replace', '_bottom', '')
                 | list }}
 
   # ─── Motion & Last Active Room Tracking ───
@@ -1682,3 +1743,231 @@
             {% else %}
               not_home
             {% endif %}
+
+  # ─── Maxi Pacing (sustained) ───
+  # Gate for the "Pacing in the Apartment" rule in Maxi current Activity V3.
+  # The raw transition count is spiky, so the threshold alone was too sensitive:
+  # a brief flurry of room changes tripped it. delay_on requires the condition to
+  # hold for 4 CONTINUOUS minutes, and restarts from zero the moment the count
+  # dips below 7 - that strictness is the point.
+  # The since_boot check lives here too, so the 4-minute clock cannot even start
+  # during the BLE re-acquisition storm that follows a restart.
+  - binary_sensor:
+      - name: "Maxi Pacing"
+        unique_id: maxi_pacing
+        icon: mdi:shoe-print
+        delay_on:
+          minutes: 4
+        state: >-
+          {% set boot = as_datetime(states('sensor.uptime')) %}
+          {% set since_boot = (now() - boot).total_seconds() if boot is not none else 99999 %}
+          {{ states('sensor.maxi_room_transitions') | int(0) >= 7 and since_boot > 600 }}
+
+  # ─── Maxi Room Transitions (rolling 5-minute buffer) ───
+  # Feeds the "Pacing in the Apartment" rule in Maxi current Activity V3.
+  # Kept as its own sensor so the buffer only advances on a real room change,
+  # rather than on every re-evaluation of the activity sensor.
+  # State      = number of DISTINCT rooms entered in the last 5 minutes.
+  # Attributes = buffer, a list of [room, unix_ts] capped at 20 entries.
+  - trigger:
+      # No hold time / dwell gate here on purpose. petro_v2 is already the
+      # filtered source: it votes across watch + ankle beacon + phone and
+      # cross-references sensor.active_motion_rooms, restricting candidates to
+      # rooms with live motion. Adding a second filter on top would suppress
+      # exactly the fast movement pacing is made of. The Pacing threshold in
+      # activity.jinja is instead calibrated against 24 h of real history.
+      - trigger: state
+        entity_id:
+          - sensor.maxi_location_by_petro_v2
+      - trigger: time_pattern
+        minutes: "/1"
+      - trigger: homeassistant
+        event: start
+    sensor:
+      - name: "Maxi Room Transitions"
+        unique_id: maxi_room_transitions
+        unit_of_measurement: "rooms"
+        state: >-
+          {% set prev = (this.attributes.get('buffer', []) if this is defined and this.attributes is defined else []) %}
+          {% set raw = states('sensor.maxi_location_by_petro_v2') | lower %}
+          {% set room = raw | replace('_top','') | replace('_bottom','') | replace('_down','')
+                            | replace(' top','') | replace(' bottom','') | replace(' down','') | trim %}
+          {% set ts = now().timestamp() | round(0) | int %}
+          {% set ns = namespace(buf=[]) %}
+          {% for e in prev %}
+            {% if (e[1] | int(0)) > (ts - 300) %}{% set ns.buf = ns.buf + [e] %}{% endif %}
+          {% endfor %}
+          {% if room not in ['unknown','unavailable','none','','not_home'] and not room.startswith('at ') %}
+            {% if ns.buf | length == 0 or ns.buf[-1][0] != room %}
+              {% set ns.buf = ns.buf + [[room, ts]] %}
+            {% endif %}
+          {% endif %}
+          {% set ns.buf = ns.buf[-20:] %}
+          {% set ns2 = namespace(rooms=[]) %}
+          {% for e in ns.buf %}{% set ns2.rooms = ns2.rooms + [e[0]] %}{% endfor %}
+          {{ ns2.rooms | unique | list | count }}
+        attributes:
+          buffer: >-
+            {% set prev = (this.attributes.get('buffer', []) if this is defined and this.attributes is defined else []) %}
+            {% set raw = states('sensor.maxi_location_by_petro_v2') | lower %}
+            {% set room = raw | replace('_top','') | replace('_bottom','') | replace('_down','')
+                              | replace(' top','') | replace(' bottom','') | replace(' down','') | trim %}
+            {% set ts = now().timestamp() | round(0) | int %}
+            {% set ns = namespace(buf=[]) %}
+            {% for e in prev %}
+              {% if (e[1] | int(0)) > (ts - 300) %}{% set ns.buf = ns.buf + [e] %}{% endif %}
+            {% endfor %}
+            {% if room not in ['unknown','unavailable','none','','not_home'] and not room.startswith('at ') %}
+              {% if ns.buf | length == 0 or ns.buf[-1][0] != room %}
+                {% set ns.buf = ns.buf + [[room, ts]] %}
+              {% endif %}
+            {% endif %}
+            {{ ns.buf[-20:] }}
+
+  # ─── Maxi Activity Detection (V3) ───
+  # All rules live in custom_templates/activity.jinja as a single macro that
+  # returns JSON, so the state and every attribute come from ONE evaluation of
+  # the ladder. That removes V2's triplicated alone/partners/friends cascades:
+  # social context is now the `company` attribute, not part of the state.
+  #
+  # Scoring model: every rule appends a candidate; highest score wins; ties fall
+  # back to insertion order. See the `candidates` attribute to debug a ranking.
+  #
+  # NOTE: after editing activity.jinja run
+  #       Developer Tools -> Actions -> "Reload custom Jinja2 templates"
+  - trigger:
+      - trigger: state
+        entity_id:
+          # presence & sleep
+          - person.maximiliano
+          - sensor.is_maxi_asleep
+          - sensor.maxi_location_by_petro_v2
+          - binary_sensor.maxi_alone
+          # away
+          - sensor.phone_maxi_detected_activity
+          - binary_sensor.phone_maxi_android_auto
+          - sensor.phone_maxi_geocoded_location
+          # bed - only occupancy is read now that Intimacy is gone; the playing /
+          # bed_moving / left+right side sensors were dropped with it
+          - binary_sensor.bedroom_bed_weight_sensor_bed_occupied
+          - binary_sensor.maxi_cpap_running_hysteresis
+          # bathroom / rooms
+          - binary_sensor.shower_in_usage
+          - binary_sensor.sensor_server_door_contact
+          - binary_sensor.group_server_motion_occupancy
+          # sesh
+          - binary_sensor.active_smoking_in_the_salon
+          - input_boolean.dab_timer
+          # kitchen
+          - binary_sensor.sensor_fridge_door_contact
+          - binary_sensor.kitchen_radar_occupancy_occupancy
+          - binary_sensor.group_kitchen_motion_occupancy
+          - sensor.sensor_stove_temperature_temperature
+          - sensor.sensor_stove_temperature_humidity
+          - sensor.plug_kitchen_airfryer_electric_consumption_w
+          - sensor.plug_kitchen_toaster_electric_consumption_w
+          - sensor.plug_kitchen_washer_electric_consumption_w
+          - sensor.dryer_current_status
+          - input_boolean.cooking_mode
+          - timer.cooking
+          - binary_sensor.lounge_couch_zone_1_occcupancy
+          - binary_sensor.lounge_couch_zone_2_occcupancy
+          # desk / discord
+          - sensor.is_computer_active
+          - binary_sensor.hallway_radar_occupancy_zone_2_occupancy
+          - binary_sensor.computer_maxi_pc_computer_maxi_pc_microphoneactive
+          - binary_sensor.desktop_maxi_webcamactive
+          - binary_sensor.computer_maxi_pc_computer_maxi_pc_webcamactive
+          - sensor.discord_user_156149779443875840_voice_channel
+          - sensor.discord_user_156149779443875840_voice_self_stream
+          - sensor.discord_user_156149779443875840_streaming
+          - sensor.maxi1134_8202
+          - sensor.steam_maxi
+          # phone
+          - binary_sensor.maxi_is_talking
+          - sensor.phone_maxi_phone_state
+          - binary_sensor.phone_maxi_device_locked
+          - binary_sensor.phone_maxi_interactive
+          # media
+          - sensor.active_media_playback
+          - sensor.hotbox_roku_active_app
+          # social
+          - sensor.amount_friends_home
+          - sensor.amount_partners_home
+          - input_boolean.party_mode
+          - input_boolean.kink_party
+          - input_select.vibe_arc_phase
+          # misc
+          - vacuum.roborock_qrevo_curv_series
+          - sensor.maxi_room_transitions
+          - binary_sensor.maxi_pacing
+      # fires exactly when a room has been held for 60 s, so the hallway-desk
+      # dwell rule flips on time instead of waiting for the next minute tick
+      - trigger: state
+        entity_id:
+          - sensor.maxi_location_by_petro_v2
+        for: "00:01:00"
+      # re-evaluate time-decaying rules (fridge 60 s, cooking 45 min, pacing)
+      - trigger: time_pattern
+        minutes: "/1"
+      - trigger: homeassistant
+        event: start
+    sensor:
+      - name: "Maxi current Activity V3"
+        unique_id: maxi_current_activity_v3
+        state: >-
+          {% from 'activity.jinja' import maxi_activity_v3 %}
+          {{ (maxi_activity_v3() | trim | from_json).state }}
+        icon: >-
+          {% from 'activity.jinja' import maxi_activity_v3 %}
+          {% set a = (maxi_activity_v3() | trim | from_json).state %}
+          {% set icons = {
+            'Sleeping':'mdi:sleep', 'Driving':'mdi:car', 'Walking':'mdi:walk',
+            'Adventuring':'mdi:map-marker-path',
+            'Kinking':'mdi:handcuffs', 'Playing':'mdi:heart-multiple',
+            'Showering':'mdi:shower-head', 'Server Maintenance':'mdi:server',
+            'Sesh':'mdi:cannabis', 'Raiding the Fridge':'mdi:fridge',
+            'On a Video Call':'mdi:video', 'Streaming':'mdi:broadcast',
+            'Gaming with Friends':'mdi:account-group', 'Gaming':'mdi:controller',
+            'On a Voice Call':'mdi:headset', 'On the Phone':'mdi:phone-in-talk',
+            'Watching a Series':'mdi:television-classic', 'Watching a Movie':'mdi:movie-open',
+            'Watching TV':'mdi:television', 'Listening to Music':'mdi:music',
+            'Cooking':'mdi:chef-hat', 'Eating':'mdi:silverware-fork-knife',
+            'On the Patio':'mdi:flower', 'In Bed, Awake':'mdi:cellphone-text',
+            'Using the Computer':'mdi:desktop-tower-monitor',
+            'Pacing in the Apartment':'mdi:shoe-print', 'Using Phone':'mdi:cellphone',
+            'Partying':'mdi:party-popper', 'Hosting':'mdi:account-multiple',
+            'Cleaning':'mdi:robot-vacuum', 'Chilling':'mdi:sofa' } %}
+          {{ icons.get(a, 'mdi:television-ambient-light' if a.startswith('Watching')
+                          else ('mdi:map-marker' if a.startswith('At ') else 'mdi:help-circle-outline')) }}
+        attributes:
+          detail: >-
+            {% from 'activity.jinja' import maxi_activity_v3 %}
+            {{ (maxi_activity_v3() | trim | from_json).detail }}
+          room: >-
+            {% from 'activity.jinja' import maxi_activity_v3 %}
+            {{ (maxi_activity_v3() | trim | from_json).room }}
+          company: >-
+            {% from 'activity.jinja' import maxi_activity_v3 %}
+            {{ (maxi_activity_v3() | trim | from_json).company }}
+          score: >-
+            {% from 'activity.jinja' import maxi_activity_v3 %}
+            {{ (maxi_activity_v3() | trim | from_json).score }}
+          music: >-
+            {# always exposed, even though Listening to Music almost never wins #}
+            {% from 'activity.jinja' import maxi_activity_v3 %}
+            {{ (maxi_activity_v3() | trim | from_json).music }}
+          category: >-
+            {# stable bucket (~9 values) for history_stats duration tracking #}
+            {% from 'activity.jinja' import maxi_activity_v3 %}
+            {{ (maxi_activity_v3() | trim | from_json).category }}
+          candidates: >-
+            {% from 'activity.jinja' import maxi_activity_v3 %}
+            {{ (maxi_activity_v3() | trim | from_json).candidates
+               | map(attribute='n') | list }}
+          candidates_scored: >-
+            {% from 'activity.jinja' import maxi_activity_v3 %}
+            {{ (maxi_activity_v3() | trim | from_json).candidates }}
+          vacuum: >-
+            {{ states('vacuum.roborock_qrevo_curv_series') }} /
+            {{ states('sensor.roborock_qrevo_curv_series_current_room') }}

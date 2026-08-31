@@ -1,0 +1,140 @@
+# ─── Maxi Activity — time in each category ───────────────────────────────────
+#
+# Backend for the apexcharts donut of "where did today go".
+#
+# Chain:
+#   sensor.maxi_current_activity_v3  (attribute: category)
+#     -> sensor.maxi_activity_category   state = the category, so history_stats
+#                                        can match it (it matches on STATE, not
+#                                        on attributes)
+#     -> sensor.activity_<cat>_today     history_stats, hours spent today
+#     -> sensor.maxi_activity_durations  one entity holding all of them as
+#                                        attributes, for data_generator
+#
+# Why categories instead of raw states: history_stats needs exact state strings
+# declared in YAML, but several V3 states are built at runtime ("Watching
+# YouTube", "At Gatien"), so they can never be listed. The category map in
+# custom_templates/activity.jinja collapses ~35 states into 9 fixed buckets.
+#
+# recorder purge_keep_days is 45, so anything up to a 45-day window is safe.
+
+template:
+  # Mirror V3's category attribute into a state, purely so history_stats can see it.
+  - trigger:
+      - trigger: state
+        entity_id:
+          - sensor.maxi_current_activity_v3
+      - trigger: homeassistant
+        event: start
+    sensor:
+      - name: "Maxi Activity Category"
+        unique_id: maxi_activity_category
+        icon: mdi:shape
+        state: >-
+          {{ state_attr('sensor.maxi_current_activity_v3', 'category')
+             | default('Idle', true) }}
+
+  # Single entity holding every duration as an attribute, so one apexcharts
+  # series per slice can pluck them via data_generator.
+  - sensor:
+      - name: "Maxi Activity Durations"
+        unique_id: maxi_activity_durations
+        icon: mdi:chart-donut
+        state: "ok"
+        attributes:
+          sleep:    "{{ states('sensor.activity_sleep_today')    | float(0) | round(2) }}"
+          away:     "{{ states('sensor.activity_away_today')     | float(0) | round(2) }}"
+          desk:     "{{ states('sensor.activity_desk_today')     | float(0) | round(2) }}"
+          media:    "{{ states('sensor.activity_media_today')    | float(0) | round(2) }}"
+          personal: "{{ states('sensor.activity_personal_today') | float(0) | round(2) }}"
+          chores:   "{{ states('sensor.activity_chores_today')   | float(0) | round(2) }}"
+          social:   "{{ states('sensor.activity_social_today')   | float(0) | round(2) }}"
+          phone:    "{{ states('sensor.activity_phone_today')    | float(0) | round(2) }}"
+          idle:     "{{ states('sensor.activity_idle_today')     | float(0) | round(2) }}"
+          # total tracked hours, useful for spotting recorder gaps
+          tracked: >-
+            {{ ([ 'sleep','away','desk','media','personal','chores','social','phone','idle' ]
+                | map('regex_replace','^(.*)$','sensor.activity_\\1_today')
+                | map('states') | map('float', 0) | sum) | round(2) }}
+
+sensor:
+  - platform: history_stats
+    name: Activity Sleep Today
+    unique_id: activity_sleep_today
+    entity_id: sensor.maxi_activity_category
+    state: "Sleep"
+    type: time
+    start: "{{ today_at('00:00') }}"
+    end: "{{ now() }}"
+
+  - platform: history_stats
+    name: Activity Away Today
+    unique_id: activity_away_today
+    entity_id: sensor.maxi_activity_category
+    state: "Away"
+    type: time
+    start: "{{ today_at('00:00') }}"
+    end: "{{ now() }}"
+
+  - platform: history_stats
+    name: Activity Desk Today
+    unique_id: activity_desk_today
+    entity_id: sensor.maxi_activity_category
+    state: "Desk"
+    type: time
+    start: "{{ today_at('00:00') }}"
+    end: "{{ now() }}"
+
+  - platform: history_stats
+    name: Activity Media Today
+    unique_id: activity_media_today
+    entity_id: sensor.maxi_activity_category
+    state: "Media"
+    type: time
+    start: "{{ today_at('00:00') }}"
+    end: "{{ now() }}"
+
+  - platform: history_stats
+    name: Activity Personal Today
+    unique_id: activity_personal_today
+    entity_id: sensor.maxi_activity_category
+    state: "Personal"
+    type: time
+    start: "{{ today_at('00:00') }}"
+    end: "{{ now() }}"
+
+  - platform: history_stats
+    name: Activity Chores Today
+    unique_id: activity_chores_today
+    entity_id: sensor.maxi_activity_category
+    state: "Chores"
+    type: time
+    start: "{{ today_at('00:00') }}"
+    end: "{{ now() }}"
+
+  - platform: history_stats
+    name: Activity Social Today
+    unique_id: activity_social_today
+    entity_id: sensor.maxi_activity_category
+    state: "Social"
+    type: time
+    start: "{{ today_at('00:00') }}"
+    end: "{{ now() }}"
+
+  - platform: history_stats
+    name: Activity Phone Today
+    unique_id: activity_phone_today
+    entity_id: sensor.maxi_activity_category
+    state: "Phone"
+    type: time
+    start: "{{ today_at('00:00') }}"
+    end: "{{ now() }}"
+
+  - platform: history_stats
+    name: Activity Idle Today
+    unique_id: activity_idle_today
+    entity_id: sensor.maxi_activity_category
+    state: "Idle"
+    type: time
+    start: "{{ today_at('00:00') }}"
+    end: "{{ now() }}"

@@ -1,0 +1,454 @@
+{#-
+  ─── Maxi Activity V3 ───────────────────────────────────────────────────────
+  Single source of truth for sensor.maxi_current_activity_v3.
+
+  Returns a JSON object so that the sensor's state and every one of its
+  attributes can be derived from ONE evaluation of the rules, instead of
+  duplicating the whole ladder per attribute (the structural problem in V2).
+
+    { "state": str, "detail": str, "room": str, "company": str,
+      "score": int, "candidates": [ {s,n,d}, ... ] }
+
+  Model: every rule appends a candidate {score, name, detail}. Highest score
+  wins; Jinja's sort is stable so equal scores fall back to insertion order.
+  Nothing short-circuits, so adding a state never reorders the others and
+  there is no per-social-context duplication.
+
+  After editing:  Developer Tools -> Actions -> "Reload custom Jinja2 templates"
+-#}
+
+{%- macro maxi_activity_v3() -%}
+
+{#- ───────── constants ───────── -#}
+{%- set INVALID = ['unknown','unavailable','none','','null','not_home','nan'] -%}
+{#- Cast receiver IDs for a Home Assistant dashboard. A device showing a
+    dashboard is permanently "playing", but it is furniture, not media. -#}
+{%- set HUB_APPS = ['84912283','A078F6B0'] -%}
+{#- Discord reports rich-presence apps as "game"; these are not games. -#}
+{%- set NOT_GAMES = ['wallpaper engine','spotify','discord','visual studio code',
+                     'obs studio','steam','vlc media player','google chrome','firefox'] -%}
+{%- set CAST = {
+      'bedroom':  'media_player.universal_bedroom_chromecast',
+      'salon':    'media_player.universal_salon_chromecast',
+      'kitchen':  'media_player.universal_kitchen_chromecast',
+      'hotbox':   'media_player.universal_hotbox_top_chromecast',
+      'patio':    'media_player.universal_patio_chromecast',
+      'workshop': 'media_player.universal_workshop_chromecast' } -%}
+{%- set SPK = {
+      'bathroom': 'media_player.mass_bathroom_vpe_speaker',
+      'bedroom':  'media_player.mass_bedroom_aux2_speaker',
+      'closet':   'media_player.mass_closet_vpe_speaker',
+      'lounge':   'media_player.mass_lounge_wiim_speaker',
+      'kitchen':  'media_player.mass_kitchen_wiim_speaker',
+      'hallway':  'media_player.mass_hallway_wiim_speaker',
+      'salon':    'media_player.mass_salon_wiim_speaker',
+      'workshop': 'media_player.mass_workshop_wiim_speaker',
+      'patio':    'media_player.mass_patio_wiim_speaker',
+      'hotbox':   'media_player.mass_hotbox_wiim_speaker' } -%}
+
+{#- ───────── context ───────── -#}
+{%- set person   = states('person.maximiliano') -%}
+{%- set is_home  = person == 'home' -%}
+{%- set room_raw = states('sensor.maxi_location_by_petro_v2') | lower -%}
+{#- normalise "hotbox top" / "hotbox_down" / "Hotbox Bottom" -> "hotbox" -#}
+{%- set room = room_raw | replace('_top','') | replace('_bottom','') | replace('_down','')
+                        | replace(' top','') | replace(' bottom','') | replace(' down','') | trim -%}
+{%- set alone    = is_state('binary_sensor.maxi_alone','on') -%}
+{%- set friends  = states('sensor.amount_friends_home') | int(0) -%}
+{%- set partners = states('sensor.amount_partners_home') | int(0) -%}
+{%- set party    = is_state('input_boolean.party_mode','on') -%}
+{%- set kink     = is_state('input_boolean.kink_party','on') -%}
+{#- Guest WiFi. This is the ground truth for "people are over": sensor
+    .amount_friends_home only counts device_trackers named phone_* and then
+    subtracts partners and crashers, so it can read 0 while the flat is full.
+    The raw client count cannot. -#}
+{%- set hotspot  = states('sensor.chilling_hotspot_client_count') | int(0) -%}
+{%- set company  = 'party' if party
+                   else ('hosting' if (friends > 0 or hotspot > 0)
+                   else ('with partner' if partners > 0
+                   else ('alone' if alone else 'unknown'))) -%}
+{#- Someone other than Maxi is here. maxi_alone is checked for 'off' explicitly
+    rather than 'not on', so an unavailable sensor cannot fake company. -#}
+{%- set has_company = friends > 0 or partners > 0 or hotspot > 0
+                      or is_state('binary_sensor.maxi_alone','off') -%}
+
+{%- set ns = namespace(c=[], music='') -%}
+
+{#- ═════════ 1. SLEEP (hard override) ═════════
+    sensor.is_maxi_asleep emits 'on'/'off' - its template initialises
+    sleepingstate = "off" and only ever sets "on", so it can never be the string
+    'asleep' that V2 tests for (and that this rule originally copied). Accept
+    both spellings so a future change back to asleep/awake cannot silently break
+    sleep detection again. Location comes from the sensor's own 'location'
+    attribute, with the derived sensor as a fallback. -#}
+{%- if states('sensor.is_maxi_asleep') | lower in ['on','asleep','true'] -%}
+  {%- set where = state_attr('sensor.is_maxi_asleep','location')
+                  or states('sensor.where_is_maxi_sleeping') -%}
+  {%- set ns.c = ns.c + [{'s':100,'n':'Sleeping',
+        'd': where | string if where | string | lower not in INVALID else ''}] -%}
+{%- endif -%}
+
+{#- ═════════ 2. AWAY FROM HOME ═════════ -#}
+{%- if not is_home -%}
+  {%- set act = states('sensor.phone_maxi_detected_activity') | lower -%}
+  {%- if is_state('binary_sensor.phone_maxi_android_auto','on') or act == 'in_vehicle' -%}
+    {%- set spd = states('sensor.phone_maxi_car_speed') -%}
+    {%- set ns.c = ns.c + [{'s':96,'n':'Driving','d': (spd ~ ' km/h') if spd not in INVALID else ''}] -%}
+  {%- endif -%}
+  {#- The 'At <zone>' (95) and 'At <street>' (92) states were removed at Maxi's
+      request: away from home now always reads "Adventuring". Where he actually
+      is still travels on the `detail` attribute, so no information is lost - it
+      just stays out of the state enum, which keeps the state list finite and
+      chartable instead of unbounded. Zone name is preferred (person.state
+      becomes the zone's friendly name inside a named HA zone); the geocoded
+      street, minus its house number, is the fallback. -#}
+  {%- set place = person if person not in ['home','not_home','unknown','unavailable'] else '' -%}
+  {%- if place == '' -%}
+    {%- set geo = states('sensor.phone_maxi_geocoded_location') -%}
+    {%- if geo | lower not in INVALID -%}
+      {%- set street = geo.split(',')[0] | regex_replace('^[0-9\\-]+\\s*','') | trim -%}
+      {%- set place = street if street | length > 1 else '' -%}
+    {%- endif -%}
+  {%- endif -%}
+  {%- if act in ['walking','on_foot'] -%}
+    {%- set ns.c = ns.c + [{'s':94,'n':'Walking','d': place}] -%}
+  {%- endif -%}
+  {%- set ns.c = ns.c + [{'s':90,'n':'Adventuring','d': place}] -%}
+{%- endif -%}
+
+{#- ═════════ 3. AT HOME ═════════ -#}
+{%- if is_home -%}
+
+  {#- ── shared reads ── -#}
+  {%- set pc_active   = states('sensor.is_computer_active') == 'true' -%}
+  {%- set mic_on      = is_state('binary_sensor.computer_maxi_pc_computer_maxi_pc_microphoneactive','on') -%}
+  {%- set webcam_on   = is_state('binary_sensor.desktop_maxi_webcamactive','on')
+                        or is_state('binary_sensor.computer_maxi_pc_computer_maxi_pc_webcamactive','on') -%}
+  {%- set voice_ch    = states('sensor.discord_user_156149779443875840_voice_channel') -%}
+  {%- set in_voice    = voice_ch | lower not in INVALID -%}
+  {%- set dsc_stream  = states('sensor.discord_user_156149779443875840_voice_self_stream') | lower -%}
+  {%- set dsc_streamg = states('sensor.discord_user_156149779443875840_streaming') | lower -%}
+  {%- set streaming   = dsc_stream in ['true','on','yes'] or dsc_streamg not in INVALID -%}
+  {%- set game_raw    = (state_attr('sensor.maxi1134_8202','game')
+                         or state_attr('sensor.steam_maxi','game') or '') | string -%}
+  {%- set game        = '' if game_raw | lower in NOT_GAMES or game_raw | lower in INVALID else game_raw -%}
+  {%- set phone_unlk  = is_state('binary_sensor.phone_maxi_device_locked','off') -%}
+  {#- 'interactive' = screen on and being driven; 'unlocked' can persist passively -#}
+  {%- set phone_int   = is_state('binary_sensor.phone_maxi_interactive','on') -%}
+  {#- how long petro_v2 has continuously reported the current room. Resets on any
+      room change, so this is genuine uninterrupted dwell, not time-since-arrival. -#}
+  {%- set loc         = states.sensor.maxi_location_by_petro_v2 -%}
+  {%- set room_dwell  = (now() - loc.last_changed).total_seconds() if loc is not none else 0 -%}
+  {#- Seconds since HA started. A restart resets every entity's last_changed to
+      the restore time, so any "X happened recently" rule would fire spuriously
+      for its whole window after every reboot. sensor.uptime holds the boot
+      timestamp; rules compare against it to tell a real transition from a
+      restore artifact. -#}
+  {%- set boot        = as_datetime(states('sensor.uptime')) -%}
+  {%- set since_boot  = (now() - boot).total_seconds() if boot is not none else 99999 -%}
+
+  {#- media rooms, normalised the same way as `room` -#}
+  {%- set raw_cast = (state_attr('sensor.active_media_playback','chromecasts') or [])
+                     | map('lower') | map('replace','_top','') | map('replace','_bottom','') | list -%}
+  {#- Drop rooms whose cast is just a dashboard. The kitchen Google Hub sits at
+      app_id A078F6B0 ("Home Assistant Lovelace") permanently in state 'playing'
+      with media_title "Hub: kitchen google hub", so without this every trip to
+      the kitchen reported Watching a Movie. Applied to all rooms, not only the
+      kitchen: a dashboard cast is never something being watched. -#}
+  {%- set nsm = namespace(cast=[]) -%}
+  {%- for r in raw_cast -%}
+    {%- set p = CAST.get(r) -%}
+    {%- if p is none or (state_attr(p,'app_id') | string | upper) not in HUB_APPS -%}
+      {%- set nsm.cast = nsm.cast + [r] -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {%- set cast_rooms = nsm.cast -%}
+  {%- set spk_rooms  = (state_attr('sensor.active_media_playback','speakers') or [])
+                       | map('lower') | map('replace','_top','') | map('replace','_bottom','') | list -%}
+
+  {#- Score 86 "Intimacy" (bed weight / both sides occupied + bed moving) was
+      removed at Maxi's request. The bed sensors it used are still wired up, so
+      re-adding it later is just this block plus its trigger entities.
+      The manual Kinking / Playing states below are unaffected. -#}
+  {#- preserve V2's manual kink states -#}
+  {%- if kink and friends > 0 -%}
+    {%- set ns.c = ns.c + [{'s':85,'n':'Kinking','d':''}] -%}
+  {%- elif kink and partners > 0 -%}
+    {%- set ns.c = ns.c + [{'s':85,'n':'Playing','d':''}] -%}
+  {%- endif -%}
+
+  {#- ── 84/82  Showering (D4: room check now consistent) ── -#}
+  {%- if is_state('binary_sensor.shower_in_usage','on') -%}
+    {%- if room == 'bathroom' -%}
+      {%- set ns.c = ns.c + [{'s':84,'n':'Showering','d':''}] -%}
+    {%- elif alone -%}
+      {%- set ns.c = ns.c + [{'s':82,'n':'Showering','d':'inferred: home alone'}] -%}
+    {%- endif -%}
+  {%- endif -%}
+
+  {#- ── 82  Server Maintenance ── -#}
+  {%- if room in ['server','serverroom']
+         and (is_state('binary_sensor.sensor_server_door_contact','on')
+              or is_state('binary_sensor.group_server_motion_occupancy','on')) -%}
+    {%- set ns.c = ns.c + [{'s':82,'n':'Server Maintenance','d':''}] -%}
+  {%- endif -%}
+
+  {#- ── 80  Sesh ── -#}
+  {%- if (is_state('binary_sensor.active_smoking_in_the_salon','on') and room == 'salon')
+         or is_state('input_boolean.dab_timer','on') -%}
+    {%- set ns.c = ns.c + [{'s':80,'n':'Sesh','d':''}] -%}
+  {%- endif -%}
+
+  {#- ── 78  Raiding the Fridge (fridge changed within 60 s) ── -#}
+  {%- set fridge = states.binary_sensor.sensor_fridge_door_contact -%}
+  {%- if fridge is not none and room == 'kitchen'
+         and (now() - fridge.last_changed).total_seconds() < 60 -%}
+    {%- set ns.c = ns.c + [{'s':78,'n':'Raiding the Fridge','d':''}] -%}
+  {%- endif -%}
+
+  {#- ── 76/75/74/73/72  desk + Discord ── -#}
+  {%- if webcam_on and (mic_on or in_voice) -%}
+    {%- set ns.c = ns.c + [{'s':76,'n':'On a Video Call','d': voice_ch if in_voice else ''}] -%}
+  {%- endif -%}
+  {%- if streaming -%}
+    {%- set ns.c = ns.c + [{'s':75,'n':'Streaming','d': game if game else ''}] -%}
+  {%- endif -%}
+  {%- if game and in_voice -%}
+    {%- set ns.c = ns.c + [{'s':74,'n':'Gaming with Friends','d': game ~ ' - ' ~ voice_ch}] -%}
+  {%- elif game -%}
+    {%- set ns.c = ns.c + [{'s':73,'n':'Gaming','d': game}] -%}
+  {%- endif -%}
+  {%- if in_voice and not game -%}
+    {%- set ns.c = ns.c + [{'s':72,'n':'On a Voice Call','d': voice_ch}] -%}
+  {%- endif -%}
+
+  {#- ── 70  On the Phone (uses binary_sensor.maxi_is_talking, unread by V2) ── -#}
+  {%- if states('sensor.phone_maxi_phone_state') | lower not in (INVALID + ['idle'])
+         or is_state('binary_sensor.maxi_is_talking','on') -%}
+    {%- set ns.c = ns.c + [{'s':70,'n':'On the Phone','d': states('sensor.phone_maxi_phone_state')}] -%}
+  {%- endif -%}
+
+  {#- ── 66  Partying ──
+       Requires BOTH the manual party_mode toggle AND real company: the toggle
+       is routinely left on after everyone has gone home, and "Partying" alone in
+       an empty flat is just wrong. Deliberately ranked above all the media states
+       (64 and below) because during a party the cast and speakers are incidental
+       scenery, not the activity - this restores V2's behaviour, where the party
+       branch was checked before any media. Still loses to Sesh / Showering /
+       Kinking (80s) and Gaming with Friends (74), which are more specific.
+       Detail carries the Vibe Arc phase (Gathering / Peak Party / Wind Down). -#}
+  {%- if party and has_company -%}
+    {%- set ph = states('input_select.vibe_arc_phase') -%}
+    {%- set ns.c = ns.c + [{'s':66,'n':'Partying',
+          'd': ph if ph not in (INVALID + ['Off']) else (friends | string ~ ' guest(s)')}] -%}
+  {%- endif -%}
+
+  {#- ── 64/63/62/60  television ── -#}
+  {%- if room in cast_rooms -%}
+    {%- set p = CAST.get(room) -%}
+    {%- set series = state_attr(p,'media_series_title') if p else none -%}
+    {%- set title  = state_attr(p,'media_title') if p else none -%}
+    {%- set app    = state_attr(p,'app_name') if p else none -%}
+    {%- set roku   = states('sensor.hotbox_roku_active_app') if room == 'hotbox' else 'unknown' -%}
+    {%- if series -%}
+      {%- set ep = 'S' ~ (state_attr(p,'media_season') | string) ~ 'E' ~ (state_attr(p,'media_episode') | string) -%}
+      {%- set ns.c = ns.c + [{'s':64,'n':'Watching a Series','d': series ~ ' ' ~ ep}] -%}
+    {%- elif title -%}
+      {%- set ns.c = ns.c + [{'s':63,'n':'Watching a Movie','d': title | string}] -%}
+    {%- elif roku | lower not in INVALID -%}
+      {%- set ns.c = ns.c + [{'s':62,'n':'Watching ' ~ roku,'d': roku | string}] -%}
+    {%- elif app and app | lower not in INVALID -%}
+      {%- set ns.c = ns.c + [{'s':62,'n':'Watching ' ~ app,'d': app | string}] -%}
+    {%- else -%}
+      {%- set ns.c = ns.c + [{'s':60,'n':'Watching TV','d':''}] -%}
+    {%- endif -%}
+  {%- endif -%}
+
+  {#- ── 12  Listening to Music ──
+       Deliberately just above the 'Chilling' floor (10), not in the 50s.
+       Audio runs ~24 h/day here (music ~16 h, rain sounds the other ~8), so
+       "something is playing" carries almost no information and must never mask
+       a real activity. It still beats Chilling, because naming the track is
+       more useful than saying nothing. What is playing is always exposed on the
+       `music` attribute regardless of which candidate wins. -#}
+  {%- if room in spk_rooms -%}
+    {%- set sp = SPK.get(room) -%}
+    {%- set t = state_attr(sp,'media_title') if sp else none -%}
+    {%- set ar = state_attr(sp,'media_artist') if sp else none -%}
+    {%- set d = (t ~ (' - ' ~ ar if ar else '')) if t else '' -%}
+    {%- set ns.music = d | string -%}
+    {%- set ns.c = ns.c + [{'s':12,'n':'Listening to Music','d': d | string}] -%}
+  {%- endif -%}
+
+  {#- ── kitchen ── -#}
+  {%- set stove_t   = states('sensor.sensor_stove_temperature_temperature') | float(0) -%}
+  {%- set stove_h   = states('sensor.sensor_stove_temperature_humidity') | float(0) -%}
+  {%- set airfryer  = states('sensor.plug_kitchen_airfryer_electric_consumption_w') | float(0) -%}
+  {%- set toaster   = states('sensor.plug_kitchen_toaster_electric_consumption_w') | float(0) -%}
+  {%- set washer    = states('sensor.plug_kitchen_washer_electric_consumption_w') | float(0) -%}
+  {#- enum options: power_off, wrinkle_care, initial, end, running, pause, error, cooling -#}
+  {%- set dryer_on  = states('sensor.dryer_current_status') | lower in ['running','cooling','wrinkle_care'] -%}
+  {%- set laundry   = washer > 10 or dryer_on -%}
+  {%- set kitch_occ = is_state('binary_sensor.kitchen_radar_occupancy_occupancy','on')
+                      or is_state('binary_sensor.group_kitchen_motion_occupancy','on') -%}
+  {%- set cook_manual = is_state('input_boolean.cooking_mode','on') or is_state('timer.cooking','active') -%}
+  {%- set cook_signal = airfryer > 200 or toaster > 300 or stove_h > 70 or stove_t > 30 -%}
+  {%- set cooking_now = (cook_manual or cook_signal) and (room == 'kitchen' or kitch_occ) -%}
+
+  {#- ── 54  Cooking ── -#}
+  {%- if cooking_now -%}
+    {%- set why = 'manual' if cook_manual else ('airfryer' if airfryer > 200
+                  else ('toaster' if toaster > 300 else 'stove')) -%}
+    {%- set ns.c = ns.c + [{'s':54,'n':'Cooking','d': why}] -%}
+  {%- endif -%}
+
+  {#- ── 52  Eating ──
+       cook_ended needs the restart guard: input_boolean.cooking_mode gets its
+       last_changed reset on every reboot, which read as "cooking just finished"
+       and made V3 report Eating for 45 minutes after each restart. Requiring the
+       toggle to have flipped at least 60 s AFTER boot separates a real transition
+       from a restore artifact.
+       seated is room-scoped: the lounge couch zone only counts while Maxi is
+       actually in the lounge. Previously a couch reading (someone else sitting
+       there, or a stale radar target) satisfied "seated" no matter where he was. -#}
+  {%- set cm = states.input_boolean.cooking_mode -%}
+  {%- set cm_age = (now() - cm.last_changed).total_seconds() if cm is not none else 99999 -%}
+  {%- set cook_ended = cm is not none and cm.state == 'off'
+                       and cm_age < 2700 and (since_boot - cm_age) > 60 -%}
+  {%- set seated = room in ['kitchen','salon']
+                   or (room == 'lounge'
+                       and (is_state('binary_sensor.lounge_couch_zone_1_occcupancy','on')
+                            or is_state('binary_sensor.lounge_couch_zone_2_occcupancy','on'))) -%}
+  {%- if cook_ended and seated and not pc_active and not cooking_now -%}
+    {%- set ns.c = ns.c + [{'s':52,'n':'Eating','d':''}] -%}
+  {%- endif -%}
+
+  {#- ── 50  On the Patio ── -#}
+  {%- if room == 'patio' -%}
+    {%- set ns.c = ns.c + [{'s':50,'n':'On the Patio','d':''}] -%}
+  {%- endif -%}
+
+  {#- ── 61  In Bed, Awake ──
+       Must outrank the interactive 'Using Phone' tier (59) below, otherwise
+       "in bed on the phone" collapses into plain phone use and this state can
+       never fire. Still loses to Watching a Series/Movie/App (62-64). -#}
+  {%- if is_state('binary_sensor.bedroom_bed_weight_sensor_bed_occupied','on')
+         and is_state('binary_sensor.maxi_cpap_running_hysteresis','off')
+         and (phone_unlk or phone_int) -%}
+    {%- set ns.c = ns.c + [{'s':61,'n':'In Bed, Awake','d':''}] -%}
+  {%- endif -%}
+
+  {#- ── 46  Cooking, inferred from sustained kitchen presence ──
+       Maxi is rarely in the kitchen except to cook or run the washer/dryer,
+       so lingering there with no laundry running is a decent cooking signal. -#}
+  {%- set ko = states.binary_sensor.kitchen_radar_occupancy_occupancy -%}
+  {%- if not cooking_now and not laundry and room == 'kitchen' and ko is not none
+         and ko.state == 'on' and (now() - ko.last_changed).total_seconds() > 240 -%}
+    {%- set ns.c = ns.c + [{'s':46,'n':'Cooking','d':'inferred: sustained kitchen presence'}] -%}
+  {%- endif -%}
+
+  {#- ── 44  Using the Computer ──
+       Two desks. The salon PC reports activity via sensor.is_computer_active.
+       The hallway machine has no power or activity sensor at all, so the radar
+       zone in front of it is the only available signal - being in the hallway
+       with zone 2 occupied means sitting at that desk. -#}
+  {%- if pc_active and room == 'salon' and not game -%}
+    {%- set ns.c = ns.c + [{'s':44,'n':'Using the Computer','d':'salon desk'}] -%}
+  {%- elif room == 'hallway' and room_dwell >= 60
+           and is_state('binary_sensor.hallway_radar_occupancy_zone_2_occupancy','on')
+           and not game -%}
+    {#- 60 s dwell: the hallway is a thoroughfare, so passing the desk on the way
+        somewhere else should not register as sitting down at it. -#}
+    {%- set ns.c = ns.c + [{'s':44,'n':'Using the Computer','d':'hallway desk'}] -%}
+  {%- endif -%}
+
+  {#- ── 42/40  Pacing ──
+       Threshold calibrated against 24 h of sensor.maxi_location_by_petro_v2
+       history (369 sliding 5-minute windows), not guessed:
+           >=4 rooms -> 53.7% of windows    >=6 -> 14.9%
+           >=5 rooms -> 34.7% of windows    >=7 ->  7.9%   <- chosen
+                                            >=8 ->  1.6%
+       4 would have fired over half the day. 7 puts pacing in the top ~8% of
+       movement, which is what "unusually active" actually looks like here.
+       detected_activity is a booster, not a requirement: the phone is usually
+       docked and reads 'still' even while Maxi walks around, so requiring it
+       would mean this never fires. Re-run the calibration if the layout or the
+       location fusion changes. -#}
+  {#- Both the >=7 threshold and the post-restart guard now live in
+      binary_sensor.maxi_pacing, which adds delay_on: 4 minutes on top. The count
+      alone was too twitchy - it only takes a short flurry of room changes to hit
+      7 - so the condition must now hold for 4 continuous minutes before this
+      fires at all. `moves` is still read here purely for the detail string. -#}
+  {%- set moves = states('sensor.maxi_room_transitions') | int(0) -%}
+  {%- if is_state('binary_sensor.maxi_pacing', 'on') -%}
+    {%- if states('sensor.phone_maxi_detected_activity') | lower in ['walking','on_foot'] -%}
+      {%- set ns.c = ns.c + [{'s':42,'n':'Pacing in the Apartment','d': moves | string ~ ' rooms / 5 min'}] -%}
+    {%- else -%}
+      {%- set ns.c = ns.c + [{'s':40,'n':'Pacing in the Apartment','d': moves | string ~ ' rooms / 5 min'}] -%}
+    {%- endif -%}
+  {%- endif -%}
+
+  {#- ── 59  Using Phone ──
+       'interactive' ONLY. device_locked can read unlocked long after Maxi has
+       put the phone down, which made the old passive tier fire on an idle phone
+       sitting on a desk. Screen-on-and-being-driven is the only state that
+       actually means "using the phone". -#}
+  {%- if phone_int -%}
+    {%- set ns.c = ns.c + [{'s':59,'n':'Using Phone','d':''}] -%}
+  {%- endif -%}
+
+  {#- ── 22  Cleaning (robot; D3 - no longer blocked by an unlocked phone) ── -#}
+  {%- if states('vacuum.roborock_qrevo_curv_series') not in (INVALID + ['docked','paused','idle','error']) -%}
+    {%- set ns.c = ns.c + [{'s':22,'n':'Cleaning','d': states('sensor.roborock_qrevo_curv_series_current_room')}] -%}
+  {%- endif -%}
+
+  {#- ── 10  Chilling ──
+       Company only. "Chilling" describes hanging out with someone; asserting it
+       while Maxi is home alone was just a polite way of saying "no idea", so when
+       alone with nothing else matching the sensor falls through to 'unsure' -
+       honest, and the same default V2 used.
+       This absorbed the former separate "Hosting" state: Maxi confirmed the two
+       are synonymous here, so there is one company fallback, not two. Guest count
+       goes in the detail rather than splitting the state name. -#}
+  {#- Scored 14, i.e. ABOVE Listening to Music (12), not below it. Audio runs
+      ~24 h/day, so at 10 this would have been permanently masked by whatever was
+      playing and would effectively never have appeared. Company beats ambience. -#}
+  {%- if has_company -%}
+    {%- set ns.c = ns.c + [{'s':14,'n':'Chilling',
+          'd': (friends | string ~ ' guest(s)') if friends > 0 else ''}] -%}
+  {%- endif -%}
+
+{%- endif -%}
+
+{#- ═════════ 4. resolve ═════════ -#}
+{%- set ranked = ns.c | sort(attribute='s', reverse=true) | list -%}
+{%- set win = ranked[0] if ranked | length > 0 else {'s':0,'n':'unsure','d':''} -%}
+
+{#- Stable bucket for time-in-state charting. history_stats matches on exact
+    state strings, and several states are generated at runtime ("Watching
+    YouTube", "At Gatien"), so they can never be enumerated in YAML. Collapsing
+    to ~9 fixed categories makes duration tracking possible; the prefix
+    fallbacks below catch the dynamic names. -#}
+{%- set CATEGORY = {
+      'Sleeping':'Sleep',
+      'Driving':'Away', 'Walking':'Away', 'Adventuring':'Away',
+      'Showering':'Personal', 'Kinking':'Personal',
+      'Playing':'Personal', 'Sesh':'Personal', 'On the Patio':'Personal',
+      'In Bed, Awake':'Personal',
+      'Cooking':'Chores', 'Eating':'Chores', 'Raiding the Fridge':'Chores',
+      'Cleaning':'Chores', 'Server Maintenance':'Chores',
+      'Using the Computer':'Desk', 'Gaming':'Desk', 'Gaming with Friends':'Desk',
+      'Streaming':'Desk', 'On a Video Call':'Desk', 'On a Voice Call':'Desk',
+      'On the Phone':'Phone', 'Using Phone':'Phone',
+      'Watching a Series':'Media', 'Watching a Movie':'Media',
+      'Watching TV':'Media', 'Listening to Music':'Media',
+      'Partying':'Social', 'Chilling':'Social',
+      'Pacing in the Apartment':'Idle', 'unsure':'Idle' } -%}
+{%- set cat = CATEGORY.get(win.n,
+      'Media' if win.n.startswith('Watching ')
+      else ('Away' if win.n.startswith('At ') else 'Idle')) -%}
+
+{{- {'state': win.n, 'detail': win.d, 'room': room, 'company': company,
+     'score': win.s, 'music': ns.music, 'category': cat,
+     'candidates': ranked} | tojson -}}
+{%- endmacro -%}
