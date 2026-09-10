@@ -1,11 +1,16 @@
+# Release version stamped by CI; local/user builds default to 0.0.0
+# (downgrade protection requires dotted-numeric).
+substitutions:
+  fw_version: !env_var FW_VERSION 0.0.0
+
 esphome:
-  friendly_name: Home Assistant Connect Aux-2
+  friendly_name: Home Assistant Connect AUX-2
   name: connect-aux-2
   name_add_mac_suffix: true
-  min_version: 2026.7.0
+  min_version: 2026.8.0
   project:
-    name: Nabu Casa.Home Assistant Connect Aux-2
-    version: 2026.7.1
+    name: Nabu Casa.Home Assistant Connect AUX-2
+    version: ${fw_version}
   on_boot:
     # Must run before improv_serial::setup() but still after the
     # 250-priority network components (wifi (250), ethernet (250)), and
@@ -13,21 +18,22 @@ esphome:
     # Activate exactly one interface based on the persisted use_wifi flag;
     # the inactive component leaves SPI / the W5500 untouched so whichever
     # wins owns the bus alone. Transitions to the other interface cross a
-    # reboot, driven by w5500_link_monitor (in Wi-Fi mode, on cable insert)
-    # or ethernet.on_disconnect (in Ethernet mode, on cable removal).
-    priority: 205
-    then:
-      - if:
-          condition:
-            lambda: 'return id(use_wifi);'
-          then:
-            - wifi.enable:
-            - w5500_link_monitor.start: link_monitor
-          else:
-            - ethernet.enable:
-
-provisioning:
-  timeout: 15min
+    # reboot, driven by w5500_link_monitor (in Wi-Fi mode, on cable insert),
+    # ethernet.on_disconnect (in Ethernet mode, on cable removal), or
+    # eth_boot_connect_check (in Ethernet mode, no cable/IP at boot).
+    # List form so overlay packages (factory.yaml) can append their own
+    # on_boot automation without deep-merging into this one.
+    - priority: 205
+      then:
+        - if:
+            condition:
+              lambda: 'return id(use_wifi);'
+            then:
+              - wifi.enable:
+              - w5500_link_monitor.start: link_monitor
+            else:
+              - ethernet.enable:
+              - script.execute: eth_boot_connect_check
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -40,41 +46,24 @@ esp32:
     advanced:
       nvs_encryption:
         key_id: 0
-      # External-signing mode: no key here. With Secure Boot V2 (rsa3072)
-      # the public key travels in each image's signature block; binaries
-      # are signed after the build by Autograph, and
-      # publish-signed-firmware.yml verifies them against the KMS public
-      # key before publishing.
     sdkconfig_options:
-      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
-      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
-      CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB: "y"
-
       # Moves instructions and read only data from flash into PSRAM on boot.
       # Both enabled allows instructions to execute while a flash operation is in progress without needing to be placed in IRAM.
-      # Considerably speeds up mWW at the cost of using more PSRAM.
       CONFIG_SPIRAM_RODATA: "y"
       CONFIG_SPIRAM_FETCH_INSTRUCTIONS: "y"
-
-      CONFIG_BT_ALLOCATION_FROM_SPIRAM_FIRST: "y"
-      CONFIG_BT_BLE_DYNAMIC_ENV_MEMORY: "y"
 
 psram:
   mode: octal
   speed: 80MHz
-  ignore_not_found: false  # Aux-2 has PSRAM, so this is safe
+  ignore_not_found: false  # AUX-2 has PSRAM, so this is safe
 
 external_components:
-  - source: github://pr#14255
-    components: [ethernet, network, wifi]
-    refresh: always
-  - source: github://pr#17598
-    components: [improv_serial]
-    refresh: always
-  - source:
-      type: local
-      path: components
+  - source: github://NabuCasa/aux-2@main
     components: [w5500_link_monitor]
+  # Remove and bump min_version once #18969 ships in a release
+  - source: github://pr#18969
+    components: [usb_uart]
+    refresh: always
 
 # Restored from NVS at boot. Drives which network interface comes up via the
 # on_boot lambda above. The "Network Interface" select component updates this
@@ -90,6 +79,11 @@ globals:
     # the learned interface across reboots, so this initial_value only applies on the
     # very first boot (or after a factory reset).
     initial_value: 'true'
+  # Set while the factory-reset hold is armed (solid red); reset fires on release.
+  - id: factory_reset_armed
+    type: bool
+    restore_value: no
+    initial_value: 'false'
 
 network:
   priority:
@@ -142,15 +136,8 @@ wifi:
   enable_on_boot: false
   power_save_mode: none
   use_psram: true
-  ssid: !secret wifi_spot
-  password: !secret wifi_spot_password
-
-improv_serial:
-  id: improv_serial_component
-
-esp32_improv:
-  id: esp32_improv_component
-  authorizer: none
+  ssid: Chilling IoT
+  password: !secret wifi_password
 
 logger:
   hardware_uart: UART0
@@ -167,30 +154,14 @@ ota:
 http_request:
 
 ##### Bluetooth Proxy
+esp32_ble:
+  use_psram: true
+
 bluetooth_proxy:
   id: proxy_bt_proxy
 
 esp32_ble_tracker:
   id: proxy_ble_tracker
-
-select:
-  - platform: template
-    id: audio_output_selector
-    name: Audio Output
-    entity_category: config
-    optimistic: true
-    restore_value: true
-    options:
-      - "Analog"
-      - "Digital"
-    on_value:
-      - router.speaker.switch_output:
-          id: audio_router_speaker
-          target_speaker: !lambda |-
-            if (x == "Digital") {
-              return id(i2s_audio_spdif_speaker);
-            }
-            return id(i2s_audio_dac_speaker);
 
 ##### Z-Wave Proxy
 mdns:
@@ -201,18 +172,33 @@ mdns:
       txt:
         protocol: "esphome"
 
+usb_host:
+  enable_hubs: true
+
 usb_uart:
   - type: CDC_ACM
     vid: 0x303A
     pid: 0x4001
+    # Don't claim the unused CDC notification interface — frees one of the
+    # ESP32-S3's eight USB host channels so hub + ZWA-2 + CH343 fit (8/8).
+    claim_comm_interface: false
     channels:
-      - id: uch_1
+      - id: uch_zw
         baud_rate: 115200
+        buffer_size: 1024
+  # Stock WCH CH343 id — matches any CH343-based adapter, not one product;
+  # the validated/supported unit is the Waveshare USB-to-RS-485 dongle
+  - type: CH34X
+    vid: 0x1A86
+    pid: 0x55D3
+    channels:
+      - id: uch_usb_serial
+        baud_rate: 9600
         buffer_size: 1024
 
 zwave_proxy:
   id: zw_proxy
-  uart_id: uch_1
+  uart_id: uch_zw
 
 ##### UARTs & Serial Proxies
 uart:
@@ -234,6 +220,10 @@ serial_proxy:
     uart_id: uart_rs232_port_2
     name: RS-232 Port 2
     port_type: RS232
+  - id: usb_serial_proxy
+    uart_id: uch_usb_serial
+    name: USB Serial Port
+    port_type: RS485
 
 ##### I2C Components
 i2c:
@@ -285,7 +275,7 @@ speaker:
     dac_type: external
     channel: stereo
     timeout: never
-    buffer_duration: 100ms
+    buffer_duration: 50ms
     audio_dac: pcm5122_dac
 
   # Hardware speaker output (via TOSLink)
@@ -298,8 +288,8 @@ speaker:
     i2s_audio_id: i2s_bus
     dac_type: external
     channel: stereo
-    timeout: 2s
-    buffer_duration: 100ms
+    timeout: 5s
+    buffer_duration: 50ms
     use_apll: true
 
   # Virtual speakers to combine the announcement and media streams together into one output
@@ -384,6 +374,25 @@ media_player:
           duration: 0.0s
 
 ##### Other Components
+select:
+  - platform: template
+    id: audio_output_selector
+    name: Audio Output
+    entity_category: config
+    optimistic: true
+    restore_value: true
+    options:
+      - "Analog"
+      - "Digital"
+    on_value:
+      - router.speaker.switch_output:
+          id: audio_router_speaker
+          target_speaker: !lambda |-
+            if (x == "Digital") {
+              return id(i2s_audio_spdif_speaker);
+            }
+            return id(i2s_audio_dac_speaker);
+
 power_supply:
   - id: led_power
     pin: 45
@@ -401,6 +410,88 @@ light:
     effects:
       - strobe:
       - addressable_rainbow:
+      - strobe:
+          name: Factory Reset Blink
+          colors:
+            - state: true
+              color_mode: RGB
+              red: 100%
+              green: 0%
+              blue: 0%
+              duration: 500ms
+            - state: false
+              duration: 500ms
+
+# Factory reset: hold the GPIO 0 button — blink at 5 s, solid red at 15 s
+# (armed) — release to wipe and reboot. Releasing before 15 s cancels.
+binary_sensor:
+  - platform: gpio
+    id: factory_reset_hold_button
+    pin:
+      number: 0
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+      ignore_strapping_warning: true
+    filters:
+      - delayed_on_off: 10ms
+    on_press:
+      - script.execute: factory_reset_hold
+    on_release:
+      - script.stop: factory_reset_hold
+      - if:
+          condition:
+            lambda: 'return id(factory_reset_armed);'
+          then:
+            - button.press: factory_reset_button
+          else:
+            - light.turn_off: status_light
+
+script:
+  # Ethernet-mode boot with no cable never reaches CONNECTED, so on_disconnect
+  # never fires and the device would stay in Ethernet mode forever. No IP
+  # within 30s of boot → reboot into Wi-Fi. A false flip (cable in, DHCP slow)
+  # self-heals: w5500_link_monitor sees the link and flips right back.
+  - id: eth_boot_connect_check
+    then:
+      - wait_until:
+          condition:
+            ethernet.connected:
+          timeout: 30s
+      - if:
+          condition:
+            not:
+              ethernet.connected:
+          then:
+            - globals.set:
+                id: use_wifi
+                value: 'true'
+            - lambda: 'global_preferences->sync();'
+            - delay: 500ms
+            - button.press: restart_button
+
+  - id: factory_reset_hold
+    mode: restart
+    then:
+      - lambda: 'id(factory_reset_armed) = false;'
+      - delay: 5s
+      - light.turn_on:
+          id: status_light
+          brightness: 100%
+          red: 100%
+          green: 0%
+          blue: 0%
+          effect: Factory Reset Blink
+      - delay: 10s
+      - light.turn_on:
+          id: status_light
+          brightness: 100%
+          red: 100%
+          green: 0%
+          blue: 0%
+          effect: "None"
+      - lambda: 'id(factory_reset_armed) = true;'
 
 button:
   - platform: restart
@@ -409,8 +500,9 @@ button:
     entity_category: diagnostic
   - platform: factory_reset
     id: factory_reset_button
-    name: Wipe Preferences
+    name: Factory Reset
     entity_category: diagnostic
+    disabled_by_default: true
 
 switch:
   - platform: gpio
@@ -450,7 +542,7 @@ switch:
 
 sensor:
   # 3.5 mm combo-jack detect (v3+ hardware only — pin floats on v2, so the
-  # auto_output_mode_switch defaults OFF). Voltage rails:
+  # auto_output_mode_switch should be switched on that hardware OFF). Voltage rails:
   #   ~0.00 V → analog TRS plug
   #   ~1.65 V → nothing inserted
   #   ~2.20 V → TOSLink-mini plug
