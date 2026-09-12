@@ -17,8 +17,56 @@
 #   The moment any one of them genuinely moves again, everything recovers by
 #   itself - no reboot, no reset button, no automation needed.
 #
-# HOW IT WORKS  (three stock ESPHome filters per sensor - no scripts, no timers)
+# AND THE THREE READINGS ALWAYS FOLLOW PRESENCE DOWN
+#   Whenever "Person Information" goes OFF - because the watchdog above fired,
+#   OR simply because the radar's own has_target dropped when you left the
+#   room - heart rate, respiratory rate and distance all go to "unknown" in
+#   the same loop iteration AS PRESENCE ITSELF, and they STAY "unknown" for as
+#   long as presence is off. They are never left showing a live-looking number
+#   for a room nobody is in.
+#
+#   ("The same loop iteration as presence" is the promise, not "the same
+#   instant the radar changed its mind". On an ordinary departure presence
+#   itself is held up by ${flap_filter} - see the substitutions block - so the
+#   whole group, presence and all three readings together, clears about five
+#   seconds after you actually walk out. They are never out of step with each
+#   other, which is the thing that was broken.)
+#
+#   THAT TAKES TWO MECHANISMS, AND BOTH ARE LOAD-BEARING. Do not delete one
+#   because the other "looks like it covers it":
+#
+#     (a) EDGE - the `on_release:` block on the "Person Information" entity
+#         further down blanks whatever is currently on screen, once, at the
+#         instant presence drops. READ THE COMMENT THERE BEFORE TOUCHING IT:
+#         the two obvious ways to write it (publish_state(NAN), or a
+#         `sensor.template.publish` action) both route through the filter
+#         chain, are silently swallowed by `delta`, and revert the behaviour
+#         with no error and no log line.
+#
+#     (b) LEVEL - the `lambda` gate at the HEAD of each of the three filter
+#         chains drops every incoming value while the radar's own has_target
+#         is false, so nothing can refill them afterwards. This is mandatory:
+#         core ESPHome's seeed_mr60bha2 has NO "ignore vitals frames while
+#         has_target is false" gate (the dropped limengdu fork did - see
+#         DESIGN NOTE 1). The radar's presence frame and its heart / breath /
+#         distance frames are separate ~1 Hz frames processed in whatever loop
+#         iteration they land in, so a trailing vitals frame routinely arrives
+#         AFTER presence has already gone off. Without the gate that value
+#         walks into the sensor, re-arms the 10-minute `timeout`, and sits on
+#         screen next to "Person Information: Clear" for up to ${stale_timeout}
+#         - with no second ON->OFF edge to re-blank it. That is exactly the bug
+#         this file was written to kill, so (a) alone is not enough.
+#
+#   During a WATCHDOG trip the radar's flag is still true, so the gate is open
+#   and (a) is what does the blanking - and an actually-changing value is still
+#   free to come through and recover everything. During an ORDINARY departure
+#   the flag is false, so (b) holds the line. The two never overlap.
+#
+# HOW IT WORKS  (four stock ESPHome filters per sensor - no scripts, no timers)
 #     filters:
+#       - lambda: |-                  # (b) above: hard gate, nothing gets past
+#           if (!id(mr_raw_has_target).state) return {};   # while presence is
+#           return x;                                      # off at the radar
 #       - filter_out: 0.0             # drop the component's "nobody here" flush
 #       - delta: ${change_deadband}   # drop any reading equal to the last one
 #       - timeout: ${stale_timeout}   # re-armed by whatever gets through;
@@ -39,7 +87,15 @@
 #   heart/breath frames whose payload is bit-zero are skipped outright, and a
 #   distance frame is only decoded when its validity byte is non-zero.
 #
-#   THE ORDER IS LOAD-BEARING. DeltaFilter keeps a private `last_value_` that
+#   (The gate does NOT make `filter_out: 0.0` redundant. The component
+#   publishes has_target BEFORE flushing the zeros, in the same call - but the
+#   `delayed_off: ${flap_filter}` on has_target means the flag is still reading
+#   true at that moment, so the gate is still open and `filter_out` is what
+#   catches the flush. Remove either one and fake 0 bpm / 0 cm comes back.)
+#
+#   THE ORDER IS LOAD-BEARING, AND THE GATE MUST STAY FIRST - a blocked value
+#   must not be allowed to touch `delta`'s reference or re-arm `timeout`.
+#   DeltaFilter keeps a private `last_value_` that
 #   is only written by values arriving at ITS input and only when they PASS.
 #   The NaN that `timeout` emits is injected DOWNSTREAM (Filter::output() ->
 #   straight to the frontend, verified in sensor/filter.cpp), so it never
@@ -52,8 +108,30 @@
 #   re-arms `timeout`, and lands in the sensor's state - so the sensor leaves
 #   NaN and presence returns on the very next loop iteration.
 #
+#   Read that literally, though: recovery needs a value that DIFFERS. A radar
+#   that resumes re-sending the identical frozen number recovers nothing, by
+#   design - that is the whole point - and the first HONEST LIMITS bullet
+#   spells out when that bites a real, present person.
+#
+#   The presence-follows-down blanking deliberately does NOT enter this chain
+#   either. It writes its NaN straight to the far end of it, which is exactly
+#   where `timeout` puts its own NaN, so `delta`'s reference value and the
+#   armed state of `timeout` are both left untouched and every word above
+#   still holds. In particular the flap-immunity that `filter_out: 0.0` buys
+#   is fully preserved: nothing about the blanking can re-arm the countdown.
+#
+#   The head gate is safe for the same reason `filter_out` is: a filter that
+#   returns an empty optional makes Filter::input() skip output() entirely
+#   (sensor/filter.cpp), so a gated value never reaches `delta` and never
+#   reaches `timeout`. A vacancy therefore does not reset the countdown, and
+#   `delta`'s reference survives the vacancy intact - which is also why
+#   recovery needs a reading that differs from the last PRE-vacancy one. See
+#   HONEST LIMITS.
+#
 # TUNING: everything you are likely to touch is in `substitutions:` below.
-#         ${stale_timeout} is the one that matters. Read "HONEST LIMITS" at
+#         ${stale_timeout} is the one that matters; ${flap_filter} is the one
+#         NOT to set to zero, for reasons the substitutions block and HONEST
+#         LIMITS both explain. Read "HONEST LIMITS" at
 #         the bottom before trusting it - there is one case (a target sitting
 #         beyond 1.5 m) where the vendor's own firmware freezes heart and
 #         breath on purpose, and this config will correctly report that as
@@ -95,13 +173,25 @@ substitutions:
   # nothing. A small positive value behaves correctly on every version.
   change_deadband: "0.001"
 
-  # Grace period after boot during which presence simply follows the radar
-  # instead of the watchdog - but ONLY once at least one real reading has
-  # arrived (see the "Person Information" lambda). That proviso matters: a
-  # module that claims a target while sending no data at all is the hard-hung
-  # failure mode, and the watchdog should catch that immediately, not sit on
-  # it for ${boot_grace} after every reboot.
-  boot_grace: "2min"
+  # De-flap window on the radar's OWN has_target flag (`delayed_off:` on the
+  # internal mr_raw_has_target entry below). This module is widely reported to
+  # blip has_target false for a single frame while somebody is sitting
+  # perfectly still in the room.
+  #
+  # THIS IS NOT COSMETIC - DO NOT SET IT TO 0s. A one-frame blip is a real
+  # presence OFF edge, and a presence OFF edge now blanks the three readings.
+  # Because DeltaFilter only lets a value through when it DIFFERS from the
+  # last one that passed, and a radar in its hold/repeat state re-sends
+  # bit-identical values, there may then be nothing left that CAN pass - so
+  # presence would stay OFF, with a person still in the room, until some
+  # reading finally moves. `delayed_off` cancels the pending OFF the moment
+  # the flag re-asserts, so a blip never produces an edge at all.
+  #
+  # Cost: a GENUINE departure clears ${flap_filter} later than the radar saw
+  # it. 5s is about five radar frames - long enough to swallow any blip, short
+  # enough not to be noticed by a lights-off automation. The watchdog path is
+  # completely unaffected: during a jam the flag stays true throughout.
+  flap_filter: "5s"
 
   # How often the two diagnostic "age" sensors refresh. Cosmetic only: the
   # watchdog itself is not polled, it is driven by the filter chain. Every
@@ -129,16 +219,17 @@ esphome:
 
   on_boot:
     # priority -100 = as late as possible: hardware, WiFi and the API are up.
+    # This only seeds the two diagnostic "age" counters so they start from
+    # boot rather than from millis()==0. There is deliberately NO boot grace
+    # period here: the watchdog cannot mis-fire on a fresh boot anyway,
+    # because a `timeout:` filter is constructed with its loop disabled and
+    # only arms once a real value has passed through it.
     - priority: -100.0
       then:
         - lambda: |-
             const uint32_t now = millis();
             id(mr_last_change_ms) = now;
             id(mr_last_frame_ms) = now;
-        - delay: ${boot_grace}
-        - lambda: |-
-            id(mr_wd_armed) = true;
-            ESP_LOGI("mr60_wd", "boot grace over - stale-data watchdog armed");
 
 esp32:
   board: esp32-c6-devkitc-1
@@ -161,9 +252,21 @@ logger:
   level: DEBUG
 
 # Enable Home Assistant API
+#
+# >>> IF YOUR DEVICE HAS AN API ENCRYPTION KEY, PUT IT BACK RIGHT HERE. <<<
+# This file ships without one. Pasting it over a config that HAD a key would
+# silently drop the key, and Home Assistant would then refuse the connection
+# ("Encryption expected"; the device goes unavailable after the next OTA).
+# Uncomment the two lines below and paste your own key - the 44-character
+# base64 string from the `api:` / `encryption:` / `key:` of the config you
+# are replacing (or, if you keep it in secrets.yaml, carry over your existing
+# `key: !secret api_encryption_key` line instead). Do NOT generate a new key:
+# it must match the one Home Assistant already has for this device.
+# Indentation is exactly as shown - `encryption:` two spaces in, `key:` four.
 api:
-  encryption:
-    key: !secret api_key
+  # encryption:
+  #   key: "PASTE-YOUR-OWN-44-CHARACTER-BASE64-KEY-HERE="
+
 ota:
   - platform: esphome
 
@@ -213,19 +316,12 @@ seeed_mr60bha2:
 ##############################################################################
 # WATCHDOG STATE
 #
-# Only three variables, and NONE of them is part of the trip decision - the
-# trip decision lives entirely in the filter chain. `mr_wd_armed` is the boot
-# grace latch; the other two only feed the two diagnostic "age" sensors.
+# Two variables, and NEITHER of them is part of the trip decision - the trip
+# decision lives entirely in the filter chain. Both of these exist only to
+# feed the two diagnostic "age" sensors, and both are safe to delete along
+# with those sensors.
 ##############################################################################
 globals:
-  # false until ${boot_grace} has elapsed (see esphome.on_boot above).
-  # Latched once and never cleared, so it is immune to the ~49.7-day millis()
-  # rollover by construction.
-  - id: mr_wd_armed
-    type: bool
-    restore_value: false
-    initial_value: 'false'
-
   # millis() when any of the three signals last actually CHANGED.
   - id: mr_last_change_ms
     type: uint32_t
@@ -254,37 +350,126 @@ binary_sensor:
   # filter: BinarySensor::send_state_internal() only de-duplicates UNCHANGED
   # states, so the radar's very next 0x0F09 frame (~1 Hz) re-publishes `true`
   # as a genuine change and presence flaps straight back on.
+  #
+  # `delayed_off:` DE-FLAPS THE FLAG AND IS REQUIRED - see ${flap_filter} in
+  # substitutions for why it is not optional and what it costs. It delays only
+  # the OFF edge; DelayedOffFilter cancels a pending OFF as soon as the flag
+  # re-asserts (binary_sensor/filter.cpp), and ON is still immediate. The
+  # de-duplicator hazard described in DESIGN NOTE 2 does not apply: that
+  # de-duplicator sits on the filter's INPUT and this filter sees genuine
+  # alternation, never a value latched against it.
+  #
+  # NOTE that `.state` therefore stays TRUE for ${flap_filter} after the radar
+  # reports zero occupancy. Three things read it - the presence lambda, the
+  # "Radar Data Stale" lambda and the head gate on the three filter chains -
+  # and all three are written to be correct with that delay in place.
   - platform: seeed_mr60bha2
     has_target:
       id: mr_raw_has_target
       internal: true
+      filters:
+        - delayed_off: ${flap_filter}
 
   # >>> The presence entity Home Assistant actually sees. <<<
   # Same name, same device_class and same icon as the stock config, so its
   # unique_id (mac + domain + name), entity_id and history carry over.
-  #
-  # This is an OR over freshness: presence survives as long as at least ONE of
-  # the three is still moving. `distance` legitimately stops publishing on its
-  # own (the component only publishes it when the frame's validity byte is
-  # non-zero), and beyond 1.5 m the radar firmware deliberately freezes heart
-  # and breath, so requiring all three to be fresh would drop real people.
+  # (The rule it implements is documented on its `lambda:` further down.)
   - platform: template
     id: mr_presence
     name: "Person Information"
     device_class: occupancy
     icon: mdi:motion-sensor
+
+    # >>> PRESENCE-FOLLOWS-DOWN BLANKING (the EDGE half - see the header) <<<
+    # Blank the watched readings the INSTANT presence drops, whatever the
+    # cause: the radar's own has_target going false (the ordinary "you left
+    # the room" case) or the stale watchdog firing. Derived from THIS entity
+    # rather than from the raw flag so there is exactly one source of truth
+    # and the two can never disagree - presence is OFF while the raw flag is
+    # still true for the whole duration of a watchdog trip.
+    #
+    # Fires exactly ONCE per ON->OFF transition, not on every loop: the
+    # template platform re-publishes its lambda's result every loop, but
+    # BinarySensor::send_state_internal() returns early on an unchanged state
+    # BEFORE any callback runs (binary_sensor/binary_sensor.h).
+    #
+    # THIS BLOCK ALONE IS NOT ENOUGH, and that is not a style point: a single
+    # edge cannot hold a level. What stops a later radar frame from refilling
+    # the three while presence is still off is the `lambda` gate at the head
+    # of each filter chain further down. Keep both.
+    #
+    # internal_send_state_to_frontend() IS THE ONLY THING THAT WORKS HERE.
+    # Do NOT "simplify" it to id(x).publish_state(NAN) or to a
+    # `sensor.template.publish` action - both feed the filter chain, and NaN
+    # dies in it: it passes `filter_out: 0.0` (roundf(NAN) == 0.0f is false),
+    # then DeltaFilter computes delta = fabsf(NAN - last_value_) = NaN, the
+    # pass test `NaN > min` is false, so it returns {} and the chain stops
+    # dead (sensor/filter.cpp). Nothing would reach the sensor, the readings
+    # would stay frozen, and nothing would tell you - no error, no log line.
+    # internal_send_state_to_frontend() is public and not deprecated
+    # (sensor/sensor.h) and is literally what Filter::output() calls to
+    # deliver the `timeout:` NaN this file already relies on. It writes the
+    # state, fires on_value and notifies the API while bypassing all filters,
+    # so it cannot disturb `delta`'s reference or disarm the 10-minute
+    # `timeout`. (It does sit under an "INTERNAL METHODS" banner in that
+    # header, so re-check it still exists after a major ESPHome upgrade.)
+    #
+    # The isnan guards make the first three clauses a no-op when the watchdog
+    # has already NaN'd those sensors, so their only real work is the
+    # has_target-dropped case. (The fourth clause is the other way round: it
+    # only ever does work on the watchdog path. See below.)
+    # The sensors' own on_value lambdas do fire, with x = NAN, and their
+    # `if (!std::isnan(x))` guard skips the write - so "Radar Data Age" is not
+    # falsely reset. "Radar Frame Age" is untouched too, because on_raw_value
+    # is not fired by this call.
+    #
+    # THE FOURTH CLAUSE - "Target Number" - IS GATED ON THE RAW FLAG ON
+    # PURPOSE. On an ordinary departure the component itself publishes a
+    # genuine 0 to that sensor (it is the one of the four whose zero-flush is
+    # real and informative), so leave it alone; the guard is false there
+    # because the raw flag has gone down by then. On a WATCHDOG trip the raw
+    # flag is still true, no zero-flush ever happens, and the repeated count
+    # is blocked by that sensor's own `delta` - so without this clause
+    # "Target Number: 1" would sit next to "Person Information: Clear"
+    # forever, which is the very contradiction this file exists to remove.
+    # Do NOT also put the head gate on num_targets: that would block the
+    # legitimate zero.
+    #
+    # trigger_on_initial_state is already false by default in 2026.6.4; it is
+    # written out because if that default ever flipped, the boot-time
+    # publish_state(false) would fire on_release and push a pointless
+    # "unknown" into all four entities on every single boot.
+    trigger_on_initial_state: false
+    on_release:
+      - lambda: |-
+          if (!std::isnan(id(mr_heart_rate).state))
+            id(mr_heart_rate).internal_send_state_to_frontend(NAN);
+          if (!std::isnan(id(mr_breath_rate).state))
+            id(mr_breath_rate).internal_send_state_to_frontend(NAN);
+          if (!std::isnan(id(mr_distance).state))
+            id(mr_distance).internal_send_state_to_frontend(NAN);
+          if (id(mr_raw_has_target).state && !std::isnan(id(mr_num_targets).state))
+            id(mr_num_targets).internal_send_state_to_frontend(NAN);
+
+    # Presence = the radar claims a target AND at least one of the three
+    # watched signals is currently fresh (not NaN). It is an OR because
+    # `distance` legitimately stops publishing on its own (the component only
+    # publishes it when the frame's validity byte is non-zero) and beyond
+    # 1.5 m the radar firmware deliberately freezes heart and breath, so
+    # requiring all three would drop real people.
+    #
+    # There is deliberately no boot-grace branch here. It used to mask the
+    # freshness test for a couple of minutes after boot, but once the blanking
+    # above exists that branch is actively wrong: Sensor::
+    # internal_send_state_to_frontend() calls set_has_state(true) BEFORE it
+    # stores the value (sensor.cpp), so a blanked sensor has has_state()==true
+    # and state==NaN - and a branch that tested only has_state() would report
+    # "Detected" while all three readings showed "unknown". On every path
+    # where it was not wrong it was a no-op, because a sensor that has
+    # published has a non-NaN state and the test below already returns true.
     lambda: |-
       if (!id(mr_raw_has_target).state)
         return false;                 // radar says nobody - believe it
-      // Boot grace, but only once SOME reading has actually arrived. If the
-      // module has published nothing at all we fall through to the strict
-      // test below, which correctly reports "not present" - that is the
-      // hard-hung-module case and it should not be masked for ${boot_grace}
-      // after every reboot.
-      if (!id(mr_wd_armed) && (id(mr_heart_rate).has_state() ||
-                               id(mr_breath_rate).has_state() ||
-                               id(mr_distance).has_state()))
-        return true;
       return !std::isnan(id(mr_heart_rate).state) ||
              !std::isnan(id(mr_breath_rate).state) ||
              !std::isnan(id(mr_distance).state);
@@ -324,10 +509,34 @@ sensor:
     #                   that got past `delta`, i.e. GENUINE CHANGES. The
     #                   `isnan` guard skips the watchdog's own NaN, which
     #                   would otherwise look like fresh data.
-    #   filters      -> filter_out, then delta, then timeout. Never reorder
-    #                   them, never insert anything between them, and never
-    #                   append a value-mutating or blocking filter (round /
-    #                   clamp / throttle / heartbeat) after them.
+    #   filters      -> the has_target gate, then filter_out, then delta, then
+    #                   timeout. Never reorder them, never insert anything
+    #                   between them, and never append a value-mutating or
+    #                   blocking filter (round / clamp / throttle / heartbeat)
+    #                   after them.
+    #
+    # THE `lambda` GATE IS THE LEVEL HALF OF "readings follow presence down"
+    # (the header explains the edge half). It reproduces, in YAML, the one
+    # thing the dropped limengdu fork did that core ESPHome does not:
+    #
+    #     if (!has_target->state && frame_type != PEOPLE_EXIST) return;
+    #
+    # Core's process_frame_() publishes heart/breath on any frame whose
+    # payload is non-zero and distance on any frame whose validity byte is
+    # non-zero, with no reference to has_target at all (verified in
+    # components/seeed_mr60bha2/seeed_mr60bha2.cpp). Presence and vitals are
+    # separate ~1 Hz frames, so a trailing vitals frame lands in a LATER app
+    # loop iteration than the zero-occupancy frame. Without this gate that
+    # value passes filter_out (non-zero), passes delta (it differs from the
+    # last one), lands in the sensor and re-arms `timeout` - and because
+    # presence is already off there is no second ON->OFF edge to blank it
+    # again. You get "Person Information: Clear" beside a live-looking heart
+    # rate for up to ${stale_timeout}. Deleting this gate reintroduces exactly
+    # that bug.
+    #
+    # `return {}` (an empty optional) makes Filter::input() skip output()
+    # entirely, so a gated value touches neither delta's reference nor the
+    # timeout's armed state - the same escape hatch `filter_out` uses.
     breath_rate:
       id: mr_breath_rate
       name: "Real-time respiratory rate"
@@ -336,6 +545,9 @@ sensor:
       on_value:
         - lambda: 'if (!std::isnan(x)) id(mr_last_change_ms) = millis();'
       filters:
+        - lambda: |-
+            if (!id(mr_raw_has_target).state) return {};
+            return x;
         - filter_out: 0.0
         - delta: ${change_deadband}
         - timeout: ${stale_timeout}   # emits NaN -> "unknown" in HA.
@@ -351,6 +563,9 @@ sensor:
       on_value:
         - lambda: 'if (!std::isnan(x)) id(mr_last_change_ms) = millis();'
       filters:
+        - lambda: |-
+            if (!id(mr_raw_has_target).state) return {};
+            return x;
         - filter_out: 0.0
         - delta: ${change_deadband}
         - timeout: ${stale_timeout}
@@ -363,6 +578,9 @@ sensor:
       on_value:
         - lambda: 'if (!std::isnan(x)) id(mr_last_change_ms) = millis();'
       filters:
+        - lambda: |-
+            if (!id(mr_raw_has_target).state) return {};
+            return x;
         - filter_out: 0.0
         - delta: ${change_deadband}
         - timeout: ${stale_timeout}
@@ -378,6 +596,14 @@ sensor:
     # sits at exactly 1 for an entire occupancy, so it would revert a
     # perfectly correct reading to "unknown" ${stale_timeout} into every
     # normal visit. It is not one of the three watched signals either.
+    #
+    # NO has_target GATE HERE EITHER, and that is deliberate. The zero this
+    # sensor receives on a zero-occupancy frame is the one flush of the four
+    # that is genuinely informative ("no targets"), so it must be allowed
+    # through. Instead, "Target Number" is blanked from the presence entity's
+    # on_release, and only when the raw flag is still true - i.e. only on a
+    # watchdog trip, where no zero-flush will ever arrive. See the comment
+    # there.
     num_targets:
       id: mr_num_targets
       name: "Target Number"
@@ -444,7 +670,11 @@ sensor:
 #        if (!has_target->state && frame_type != PEOPLE_EXIST) return;
 #
 #    which drops ALL breath/heart/distance frames while presence is false.
-#    Core ESPHome has neither. Core is also null-checked on every sensor
+#    Core ESPHome has neither. The de-dup is replaced here by `delta:` and
+#    the frame gate by the `lambda:` at the head of each of the three chains,
+#    so nothing was actually given up - both behaviours are now visible in
+#    this file instead of hidden in a vendored component. Core is also
+#    null-checked on every sensor
 #    pointer, bounds-checks the distance frame (`length >= 1 && data[0] != 0`,
 #    then `length >= 8`), reads the UART in batches, and is still maintained -
 #    the fork's last functional commit was 2025-02-05. Dropping it also
@@ -503,21 +733,46 @@ sensor:
 #      ${stale_timeout} after the last real change, all three flip to
 #      "unknown", "Person Information" goes off, and "Radar Data Stale" goes
 #      on 30 s later.
+#      (Here it is the `timeout:` filters that blank the three readings, a
+#      moment before presence itself drops; the on_release blanking then finds
+#      all three already NaN and its isnan guards make those three a no-op.
+#      "Target Number" is the one it does blank on this path, because the raw
+#      flag is still true - see below.)
 #    * Recovery: the first genuinely different reading clears everything
-#      within one loop iteration.
-#    * GENUINE empty room: the component force-publishes literal 0.0 to all
-#      three sensors on a presence=0 frame; `filter_out: 0.0` discards it, so
-#      the readings hold their last live value for ${stale_timeout} and then
-#      go "unknown". Presence is already off throughout (it follows the
-#      radar's own flag down immediately). This is a deliberate change from
-#      stock, which showed a fake 0 bpm / 0 cm - and those fake zeros were
-#      being written into your long-term statistics as real measurements.
-#    * Walking in: presence turns on within one radar frame (well under a
-#      second) of the radar asserting the target, not instantly with it - it
-#      waits for the first actual reading. See HONEST LIMITS.
+#      within one loop iteration. "Target Number" is the exception: it comes
+#      back only when the radar reports a DIFFERENT count, so after a watchdog
+#      trip it can legitimately read "unknown" for a while after presence has
+#      already recovered. A gap, not a wrong number - the trade this whole
+#      file makes.
+#    * GENUINE empty room: ${flap_filter} after the radar's own flag drops,
+#      presence goes off AND heart rate, respiratory rate and distance go
+#      "unknown" in the same loop iteration - that is the on_release blanking
+#      on "Person Information". They then STAY "unknown": the head gate on
+#      their filter chains drops every further radar value while the flag is
+#      down, so nothing can refill them. You never see a live-looking heart
+#      rate attached to an empty room. You do not see stock's fake 0 bpm /
+#      0 cm either: the component force-publishes a literal 0.0 to all three
+#      on a presence=0 frame and `filter_out: 0.0` discards it, so those fake
+#      zeros never reach the entities and never reach your long-term
+#      statistics. What Home Assistant records for a vacancy is a GAP, which
+#      is what a vacancy actually is.
+#      ("Target Number" is different by design: its zero IS real, so it goes
+#      to 0 on the departure frame itself - which, because of ${flap_filter},
+#      is ~5 s BEFORE presence goes off. A brief "Detected / 0 targets" is
+#      therefore normal on the way out, and if the flag was only blipping you
+#      will see it go back to 1 on the next count frame while presence never
+#      moved at all. That is the flag being de-flapped, working as intended.)
+#    * Walking in: presence turns on within one radar frame (~1 s) of the
+#      radar asserting the target, not instantly with it - it waits for the
+#      first actual reading, and after the blanking there is no stale value
+#      left to short-circuit that wait. The three readings repopulate on the
+#      same frame that brings presence back. See HONEST LIMITS.
 #    * Boot: the timeout filter is constructed with its loop DISABLED and
 #      only arms once a real value has passed, so it cannot fire on an idle
-#      device; presence starts off because the radar's flag starts false.
+#      device; presence starts off because the radar's flag starts false, and
+#      the on_release blanking does not run at boot (see
+#      `trigger_on_initial_state: false` on the presence entity). There is no
+#      boot grace period and none is needed.
 #
 # 5. HONEST LIMITS  (read this one)
 #    * BEYOND 1.5 m, HEART AND BREATH WILL READ "unknown". Seeed documents
@@ -527,8 +782,23 @@ sensor:
 #      it to "unknown" after ${stale_timeout}. That is the design working as
 #      asked - an hour-old heart rate displayed as a live number is exactly
 #      the misinformation you set out to kill - but it IS a visible change
-#      from stock, and any HA template of yours reading those entities needs
-#      a default: {{ states('sensor.real_time_heart_rate') | float(0) }}.
+#      from stock, and any HA template of yours reading those entities has to
+#      cope with "unknown" - which, with the blanking in place, it will now
+#      see on EVERY vacancy, not just ${stale_timeout} into a jam.
+#      Guard on availability; do NOT paper over it with a numeric default:
+#
+#          {% set hr = states('sensor.seeed_studio_mr60bha2_kit_real_time_heart_rate') %}
+#          {% if hr not in ['unknown', 'unavailable'] %}
+#            {{ hr | float }}
+#          {% endif %}
+#
+#      `| float(0)` is the trap: it silently turns every vacancy into a
+#      recorded 0 bpm that is never "unknown" and never correct, which is the
+#      exact stock behaviour this config removes - and any automation
+#      thresholded on it (say `< 40`) would then fire permanently. Note the
+#      entity_id prefix: it is derived from `friendly_name`, so it is
+#      `sensor.seeed_studio_mr60bha2_kit_...`, matching the recorder example
+#      in DESIGN NOTE 3 - not a bare `sensor.real_time_heart_rate`.
 #    * CONSEQUENCE: for a target beyond 1.5 m the three-way OR in the
 #      presence lambda effectively collapses to DISTANCE ALONE. A motionless
 #      person at a fixed range whose reported distance never moves by more
@@ -540,11 +810,49 @@ sensor:
 #      JITTERING (fan, air-con, swaying curtain - all documented by Seeed),
 #      nothing goes stale and presence stays on. Raise ${change_deadband} to
 #      make small jitter stop counting as "alive".
-#    * Recovery needs a reading that DIFFERS from the frozen one: DeltaFilter
-#      only updates its reference when a value passes, so if the radar
-#      resumed at bit-identical float32 values on all three at once they
-#      would stay blocked. Any one of the three differing is enough, and with
-#      float32 FFT outputs that is effectively certain.
+#    * >>> THE BIG ONE: PRESENCE CANNOT COME BACK UNTIL A READING CHANGES.
+#      DeltaFilter only updates its reference when a value PASSES, and nothing
+#      in the OFF path touches that reference - not the `timeout:` NaN, not
+#      the on_release blanking (both are written past the chain) and not the
+#      head gate (a gated value is dropped before delta ever sees it). So the
+#      reference surviving a vacancy is the PRE-vacancy value, and presence
+#      returns only once some reading differs from it by more than
+#      ${change_deadband}.
+#      Normally that is the very next radar frame: distance is a continuous
+#      float32 range estimate and realistically never repeats bit for bit.
+#      But if the module is in its hold/repeat state - re-sending bit-identical
+#      heart / breath / distance, which is precisely the failure this file
+#      exists to detect - then nothing can pass, and presence stays OFF for as
+#      long as that lasts, with a person possibly still in the room. This is
+#      NOT bounded by ${stale_timeout}; it is bounded by the radar changing
+#      its mind.
+#      ${flap_filter} is what keeps this from being reachable in practice: it
+#      takes a presence OFF edge to get there, and a one-frame has_target blip
+#      no longer produces one. That is why `delayed_off:` is shipped on by
+#      default rather than offered as a footnote, and why setting it to 0s is
+#      a bad idea. If you drive lights, an alarm or an HVAC schedule off
+#      `binary_sensor...._person_information`, leave it alone or raise it.
+#      "Radar Data Stale" turning ON 30 s into an occupied room is the symptom
+#      to watch for.
+#    * A has_target flap LONGER than ${flap_filter} while somebody is
+#      genuinely in the room writes an "unknown" gap into the three readings'
+#      history, because the blanking follows every presence OFF edge. It is a
+#      gap, not a wrong value, so long-term statistics are unharmed (still
+#      strictly better than stock, which wrote fake 0 bpm / 0 cm in as real
+#      measurements) - but it is visible in the history graph, and per the
+#      bullet above it may last longer than the flap did.
+#    * The one place the blanking genuinely bites: a target beyond 1.5 m AND
+#      beyond 5 m produces no live heart, no live breath and no live distance
+#      at all. If has_target drops for longer than ${flap_filter} in that
+#      state there is nothing left that CAN change, so presence latches OFF
+#      immediately rather than waiting out the rest of ${stale_timeout}. Same
+#      documented limitation as the two bullets above, reached sooner rather
+#      than made deeper.
+#    * "Target Number" is blanked only on a watchdog trip, and comes back only
+#      when the radar reports a different count - so it can read "unknown"
+#      after presence has already recovered. Deliberate: on that path the
+#      component never publishes a fresh count at all, and a stale "1" beside
+#      "Person Information: Clear" is the contradiction being removed.
 #    * This masks the symptom; it does not fix the radar. There is no
 #      software reset - neither component writes a single byte to the UART.
 #      A hard-hung module still needs a USB power cycle, and "Radar Frame
