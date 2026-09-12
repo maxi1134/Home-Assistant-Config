@@ -1,6 +1,114 @@
+##############################################################################
+# Seeed Studio MR60BHA2 mmWave kit (XIAO ESP32-C6)
+# Drop-in replacement for the stock Seeed "3.5" config + a STALE-DATA WATCHDOG.
+#
+# THE PROBLEM THIS FIXES
+#   The radar latches "person detected" while heart rate, respiratory rate and
+#   distance all freeze at their last value. Those three should drift slightly
+#   all the time, so all three frozen at once means the tracker is jammed and
+#   nobody is really there.
+#
+# WHAT THE WATCHDOG DOES
+#   If heart rate, respiratory rate AND distance have all stopped CHANGING for
+#   ${stale_timeout}, then:
+#     * "Person Information" is forced OFF,
+#     * the frozen readings revert to "unknown" in Home Assistant,
+#     * the diagnostic "Radar Data Stale" turns ON so you can see why.
+#   The moment any one of them genuinely moves again, everything recovers by
+#   itself - no reboot, no reset button, no automation needed.
+#
+# HOW IT WORKS  (three stock ESPHome filters per sensor - no scripts, no timers)
+#     filters:
+#       - filter_out: 0.0             # drop the component's "nobody here" flush
+#       - delta: ${change_deadband}   # drop any reading equal to the last one
+#       - timeout: ${stale_timeout}   # re-armed by whatever gets through;
+#                                     # emits NaN -> "unknown" if nothing does
+#
+#   `delta` turns "the radar keeps re-sending the same number" into "nothing
+#   reaches the timer", and `timeout` turns "nothing reached the timer for
+#   ${stale_timeout}" into NaN.
+#
+#   `filter_out: 0.0` is there because the component force-publishes a literal
+#   0.0 to all three sensors on EVERY frame that reports zero occupancy. A
+#   single such frame in the middle of a jam (presence briefly flapping off and
+#   straight back on - widely reported on this module) would otherwise look
+#   like two genuine changes, 0.0 then the frozen value again, and would reset
+#   the 10-minute countdown to zero. With enough flaps the watchdog could never
+#   fire at all. Dropping the 0.0 before it reaches `delta` closes that hole.
+#   Safe here because the component never publishes a real 0.0 on these three:
+#   heart/breath frames whose payload is bit-zero are skipped outright, and a
+#   distance frame is only decoded when its validity byte is non-zero.
+#
+#   THE ORDER IS LOAD-BEARING. DeltaFilter keeps a private `last_value_` that
+#   is only written by values arriving at ITS input and only when they PASS.
+#   The NaN that `timeout` emits is injected DOWNSTREAM (Filter::output() ->
+#   straight to the frontend, verified in sensor/filter.cpp), so it never
+#   re-enters `delta`. Result: once the watchdog fires, the frozen reading X
+#   keeps arriving, delta computes |X-X| = 0, the pass test `delta > min`
+#   fails, and the NaN LATCHES. Reorder these and that collapses.
+#
+#   Recovery falls out of the same property for free: the first genuinely
+#   different value Y satisfies |Y-X| > ${change_deadband}, passes `delta`,
+#   re-arms `timeout`, and lands in the sensor's state - so the sensor leaves
+#   NaN and presence returns on the very next loop iteration.
+#
+# TUNING: everything you are likely to touch is in `substitutions:` below.
+#         ${stale_timeout} is the one that matters. Read "HONEST LIMITS" at
+#         the bottom before trusting it - there is one case (a target sitting
+#         beyond 1.5 m) where the vendor's own firmware freezes heart and
+#         breath on purpose, and this config will correctly report that as
+#         "unknown" rather than keep showing you an hour-old number.
+#
+# See the "DESIGN NOTES" block at the bottom of this file for why the
+# external component was dropped, why presence is a template binary_sensor,
+# and what to check in Home Assistant after the first flash.
+##############################################################################
+
 substitutions:
   name: "seeedstudio-mr60bha2-kit"
   friendly_name: "Seeed Studio MR60BHA2 Kit"
+
+  # ======================== WATCHDOG TUNING ================================
+
+  # >>> THE MAIN KNOB <<<
+  # How long all three of heart rate / respiratory rate / distance must sit
+  # unchanged before presence is forced off and they revert to "unknown".
+  # Any ESPHome time period: 30s, 5min, 10min, 30min, 1h ...
+  #
+  # Watch the "Radar Data Age" diagnostic for a few days of REAL occupancy
+  # before trusting a short value: it is literally the number this is compared
+  # against. If it regularly climbs past your setting while somebody is
+  # genuinely in the room, raise this.
+  stale_timeout: "10min"
+
+  # Minimum change that counts as "the radar is still alive".
+  # 0.001 is far below the displayed resolution (heart/breath show 0 decimals,
+  # distance 2), so no real reading is ever suppressed.
+  #
+  # RAISE THIS if your radar latches onto a fan / air-con / swaying curtain
+  # and JITTERS instead of freezing - e.g. "0.5" then means "a change smaller
+  # than 0.5 is not real movement". You can also override it per sensor by
+  # replacing ${change_deadband} inline further down with different numbers.
+  #
+  # Do NOT set it to 0: on ESPHome <= 2026.1.0 the comparison was
+  # `fabsf(v - last) >= delta`, so 0 passed everything and de-duplicated
+  # nothing. A small positive value behaves correctly on every version.
+  change_deadband: "0.001"
+
+  # Grace period after boot during which presence simply follows the radar
+  # instead of the watchdog - but ONLY once at least one real reading has
+  # arrived (see the "Person Information" lambda). That proviso matters: a
+  # module that claims a target while sending no data at all is the hard-hung
+  # failure mode, and the watchdog should catch that immediately, not sit on
+  # it for ${boot_grace} after every reboot.
+  boot_grace: "2min"
+
+  # How often the two diagnostic "age" sensors refresh. Cosmetic only: the
+  # watchdog itself is not polled, it is driven by the filter chain. Every
+  # tick is a row in Home Assistant's recorder, so keep it lazy - drop it to
+  # 5s temporarily while you are actively tuning ${stale_timeout}.
+  diagnostic_interval: "30s"
+  # =========================================================================
 
 esphome:
   name: "${name}"
@@ -11,7 +119,26 @@ esphome:
     version: "3.5"
   platformio_options:
     board_upload.maximum_size: 4194304
-  min_version: "2024.3.2" # Fix logger compile error on ESP32-C6 esphome#6323
+  # 2025.2.0 is the first ESPHome release whose BUILT-IN seeed_mr60bha2
+  # component ships the has_target binary sensor and the num_targets sensor
+  # (esphome#8010). 2024.12.0 had only breath/heart/distance and no
+  # binary_sensor platform at all, so anything older simply will not build.
+  # (The old "2024.3.2 # Fix logger compile error on ESP32-C6 esphome#6323"
+  # pin predated the component entirely and was misleading.)
+  min_version: "2025.2.0"
+
+  on_boot:
+    # priority -100 = as late as possible: hardware, WiFi and the API are up.
+    - priority: -100.0
+      then:
+        - lambda: |-
+            const uint32_t now = millis();
+            id(mr_last_change_ms) = now;
+            id(mr_last_frame_ms) = now;
+        - delay: ${boot_grace}
+        - lambda: |-
+            id(mr_wd_armed) = true;
+            ESP_LOGI("mr60_wd", "boot grace over - stale-data watchdog armed");
 
 esp32:
   board: esp32-c6-devkitc-1
@@ -20,15 +147,15 @@ esp32:
   framework:
     type: esp-idf
 
-external_components:
-  - source:
-      type: git
-      url: https://github.com/limengdu/MR60BHA2_ESPHome_external_components
-      ref: main
-    components: [ seeed_mr60bha2 ]
-    refresh: 0s
+# NOTE: the `external_components:` block (limengdu/MR60BHA2_ESPHome_external_
+# components @ main) that used to sit here is GONE on purpose. seeed_mr60bha2
+# has been part of ESPHome core since 2024.12.0 and every YAML key is
+# identical, so this is a true drop-in. See DESIGN NOTES at the bottom.
 
-# Enable logging
+# Enable logging.
+# Bump to VERBOSE if you ever need to see every raw radar frame
+# ("Received Frame: ID: 0x...., Type: 0x....") - that is the only way to tell
+# "module silent" apart from "module talking but every payload is invalid".
 logger:
   hardware_uart: USB_SERIAL_JTAG
   level: DEBUG
@@ -67,6 +194,10 @@ i2c:
   scan: true
   id: bus_a
 
+# Do not change any of this: seeed_mr60bha2's FINAL_VALIDATE_SCHEMA hard-
+# requires 115200 / NONE / 1 stop bit and BOTH tx_pin and rx_pin. tx_pin is
+# never actually written to - the component is receive-only and there is no
+# software reset command for the radar module.
 uart:
   id: uart_bus
   baud_rate: 115200
@@ -78,22 +209,345 @@ uart:
 seeed_mr60bha2:
   id: my_seeed_mr60bha2
 
+##############################################################################
+# WATCHDOG STATE
+#
+# Only three variables, and NONE of them is part of the trip decision - the
+# trip decision lives entirely in the filter chain. `mr_wd_armed` is the boot
+# grace latch; the other two only feed the two diagnostic "age" sensors.
+##############################################################################
+globals:
+  # false until ${boot_grace} has elapsed (see esphome.on_boot above).
+  # Latched once and never cleared, so it is immune to the ~49.7-day millis()
+  # rollover by construction.
+  - id: mr_wd_armed
+    type: bool
+    restore_value: false
+    initial_value: 'false'
+
+  # millis() when any of the three signals last actually CHANGED.
+  - id: mr_last_change_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+
+  # millis() when the radar last published ANY decodable value, changed or
+  # repeated. This is what separates "radar alive but frozen" from "radar or
+  # UART dead". See the "Radar Frame Age" sensor for the exact caveat.
+  - id: mr_last_frame_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
+
+##############################################################################
+# ENTITIES
+##############################################################################
 binary_sensor:
+  # The radar's own presence flag. Kept internal (never sent to Home
+  # Assistant) because it is the thing that gets stuck - it now feeds the
+  # filtered entity below instead of going straight to HA. It is still fully
+  # live inside the device: `internal:` is only consulted by the API / MQTT /
+  # web_server / prometheus exporters, never by the state machinery.
+  #
+  # Do NOT try to force this one off from an automation or a binary_sensor
+  # filter: BinarySensor::send_state_internal() only de-duplicates UNCHANGED
+  # states, so the radar's very next 0x0F09 frame (~1 Hz) re-publishes `true`
+  # as a genuine change and presence flaps straight back on.
   - platform: seeed_mr60bha2
     has_target:
-      name: "Person Information"
+      id: mr_raw_has_target
+      internal: true
+
+  # >>> The presence entity Home Assistant actually sees. <<<
+  # Same name, same device_class and same icon as the stock config, so its
+  # unique_id (mac + domain + name), entity_id and history carry over.
+  #
+  # This is an OR over freshness: presence survives as long as at least ONE of
+  # the three is still moving. `distance` legitimately stops publishing on its
+  # own (the component only publishes it when the frame's validity byte is
+  # non-zero), and beyond 1.5 m the radar firmware deliberately freezes heart
+  # and breath, so requiring all three to be fresh would drop real people.
+  - platform: template
+    id: mr_presence
+    name: "Person Information"
+    device_class: occupancy
+    icon: mdi:motion-sensor
+    lambda: |-
+      if (!id(mr_raw_has_target).state)
+        return false;                 // radar says nobody - believe it
+      // Boot grace, but only once SOME reading has actually arrived. If the
+      // module has published nothing at all we fall through to the strict
+      // test below, which correctly reports "not present" - that is the
+      // hard-hung-module case and it should not be masked for ${boot_grace}
+      // after every reboot.
+      if (!id(mr_wd_armed) && (id(mr_heart_rate).has_state() ||
+                               id(mr_breath_rate).has_state() ||
+                               id(mr_distance).has_state()))
+        return true;
+      return !std::isnan(id(mr_heart_rate).state) ||
+             !std::isnan(id(mr_breath_rate).state) ||
+             !std::isnan(id(mr_distance).state);
+
+  # Diagnostic: ON whenever the radar insists someone is there and we are
+  # overriding it. Deliberately derived from the presence entity above rather
+  # than re-deriving the condition, so the two can never disagree.
+  # This is exactly the failure you are chasing, so it is the thing to watch
+  # to confirm the watchdog works and to decide whether ${stale_timeout}
+  # needs tuning.
+  - platform: template
+    id: mr_data_stale
+    name: "Radar Data Stale"
+    device_class: problem
+    entity_category: diagnostic
+    icon: mdi:radar
+    lambda: |-
+      return id(mr_raw_has_target).state && !id(mr_presence).state;
+    filters:
+      # Suppress the sub-second blip that happens every time somebody walks in
+      # after a long vacancy: the radar asserts the target one frame before
+      # the first reading arrives. Delays only the ON edge; OFF is immediate.
+      - delayed_on: 30s
 
 sensor:
   - platform: bh1750
     name: "Seeed MR60BHA2 Illuminance"
     address: 0x23
     update_interval: 1s
+
   - platform: seeed_mr60bha2
+    # For each watched signal:
+    #   on_raw_value -> fires BEFORE the filter chain, on every publish from
+    #                   the component. Used only for the "Radar Frame Age"
+    #                   diagnostic.
+    #   on_value     -> fires AFTER the filter chain, so it only sees values
+    #                   that got past `delta`, i.e. GENUINE CHANGES. The
+    #                   `isnan` guard skips the watchdog's own NaN, which
+    #                   would otherwise look like fresh data.
+    #   filters      -> filter_out, then delta, then timeout. Never reorder
+    #                   them, never insert anything between them, and never
+    #                   append a value-mutating or blocking filter (round /
+    #                   clamp / throttle / heartbeat) after them.
     breath_rate:
+      id: mr_breath_rate
       name: "Real-time respiratory rate"
+      on_raw_value:
+        - lambda: 'id(mr_last_frame_ms) = millis();'
+      on_value:
+        - lambda: 'if (!std::isnan(x)) id(mr_last_change_ms) = millis();'
+      filters:
+        - filter_out: 0.0
+        - delta: ${change_deadband}
+        - timeout: ${stale_timeout}   # emits NaN -> "unknown" in HA.
+                                      # NOT tunable: every decision in this
+                                      # file is a std::isnan() test, so any
+                                      # other value silently disables it all.
+
     heart_rate:
+      id: mr_heart_rate
       name: "Real-time heart rate"
+      on_raw_value:
+        - lambda: 'id(mr_last_frame_ms) = millis();'
+      on_value:
+        - lambda: 'if (!std::isnan(x)) id(mr_last_change_ms) = millis();'
+      filters:
+        - filter_out: 0.0
+        - delta: ${change_deadband}
+        - timeout: ${stale_timeout}
+
     distance:
+      id: mr_distance
       name: "Distance to detection object"
+      on_raw_value:
+        - lambda: 'id(mr_last_frame_ms) = millis();'
+      on_value:
+        - lambda: 'if (!std::isnan(x)) id(mr_last_change_ms) = millis();'
+      filters:
+        - filter_out: 0.0
+        - delta: ${change_deadband}
+        - timeout: ${stale_timeout}
+
+    # Target Number gets de-duplication ONLY - deliberately no `timeout:`.
+    #
+    # `delta` here restores the publish-on-change behaviour the old external
+    # component had: core re-publishes this count on every 0x0A04 frame
+    # (~1 Hz) whether it changed or not, which would otherwise spam Home
+    # Assistant's recorder with identical rows forever.
+    #
+    # A `timeout:` would be actively wrong: an integer count legitimately
+    # sits at exactly 1 for an entire occupancy, so it would revert a
+    # perfectly correct reading to "unknown" ${stale_timeout} into every
+    # normal visit. It is not one of the three watched signals either.
     num_targets:
+      id: mr_num_targets
       name: "Target Number"
+      on_raw_value:
+        - lambda: 'id(mr_last_frame_ms) = millis();'
+      filters:
+        - delta: ${change_deadband}
+
+  # ---- diagnostic: seconds since ANY of the three last CHANGED ------------
+  # This is literally the number the watchdog tests. It counts up towards
+  # ${stale_timeout} and presence drops the moment it gets there, so tuning
+  # ${stale_timeout} becomes an observation instead of a guess.
+  # (It also climbs without limit during a genuinely empty room - harmless,
+  # because the "Radar Data Stale" flag and presence are both gated on the
+  # radar actually claiming a target. No `state_class:` on purpose: this is a
+  # sawtooth counter and a "mean data age" statistic would be meaningless.)
+  # Safe to delete along with the mr_last_change_ms global and the three
+  # on_value blocks above.
+  - platform: template
+    id: mr_data_age
+    name: "Radar Data Age"
+    unit_of_measurement: "s"
+    device_class: duration
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: mdi:timer-sand
+    update_interval: ${diagnostic_interval}
+    lambda: |-
+      // Unsigned wraparound subtraction - correct across the ~49.7-day
+      // millis() rollover. Never write "now > last + timeout".
+      return ((uint32_t) (millis() - id(mr_last_change_ms))) / 1000.0f;
+
+  # ---- diagnostic: seconds since the radar last published ANYTHING --------
+  # Near 0   = the module is transmitting decodable data, so a watchdog trip
+  #            means "frozen values" and ${stale_timeout} is the knob.
+  # Climbing = nothing decodable is arriving at all. Usually a dead module or
+  #            dead UART - there is no software reset for this radar, that
+  #            case needs a USB power cycle. BUT it can also mean the radar is
+  #            sending only presence frames with no valid payload (a target
+  #            tracked beyond the vitals/distance range), so confirm with
+  #            `logger: level: VERBOSE` before you go unplugging things.
+  # Safe to delete along with the mr_last_frame_ms global and the four
+  # on_raw_value blocks above.
+  - platform: template
+    id: mr_frame_age
+    name: "Radar Frame Age"
+    unit_of_measurement: "s"
+    device_class: duration
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: mdi:access-point
+    update_interval: ${diagnostic_interval}
+    lambda: |-
+      return ((uint32_t) (millis() - id(mr_last_frame_ms))) / 1000.0f;
+
+##############################################################################
+# DESIGN NOTES  (why it is built this way - safe to delete, but read once)
+##############################################################################
+#
+# 1. WHY THE EXTERNAL COMPONENT WAS DROPPED
+#    limengdu's fork de-duplicates every publish at the source
+#    (`if (sensor_->state == value) break;`) and opens process_frame_() with
+#
+#        if (!has_target->state && frame_type != PEOPLE_EXIST) return;
+#
+#    which drops ALL breath/heart/distance frames while presence is false.
+#    Core ESPHome has neither. Core is also null-checked on every sensor
+#    pointer, bounds-checks the distance frame (`length >= 1 && data[0] != 0`,
+#    then `length >= 8`), reads the UART in batches, and is still maintained -
+#    the fork's last functional commit was 2025-02-05. Dropping it also
+#    removes a `git clone` from every single build and stops a `ref: main`
+#    from drifting under you.
+#
+#    The one thing core does differently: it re-publishes the SAME value on
+#    every frame (~1 Hz) instead of only on change. That is precisely why the
+#    `delta` filter is mandatory here - without it the `timeout` timer would
+#    be re-armed every second and could never fire. (On the fork a bare
+#    `timeout:` appears to work, but the NaN overwrites the fork's own de-dup
+#    baseline, so the next frozen frame re-publishes ~1 s later and presence
+#    only blinks off for a single loop. Adding `delta` fixes that too, which
+#    means THIS CONFIG WORKS VERBATIM ON EITHER COMPONENT if you ever pin the
+#    fork back - you would just also re-inherit the frame gate above.)
+#
+# 2. WHY PRESENCE IS A TEMPLATE BINARY_SENSOR RATHER THAN A FILTER
+#    Overriding the radar's own has_target in place with a binary_sensor
+#    `lambda` filter looks tidier and would guarantee the entity_id, but
+#    binary_sensor::Filter::input() de-duplicates its INPUT before the lambda
+#    ever runs (`if (!this->dedup_.next(value)) return;` - unlike sensor
+#    filters, which do not). While presence was held off, the radar's endless
+#    repeated `true` would sit latched in that de-duplicator, so on recovery
+#    the next identical frame is swallowed, the lambda never runs again, and
+#    presence stays stuck OFF FOREVER. Working around that needs a script
+#    that flushes the de-duplicator with an opposite value plus an "this
+#    write is mine" guard flag. A template facade needs none of it.
+#
+# 3. WHAT TO CHECK IN HOME ASSISTANT AFTER THE FIRST FLASH
+#    "Person Information" moves from the seeed platform to the template
+#    platform. HA's ESPHome unique_id is {mac}/{device}/{domain}/{name} (or
+#    legacy {mac}-{domain}-{object_id}) - it does NOT encode which ESPHome
+#    platform produced the entity - and the name, domain, device_class and
+#    icon are all unchanged, so the entity_id, history and every automation
+#    should carry over untouched. The old entity is never exposed alongside
+#    the new one (it is `internal: true`), so there is nothing to collide
+#    with. Still, glance at Settings -> Devices -> your MR60BHA2 after
+#    flashing: if a `binary_sensor...._person_information_2` ever shows up, a
+#    stale registry entry survived - delete the orphan and the original id
+#    frees up. Nothing else changes platform: the four sensors stay on
+#    seeed_mr60bha2, keeping their units, accuracy, device_class and
+#    state_class, so long-term statistics stay continuous.
+#    GENUINELY NEW entities: "Radar Data Stale", "Radar Data Age",
+#    "Radar Frame Age" (all diagnostic). If you would rather the two age
+#    counters did not touch your database at all, add to HA's
+#    configuration.yaml:
+#        recorder:
+#          exclude:
+#            entities:
+#              - sensor.seeed_studio_mr60bha2_kit_radar_data_age
+#              - sensor.seeed_studio_mr60bha2_kit_radar_frame_age
+#
+# 4. WHAT TO EXPECT IN NORMAL USE
+#    * Jam (your bug): the radar keeps emitting frames at ~1 Hz while HA's
+#      last_updated on the three readings stays frozen. Exactly
+#      ${stale_timeout} after the last real change, all three flip to
+#      "unknown", "Person Information" goes off, and "Radar Data Stale" goes
+#      on 30 s later.
+#    * Recovery: the first genuinely different reading clears everything
+#      within one loop iteration.
+#    * GENUINE empty room: the component force-publishes literal 0.0 to all
+#      three sensors on a presence=0 frame; `filter_out: 0.0` discards it, so
+#      the readings hold their last live value for ${stale_timeout} and then
+#      go "unknown". Presence is already off throughout (it follows the
+#      radar's own flag down immediately). This is a deliberate change from
+#      stock, which showed a fake 0 bpm / 0 cm - and those fake zeros were
+#      being written into your long-term statistics as real measurements.
+#    * Walking in: presence turns on within one radar frame (well under a
+#      second) of the radar asserting the target, not instantly with it - it
+#      waits for the first actual reading. See HONEST LIMITS.
+#    * Boot: the timeout filter is constructed with its loop DISABLED and
+#      only arms once a real value has passed, so it cannot fire on an idle
+#      device; presence starts off because the radar's flag starts false.
+#
+# 5. HONEST LIMITS  (read this one)
+#    * BEYOND 1.5 m, HEART AND BREATH WILL READ "unknown". Seeed documents
+#      that when the target is outside the 1.5 m vitals range the firmware
+#      "stops updating and holds the last valid measurement" (and the same
+#      for distance beyond 5 m). Held value = no change = this config reverts
+#      it to "unknown" after ${stale_timeout}. That is the design working as
+#      asked - an hour-old heart rate displayed as a live number is exactly
+#      the misinformation you set out to kill - but it IS a visible change
+#      from stock, and any HA template of yours reading those entities needs
+#      a default: {{ states('sensor.real_time_heart_rate') | float(0) }}.
+#    * CONSEQUENCE: for a target beyond 1.5 m the three-way OR in the
+#      presence lambda effectively collapses to DISTANCE ALONE. A motionless
+#      person at a fixed range whose reported distance never moves by more
+#      than ${change_deadband} for ${stale_timeout} WILL be cleared. Use
+#      "Radar Data Age" to measure your real occupied-room behaviour for a
+#      week before you trust a short timeout; raise ${stale_timeout} if it
+#      gets close.
+#    * This catches FROZEN values. If the radar ghosts with values that keep
+#      JITTERING (fan, air-con, swaying curtain - all documented by Seeed),
+#      nothing goes stale and presence stays on. Raise ${change_deadband} to
+#      make small jitter stop counting as "alive".
+#    * Recovery needs a reading that DIFFERS from the frozen one: DeltaFilter
+#      only updates its reference when a value passes, so if the radar
+#      resumed at bit-identical float32 values on all three at once they
+#      would stay blocked. Any one of the three differing is enough, and with
+#      float32 FFT outputs that is effectively certain.
+#    * This masks the symptom; it does not fix the radar. There is no
+#      software reset - neither component writes a single byte to the UART.
+#      A hard-hung module still needs a USB power cycle, and "Radar Frame
+#      Age" is what tells you that you are in that case. Radar firmware
+#      1.6.12 (2025-09-18) is the newest available and does not claim to fix
+#      ghosting.
+##############################################################################
