@@ -317,6 +317,11 @@
       minutes: 5
       seconds: 0
     trigger: state
+  - trigger: alarm_control_panel.armed_night
+    target:
+      entity_id: alarm_control_panel.home_alarm
+    options:
+      for: 00:00:00
   conditions:
   - condition: state
     entity_id: input_boolean.kink_party
@@ -327,8 +332,10 @@
   - condition: state
     entity_id: input_boolean.party_mode
     state: 'off'
-  - condition: sun
-    after: sunset
+  - condition: state
+    entity_id: sun.sun
+    state:
+    - below_horizon
   actions:
   - metadata: {}
     data: {}
@@ -364,7 +371,7 @@
     trigger: state
     for:
       hours: 0
-      minutes: 5
+      minutes: 3
       seconds: 0
   conditions:
   - condition: or
@@ -994,7 +1001,7 @@
     - binary_sensor.group_workstation_motion_occupancy
     - binary_sensor.group_salon_motion_occupancy
     - binary_sensor.group_bathroom_motion_occupancy
-    - binary_sensor.group_hotbox_motion_occupancy
+    - binary_sensor.hallway_radar_occupancy_zone_3_occupancy
     for:
       hours: 0
       minutes: 0
@@ -1129,7 +1136,8 @@
 - id: '1714058481200'
   alias: Alert when Microwave finishes
   description: Sends a notification when the microwave power consumption drops, indicating
-    cooking is complete.
+    cooking is complete. Repeats the alert every 5 minutes while the kitchen has not
+    been occupied in the last 5 minutes.
   triggers:
   - entity_id:
     - sensor.plug_kitchen_microwave_electric_consumption_w
@@ -1158,8 +1166,8 @@
     continue_on_timeout: false
     timeout:
       hours: 0
-      minutes: 20
-      seconds: 0
+      minutes: 30
+      seconds: 2
       milliseconds: 0
     enabled: true
   - if:
@@ -1170,6 +1178,21 @@
     - action: script.non_important_broadcast_alert_in_the_house
       data:
         message: Microwave finished
+    - delay:
+        minutes: 5
+    - repeat:
+        while:
+        - condition: state
+          entity_id: binary_sensor.group_kitchen_motion_occupancy
+          state: 'off'
+          for:
+            minutes: 5
+        sequence:
+        - action: script.non_important_broadcast_alert_in_the_house
+          data:
+            message: Microwave finished
+        - delay:
+            minutes: 5
   mode: restart
 - id: '1714058675432'
   alias: Alert when Washer finishes
@@ -1621,6 +1644,18 @@
     entity_id:
     - sensor.workshop_tablet_battery
     below: 29
+  - trigger: numeric_state
+    entity_id:
+    - sensor.workshop_tablet_battery
+    below: 25
+  - trigger: numeric_state
+    entity_id:
+    - sensor.workshop_tablet_battery
+    below: 10
+  - trigger: numeric_state
+    entity_id:
+    - sensor.workshop_tablet_battery
+    below: 15
   conditions:
   - condition: or
     conditions:
@@ -1673,6 +1708,27 @@
         target:
           entity_id: switch.plug_workshop_tablet
         action: switch.turn_on
+      - action: number.set_value
+        metadata: {}
+        data:
+          value: '25'
+        target:
+          entity_id: number.workshop_tablet_screen_brightness
+    - conditions:
+      - condition: numeric_state
+        entity_id: sensor.workshop_tablet_battery
+        below: 16
+      sequence:
+      - metadata: {}
+        data: {}
+        target:
+          entity_id: switch.plug_workshop_tablet
+        action: switch.turn_on
+      - metadata: {}
+        data: {}
+        action: switch.turn_off
+        target:
+          entity_id: switch.workshop_tablet_screen
       - action: number.set_value
         metadata: {}
         data:
@@ -1764,12 +1820,18 @@
     type: remote_button_long_release
     subtype: button
     trigger: device
+  - trigger: state
+    entity_id:
+    - binary_sensor.front_doorbell_camera_visitor
+    to:
+    - 'on'
   conditions:
   - condition: not
     conditions:
     - condition: state
       entity_id: binary_sensor.sensor_front_outside_door_contact
       state: 'on'
+    enabled: false
   - condition: state
     entity_id: input_boolean.door_rang
     state:
@@ -1983,7 +2045,8 @@
   alias: Notify on potential package
   description: Uses camera AI analysis to detect a potential package delivery at the
     front door and sends a photo notification to Maxi when the waiting-for-package
-    flag is on.
+    flag is on. Opening the front-door contact acknowledges the delivery and cancels
+    reminders.
   triggers:
   - entity_id:
     - binary_sensor.front_door_camera_person_occupancy
@@ -1993,6 +2056,7 @@
       minutes: 0
       seconds: 2
     trigger: state
+    id: delivery_person_detected
   - entity_id:
     - binary_sensor.front_door_camera_package_occupancy
     to:
@@ -2002,90 +2066,103 @@
       minutes: 0
       seconds: 1
     trigger: state
+    id: package_detected
+  - trigger: state
+    entity_id: binary_sensor.sensor_front_door_contact
+    to: 'on'
+    id: front_door_opened
   conditions:
   - condition: state
     entity_id: input_boolean.waiting_package
     state: 'on'
   actions:
-  - action: select.select_option
-    metadata: {}
-    target:
-      entity_id: select.front_door_ptz_camera_ptz_preset
-    data:
-      option: Package
-    alias: Set Camera focus on the package zone
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 3
-      milliseconds: 0
-  - alias: Perform LLM vision to analyse to see if a Package or delivery guy is present
-    action: llmvision.image_analyzer
-    data:
-      include_filename: false
-      target_width: 1280
-      response_format: text
-      title_field: title
-      description_field: description
-      provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
-      store_in_timeline: false
-      message: 'Answer with ONLY ''''yes'' or ''no'', is there a package or a deliveryman
-        in this picture?
-
-        '
-      image_entity:
-      - camera.front_door_ptz_camera_clear
-      generate_title: false
-      expose_images: false
-    response_variable: answer
   - if:
-    - condition: template
-      value_template: '{{ "YES" in answer.response_text | upper }}'
-      alias: 'Continue if a delivery man or a package is present '
+    - condition: trigger
+      id: front_door_opened
     then:
-    - metadata: {}
-      data:
-        data:
-          image: /local/llmvision/front_door_camera.jpg
-        message: Package is being delivered
-        title: Package Detected
-      action: notify.maxi_notification_group
-    - metadata: {}
-      data:
-        message: A package is being delivered!
-        color: Blue
-      action: script.broadcast_alert_in_the_house
-    - alias: Set Camera focus on the package zone
-      action: select.select_option
+    - action: input_boolean.turn_off
+      target:
+        entity_id: input_boolean.waiting_package
+    else:
+    - action: select.select_option
       metadata: {}
       target:
         entity_id: select.front_door_ptz_camera_ptz_preset
       data:
-        option: Doorway
+        option: Package
+      alias: Set Camera focus on the package zone
     - delay:
         hours: 0
-        minutes: 5
-        seconds: 5
+        minutes: 0
+        seconds: 3
         milliseconds: 0
-    - repeat:
-        sequence:
-        - action: script.non_important_broadcast_alert_in_the_house
+    - alias: Perform LLM vision to analyse to see if a Package or delivery guy is
+        present
+      action: llmvision.image_analyzer
+      data:
+        include_filename: false
+        target_width: 1280
+        response_format: text
+        title_field: title
+        description_field: description
+        provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
+        store_in_timeline: false
+        message: 'Answer with ONLY ''''yes'' or ''no'', is there a package or a deliveryman
+          in this picture?
+
+          '
+        image_entity:
+        - camera.front_door_ptz_camera_clear
+        generate_title: false
+        expose_images: false
+      response_variable: answer
+    - if:
+      - condition: template
+        value_template: '{{ "YES" in answer.response_text | upper }}'
+        alias: 'Continue if a delivery man or a package is present '
+      then:
+      - metadata: {}
+        data:
           data:
-            message: A package has been delivered! Go check the door
-        - wait_for_trigger:
-          - trigger: state
-            entity_id: lock.lock_front_door
-          - trigger: state
-            entity_id: input_boolean.waiting_package
-            to: 'off'
-          timeout:
-            minutes: 5
-          continue_on_timeout: true
-        until:
-        - condition: template
-          value_template: '{{ wait.trigger is not none }}'
-  mode: queued
-  max: 4
+            image: /local/llmvision/front_door_camera.jpg
+          message: Package is being delivered
+          title: Package Detected
+        action: notify.maxi_notification_group
+      - metadata: {}
+        data:
+          message: A package is being delivered!
+          color: Blue
+        action: script.broadcast_alert_in_the_house
+      - alias: Set Camera focus on the package zone
+        action: select.select_option
+        metadata: {}
+        target:
+          entity_id: select.front_door_ptz_camera_ptz_preset
+        data:
+          option: Doorway
+      - delay:
+          hours: 0
+          minutes: 5
+          seconds: 5
+          milliseconds: 0
+      - repeat:
+          sequence:
+          - action: script.non_important_broadcast_alert_in_the_house
+            data:
+              message: A package has been delivered! Go check the door
+          - wait_for_trigger:
+            - trigger: state
+              entity_id: lock.lock_front_door
+            - trigger: state
+              entity_id: input_boolean.waiting_package
+              to: 'off'
+            timeout:
+              minutes: 5
+            continue_on_timeout: true
+          until:
+          - condition: template
+            value_template: '{{ wait.trigger is not none }}'
+  mode: restart
 - id: '1716912930623'
   alias: Turn camera to doorway on doorbell action
   description: Points the front door PTZ camera to the doorway preset whenever the
@@ -2534,13 +2611,16 @@
     - condition: state
       entity_id: sensor.where_is_maxi_sleeping
       state:
-      - hotbox
       - unavailable
       - unknown
       - ''
+  - condition: state
+    entity_id: binary_sensor.maxi_alone
+    state:
+    - 'on'
   actions:
   - variables:
-      maxi_location: '{% set fallback = states(''sensor.maxi_location_by_petro_v2'')
+      maxi_location: '{% set fallback = states(''sensor.where_is_maxi_sleeping'')
         %}
 
         {% set ts = trigger.get(''to_state'') if trigger is defined and trigger is
@@ -2670,7 +2750,7 @@
     for:
       hours: 0
       minutes: 0
-      seconds: 15
+      seconds: 10
     from:
     - 'off'
     to:
@@ -2685,13 +2765,15 @@
     - binary_sensor.sensor_workshop_motion
     - binary_sensor.sensor_kitchen_motion
     - binary_sensor.sensor_server_motion
-    - binary_sensor.hotbox_security_motion_sensor
+    - binary_sensor.sensor_hotbox_down_entry_motion
   conditions:
   - condition: or
     conditions:
     - condition: state
       entity_id: alarm_control_panel.home_alarm
-      state: armed_away
+      state:
+      - armed_away
+      - armed_vacation
     - condition: state
       entity_id: alarm_control_panel.home_alarm
       state: triggered
@@ -2822,15 +2904,16 @@
   triggers:
   - entity_id:
     - alarm_control_panel.home_alarm
-    to: triggered
+    to:
+    - triggered
     for:
       hours: 0
-      minutes: 3
+      minutes: 5
       seconds: 0
     trigger: state
   conditions:
   - condition: state
-    entity_id: binary_sensor.group_security_occupancy_sensors
+    entity_id: binary_sensor.multi_room_security_motion_occupancy
     state:
     - 'on'
     alias: Continue only if occupancy is still detected
@@ -3163,6 +3246,16 @@
         code_slot: 3
     alias: Maxi unlocks (3)
     id: maxi
+  - trigger: event
+    event_type: zha_event
+    event_data:
+      device_ieee: 90:fd:9f:ff:fe:64:47:36
+      command: operation_event_notification
+      args:
+        operation: Unlock
+        code_slot: 28
+    alias: Maxi unlocks (3)
+    id: felix
   - alias: myriam unlocks (4)
     trigger: event
     event_type: zha_event
@@ -4165,6 +4258,10 @@
       - condition: state
         entity_id: lock.lock_front_door
         state: unlocked
+      - condition: state
+        entity_id: input_boolean.aerating_apartment
+        state:
+        - 'off'
     enabled: true
   mode: restart
 - id: '1731514999187'
@@ -4337,6 +4434,7 @@
   triggers:
   - entity_id:
     - binary_sensor.sensor_kitchen_smoke_detector
+    - binary_sensor.kitchen_kitchen_smoke_detector_smoke_detected
     trigger: state
     to:
     - 'on'
@@ -4365,14 +4463,20 @@
           message: Attention, Smoke detected in the kitchen, Please investigate.
       - delay:
           hours: 0
-          minutes: 4
+          minutes: 3
           seconds: 0
           milliseconds: 0
       while:
-      - condition: state
-        entity_id: binary_sensor.sensor_kitchen_smoke_detector
-        state:
-        - 'on'
+      - condition: or
+        conditions:
+        - condition: state
+          entity_id: binary_sensor.sensor_kitchen_smoke_detector
+          state:
+          - 'on'
+        - condition: state
+          entity_id: binary_sensor.kitchen_kitchen_smoke_detector_smoke_detected
+          state:
+          - 'on'
     enabled: true
   mode: restart
 - id: '1731611467781'
@@ -4389,19 +4493,41 @@
       seconds: 1
     from:
     - active
-  conditions: []
+    to:
+    - idle
+  conditions:
+  - condition: not
+    conditions:
+    - condition: timer.is_paused
+      target:
+        entity_id: timer.cooking
+      options:
+        behavior: any
+        for: 00:00:00
   actions:
-  - repeat:
-      sequence:
-      - action: script.non_important_broadcast_alert_in_the_house
-        data:
-          message: Kitchen Timer Finished!
-      - delay:
-          minutes: 5
-      until:
-      - condition: template
-        value_template: '{{ (now() - state_attr(''binary_sensor.group_kitchen_motion_occupancy'',
-          ''last_changed'')).total_seconds() < 300 }}'
+  - if:
+    - condition: state
+      entity_id: binary_sensor.group_kitchen_motion_occupancy
+      state: 'off'
+    then:
+    - action: script.non_important_broadcast_alert_in_the_house
+      data:
+        message: Kitchen Timer Finished!
+    - delay:
+        minutes: 5
+    - repeat:
+        while:
+        - condition: state
+          entity_id: binary_sensor.group_kitchen_motion_occupancy
+          state: 'off'
+          for:
+            minutes: 5
+        sequence:
+        - action: script.non_important_broadcast_alert_in_the_house
+          data:
+            message: Kitchen Timer Finished!
+        - delay:
+            minutes: 5
   mode: single
 - id: '1731941986104'
   alias: Trigger back horn when someone loiters for too long at the door
@@ -4409,11 +4535,12 @@
   triggers:
   - entity_id:
     - binary_sensor.back_door_loitering_person_occupancy
-    to: 'on'
+    to:
+    - 'on'
     from:
     for:
       hours: 0
-      minutes: 2
+      minutes: 1
       seconds: 0
     trigger: state
   conditions:
@@ -5271,6 +5398,7 @@
     - media_player.mass_kitchen_wiim_speaker
     - media_player.mass_lounge_wiim_speaker
     - media_player.mass_workshop_wiim_speaker
+    - media_player.mass_hotbox_wiim_speaker
     to:
     - playing
     from:
@@ -5286,6 +5414,7 @@
     - media_player.mass_kitchen_wiim_speaker
     - media_player.mass_lounge_wiim_speaker
     - media_player.mass_workshop_wiim_speaker
+    - media_player.mass_hotbox_wiim_speaker
     to:
     from:
     - 'off'
@@ -5298,11 +5427,12 @@
     - media_player.mass_kitchen_wiim_speaker
     - media_player.mass_lounge_wiim_speaker
     - media_player.mass_workshop_wiim_speaker
+    - media_player.mass_hotbox_wiim_speaker
     trigger: state
     attribute: is_volume_muted
-    to: false
-    from: true
-    enabled: true
+    to: 'false'
+    from: 'true'
+    enabled: 'true'
   conditions:
   - condition: template
     value_template: '{{ ''thunderstorm'' not in state_attr(trigger.entity_id,''media_title'')
@@ -5415,61 +5545,6 @@
     target:
       entity_id: media_player.kitchen_google_hub
   mode: single
-- id: '1739201293361'
-  alias: Alert maxi that his laptop battery is low
-  description: Alerts Maxi when his laptop battery drops below 25% -- via TTS announcement
-    on nearby speakers if home, or via push notification if away.
-  triggers:
-  - trigger: numeric_state
-    entity_id:
-    - sensor.laptop_maxi_msi_battery_charge_remaining_percentage
-    below: 25
-  conditions: []
-  actions:
-  - choose:
-    - conditions:
-      - condition: state
-        entity_id: person.maximiliano
-        state: home
-      sequence:
-      - variables:
-          in_room_speakers: "{% set area = area_id(states('sensor.maxi_location_by_petro_v2'))
-            %} {% if area %}\n  {% set mass_speakers = [area] | map('area_entities')
-            | sum(start=[]) | select('search', 'speaker') | select('search', 'mass')
-            | unique | list %}\n  {% if mass_speakers %}\n    {{ mass_speakers }}\n
-            \ {% else %}\n    {{ [area] | map('area_entities') | sum(start=[]) | select('search',
-            'speaker') | unique | list }}\n  {% endif %}\n{% else %}\n  []\n{% endif
-            %}"
-          attributes: '{{ trigger }}
-
-            '
-      - metadata: {}
-        data:
-          cache: false
-          message: Charge your laptop!
-          media_player_entity_id: '{{in_room_speakers}}
-
-            '
-        target:
-          entity_id:
-          - tts.piper_2
-        enabled: true
-        action: tts.speak
-    - conditions:
-      - condition: state
-        entity_id: person.maximiliano
-        state: not_home
-      sequence:
-      - action: notify.maxi_notification_group
-        metadata: {}
-        data:
-          title: 'Laptop Alert:'
-          data:
-            ttl: 0
-            priority: high
-            channel: laptop_notifications
-          message: LOW BATTERY!
-  mode: single
 - id: '1739316122149'
   alias: Trigger party script when party mode turns on
   description: Runs the whole-house party ambiance script when the party mode input
@@ -5552,6 +5627,7 @@
       entity_id:
       - light.group_hotbox_lights
       - light.server_assistant_screen
+      - light.seeed_studio_heartbeat_sensor_seeed_mr60bha2_rgb_light
   - action: switch.turn_off
     metadata: {}
     target:
@@ -5753,8 +5829,8 @@
   - trigger: state
     entity_id:
     - input_boolean.waiting_someone
-    from: 'off'
-    to: 'on'
+    to:
+    - 'on'
     for:
       hours: 1
       minutes: 0
@@ -5763,8 +5839,8 @@
   - trigger: state
     entity_id:
     - input_boolean.sleeper_in_closet
-    from: 'off'
-    to: 'on'
+    to:
+    - 'on'
     for:
       hours: 10
       minutes: 0
@@ -5773,8 +5849,8 @@
   - trigger: state
     entity_id:
     - input_boolean.sleeper_in_workshop
-    from: 'off'
-    to: 'on'
+    to:
+    - 'on'
     for:
       hours: 10
       minutes: 0
@@ -5783,8 +5859,8 @@
   - trigger: state
     entity_id:
     - input_boolean.party_mode
-    from: 'off'
-    to: 'on'
+    to:
+    - 'on'
     for:
       hours: 16
       minutes: 0
@@ -5793,8 +5869,8 @@
   - trigger: state
     entity_id:
     - input_boolean.acid_time
-    from: 'off'
-    to: 'on'
+    to:
+    - 'on'
     for:
       hours: 16
       minutes: 0
@@ -5803,8 +5879,8 @@
   - trigger: state
     entity_id:
     - input_boolean.aerating_apartment
-    from: 'off'
-    to: 'on'
+    to:
+    - 'on'
     for:
       hours: 4
       minutes: 0
@@ -5813,8 +5889,8 @@
   - trigger: state
     entity_id:
     - input_boolean.waiting_uber
-    from: 'off'
-    to: 'on'
+    to:
+    - 'on'
     for:
       hours: 1
       minutes: 30
@@ -5823,8 +5899,6 @@
   - trigger: state
     entity_id:
     - input_boolean.party_in_the_back_yard
-    from:
-    - 'off'
     to:
     - 'on'
     for:
@@ -5835,8 +5909,8 @@
   - trigger: state
     entity_id:
     - input_boolean.neighbours_having_a_party
-    from: 'off'
-    to: 'on'
+    to:
+    - 'on'
     for:
       hours: 8
       minutes: 0
@@ -5845,8 +5919,8 @@
   - trigger: state
     entity_id:
     - input_boolean.cooking_mode
-    from: 'off'
-    to: 'on'
+    to:
+    - 'on'
     for:
       hours: 4
       minutes: 0
@@ -5855,7 +5929,6 @@
   - trigger: state
     entity_id:
     - input_boolean.front_door_event_unlocking_code_automation_condition
-    from:
     to:
     - 'on'
     for:
@@ -5866,7 +5939,6 @@
   - trigger: state
     entity_id:
     - input_boolean.parking_high_alert
-    from:
     to:
     - 'on'
     for:
@@ -6110,17 +6182,38 @@
       - sensor.phone_maxi_phone_state
       to:
       - idle
+    continue_on_timeout: false
+    timeout:
+      hours: 0
+      minutes: 20
+      seconds: 0
+      milliseconds: 0
   - if:
     - condition: state
       entity_id: binary_sensor.maxi_alone
       state:
       - 'on'
+    - condition: state
+      entity_id: binary_sensor.maxi_is_talking
+      state:
+      - 'off'
     then:
     - action: script.start_a_random_maxi_playlist
       metadata: {}
       data:
         player_entity:
           entity_id: media_player.group_mass_home_group_speakers
+    - action: script.speaker_automatic_volume_adjustment_script
+      metadata: {}
+      data:
+        speaker_id:
+        - media_player.mass_hallway_wiim_speaker
+        - media_player.mass_salon_wiim_speaker
+        - media_player.mass_workshop_wiim_speaker
+        - media_player.mass_lounge_wiim_speaker
+        - media_player.mass_kitchen_wiim_speaker
+        - media_player.mass_hotbox_wiim_speaker
+        - media_player.mass_patio_wiim_speaker
   mode: single
 - id: '1741317422533'
   alias: Adjust hallway tablet screen brightness to match the lights
@@ -6299,6 +6392,19 @@
       entity_id: binary_sensor.parking_camera_car_occupancy
       state:
       - 'on'
+  - condition: zone.in_zone
+    target:
+      entity_id: person.myriam
+    options:
+      behavior: any
+      for: 00:00:00
+      zone: zone.home
+  - condition: switch.is_off
+    target:
+      entity_id: input_boolean.party_in_the_back_yard
+    options:
+      behavior: any
+      for: 00:00:00
   actions:
   - action: llmvision.stream_analyzer
     metadata: {}
@@ -6397,6 +6503,19 @@
   - condition: state
     entity_id: binary_sensor.parking_exit_camera_car_occupancy
     state: 'on'
+  - condition: zone.in_zone
+    target:
+      entity_id: person.myriam
+    options:
+      behavior: any
+      for: 00:00:00
+      zone: zone.home
+  - condition: switch.is_off
+    target:
+      entity_id: input_boolean.party_in_the_back_yard
+    options:
+      behavior: any
+      for: 00:00:00
   actions:
   - metadata: {}
     data:
@@ -6406,7 +6525,7 @@
       entity_id: camera.parking_exit_camera
   - metadata: {}
     data:
-      message: Motion detected towards the hobo stash spot
+      message: Someone is loitering by the car
       data:
         ttl: 0
         priority: high
@@ -6415,7 +6534,7 @@
         - action: blow_parking_horn
           title: Blow the horn for 2 minutes?
         channel: security_alerts_notifications
-      title: The hobo Might be back!
+      title: Person near the car
     action: notify.maxi_notification_group
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
@@ -6468,10 +6587,6 @@
     - 'on'
     id: parking_exit
     enabled: true
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 3
   - trigger: state
     entity_id:
     - binary_sensor.parking_camera_person_occupancy
@@ -6547,6 +6662,12 @@
       - 'on'
       enabled: true
     enabled: true
+  - condition: zone.in_zone
+    target:
+      entity_id: person.maximiliano
+    options:
+      for: 00:00:00
+      zone: zone.zone_around_montreal
   actions:
   - choose:
     - conditions:
@@ -7076,8 +7197,8 @@
   - trigger: state
     entity_id:
     - binary_sensor.back_entrance_presence_person_occupancy
-    from: 'off'
-    to: 'on'
+    to:
+    - 'on'
     for:
       hours: 0
       minutes: 0
@@ -7085,8 +7206,6 @@
   - trigger: state
     entity_id:
     - binary_sensor.back_door_presence_person_occupancy
-    from:
-    - 'off'
     to:
     - 'on'
     for:
@@ -7103,12 +7222,36 @@
       entity_id: input_boolean.maximum_back_exit_security
       state:
       - 'on'
+    - condition: alarm_control_panel.is_armed_vacation
+      target:
+        entity_id: alarm_control_panel.home_alarm
+      options:
+        for: 00:00:00
   actions:
   - action: switch.turn_on
     metadata: {}
     data: {}
     target:
       entity_id: switch.plug_back_door_horn
+    continue_on_error: true
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_back_door_horn
+    continue_on_error: true
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_back_door_horn
+    continue_on_error: true
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_back_door_horn
+    continue_on_error: true
   - action: dash_cast.load_url
     data:
       url: http://192.168.0.11:1984/stream.html?src=back_door_camera_sub
@@ -7933,6 +8076,7 @@
       media_id: Bathroom Muzak
       media_type: playlist
       enqueue: replace
+      radio_mode: false
     target:
       entity_id: media_player.mass_bathroom_vpe_speaker
   - action: media_player.volume_mute
@@ -9382,7 +9526,6 @@
     - assist_satellite.kitchen_assistant_assist_satellite
     - assist_satellite.saloon_assistant_assist_satellite
     - assist_satellite.lv_assistant_assist_satellite
-    - assist_satellite.bathroom_assistant_assist_satellite
     - assist_satellite.desktop_assistant_assist_satellite
     - assist_satellite.home_assistant_voice_09e4a7_assist_satellite
     - assist_satellite.lounge_assistant_assist_satellite
@@ -12084,9 +12227,29 @@
       seconds: 0
       milliseconds: 0
     enabled: true
-  - action: script.non_important_broadcast_alert_in_the_house
-    data:
-      message: AirFryer finished
+  - if:
+    - condition: state
+      entity_id: binary_sensor.group_kitchen_motion_occupancy
+      state: 'off'
+    then:
+    - action: script.non_important_broadcast_alert_in_the_house
+      data:
+        message: AirFryer finished
+    - delay:
+        minutes: 5
+    - repeat:
+        while:
+        - condition: state
+          entity_id: binary_sensor.group_kitchen_motion_occupancy
+          state: 'off'
+          for:
+            minutes: 5
+        sequence:
+        - action: script.non_important_broadcast_alert_in_the_house
+          data:
+            message: AirFryer finished
+        - delay:
+            minutes: 5
   mode: restart
 - id: '1765730839407'
   alias: Control closet tablet screen to avoid full discharge
@@ -14067,7 +14230,7 @@
       action: notify.mobile_app_phone_myriam
   - metadata: {}
     data:
-      message: Back horn started
+      message: Parking horn started
       data:
         image: /media/local/parking_horn_check.png
         actions:
@@ -14094,7 +14257,7 @@
         ttl: 0
         priority: high
       title: Security breach
-      message: Back horn started
+      message: Parking horn started
   - wait_for_trigger:
     - event_type: mobile_app_notification_action
       context: {}
@@ -14816,6 +14979,19 @@
       entity_id: binary_sensor.parking_camera_car_occupancy
       state:
       - 'on'
+  - condition: zone.in_zone
+    target:
+      entity_id: person.myriam
+    options:
+      behavior: any
+      for: 00:00:00
+      zone: zone.home
+  - condition: switch.is_off
+    target:
+      entity_id: input_boolean.party_in_the_back_yard
+    options:
+      behavior: any
+      for: 00:00:00
   actions:
   - action: camera.snapshot
     metadata: {}
@@ -15792,7 +15968,6 @@
     data: {}
     target:
       entity_id:
-      - cover.cover_hotbox_blinds
       - cover.cover_hotbox_bed_door
     enabled: true
   - action: light.turn_on
@@ -15849,15 +16024,6 @@
     - cover.cover_hotbox_bed_door
     attribute: current_position
     above: 50
-  - trigger: state
-    entity_id:
-    - cover.cover_hotbox_bed_door
-    to:
-    - open
-    for:
-      hours: 0
-      minutes: 1
-      seconds: 0
   conditions:
   - condition: state
     entity_id: switch.plug_hotbox_bed_fan
@@ -15926,9 +16092,6 @@
     continue_on_error: true
   - action: light.turn_on
     metadata: {}
-    target:
-      entity_id:
-      - light.hotbox_govee_lamp_light
     data:
       rgb_color:
       - 0
@@ -15937,6 +16100,8 @@
       brightness_pct: 100
       transition: 5
     continue_on_error: true
+    target:
+      entity_id: light.group_hotbox_lights
   - action: light.turn_on
     metadata: {}
     target:
@@ -16120,3 +16285,688 @@
       brightness_pct: 100
   mode: parallel
   max: 10
+- id: '1788287599204'
+  alias: Workshop Desk Hue Dial automation new
+  description: ''
+  use_blueprint:
+    path: maxi/hue_dial_automation_blueprint.yaml
+    input:
+      dial_device: d9ffda94d5b5c9729c483a025268f6c8
+      target_light: light.group_workshop_lights
+- id: '1788666949771'
+  alias: Alert when Kitchen asssistant timer finishes
+  description: Broadcasts a repeating non-important alert throughout the house when
+    the kitchen cooking timer finishes, continuing for up to 5 minutes until motion
+    is detected.
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.kitchen_kitchen_assistant_timer_ringing
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 5
+    from:
+    - 'off'
+    - 'on'
+  conditions:
+  - condition: state
+    entity_id: binary_sensor.kitchen_radar_occupancy_occupancy
+    state:
+    - 'off'
+  - condition: state
+    entity_id: timer.cooking
+    state:
+    - finished
+    attribute: last_transition
+  actions:
+  - if:
+    - condition: state
+      entity_id: binary_sensor.group_kitchen_motion_occupancy
+      state: 'off'
+    then:
+    - action: script.non_important_broadcast_alert_in_the_house
+      data:
+        message: Kitchen Assistant Timer Finished!
+    - delay:
+        minutes: 5
+    - repeat:
+        while:
+        - condition: state
+          entity_id: binary_sensor.group_kitchen_motion_occupancy
+          state: 'off'
+          for:
+            minutes: 5
+        sequence:
+        - action: script.non_important_broadcast_alert_in_the_house
+          data:
+            message: Kitchen Assistant Timer Finished!
+        - delay:
+            minutes: 5
+  mode: single
+- id: '1788672731694'
+  alias: Copy Kitchen Assistant timer length on Cooking timer
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - sensor.kitchen_kitchen_assistant_timer_remaining
+    from:
+    - '0.0'
+  conditions:
+  - condition: not
+    conditions:
+    - condition: timer.is_active
+      target:
+        entity_id: timer.cooking
+      options:
+        behavior: any
+  actions:
+  - action: timer.set_duration
+    metadata: {}
+    target:
+      entity_id: timer.cooking
+    data:
+      duration: '{% set t = trigger.to_state.state if trigger.state not in [''unknown'',
+        ''unavailable''] else ''00:00:00'' %}
+
+        {{ t | string }}'
+    enabled: false
+  - action: timer.start
+    metadata: {}
+    target:
+      entity_id: timer.cooking
+    data:
+      duration: '{% set t = trigger.to_state.state if trigger.state not in [''unknown'',
+        ''unavailable''] else ''00:00:00'' %}
+
+        {{ t | string }}'
+  mode: single
+- id: '1788886915426'
+  alias: Trigger patio drinking game lights on voice command
+  description: Executes the patio drinking game light effect script when a specific
+    voice command is issued to select a drinker.
+  triggers:
+  - trigger: conversation
+    command:
+    - select a drinker on the patio
+    - who should drink on the patio
+    - pick a drinker on the patio
+    - who should drink
+    - select a drinker
+    - pick someone to drink
+    - who should drink next
+  conditions: []
+  actions:
+  - action: script.patio_drinking_game_light_effect
+    metadata: {}
+    data: {}
+  mode: single
+- id: '1789409307118'
+  alias: Hotbox top Hue dial automation
+  description: ''
+  use_blueprint:
+    path: maxi/hue_dial_automation_blueprint.yaml
+    input:
+      dial_device: 7190a8bd8f94113efde0ed80371e0d9f
+      target_light: light.group_hotbox_lights
+- id: '1789409655023'
+  alias: Bedroom door Hue dial automation
+  description: ''
+  use_blueprint:
+    path: maxi/hue_dial_automation_blueprint.yaml
+    input:
+      dial_device: 78c3b7df34ed08cb3afe61ccb8feb631
+      target_light: light.group_bedroom_lights
+- id: '1789409912742'
+  alias: Salon Window Hue dial automation
+  description: ''
+  use_blueprint:
+    path: maxi/hue_dial_automation_blueprint.yaml
+    input:
+      dial_device: 47d7a56c1214498cb11ca8fd7cdb8276
+      target_light: light.group_salon_lights
+- id: '1789580349500'
+  alias: Alert when smoke is detected in the hallway
+  description: Broadcasts repeated smoke alerts throughout the house and sends urgent
+    notifications with a kitchen camera image and a 911 call option when smoke is
+    detected.
+  triggers:
+  - entity_id:
+    - binary_sensor.hallway_hallway_smoke_detector_smoke_detected
+    trigger: state
+    to:
+    - 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 0
+    from:
+  conditions: []
+  actions:
+  - repeat:
+      sequence:
+      - metadata: {}
+        data:
+          title: Smoke has been detected in the hallway! Act quickly!
+          data:
+            image: /api/camera_proxy/camera.hallway_tablet
+            ttl: 0
+            priority: high
+            channel: security_alerts_notifications
+          message: Smoke detected in the hallway
+        action: notify.maxi_notification_group
+      - action: script.broadcast_alert_in_the_house
+        data:
+          color: white
+          message: Attention, Smoke detected in the hallway, Please investigate.
+      - delay:
+          hours: 0
+          minutes: 3
+          seconds: 0
+          milliseconds: 0
+      while:
+      - condition: or
+        conditions:
+        - condition: state
+          entity_id: binary_sensor.hallway_hallway_smoke_detector_smoke_detected
+          state:
+          - 'on'
+    enabled: true
+  mode: restart
+- id: '1789581906305'
+  alias: Alert house-wide when there is water leakage under the dishwasher
+  description: Broadcasts a house-wide alert and notifies Maxi when the dishwasher
+    water leak detector is triggered, repeating the alert every 4 minutes until the
+    leak is resolved.
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.kitchen_dishwasher_water_leak_detector
+    to:
+    - 'on'
+  conditions: []
+  actions:
+  - repeat:
+      while:
+      - condition: state
+        entity_id: binary_sensor.kitchen_dishwasher_water_leak_detector
+        state:
+        - 'on'
+      sequence:
+      - action: script.broadcast_alert_in_the_house
+        data:
+          color: white
+          message: Attention, water leakage detected under the dishwasher, Please
+            investigate.
+      - metadata: {}
+        data:
+          title: A leak has been detected under the dishwasher! Investigate!
+          message: Water leakage detected in the kitchen
+        action: notify.maxi_notification_group
+      - delay:
+          hours: 0
+          minutes: 4
+          seconds: 0
+          milliseconds: 0
+  mode: single
+- id: '1789582269542'
+  alias: Alert house-wide when water leakage is detected in the bathroom
+  description: Broadcasts a house-wide alert and notifies Maxi when the bathroom toilet
+    water leak detector is triggered, repeating the alert every 4 minutes until the
+    leak is resolved.
+  triggers:
+  - trigger: state
+    entity_id:
+    - binary_sensor.bathroom_toilet_water_detector
+    to:
+    - 'on'
+  conditions: []
+  actions:
+  - repeat:
+      while:
+      - condition: state
+        entity_id: binary_sensor.bathroom_toilet_water_detector
+        state:
+        - 'on'
+      sequence:
+      - action: script.broadcast_alert_in_the_house
+        data:
+          color: white
+          message: Attention, water leakage detected behind the toilet, Please investigate.
+      - metadata: {}
+        data:
+          title: A leak has been detected behind the toilet! Investigate!
+          message: Water leakage detected in the bathroom
+        action: notify.maxi_notification_group
+      - delay:
+          hours: 0
+          minutes: 4
+          seconds: 0
+          milliseconds: 0
+  mode: single
+- id: '1789788479504'
+  alias: Hotbox top ikea dial automation
+  description: Handles an IKEA SYMFONISK dial in the hotbox, routing volume, play/pause,
+    next track, and stop commands to either the Chromecast or the WiiM speaker depending
+    on which is actively playing.
+  use_blueprint:
+    path: EPMatt/ikea_e1744.yaml
+    input:
+      integration: ZHA
+      controller_device: 360e22d2c7aadf1a857e8cb54d2bd198
+      helper_last_controller_event: input_text.dial_hotbox_tablet_helper
+      action_rotate_left:
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.hotbox_top_chromecast''
+              %}
+
+              {% set speaker = ''media_player.mass_hotbox_wiim_speaker'' %}
+
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
+
+              {{ ''true''  | bool }}
+
+              {% else %}
+
+              {{ ''false'' | bool }}
+
+              {% endif %}'
+          then:
+          - action: media_player.volume_down
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.hotbox_top_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_hotbox_wiim_speaker'',
+                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+            target:
+              entity_id: media_player.mass_hotbox_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
+      action_rotate_left_stop: []
+      rotate_right_loop: true
+      rotate_left_loop: true
+      rotate_left_max_loop_repeats: 60
+      rotate_right_max_loop_repeats: 60
+      action_rotate_right:
+      - sequence:
+        - if:
+          - alias: 'If a chromecast is present '
+            condition: template
+            value_template: '{% set chromecast = ''media_player.universal_hotbox_top_chromecast''
+              %}
+
+              {% set speaker = ''media_player.mass_hotbox_wiim_speaker'' %}
+
+              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
+              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
+              null)) )%}
+
+              {{ ''true''  | bool }}
+
+              {% else %}
+
+              {{ ''false'' | bool }}
+
+              {% endif %}'
+          then:
+          - action: media_player.volume_up
+            metadata: {}
+            data: {}
+            target:
+              entity_id: media_player.universal_hotbox_top_chromecast
+          else:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_hotbox_wiim_speaker'',
+                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
+            target:
+              entity_id: media_player.mass_hotbox_wiim_speaker
+        - delay:
+            hours: 0
+            minutes: 0
+            seconds: 0
+            milliseconds: 150
+      helper_debounce_delay: 0
+      action_click_triple:
+      - if:
+        - alias: 'If a chromecast is present '
+          condition: template
+          value_template: '{% set chromecast = ''media_player.hotbox_top_chromecast''
+            %}
+
+            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
+
+            {{ ''true''  | bool }}
+
+            {% else %}
+
+            {{ ''false'' | bool }}
+
+            {% endif %}'
+        then:
+        - action: media_player.turn_off
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.hotbox_top_chromecast
+        else:
+        - action: media_player.turn_off
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.mass_hotbox_wiim_speaker
+      action_click_double:
+      - if:
+        - alias: 'If a chromecast is present '
+          condition: template
+          value_template: '{% set chromecast = ''media_player.hotbox_top_chromecast''
+            %}
+
+            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
+
+            {{ ''true''  | bool }}
+
+            {% else %}
+
+            {{ ''false'' | bool }}
+
+            {% endif %}'
+        then:
+        - action: media_player.media_next_track
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.hotbox_top_chromecast
+        else:
+        - action: media_player.media_next_track
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.mass_hotbox_wiim_speaker
+      action_click_short:
+      - if:
+        - alias: 'If a chromecast is present '
+          condition: template
+          value_template: '{% set chromecast = ''media_player.hotbox_top_chromecast''
+            %}
+
+            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
+            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
+
+            {{ ''true''  | bool }}
+
+            {% else %}
+
+            {{ ''false'' | bool }}
+
+            {% endif %}'
+        then:
+        - action: media_player.media_play_pause
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.hotbox_top_chromecast
+        else:
+        - action: media_player.media_play_pause
+          metadata: {}
+          data: {}
+          target:
+            entity_id: media_player.mass_hotbox_wiim_speaker
+- id: '1789843175265'
+  alias: Presence Simulation — Moving Random Lights
+  description: Simulates occupancy while the house is vacant and the dedicated Presence
+    Simulation helper is enabled. Keeps one random light group active for roughly
+    5–120 minutes, then turns on a different destination group for a 15–60 second
+    overlap before turning the previous group off. Runs day and night, stops safely
+    on arrival, helper disable, or alarm state change, and never references the separate
+    Maxi is scared mode.
+  triggers:
+  - trigger: state
+    entity_id: input_boolean.presence_simulation
+    to: 'on'
+    id: simulation_enabled
+    note: Starts immediately when the dedicated master switch is enabled and all vacancy
+      conditions are already satisfied.
+  - trigger: state
+    entity_id: alarm_control_panel.home_alarm
+    to: armed_away
+    id: alarm_armed_away
+    note: Starts after the existing vacancy workflow arms the alarm away.
+  - trigger: state
+    entity_id: binary_sensor.user_home
+    to: 'off'
+    id: house_became_vacant
+    note: Allows a start when the established aggregate occupancy sensor clears.
+  - trigger: time_pattern
+    minutes: /15
+    id: recovery
+    note: Recovers an interrupted run without allowing a second concurrent simulation.
+  conditions:
+  - condition: state
+    entity_id: input_boolean.presence_simulation
+    state: 'on'
+  - condition: state
+    entity_id: binary_sensor.user_home
+    state: 'off'
+  - condition: state
+    entity_id: alarm_control_panel.home_alarm
+    state: armed_away
+  actions:
+  - alias: Clear stale simulation lights
+    action: light.turn_off
+    target:
+      entity_id:
+      - light.group_bedroom_lights
+      - light.group_bathroom_lights
+      - light.group_hallway_lights
+      - light.group_kitchen_lights
+      - light.group_lounge_lights
+      - light.group_salon_main_lights
+      - light.group_workshop_lights
+      - light.group_patio_lights
+      - light.group_server_lights
+      - light.group_hotbox_lights
+      - light.group_lounge_decorative_lamp
+      - light.group_salon_decorative_lights
+    continue_on_error: true
+    note: A new or recovered run owns this pool while the house is vacant; this clears
+      any group left on by an interrupted run.
+  - alias: Find available starting groups
+    variables:
+      available_start_groups: '{{ presence_groups | select(''has_value'') | list }}'
+  - alias: Stop if no starting group is available
+    if:
+    - '{{ available_start_groups | count == 0 }}'
+    then:
+    - stop: No presence-simulation light groups are available
+  - alias: Choose the initial occupied group
+    variables:
+      current_group: '{{ available_start_groups | random }}'
+  - alias: Turn on the initial occupied group
+    action: light.turn_on
+    target:
+      entity_id: '{{ current_group }}'
+    continue_on_error: true
+  - alias: Move continuously through the home
+    repeat:
+      while:
+      - condition: state
+        entity_id: input_boolean.presence_simulation
+        state: 'on'
+      - condition: state
+        entity_id: binary_sensor.user_home
+        state: 'off'
+      - condition: state
+        entity_id: alarm_control_panel.home_alarm
+        state: armed_away
+      sequence:
+      - alias: Choose primary dwell time
+        variables:
+          dwell_minutes: '{{ range(5, 119) | random }}'
+      - alias: Keep the current group occupied or stop on a safety event
+        wait_for_trigger:
+        - trigger: state
+          entity_id: input_boolean.presence_simulation
+          from: 'on'
+          id: simulation_disabled
+        - trigger: state
+          entity_id: binary_sensor.user_home
+          from: 'off'
+          id: occupancy_changed
+        - trigger: state
+          entity_id: alarm_control_panel.home_alarm
+          from: armed_away
+          id: alarm_left_away
+        timeout: '{{ timedelta(minutes=dwell_minutes | int) }}'
+        continue_on_timeout: true
+        note: A state departure interrupts the randomized dwell immediately; a timeout
+          means it is time to move.
+      - alias: Clean up and stop if a safety condition changed
+        if:
+        - condition: or
+          conditions:
+          - condition: not
+            conditions:
+            - condition: state
+              entity_id: input_boolean.presence_simulation
+              state: 'on'
+          - condition: not
+            conditions:
+            - condition: state
+              entity_id: binary_sensor.user_home
+              state: 'off'
+          - condition: not
+            conditions:
+            - condition: state
+              entity_id: alarm_control_panel.home_alarm
+              state: armed_away
+        then:
+        - alias: Turn off the occupied group
+          action: light.turn_off
+          target:
+            entity_id: '{{ current_group }}'
+          continue_on_error: true
+        - stop: Presence simulation stopped by a safety condition
+      - alias: Build the destination pool
+        variables:
+          blocked_groups: "{% set ns = namespace(groups=[current_group]) %} {% if
+            current_group in ['light.group_lounge_lights', 'light.group_lounge_decorative_lamp']
+            %}\n  {% set ns.groups = ns.groups + ['light.group_lounge_lights', 'light.group_lounge_decorative_lamp']
+            %}\n{% endif %} {{ ns.groups | unique | list }}"
+          next_candidates: '{{ presence_groups | reject(''in'', blocked_groups) |
+            select(''has_value'') | list }}'
+      - alias: Stop if no different destination is available
+        if:
+        - '{{ next_candidates | count == 0 }}'
+        then:
+        - alias: Turn off the occupied group
+          action: light.turn_off
+          target:
+            entity_id: '{{ current_group }}'
+          continue_on_error: true
+        - stop: No different presence-simulation destination is available
+      - alias: Choose the destination and walking overlap
+        variables:
+          next_group: '{{ next_candidates | random }}'
+          overlap_seconds: '{{ range(15, 61) | random }}'
+      - alias: Turn on the destination before leaving the current group
+        action: light.turn_on
+        target:
+          entity_id: '{{ next_group }}'
+        continue_on_error: true
+      - alias: Overlap both groups while walking or stop on a safety event
+        wait_for_trigger:
+        - trigger: state
+          entity_id: input_boolean.presence_simulation
+          from: 'on'
+          id: simulation_disabled
+        - trigger: state
+          entity_id: binary_sensor.user_home
+          from: 'off'
+          id: occupancy_changed
+        - trigger: state
+          entity_id: alarm_control_panel.home_alarm
+          from: armed_away
+          id: alarm_left_away
+        timeout: '{{ timedelta(seconds=overlap_seconds | int) }}'
+        continue_on_timeout: true
+        note: Both groups remain on for 15–60 seconds to create a visible walking
+          transition.
+      - alias: Clean up both groups if a safety condition changed during movement
+        if:
+        - condition: or
+          conditions:
+          - condition: not
+            conditions:
+            - condition: state
+              entity_id: input_boolean.presence_simulation
+              state: 'on'
+          - condition: not
+            conditions:
+            - condition: state
+              entity_id: binary_sensor.user_home
+              state: 'off'
+          - condition: not
+            conditions:
+            - condition: state
+              entity_id: alarm_control_panel.home_alarm
+              state: armed_away
+        then:
+        - alias: Turn off the previous group
+          action: light.turn_off
+          target:
+            entity_id: '{{ current_group }}'
+          continue_on_error: true
+        - alias: Turn off the destination group
+          action: light.turn_off
+          target:
+            entity_id: '{{ next_group }}'
+          continue_on_error: true
+        - stop: Presence simulation stopped during a movement transition
+      - alias: Leave the previous group
+        action: light.turn_off
+        target:
+          entity_id: '{{ current_group }}'
+        continue_on_error: true
+      - alias: Make the destination the occupied group
+        variables:
+          current_group: '{{ next_group }}'
+  - alias: Final safety cleanup
+    action: light.turn_off
+    target:
+      entity_id: '{{ current_group }}'
+    continue_on_error: true
+  variables:
+    presence_groups:
+    - light.group_bedroom_lights
+    - light.group_bathroom_lights
+    - light.group_hallway_lights
+    - light.group_kitchen_lights
+    - light.group_lounge_lights
+    - light.group_salon_main_lights
+    - light.group_workshop_lights
+    - light.group_patio_lights
+    - light.group_server_lights
+    - light.group_hotbox_lights
+    - light.group_lounge_decorative_lamp
+    - light.group_salon_decorative_lights
+    current_group: ''
+  mode: single
+  max_exceeded: silent

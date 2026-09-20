@@ -1277,6 +1277,21 @@ in_home_defense_script:
     camera snapshot, and rings the phone. Automatically stops after occupancy clears
     for 3 minutes or after a 10-minute timeout.'
   sequence:
+  - action: script.find_phone
+    metadata: {}
+    data: {}
+    continue_on_error: true
+  - metadata: {}
+    data:
+      message: 'The all on defense script has been turned on. '
+      title: Intruder inside the home
+      data:
+        image: https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
+        ttl: 0
+        priority: high
+        channel: security_alerts_notifications
+    action: notify.users_notification_group
+    continue_on_error: true
   - metadata: {}
     action: input_boolean.turn_off
     target:
@@ -1305,8 +1320,7 @@ in_home_defense_script:
       - media_player.mass_salon_wiim_speaker
       - media_player.mass_lounge_wiim_speaker
       - media_player.mass_bathroom_vpe_speaker
-      - media_player.group_mass_home_group_speakers
-      - media_player.mass_closet_vpe_speaker
+      - media_player.closet_aux2_speaker
     continue_on_error: true
   - data:
       media:
@@ -1324,8 +1338,7 @@ in_home_defense_script:
       - media_player.mass_salon_wiim_speaker
       - media_player.mass_lounge_wiim_speaker
       - media_player.mass_bathroom_vpe_speaker
-      - media_player.group_mass_home_group_speakers
-      - media_player.mass_closet_vpe_speaker
+      - media_player.closet_aux2_speaker
     continue_on_error: true
   - action: media_player.volume_set
     metadata: {}
@@ -1340,7 +1353,7 @@ in_home_defense_script:
       - media_player.mass_salon_wiim_speaker
       - media_player.mass_lounge_wiim_speaker
       - media_player.mass_bathroom_vpe_speaker
-      - media_player.mass_closet_vpe_speaker
+      - media_player.closet_aux2_speaker
     continue_on_error: true
   - repeat:
       count: 10
@@ -1357,23 +1370,8 @@ in_home_defense_script:
           - media_player.mass_salon_wiim_speaker
           - media_player.mass_lounge_wiim_speaker
           - media_player.mass_bathroom_vpe_speaker
-          - media_player.mass_closet_vpe_speaker
+          - media_player.closet_aux2_speaker
         continue_on_error: true
-    continue_on_error: true
-  - metadata: {}
-    data:
-      message: 'The all on script has been turned on. '
-      title: Intruder Alert
-      data:
-        image: https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
-        ttl: 0
-        priority: high
-        channel: security_alerts_notifications
-    action: notify.users_notification_group
-    continue_on_error: true
-  - action: script.find_phone
-    metadata: {}
-    data: {}
     continue_on_error: true
   - choose:
     - conditions:
@@ -1389,12 +1387,12 @@ in_home_defense_script:
           - 'off'
           for:
             hours: 0
-            minutes: 3
+            minutes: 2
             seconds: 0
           trigger: state
         timeout:
           hours: 0
-          minutes: 10
+          minutes: 30
           seconds: 0
           milliseconds: 0
         continue_on_timeout: true
@@ -1411,7 +1409,6 @@ in_home_defense_script:
           - media_player.mass_salon_wiim_speaker
           - media_player.mass_lounge_wiim_speaker
           - media_player.mass_bathroom_vpe_speaker
-          - media_player.group_mass_home_group_speakers
         continue_on_error: true
       - metadata: {}
         action: input_boolean.turn_on
@@ -1445,6 +1442,21 @@ in_home_defense_script:
         - media_player.mass_salon_wiim_speaker
         - media_player.mass_lounge_wiim_speaker
         - media_player.mass_bathroom_vpe_speaker
+        - media_player.closet_aux2_speaker
+      continue_on_error: true
+    - action: media_player.media_stop
+      metadata: {}
+      data: {}
+      target:
+        entity_id:
+        - media_player.mass_bedroom_aux2_speaker
+        - media_player.mass_hallway_wiim_speaker
+        - media_player.mass_kitchen_wiim_speaker
+        - media_player.mass_workshop_wiim_speaker
+        - media_player.mass_salon_wiim_speaker
+        - media_player.mass_lounge_wiim_speaker
+        - media_player.mass_bathroom_vpe_speaker
+        - media_player.closet_aux2_speaker
       continue_on_error: true
     - metadata: {}
       action: input_boolean.turn_on
@@ -1452,6 +1464,23 @@ in_home_defense_script:
         entity_id: input_boolean.following_music
       data: {}
       continue_on_error: true
+    - metadata: {}
+      data:
+        title: Intruder Alert stopped, No more occupancy detected
+        data:
+          image: https://hass.purgatoire.ca/api/frigate/notifications/{{states("sensor.latest_frigate_event_id")}}/snapshot.jpg
+          ttl: 0
+          priority: high
+          channel: security_alerts_notifications
+        message: Speakers turned off automatically due to empty appartment
+      action: notify.users_notification_group
+      continue_on_error: true
+    - action: automation.trigger
+      metadata: {}
+      target:
+        entity_id: automation.assist_equalize_volume_in_the_house
+      data:
+        skip_condition: true
   mode: restart
 changes_all_on_lights_to_fake_white:
   alias: Changes selected light group to ordered fake white
@@ -1988,6 +2017,11 @@ speaker_automatic_volume_adjustment_script:
     in relation to the time of the day
   mode: parallel
   max: 10
+  fields:
+    speaker_id:
+      selector:
+        entity:
+          multiple: true
 llm_script_for_music_assitant_voice_requests:
   mode: single
   max_exceeded: silent
@@ -3141,29 +3175,66 @@ start_a_random_maxi_playlist:
 change_received_lights_to_random_pastel_colors:
   sequence:
   - variables:
-      lights: '[{{selected_group}}]
-
-        '
-      saturation: '{{ saturation }}
-
-        '
+      lights: "{# 1. Get entities from the selected areas #} {% set area_list = []
+        %} {% if area is defined and area %}\n  {% set areas = [area] if area is string
+        else area %}\n  {% set area_list = areas\n    | map('area_entities')\n    |
+        sum(start=[])\n    | select('search', '^light\\.')\n    | list %}\n{% endif
+        %} {# 2. Get entities from the manual 'light' field #} {% set manual_list
+        = light if light is defined and light else [] %} {% set manual_list = [manual_list]
+        if manual_list is string else manual_list %} {# 3. Combine and dedupe #} {%
+        set combined = (area_list + manual_list) | unique | list %} {# 4. Expand,
+        filter to color-capable lights, drop decorative/main #} {{ expand(combined)\n
+        \     | selectattr('domain', 'eq', 'light')\n      | selectattr('attributes.supported_color_modes',
+        'defined')\n      | selectattr('attributes.supported_color_modes', 'search',
+        'hs|rgb|xy')\n      | rejectattr('attributes.entity_id', 'defined')\n      |
+        map(attribute='entity_id')\n      | reject('search', 'decorative')\n      |
+        reject('search', 'main')\n      | unique | list }}\n"
   - repeat:
-      sequence:
-      - metadata: {}
-        data:
-          hs_color: '{{ range(1, 360) | random | string + '','' + 30 | string }}'
-        target:
-          entity_id: '{{repeat.item}}'
-        action: light.turn_on
       for_each: '{{ lights }}'
+      sequence:
+      - action: script.turn_on
+        target:
+          entity_id: script.set_one_light_to_a_dissimilar_random_color
+        data:
+          variables:
+            target_light: '{{ repeat.item }}'
+            saturation: '{{ saturation | default(30) }}'
+            transition_speed: '{{ transition_speed | default(1) }}'
   alias: Change received lights to random pastel colors
   mode: parallel
-  icon: mdi:sale
-  fields: {}
   description: Changes the lights in a specified group to random pastel colors by
     setting each light to a random hue with low saturation (30%), producing soft,
     muted tones suitable for a gentle ambient effect.
   max: 10
+  icon: mdi:palette-swatch
+  fields:
+    area:
+      name: Area
+      description: The area(s) to target.
+      selector:
+        area:
+          multiple: true
+      required: true
+    light:
+      name: Light
+      description: Specific light entity (or entities) to target.
+      selector:
+        entity:
+          multiple: true
+          domain: light
+    saturation:
+      selector:
+        number:
+          min: 20
+          max: 100
+      default: 100
+      required: false
+    transition_speed:
+      selector:
+        number:
+          min: 2
+          max: 200
+      default: 1
 changes_selected_lights_to_warm_pale_colors:
   sequence:
   - variables:
@@ -3451,6 +3522,7 @@ launch_party_mode_on_all_kiosks:
         url: http://192.168.0.15:8095/#/party?frameless=true
         device_id: 9e6b82b1f2fa641af98d847cc1cf06a6
       continue_on_error: true
+      enabled: false
     - action: fully_kiosk.load_url
       data:
         url: http://192.168.0.15:8095/#/party?frameless=true
@@ -4509,3 +4581,56 @@ find_phone_duplicate:
 
 
     This makes the phone ring for her.'
+patio_drinking_game_light_effect:
+  sequence:
+  - action: scene.create
+    data:
+      scene_id: patio_game_snapshot
+      snapshot_entities: '{{ state_attr(''light.group_patio_lights'', ''entity_id'')
+        }}'
+  - variables:
+      all_lights: '{{ state_attr(''light.patio_drinking_game_lights'', ''entity_id'')
+        }}'
+      picked_light: '{{ all_lights | random }}'
+      remaining_lights: '{{ all_lights | reject(''eq'', picked_light) | list }}'
+  - action: light.turn_on
+    data:
+      brightness_pct: 1
+      rgb_color:
+      - 255
+      - 0
+      - 0
+    target:
+      entity_id: light.workshop_ziggurat_coordinator_zogbee_group_patio_lights
+  - target:
+      entity_id: '{{ remaining_lights }}'
+    action: light.turn_on
+    data:
+      brightness_pct: 1
+      rgb_color:
+      - 255
+      - 0
+      - 0
+    enabled: false
+  - target:
+      entity_id: '{{ picked_light }}'
+    action: light.turn_on
+    data:
+      brightness_pct: 100
+      rgb_color:
+      - 0
+      - 255
+      - 0
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 10
+      milliseconds: 0
+  - action: scene.turn_on
+    target:
+      entity_id: scene.patio_game_snapshot
+    data: {}
+  alias: Patio Drinking Game Light Effect
+  description: Creates a snapshot of patio lights, selects a random light to turn
+    bright green, dims all others to dim red for 20 seconds, then restores the original
+    state.

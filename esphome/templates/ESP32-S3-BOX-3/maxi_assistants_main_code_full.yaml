@@ -49,8 +49,9 @@ substitutions:
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
-  min_version: 2026.7.0  # esphome-audio-stack v2026.7.0 + the intercom v2026.7.1 speaker
-                         # fork both use the 2026.7 psram task-stack helpers
+  min_version: 2026.8.0  # esphome-audio-stack v2026.9.0 + the intercom v2026.9.0 speaker
+                         # fork are aligned with ESPHome 2026.8 (callback-based
+                         # automation contract) and ESP-IDF 5.5.5
   name_add_mac_suffix: false
   on_boot:
     - priority: 600
@@ -70,23 +71,26 @@ esphome:
     - priority: -100
       then:
         - script.execute: apply_speaker_gain
+        # Give the HA timer entities a defined state immediately after boot
+        # (no timers survive a reboot; the ringing switch restores OFF).
+        - script.execute: publish_timer_state
+        - binary_sensor.template.publish:
+            id: timer_ringing_status
+            state: OFF
 
 external_components:
-  # The audio backend moved out of esphome-intercom in its 2026.7.0 release:
-  # esp_audio_stack + esp_aec now live in the dedicated esphome-audio-stack
-  # repo. v2026.7.0 is the first tag validated against ESPHome 2026.7 — it
-  # pins espressif/esp_codec_dev to 1.5.10 and drops the GMF backend. The old
-  # 2026.6.2 line left esp_codec_dev unpinned (ref "*"), which breaks ES8311
-  # init at runtime on ESPHome 2026.7 builds ("Failed to create ES8311 DAC
-  # codec interface" -> "Failed to start I2S").
-  # NOTE: audio_processor no longer exists as a component — the processor
-  # interface is now internal to esp_audio_stack (audio_core namespace).
-  - source: github://n-IA-hane/esphome-audio-stack@v2026.7.0
+  # The audio backend lives in the dedicated esphome-audio-stack repo (it
+  # moved out of esphome-intercom in 2026.7.0; audio_processor merged into
+  # esp_audio_stack's internal audio_core). v2026.9.0 is aligned with ESPHome
+  # 2026.8 / ESP-IDF 5.5.5, keeps the same YAML contract, and pins the
+  # esp_codec_dev IDF component (the unpinned 2026.6.x line is what broke
+  # ES8311 init: "Failed to create ES8311 DAC codec interface").
+  - source: github://n-IA-hane/esphome-audio-stack@v2026.9.0
     components: [esp_audio_stack, esp_aec]
   # The speaker/media_player fork (pause_releases_pipeline) still ships with
-  # esphome-intercom; v2026.7.1 is rebased onto the ESPHome 2026.7-era core
-  # (see the fork's UPSTREAM.md).
-  - source: github://n-IA-hane/esphome-intercom@v2026.7.1
+  # esphome-intercom; v2026.9.0 tracks the ESPHome 2026.8-era core (see the
+  # fork's UPSTREAM.md).
+  - source: github://n-IA-hane/esphome-intercom@v2026.9.0
     components: [speaker]
 
 esp32:
@@ -223,7 +227,19 @@ interval:
             lambda: 'return !id(init_in_progress);'
           then:
             - script.execute: apply_speaker_gain
-sensor:       
+sensor:
+  # ── Timer state exposed to HA (announce-on-finish automations) ─────────────
+  # Seconds left on the most urgent timer (soonest active, else soonest
+  # paused, else 0). Updated at 1 Hz while any timer exists via the VA
+  # on_timer_* hooks -> publish_timer_state; no polling of its own.
+  - platform: template
+    name: "Timer Remaining"
+    id: timer_remaining
+    unit_of_measurement: s
+    device_class: duration
+    icon: mdi:timer-outline
+    accuracy_decimals: 0
+    update_interval: never
   - platform: homeassistant
     id: outside_temp
     entity_id: sensor.outside_temperature_with_fallback
@@ -285,6 +301,16 @@ sensor:
       name: CPU Frequency
       entity_category: diagnostic
 binary_sensor:
+  # ── Timer ringing exposed to HA ─────────────────────────────────────────────
+  # Mirrors the internal timer_ringing switch (whose off-edge also dismisses
+  # the alarm). Instant edges are published from that switch's on_turn_on /
+  # on_turn_off; the lambda is only a slow self-heal poll.
+  - platform: template
+    name: "Timer Ringing"
+    id: timer_ringing_status
+    device_class: running
+    icon: mdi:bell-ring
+    lambda: return id(timer_ringing).state;
   - platform: touchscreen
     name: "Screen Touch"
     id: screen_touch
@@ -1046,14 +1072,19 @@ voice_assistant:
     - lambda: id(voice_assistant_phase) = ${voice_assist_not_ready_phase_id};
     - script.execute: draw_display
   on_timer_started:
+    - script.execute: publish_timer_state
     - script.execute: draw_display
   on_timer_cancelled:
+    - script.execute: publish_timer_state
     - script.execute: draw_display
   on_timer_updated:
+    - script.execute: publish_timer_state
     - script.execute: draw_display
   on_timer_tick:
+    - script.execute: publish_timer_state
     - script.execute: draw_display
   on_timer_finished:
+    - script.execute: publish_timer_state
     - switch.turn_on: timer_ringing
     - wait_until:
         media_player.is_announcing:
@@ -1569,6 +1600,31 @@ script:
           const auto &timers = id(va).get_timers();
           id(global_is_timer) = !timers.empty();
 
+  # Publishes the HA-facing 'Timer Remaining' sensor: the soonest ACTIVE
+  # timer's seconds_left, falling back to the soonest paused timer, else 0.
+  # Deferred 50 ms because on_timer_cancelled / on_timer_finished fire BEFORE
+  # the core erases the timer from get_timers() — a synchronous read would
+  # latch a stale value, and with the list then empty no further tick would
+  # ever correct it. mode: restart coalesces event bursts into one publish.
+  - id: publish_timer_state
+    mode: restart
+    then:
+      - delay: 50ms
+      - lambda: |-
+          uint32_t best = 0;
+          int rank = 0;  // 2 = active timer found, 1 = paused only, 0 = none
+          for (const auto &timer : id(va).get_timers()) {
+            const int r = timer.is_active ? 2 : 1;
+            if (r > rank || (r == rank && timer.seconds_left < best)) {
+              rank = r;
+              best = timer.seconds_left;
+            }
+          }
+          const float remaining = rank ? (float) best : 0.0f;
+          if (!id(timer_remaining).has_state() || id(timer_remaining).state != remaining) {
+            id(timer_remaining).publish_state(remaining);
+          }
+
   # Starts either mWW or the streaming wake word, depending on the configured location
   - id: start_wake_word
     then:
@@ -1791,6 +1847,9 @@ switch:
     internal: true
     restore_mode: ALWAYS_OFF
     on_turn_off:
+      - binary_sensor.template.publish:
+          id: timer_ringing_status
+          state: OFF
       # Turn off the repeat mode and disable the pause between playlist items
       - lambda: |-
               id(speaker_media_player)
@@ -1803,6 +1862,9 @@ switch:
       - media_player.stop:
           announcement: true
     on_turn_on:
+      - binary_sensor.template.publish:
+          id: timer_ringing_status
+          state: ON
       # Clear a leftover speaker pause from global_cancel — a timer alarm must
       # never ring silently because the user cancelled a TTS reply earlier.
       - lambda: id(box_speaker).set_pause_state(false);

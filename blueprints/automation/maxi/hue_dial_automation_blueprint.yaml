@@ -84,6 +84,12 @@ triggers:
     subtype: button_1
     trigger: device
     id: button_1_hold
+  - device_id: !input dial_device
+    domain: zha
+    type: remote_button_long_press
+    subtype: button_3
+    trigger: device
+    id: button_3_hold
 
 conditions: []
 
@@ -258,7 +264,25 @@ actions:
           - condition: trigger
             id:
               - button_2_hold
-        sequence: []
+        sequence:
+          - action: script.change_received_lights_to_random_pastel_colors
+            metadata: {}
+            data:
+              # The pastel script splices this into '[{{selected_group}}]' and
+              # does not expand groups itself — pre-expand to quoted entity IDs
+              # so each member light gets its own random pastel hue.
+              selected_group: >-
+                {{ expand(controlled_light) | map(attribute='entity_id')
+                   | map('to_json') | join(',') }}
+      - conditions:
+          - condition: trigger
+            id:
+              - button_3_hold
+        sequence:
+          - action: script.changes_selected_light_group_to_single_warm_colors
+            metadata: {}
+            data:
+              selected_group: !input target_light
       - conditions:
           - condition: trigger
             id:
@@ -285,7 +309,7 @@ actions:
                           data:
                             hs_color: >
                               {% set sat = ((state_attr(repeat.item,'hs_color')
-                              ).1 - 7) %}
+                              ).1 - 21) %}
                               {{[state_attr(repeat.item,'hs_color').0] +  [([0,
                               sat, 100]|sort)[1]] }}
                             transition: 1
@@ -305,13 +329,62 @@ actions:
             id:
               - brightness_step_down
         sequence:
-          - action: light.turn_on
-            metadata: {}
-            data:
-              transition: 1
-              brightness_step_pct: -15
-            target:
-              entity_id: !input target_light
+          - choose:
+              # Mirror of dim_up's white-insertion: while at full brightness,
+              # dial-down first restores saturation (+21 per tick) on lights
+              # that currently expose an hs_color and were washed out.
+              # Only once saturation is restored does further dialing down
+              # start dimming. Lights sitting in color_temp mode are
+              # excluded — their reported hs_color is just a white-point
+              # conversion, and saturating it would colorize a white light.
+              # 'Restored' means sat >= 95, NOT == 100: xy bulbs quantize the
+              # commanded color, so a commanded saturation of 100 reads back
+              # as ~99.6 and a `< 100` check would loop forever, never dimming.
+              - conditions:
+                  - condition: numeric_state
+                    entity_id: !input target_light
+                    attribute: brightness
+                    above: 253
+                  - condition: template
+                    value_template: >
+                      {{ expand(controlled_light)
+                         | selectattr('attributes.hs_color', 'defined')
+                         | rejectattr('attributes.hs_color', 'none')
+                         | rejectattr('attributes.color_mode', 'eq', 'color_temp')
+                         | selectattr('attributes.hs_color.1', 'lt', 95)
+                         | list | count > 0 }}
+                sequence:
+                  - variables:
+                      lights_desaturated: >
+                        {{ expand(controlled_light)
+                           | selectattr('attributes.hs_color', 'defined')
+                           | rejectattr('attributes.hs_color', 'none')
+                           | rejectattr('attributes.color_mode', 'eq', 'color_temp')
+                           | selectattr('attributes.hs_color.1', 'lt', 95)
+                           | map(attribute='entity_id') | list }}
+                  - repeat:
+                      for_each: "{{ lights_desaturated }}"
+                      sequence:
+                        - action: light.turn_on
+                          metadata: {}
+                          data:
+                            hs_color: >
+                              {% set sat = ((state_attr(repeat.item,'hs_color')
+                              ).1 + 21) %}
+                              {{[state_attr(repeat.item,'hs_color').0] +  [([0,
+                              sat, 100]|sort)[1]] }}
+                            transition: 1
+                          target:
+                            entity_id: |
+                              {{ repeat.item }}
+            default:
+              - action: light.turn_on
+                metadata: {}
+                data:
+                  transition: 1
+                  brightness_step_pct: -15
+                target:
+                  entity_id: !input target_light
   - delay:
       hours: 0
       minutes: 0
