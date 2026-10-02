@@ -1,13 +1,11 @@
 blueprint:
   name: Hue Dial Light Controller
-  description: >-
-    Controls a light group using a Hue dial remote, supporting light toggle,
-    full brightness, brightness adjustment via dial rotation, color effects,
-    and dim-to-minimum via button presses. Select the dial device and the light
-    (group) to control. Button 2 additionally turns off any UV switch
-    (switch.*uv*) in the room and stops running light effects (via
-    'effect_stop' for LIFX, 'Solid' for WLED, or 'off' for a ZHA colorloop,
-    depending on what the device supports).
+  description: Controls a light group using a Hue dial remote, supporting light toggle,
+    full brightness, brightness adjustment via dial rotation, color effects, and dim-to-minimum
+    via button presses. Select the dial device and the light (group) to control. Button
+    2 additionally turns off any UV switch (switch.*uv*) in the room and stops running
+    light effects (via 'effect_stop' for LIFX, 'Solid' for WLED, or 'off' for a ZHA
+    colorloop, depending on what the device supports).
   domain: automation
   input:
     dial_device:
@@ -16,378 +14,414 @@ blueprint:
       selector:
         device:
           integration: zha
+          multiple: false
     target_light:
       name: Light / Light Group
-      description: >-
-        The light or light group to control. A light group entity works best so
-        the brightness conditions and color logic operate on the whole group.
-        For button 2's room logic (UV switches off, effect stop) use a Home
-        Assistant helper light group or an entity with an area assigned —
-        native ZHA/Hue group entities cannot be expanded into their members.
+      description: The light or light group to control. A light group entity works
+        best so the brightness conditions and color logic operate on the whole group.
+        For button 2's room logic (UV switches off, effect stop) use a Home Assistant
+        helper light group or an entity with an area assigned — native ZHA/Hue group
+        entities cannot be expanded into their members.
       selector:
         entity:
-          domain: light
-
+          domain:
+          - light
+          multiple: false
+          reorder: false
 mode: restart
-
 variables:
-  # Needed so the entity can be referenced from inside Jinja templates
-  # (expand(), state_attr(), etc.). !input cannot be used directly in a template.
   controlled_light: !input target_light
-
 triggers:
-  - device_id: !input dial_device
-    domain: zha
-    type: remote_button_short_press
-    subtype: dim_up
-    trigger: device
-    id: brightness_step_up
-  - device_id: !input dial_device
-    domain: zha
-    type: remote_button_short_press
-    subtype: dim_down
-    trigger: device
-    id: brightness_step_down
-  - device_id: !input dial_device
-    domain: zha
-    type: remote_button_short_press
-    subtype: button_1
-    trigger: device
-    id: button_1_press
-  - device_id: !input dial_device
-    domain: zha
-    type: remote_button_short_press
-    subtype: button_2
-    trigger: device
-    id: button_2_press
-  - device_id: !input dial_device
-    domain: zha
-    type: remote_button_short_press
-    subtype: button_3
-    trigger: device
-    id: button_3_press
-  - device_id: !input dial_device
-    domain: zha
-    type: remote_button_short_press
-    subtype: button_4
-    trigger: device
-    id: button_4_press
-  - device_id: !input dial_device
-    domain: zha
-    type: remote_button_long_press
-    subtype: button_2
-    trigger: device
-    id: button_2_hold
-  - device_id: !input dial_device
-    domain: zha
-    type: remote_button_long_press
-    subtype: button_1
-    trigger: device
-    id: button_1_hold
-  - device_id: !input dial_device
-    domain: zha
-    type: remote_button_long_press
-    subtype: button_3
-    trigger: device
-    id: button_3_hold
-
+- device_id: !input dial_device
+  domain: zha
+  type: remote_button_short_press
+  subtype: dim_up
+  trigger: device
+  id: brightness_step_up
+- device_id: !input dial_device
+  domain: zha
+  type: remote_button_short_press
+  subtype: dim_down
+  trigger: device
+  id: brightness_step_down
+- device_id: !input dial_device
+  domain: zha
+  type: remote_button_short_press
+  subtype: button_1
+  trigger: device
+  id: button_1_press
+- device_id: !input dial_device
+  domain: zha
+  type: remote_button_short_press
+  subtype: button_2
+  trigger: device
+  id: button_2_press
+- device_id: !input dial_device
+  domain: zha
+  type: remote_button_short_press
+  subtype: button_3
+  trigger: device
+  id: button_3_press
+- device_id: !input dial_device
+  domain: zha
+  type: remote_button_short_press
+  subtype: button_4
+  trigger: device
+  id: button_4_press
+- device_id: !input dial_device
+  domain: zha
+  type: remote_button_long_press
+  subtype: button_2
+  trigger: device
+  id: button_2_hold
+- device_id: !input dial_device
+  domain: zha
+  type: remote_button_long_press
+  subtype: button_1
+  trigger: device
+  id: button_1_hold
+- device_id: !input dial_device
+  domain: zha
+  type: remote_button_long_press
+  subtype: button_3
+  trigger: device
+  id: button_3_hold
+- device_id: !input dial_device
+  domain: zha
+  type: remote_button_long_press
+  subtype: button_4
+  trigger: device
+  id: button_4_hold
+- device_id: !input dial_device
+  domain: zha
+  type: remote_button_quintuple_press
+  subtype: button_2
+  trigger: device
+  id: button_2_quintuple_press
+- device_id: !input dial_device
+  domain: zha
+  type: remote_button_quintuple_press
+  subtype: button_1
+  trigger: device
+  id: button_1_quintuple_press
 conditions: []
-
 actions:
-  - choose:
+- choose:
+  - conditions:
+    - condition: trigger
+      id:
+      - button_1_press
+    sequence:
+    - action: light.toggle
+      metadata: {}
+      data:
+        transition: 2
+      target:
+        entity_id: !input target_light
+  - conditions:
+    - condition: trigger
+      id:
+      - button_1_hold
+    sequence:
+    - action: light.toggle
+      metadata: {}
+      data:
+        transition: 2
+        brightness_pct: 100
+        color_temp_kelvin: 4922
+      target:
+        entity_id: !input target_light
+    - choose:
+      - conditions: []
+        sequence: []
       - conditions:
-          - condition: trigger
-            id:
-              - button_1_press
+        - condition: state
+          entity_id: !input target_light
+          attribute: brightness
+          state: ''
+        - condition: numeric_state
+          entity_id: !input target_light
+          attribute: brightness
+          below: 99
         sequence:
-          - action: light.toggle
-            metadata: {}
-            data:
-              transition: 2
-            target:
-              entity_id: !input target_light
+        - action: light.turn_on
+          metadata: {}
+          data:
+            transition: 1
+            brightness_pct: 100
+          target:
+            entity_id: !input target_light
+  - conditions:
+    - condition: trigger
+      id:
+      - button_2_press
+    sequence:
+    - variables:
+        room_areas: "{{ ((expand(controlled_light) | map(attribute='entity_id')\n
+          \    | map('area_id') | list)\n    + [area_id(controlled_light)])\n   |
+          reject('none') | unique | list }}"
+        uv_switches: "{{ room_areas | map('area_entities') | sum(start=[])\n   | select('match',
+          'switch\\.')\n   | select('search', '(\\.|_)uv([0-9]*)(_|$)')\n   | unique
+          | list }}"
+        effect_candidates: "{{ ((expand(controlled_light) | map(attribute='entity_id')
+          | list)\n    + (expand(room_areas | map('area_entities') | sum(start=[])\n
+          \             | select('match', 'light\\.') | list)\n       | selectattr('state',
+          'eq', 'on')\n       | map(attribute='entity_id') | list))\n   | unique |
+          list }}"
+        effect_stop_lights: "{{ expand(effect_candidates)\n   | selectattr('attributes.effect_list',
+          'defined')\n   | rejectattr('attributes.effect_list', 'none')\n   | selectattr('attributes.effect_list',
+          'contains', 'effect_stop')\n   | map(attribute='entity_id') | unique | list
+          }}"
+        solid_lights: "{{ expand(effect_candidates)\n   | selectattr('attributes.effect_list',
+          'defined')\n   | rejectattr('attributes.effect_list', 'none')\n   | selectattr('attributes.effect_list',
+          'contains', 'Solid')\n   | rejectattr('attributes.effect_list', 'contains',
+          'effect_stop')\n   | map(attribute='entity_id') | unique | list }}"
+        zha_colorloop_lights: "{{ expand(effect_candidates)\n   | selectattr('attributes.effect_list',
+          'defined')\n   | rejectattr('attributes.effect_list', 'none')\n   | selectattr('attributes.effect_list',
+          'contains', 'off')\n   | selectattr('attributes.effect', 'defined')\n   |
+          selectattr('attributes.effect', 'eq', 'colorloop')\n   | map(attribute='entity_id')
+          | unique | list }}"
+    - if:
+      - condition: template
+        value_template: '{{ uv_switches | count > 0 }}'
+      then:
+      - action: switch.turn_off
+        target:
+          entity_id: '{{ uv_switches }}'
+    - if:
+      - condition: template
+        value_template: '{{ effect_stop_lights | count > 0 }}'
+      then:
+      - action: light.turn_on
+        data:
+          effect: effect_stop
+        target:
+          entity_id: '{{ effect_stop_lights }}'
+    - if:
+      - condition: template
+        value_template: '{{ solid_lights | count > 0 }}'
+      then:
+      - action: light.turn_on
+        data:
+          effect: Solid
+        target:
+          entity_id: '{{ solid_lights }}'
+    - if:
+      - condition: template
+        value_template: '{{ zha_colorloop_lights | count > 0 }}'
+      then:
+      - action: light.turn_on
+        data:
+          effect: 'off'
+        target:
+          entity_id: '{{ zha_colorloop_lights }}'
+    - action: light.turn_on
+      metadata: {}
+      data:
+        transition: 1
+        color_temp_kelvin: 5238
+        brightness_pct: 100
+      target:
+        entity_id: !input target_light
+  - conditions:
+    - condition: trigger
+      id:
+      - button_3_press
+    sequence:
+    - action: script.change_received_lights_to_random_colors
+      metadata: {}
+      data:
+        light:
+        - !input target_light
+        saturation: 100
+  - conditions:
+    - condition: trigger
+      id:
+      - button_4_press
+    sequence:
+    - action: light.turn_on
+      metadata: {}
+      data:
+        brightness_pct: 1
+      target:
+        entity_id: !input target_light
+  - conditions:
+    - condition: trigger
+      id:
+      - button_2_hold
+    sequence:
+    - action: script.change_received_lights_to_random_pastel_colors
+      metadata: {}
+      data:
+        light:
+        - !input target_light
+    - action: light.turn_on
+      metadata: {}
+      data:
+        transition: 1
+        brightness_pct: 100
+      target:
+        entity_id: !input target_light
+  - conditions:
+    - condition: trigger
+      id:
+      - button_3_hold
+    sequence:
+    - action: script.change_received_lights_to_warm_saturated_colors
+      metadata: {}
+      data:
+        light:
+        - !input target_light
+  - conditions:
+    - condition: trigger
+      id:
+      - button_4_hold
+    sequence:
+    - action: light.turn_on
+      metadata: {}
+      data:
+        transition: 1
+        brightness_pct: 1
+      target:
+        entity_id: !input target_light
+    - action: script.change_received_lights_to_warm_saturated_colors
+      metadata: {}
+      data:
+        light:
+        - !input target_light
+  - conditions:
+    - condition: trigger
+      id:
+      - button_2_quintuple_press
+    sequence:
+    - variables:
+        room_areas: "{{ ((expand(controlled_light) | map(attribute='entity_id')\n
+          \    | map('area_id') | list)\n    + [area_id(controlled_light)])\n   |
+          reject('none') | unique | list }}"
+        uv_groups: "{{ room_areas | map('area_entities') | sum(start=[])\n   | select('match',
+          'switch\\.group_')\n   | select('search', '(\\.|_)uv([0-9]*)(_|$)')\n   |
+          unique | list }}"
+    - if:
+      - condition: template
+        value_template: '{{ uv_groups | count > 0 }}'
+      then:
+      - action: switch.toggle
+        target:
+          entity_id: '{{ uv_groups }}'
+  - conditions:
+    - condition: trigger
+      id:
+      - button_1_quintuple_press
+    sequence:
+    - variables:
+        room_areas: "{{ ((expand(controlled_light) | map(attribute='entity_id')\n
+          \    | map('area_id') | list)\n    + [area_id(controlled_light)])\n   |
+          reject('none') | unique | list }}"
+        morph_lights: "{{ expand(room_areas | map('area_entities') | sum(start=[])\n
+          \         | select('match', 'light\\.') | list)\n   | selectattr('attributes.effect_list',
+          'defined')\n   | rejectattr('attributes.effect_list', 'none')\n   | selectattr('attributes.effect_list',
+          'contains', 'effect_morph')\n   | map(attribute='entity_id') | unique |
+          list }}"
+    - if:
+      - condition: template
+        value_template: '{{ morph_lights | count > 0 }}'
+      then:
+      - action: lifx.effect_morph
+        data:
+          speed: 3
+        target:
+          entity_id: '{{ morph_lights }}'
+  - conditions:
+    - condition: trigger
+      id:
+      - brightness_step_up
+    sequence:
+    - choose:
       - conditions:
-          - condition: trigger
-            id:
-              - button_1_hold
+        - condition: numeric_state
+          entity_id: !input target_light
+          attribute: brightness
+          enabled: true
+          above: 253
         sequence:
-          - action: light.toggle
-            metadata: {}
-            data:
-              transition: 2
-              brightness_pct: 100
-              color_temp_kelvin: 4922
-            target:
-              entity_id: !input target_light
-          - choose:
-              - conditions: []
-                sequence: []
-              - conditions:
-                  - condition: state
-                    entity_id: !input target_light
-                    attribute: brightness
-                    state: ""
-                  - condition: numeric_state
-                    entity_id: !input target_light
-                    attribute: brightness
-                    below: 99
-                sequence:
-                  - action: light.turn_on
-                    metadata: {}
-                    data:
-                      transition: 1
-                      brightness_pct: 100
-                    target:
-                      entity_id: !input target_light
+        - variables:
+            lights_saturated: '{{ expand(controlled_light)    | selectattr(''attributes.hs_color'',
+              ''defined'') | map(attribute=''entity_id'') | list }}
+
+              '
+        - repeat:
+            for_each: '{{lights_saturated}}'
+            sequence:
+            - action: light.turn_on
+              metadata: {}
+              data:
+                hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
+                  - 21) %} {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat,
+                  100]|sort)[1]] }}
+
+                  '
+                transition: 1
+              target:
+                entity_id: '{{ repeat.item }}
+
+                  '
+      default:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          brightness_step_pct: 10
+          transition: 1
+        target:
+          entity_id: !input target_light
+  - conditions:
+    - condition: trigger
+      id:
+      - brightness_step_down
+    sequence:
+    - choose:
       - conditions:
-          - condition: trigger
-            id:
-              - button_2_press
+        - condition: numeric_state
+          entity_id: !input target_light
+          attribute: brightness
+          above: 253
+        - condition: template
+          value_template: "{{ expand(controlled_light)\n   | selectattr('attributes.hs_color',
+            'defined')\n   | rejectattr('attributes.hs_color', 'none')\n   | rejectattr('attributes.color_mode',
+            'eq', 'color_temp')\n   | selectattr('attributes.hs_color.1', 'lt', 95)\n
+            \  | list | count > 0 }}\n"
         sequence:
-          - variables:
-              # Areas the controlled light(s) live in: each member's area plus
-              # the group entity's own area, if assigned.
-              room_areas: >-
-                {{ ((expand(controlled_light) | map(attribute='entity_id')
-                     | map('area_id') | list)
-                    + [area_id(controlled_light)])
-                   | reject('none') | unique | list }}
-              uv_switches: >-
-                {{ room_areas | map('area_entities') | sum(start=[])
-                   | select('match', 'switch\.')
-                   | select('search', '(\.|_)uv([0-9]*)(_|$)')
-                   | unique | list }}
-              # Lights that get an effect-stop: every member of the controlled
-              # group (they are being turned on anyway) plus any other light in
-              # the room that is already on — never turns on an unrelated light.
-              effect_candidates: >-
-                {{ ((expand(controlled_light) | map(attribute='entity_id') | list)
-                    + (expand(room_areas | map('area_entities') | sum(start=[])
-                              | select('match', 'light\.') | list)
-                       | selectattr('state', 'eq', 'on')
-                       | map(attribute='entity_id') | list))
-                   | unique | list }}
-              # Effect names verified against the entity registry (2026-07-25):
-              # LIFX lights expose 'effect_stop', the WLED strip exposes
-              # 'Solid', ZHA bulbs expose 'off' (only sent when a colorloop is
-              # actually running, to avoid flooding the Zigbee network).
-              effect_stop_lights: >-
-                {{ expand(effect_candidates)
-                   | selectattr('attributes.effect_list', 'defined')
-                   | rejectattr('attributes.effect_list', 'none')
-                   | selectattr('attributes.effect_list', 'contains', 'effect_stop')
-                   | map(attribute='entity_id') | unique | list }}
-              solid_lights: >-
-                {{ expand(effect_candidates)
-                   | selectattr('attributes.effect_list', 'defined')
-                   | rejectattr('attributes.effect_list', 'none')
-                   | selectattr('attributes.effect_list', 'contains', 'Solid')
-                   | rejectattr('attributes.effect_list', 'contains', 'effect_stop')
-                   | map(attribute='entity_id') | unique | list }}
-              zha_colorloop_lights: >-
-                {{ expand(effect_candidates)
-                   | selectattr('attributes.effect_list', 'defined')
-                   | rejectattr('attributes.effect_list', 'none')
-                   | selectattr('attributes.effect_list', 'contains', 'off')
-                   | selectattr('attributes.effect', 'defined')
-                   | selectattr('attributes.effect', 'eq', 'colorloop')
-                   | map(attribute='entity_id') | unique | list }}
-          # UV projectors cut out first, before any light command.
-          - if:
-              - condition: template
-                value_template: "{{ uv_switches | count > 0 }}"
-            then:
-              - action: switch.turn_off
-                target:
-                  entity_id: "{{ uv_switches }}"
-          # Stop effects BEFORE the white/max command so the white command has
-          # the final word on color and brightness (a 'Solid' effect sent
-          # afterwards could override the white with a stored color).
-          - if:
-              - condition: template
-                value_template: "{{ effect_stop_lights | count > 0 }}"
-            then:
-              - action: light.turn_on
-                data:
-                  effect: effect_stop
-                target:
-                  entity_id: "{{ effect_stop_lights }}"
-          - if:
-              - condition: template
-                value_template: "{{ solid_lights | count > 0 }}"
-            then:
-              - action: light.turn_on
-                data:
-                  effect: Solid
-                target:
-                  entity_id: "{{ solid_lights }}"
-          - if:
-              - condition: template
-                value_template: "{{ zha_colorloop_lights | count > 0 }}"
-            then:
-              - action: light.turn_on
-                data:
-                  effect: "off"
-                target:
-                  entity_id: "{{ zha_colorloop_lights }}"
-          - action: light.turn_on
-            metadata: {}
-            data:
-              transition: 1
-              color_temp_kelvin: 5238
-              brightness_pct: 100
-            target:
-              entity_id: !input target_light
-      - conditions:
-          - condition: trigger
-            id:
-              - button_3_press
-        sequence:
-          - action: script.change_received_lights_to_random_colors
-            metadata: {}
-            data:
-              light:
-                - !input target_light
-              saturation: 100
-      - conditions:
-          - condition: trigger
-            id:
-              - button_4_press
-        sequence:
-          - action: light.turn_on
-            metadata: {}
-            data:
-              brightness_pct: 1
-            target:
-              entity_id: !input target_light
-      - conditions:
-          - condition: trigger
-            id:
-              - button_2_hold
-        sequence:
-          - action: script.change_received_lights_to_random_pastel_colors
-            metadata: {}
-            data:
-              # The pastel script splices this into '[{{selected_group}}]' and
-              # does not expand groups itself — pre-expand to quoted entity IDs
-              # so each member light gets its own random pastel hue.
-              selected_group: >-
-                {{ expand(controlled_light) | map(attribute='entity_id')
-                   | map('to_json') | join(',') }}
-      - conditions:
-          - condition: trigger
-            id:
-              - button_3_hold
-        sequence:
-          - action: script.changes_selected_light_group_to_single_warm_colors
-            metadata: {}
-            data:
-              selected_group: !input target_light
-      - conditions:
-          - condition: trigger
-            id:
-              - brightness_step_up
-        sequence:
-          - choose:
-              - conditions:
-                  - condition: numeric_state
-                    entity_id: !input target_light
-                    attribute: brightness
-                    enabled: true
-                    above: 253
-                sequence:
-                  - variables:
-                      lights_saturated: >
-                        {{ expand(controlled_light)    |
-                        selectattr('attributes.hs_color', 'defined') |
-                        map(attribute='entity_id') | list }}
-                  - repeat:
-                      for_each: "{{lights_saturated}}"
-                      sequence:
-                        - action: light.turn_on
-                          metadata: {}
-                          data:
-                            hs_color: >
-                              {% set sat = ((state_attr(repeat.item,'hs_color')
-                              ).1 - 21) %}
-                              {{[state_attr(repeat.item,'hs_color').0] +  [([0,
-                              sat, 100]|sort)[1]] }}
-                            transition: 1
-                          target:
-                            entity_id: |
-                              {{ repeat.item }}
-            default:
-              - action: light.turn_on
-                metadata: {}
-                data:
-                  brightness_step_pct: 10
-                  transition: 1
-                target:
-                  entity_id: !input target_light
-      - conditions:
-          - condition: trigger
-            id:
-              - brightness_step_down
-        sequence:
-          - choose:
-              # Mirror of dim_up's white-insertion: while at full brightness,
-              # dial-down first restores saturation (+21 per tick) on lights
-              # that currently expose an hs_color and were washed out.
-              # Only once saturation is restored does further dialing down
-              # start dimming. Lights sitting in color_temp mode are
-              # excluded — their reported hs_color is just a white-point
-              # conversion, and saturating it would colorize a white light.
-              # 'Restored' means sat >= 95, NOT == 100: xy bulbs quantize the
-              # commanded color, so a commanded saturation of 100 reads back
-              # as ~99.6 and a `< 100` check would loop forever, never dimming.
-              - conditions:
-                  - condition: numeric_state
-                    entity_id: !input target_light
-                    attribute: brightness
-                    above: 253
-                  - condition: template
-                    value_template: >
-                      {{ expand(controlled_light)
-                         | selectattr('attributes.hs_color', 'defined')
-                         | rejectattr('attributes.hs_color', 'none')
-                         | rejectattr('attributes.color_mode', 'eq', 'color_temp')
-                         | selectattr('attributes.hs_color.1', 'lt', 95)
-                         | list | count > 0 }}
-                sequence:
-                  - variables:
-                      lights_desaturated: >
-                        {{ expand(controlled_light)
-                           | selectattr('attributes.hs_color', 'defined')
-                           | rejectattr('attributes.hs_color', 'none')
-                           | rejectattr('attributes.color_mode', 'eq', 'color_temp')
-                           | selectattr('attributes.hs_color.1', 'lt', 95)
-                           | map(attribute='entity_id') | list }}
-                  - repeat:
-                      for_each: "{{ lights_desaturated }}"
-                      sequence:
-                        - action: light.turn_on
-                          metadata: {}
-                          data:
-                            hs_color: >
-                              {% set sat = ((state_attr(repeat.item,'hs_color')
-                              ).1 + 21) %}
-                              {{[state_attr(repeat.item,'hs_color').0] +  [([0,
-                              sat, 100]|sort)[1]] }}
-                            transition: 1
-                          target:
-                            entity_id: |
-                              {{ repeat.item }}
-            default:
-              - action: light.turn_on
-                metadata: {}
-                data:
-                  transition: 1
-                  brightness_step_pct: -15
-                target:
-                  entity_id: !input target_light
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 0
-      milliseconds: 50
-    enabled: false
+        - variables:
+            lights_desaturated: "{{ expand(controlled_light)\n   | selectattr('attributes.hs_color',
+              'defined')\n   | rejectattr('attributes.hs_color', 'none')\n   | rejectattr('attributes.color_mode',
+              'eq', 'color_temp')\n   | selectattr('attributes.hs_color.1', 'lt',
+              95)\n   | map(attribute='entity_id') | list }}\n"
+        - repeat:
+            for_each: '{{ lights_desaturated }}'
+            sequence:
+            - action: light.turn_on
+              metadata: {}
+              data:
+                hs_color: '{% set sat = ((state_attr(repeat.item,''hs_color'') ).1
+                  + 21) %} {{[state_attr(repeat.item,''hs_color'').0] +  [([0, sat,
+                  100]|sort)[1]] }}
+
+                  '
+                transition: 1
+              target:
+                entity_id: '{{ repeat.item }}
+
+                  '
+      default:
+      - action: light.turn_on
+        metadata: {}
+        data:
+          transition: 1
+          brightness_step_pct: -15
+        target:
+          entity_id: !input target_light
+- delay:
+    hours: 0
+    minutes: 0
+    seconds: 0
+    milliseconds: 50
+  enabled: false

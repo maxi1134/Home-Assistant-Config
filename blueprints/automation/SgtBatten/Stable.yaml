@@ -1,11 +1,11 @@
 blueprint:
-  name: Frigate Notifications (0.14.0.2w)
+  name: Frigate Notifications (0.14.0.2y)
   author: SgtBatten
   homeassistant:
     min_version: 2024.11.0
   description: "## Frigate Notifications\n\nA highly customisable Notification template
     for Frigate Camera Notifications.\n\n### Software Version Requirements\n  - Minimum
-    Home Assistant Version: 2024.10\n  - Minimum Frigate Version: 0.14.0\n  - Minimum
+    Home Assistant Version: 2024.11.0\n  - Minimum Frigate Version: 0.14.0\n  - Minimum
     Frigate Integration Version: 5.7.0\n    - **Note:** \"Enable the unauthenticated
     notification event proxy\" must be ticked during setup\n  - An MQTT broker connected
     to Home Assistant and Frigate.\n  - Minimum iOS Version: 15.0\n\n### Required
@@ -31,6 +31,7 @@ blueprint:
             domain:
             - camera
           multiple: true
+          reorder: false
     notify_device:
       name: Mobile Device
       description: Select a device that runs the official Home Assistant app to receive
@@ -225,6 +226,7 @@ blueprint:
               filter:
               - integration: input_text
               multiple: false
+              reorder: false
         alert_once:
           name: Alert Once (Optional)
           description: Only the first notification for each event will play a sound.
@@ -270,8 +272,8 @@ blueprint:
               - label: Snapshot cropped with bounding box (2:1)
                 value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1&crop=1&format=android'
               mode: dropdown
-              custom_value: false
               multiple: false
+              custom_value: false
               sort: false
         attachment_2:
           name: Subsequent Attachment (Optional)
@@ -310,8 +312,8 @@ blueprint:
               - label: Snapshot cropped with bounding box (2:1)
                 value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/snapshot.jpg?bbox=1&crop=1&format=android'
               mode: dropdown
-              custom_value: false
               multiple: false
+              custom_value: false
               sort: false
         video:
           name: Video (Optional)
@@ -332,8 +334,8 @@ blueprint:
               - label: Clip m3u8 (IOS)
                 value: '{{base_url}}/api/frigate{{client_id}}/notifications/{{id}}/{{camera}}/master.m3u8'
               mode: dropdown
-              custom_value: false
               multiple: false
+              custom_value: false
               sort: false
         final_update:
           name: Final update (Optional)
@@ -400,8 +402,8 @@ blueprint:
                 value: '#000000'
               - label: White
                 value: '#ffffff'
-              custom_value: false
               multiple: false
+              custom_value: false
               sort: false
         icon:
           name: Notification Icon (Optional)
@@ -462,6 +464,7 @@ blueprint:
               - domain:
                 - camera
               multiple: false
+              reorder: false
         android_auto:
           name: Android Auto
           description: Show the notification on Android Auto if the receiving device
@@ -592,6 +595,7 @@ blueprint:
                 - person
                 - group
               multiple: true
+              reorder: false
         state_filter:
           name: State Filter on/off (Optional)
           description: Enable the two State Filter settings below. Only notify if
@@ -605,7 +609,9 @@ blueprint:
             must enable "State Filter" above to use this.
           default: ''
           selector:
-            entity: {}
+            entity:
+              multiple: false
+              reorder: false
         state_filter_states:
           name: State Filter States (Optional)
           description: Enter the states that the above entity must be in, one at a
@@ -1023,8 +1029,8 @@ blueprint:
               - top-right
               - top-left
               - center
-              custom_value: false
               multiple: false
+              custom_value: false
               sort: false
         tv_size:
           name: TV Notification Size (Optional)
@@ -1038,8 +1044,8 @@ blueprint:
               - medium
               - large
               - max
-              custom_value: false
               multiple: false
+              custom_value: false
               sort: false
         tv_duration:
           name: TV Notification Duration (Optional)
@@ -1066,8 +1072,8 @@ blueprint:
               - 50%
               - 75%
               - 100%
-              custom_value: false
               multiple: false
+              custom_value: false
               sort: false
         tv_interrupt:
           name: TV Notification Interrupt (Optional)
@@ -1107,6 +1113,11 @@ triggers:
   payload: new
   value_template: '{{value_json[''type'']}}'
   id: frigate-event
+- trigger: mqtt
+  topic: '{{mqtt_topic}}'
+  payload: genai
+  value_template: '{{value_json[''type'']}}'
+  id: genai-event
 - trigger: event
   event_type: mobile_app_notification_action
   event_data:
@@ -1121,11 +1132,13 @@ variables:
   input_camera: !input camera
   input_camera_name: '{{input_camera|expand|map(attribute=''attributes.camera_name'',
     default=''none'')|list}}'
-  camera: '{{trigger.payload_json[''after''][''camera''] if trigger.id == ''frigate-event''}}'
+  camera: '{{trigger.payload_json[''after''][''camera''] if trigger.id in [''frigate-event'',
+    ''genai-event'']}}'
   camera_name: '{{ camera | replace(''_'', '' '') | title }}'
   input_severity: !input review_severity
-  severity: '{{trigger.payload_json[''after''][''severity''] if trigger.id == ''frigate-event''}}'
-  type: '{{trigger.payload_json[''type''] if trigger.id == ''frigate-event''}}'
+  severity: '{{trigger.payload_json[''after''][''severity''] if trigger.id in [''frigate-event'',
+    ''genai-event'']}}'
+  type: '{{trigger.payload_json[''type''] if trigger.id in [''frigate-event'', ''genai-event'']}}'
   input_base_url: !input base_url
   base_url: '{{ input_base_url.rstrip(''/'')}}'
   input_telegram_base_url: !input telegram_base_url
@@ -1180,21 +1193,24 @@ variables:
   redacted: !input redacted
   master_condition: !input master_condition
   severity_satisfied: '{{input_severity|select(''in'', severity)|list|length > 0 if
-    trigger.id == ''frigate-event''}}'
+    trigger.id in [''frigate-event'', ''genai-event'']}}'
   objects: '{{ trigger.payload_json[''after''][''data''][''objects''] if trigger.id
-    == ''frigate-event'' }}'
+    in [''frigate-event'', ''genai-event''] }}'
   objects_satisfied: '{{ not labels|length or labels|select(''in'', objects)|list|length
-    > 0 or (''person-verified'' in objects and ''person'' in labels) }}'
+    > 0 or objects|map(''regex_replace'', ''-verified$'', '''')|select(''in'', labels)|list|length
+    > 0 }}'
   initial_home: '{{ presence_entity != '''' and presence_entity|expand|selectattr(''state'',''eq'',''home'')|list|length
     != 0 }}'
   state_satisfied: '{{ not state_only or states(input_entity)|lower in states_filter
     }}'
   before_zones: '{{ trigger.payload_json[''before''][''data''][''zones''] if trigger.id
-    == ''frigate-event'' }}'
+    in [''frigate-event'', ''genai-event''] }}'
   after_zones: '{{ trigger.payload_json[''after''][''data''][''zones''] if trigger.id
-    == ''frigate-event'' }}'
+    in [''frigate-event'', ''genai-event''] }}'
   zone_multi_filter: '{{zone_only and zone_multi and after_zones|length and zones
     and zones |reject(''in'', after_zones) |list |length == 0 }}'
+  filters_satisfied: '{{ severity_satisfied and objects_satisfied and not initial_home
+    and state_satisfied and custom_filter }}'
 conditions:
   condition: or
   conditions:
@@ -1205,7 +1221,9 @@ conditions:
   - condition: and
     conditions:
     - condition: trigger
-      id: frigate-event
+      id:
+      - frigate-event
+      - genai-event
     - alias: Camera Match
       condition: template
       value_template: '{{ input_camera_name|select(''equalto'', camera)|list|length>0
@@ -1214,8 +1232,8 @@ conditions:
       condition: !input master_condition
     - alias: Cooldown
       condition: template
-      value_template: '{{ not this.attributes.last_triggered or (now() - this.attributes.last_triggered).seconds
-        > cooldown }}'
+      value_template: "{{ trigger.id == 'genai-event' or\n   not this.attributes.last_triggered
+        or\n   (now() - this.attributes.last_triggered).seconds > cooldown }}\n"
     - alias: Disable Times
       condition: template
       value_template: '{{ not disable_times|length or not now().hour in disable_times|map(''int'')|list
@@ -1242,6 +1260,214 @@ actions:
     - condition: trigger
       id: custom
     sequence: !input custom_action_manual
+  - alias: GenAI Summary
+    conditions:
+    - condition: trigger
+      id: genai-event
+    - condition: template
+      value_template: '{{ filters_satisfied }}'
+    - alias: Zone Filter
+      condition: template
+      value_template: '{{ not zone_only or after_zones | select(''in'', zones) | list
+        | length > 0 }}'
+    sequence:
+    - variables:
+        event: '{{ trigger.payload_json }}'
+        detections: '{{ event[''after''][''data''][''detections''] }}'
+        review_id: '{{ event[''after''][''id''] }}'
+        id: '{{ detections[0] }}'
+        metadata: '{{ event[''after''][''data''][''metadata''] | default({}) }}'
+        genai_title: '{{ metadata.title | default('''') }}'
+        genai_shortSummary: '{{ metadata.shortSummary | default('''') }}'
+        genai_threat_level: '{{ metadata.potential_threat_level | int(0) }}'
+        title: "{% if genai_threat_level == 2 %}\n  Security Concern: {{ genai_title
+          }}\n{% elif genai_threat_level == 1 %}\n  Needs Review: {{ genai_title }}\n{%
+          else %}\n  {{ genai_title }}\n{% endif %}"
+        message: '{{ genai_shortSummary }}'
+        subtitle: !input subtitle
+        group: !input group
+        tag: '{{ review_id }}'
+        channel: !input channel
+        sticky: false
+        sound: none
+        critical: false
+        tap_action: !input tap_action
+        button_1: !input button_1
+        button_2: !input button_2
+        button_3: !input button_3
+        url_1: !input url_1
+        url_2: !input url_2
+        url_3: !input url_3
+        icon_1: !input icon_1
+        icon_2: !input icon_2
+        icon_3: !input icon_3
+        ios_live_view: !input ios_live_view
+        android_auto: !input android_auto
+        tv: !input tv
+        tv_position: !input tv_position
+        tv_size: !input tv_size
+        tv_duration: !input tv_duration
+        tv_transparency: !input tv_transparency
+        tv_interrupt: !input tv_interrupt
+        attachment: !input attachment
+        video: !input video
+    - alias: Send GenAI Notification
+      sequence:
+      - choose:
+        - conditions: '{{ telegram }}'
+          sequence:
+          - action: telegram_bot.send_photo
+            data:
+              chat_id: '{{telegram_chat_id}}'
+              caption: '{{message}}'
+              url: '{{attachment|replace( base_url, telegram_base_url )}}'
+        - conditions: '{{ not notify_group_target }}'
+          sequence:
+          - device_id: !input notify_device
+            domain: mobile_app
+            type: notify
+            title: '{{title}}'
+            message: '{{message}}'
+            data:
+              tag: '{{ tag }}'
+              group: '{{ group }}'
+              subject: '{{subtitle}}'
+              image: '{{attachment}}'
+              video: '{{video}}'
+              clickAction: '{{tap_action}}'
+              ttl: 0
+              priority: high
+              sticky: '{{sticky}}'
+              channel: '{{''alarm_stream'' if critical else channel}}'
+              car_ui: '{{android_auto}}'
+              subtitle: '{{subtitle}}'
+              url: '{{tap_action}}'
+              attachment:
+                url: '{{video if video else attachment }}'
+                content-type: '{{ ''application/vnd.apple.mpegurl'' if ''m3u8'' in
+                  video else ''mp4'' if ''mp4'' in video else ''jpeg'' if ''jpg''
+                  in attachment else ''gif'' }}'
+              push:
+                sound:
+                  name: '{{sound}}'
+                  volume: '{{ iif(sound == ''none'', 0, volume) }}'
+                  critical: '{{ iif(critical, 1, 0) }}'
+              entity_id: '{{ios_live_view}}'
+              actions:
+              - action: URI
+                title: '{{button_1}}'
+                uri: '{{url_1}}'
+                icon: '{{icon_1}}'
+              - action: URI
+                title: '{{button_2}}'
+                uri: '{{url_2}}'
+                icon: '{{icon_2}}'
+              - action: '{{ ''URI'' if ''/'' in url_3 else url_3 }}'
+                title: '{{button_3}}'
+                uri: '{{url_3}}'
+                icon: '{{icon_3}}'
+                destructive: true
+        - conditions: '{{ tv }}'
+          sequence:
+          - action: notify.{{ notify_group_target }}
+            data:
+              title: '{{title}}'
+              message: '{{message}}'
+              data:
+                tag: '{{ tag }}'
+                group: '{{ group }}'
+                subject: '{{subtitle}}'
+                clickAction: '{{tap_action}}'
+                ttl: 0
+                priority: high
+                sticky: '{{sticky}}'
+                channel: '{{''alarm_stream'' if critical else channel}}'
+                car_ui: '{{android_auto}}'
+                image:
+                  url: '{{attachment | replace(''review_preview.gif'',''snapshot.jpg'')
+                    | replace(''event_preview.gif'',''snapshot.jpg'')}}'
+                fontsize: '{{tv_size}}'
+                position: '{{tv_position}}'
+                duration: '{{tv_duration}}'
+                transparency: '{{tv_transparency}}'
+                interrupt: '{{tv_interrupt}}'
+                timeout: 30
+                subtitle: '{{subtitle}}'
+                url: '{{tap_action}}'
+                attachment:
+                  url: '{{video if video else attachment }}'
+                  content-type: '{{ ''application/vnd.apple.mpegurl'' if ''m3u8''
+                    in video else ''mp4'' if ''mp4'' in video else ''jpeg'' if ''jpg''
+                    in attachment else ''gif'' }}'
+                push:
+                  sound:
+                    name: '{{sound}}'
+                    volume: '{{ iif(sound == ''none'', 0, volume) }}'
+                    critical: '{{ iif(critical, 1, 0) }}'
+                entity_id: '{{ios_live_view}}'
+                actions:
+                - action: URI
+                  title: '{{button_1}}'
+                  uri: '{{url_1}}'
+                  icon: '{{icon_1}}'
+                - action: URI
+                  title: '{{button_2}}'
+                  uri: '{{url_2}}'
+                  icon: '{{icon_2}}'
+                - action: '{{ ''URI'' if ''/'' in url_3 else url_3 }}'
+                  title: '{{button_3}}'
+                  uri: '{{url_3}}'
+                  icon: '{{icon_3}}'
+                  destructive: true
+        default:
+        - action: notify.{{ notify_group_target }}
+          data:
+            title: '{{title}}'
+            message: '{{message}}'
+            data:
+              tag: '{{ tag }}'
+              group: '{{ group }}'
+              subject: '{{subtitle}}'
+              image: '{{attachment}}'
+              video: '{{video}}'
+              clickAction: '{{tap_action}}'
+              ttl: 0
+              priority: high
+              sticky: '{{sticky}}'
+              channel: '{{''alarm_stream'' if critical else channel}}'
+              car_ui: '{{android_auto}}'
+              subtitle: '{{subtitle}}'
+              fontsize: '{{tv_size}}'
+              position: '{{tv_position}}'
+              duration: '{{tv_duration}}'
+              transparency: '{{tv_transparency}}'
+              interrupt: '{{tv_interrupt}}'
+              url: '{{tap_action}}'
+              attachment:
+                url: '{{video if video else attachment }}'
+                content-type: '{{ ''application/vnd.apple.mpegurl'' if ''m3u8'' in
+                  video else ''mp4'' if ''mp4'' in video else ''jpeg'' if ''jpg''
+                  in attachment else ''gif'' }}'
+              push:
+                sound:
+                  name: '{{sound}}'
+                  volume: '{{ iif(sound == ''none'', 0, volume) }}'
+                  critical: '{{ iif(critical, 1, 0) }}'
+              entity_id: '{{ios_live_view}}'
+              actions:
+              - action: URI
+                title: '{{button_1}}'
+                uri: '{{url_1}}'
+                icon: '{{icon_1}}'
+              - action: URI
+                title: '{{button_2}}'
+                uri: '{{url_2}}'
+                icon: '{{icon_2}}'
+              - action: '{{ ''URI'' if ''/'' in url_3 else url_3 }}'
+                title: '{{button_3}}'
+                uri: '{{url_3}}'
+                icon: '{{icon_3}}'
+                destructive: true
   - alias: Frigate Event
     conditions:
     - condition: trigger
@@ -1401,7 +1627,7 @@ actions:
               sequence:
               - action: telegram_bot.send_photo
                 data:
-                  target: '{{telegram_chat_id}}'
+                  chat_id: '{{telegram_chat_id}}'
                   caption: '{{message}}'
                   url: '{{attachment|replace( base_url, telegram_base_url )}}'
             - conditions: '{{ not notify_group_target }}'
@@ -1615,7 +1841,8 @@ actions:
               | list | length) > 0) }}'
             objects: '{{ event[''after''][''data''][''objects''] }}'
             objects_satisfied: '{{ not labels|length or labels|select(''in'', objects)|list|length
-              > 0 or (''person-verified'' in objects and ''person'' in labels) }}'
+              > 0 or objects|map(''regex_replace'', ''-verified$'', '''')|select(''in'',
+              labels)|list|length > 0 }}'
             home: '{{presence_entity |reject(''in'', '''') |select(''is_state'', ''home'')
               |list |length != 0 }}'
             presence_changed: '{{ presence_entity |reject(''in'', '''') |expand |map(attribute=''last_changed'')
@@ -1800,7 +2027,7 @@ actions:
                       sequence:
                       - action: telegram_bot.send_video
                         data:
-                          target: '{{telegram_chat_id}}'
+                          chat_id: '{{telegram_chat_id}}'
                           caption: '{{message}}'
                           url: '{{ video | replace(base_url, telegram_base_url) }}'
                           inline_keyboard:
@@ -1813,7 +2040,7 @@ actions:
                     default:
                     - action: telegram_bot.send_photo
                       data:
-                        target: '{{telegram_chat_id}}'
+                        chat_id: '{{telegram_chat_id}}'
                         caption: '{{message}}'
                         url: '{{attachment | replace(base_url,telegram_base_url)}}'
                         inline_keyboard:

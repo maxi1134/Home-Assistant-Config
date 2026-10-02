@@ -1242,9 +1242,11 @@
     - random colored lights
   conditions: []
   actions:
-  - action: script.changes_all_on
+  - action: script.change_received_lights_to_random_colors
     metadata: {}
-    data: {}
+    data:
+      light: light.group_all_lights
+      only_on: true
   mode: single
 - id: '1714077215807'
   alias: Change light to random pastel colors on press
@@ -1264,24 +1266,11 @@
     - pastel colored lights
   conditions: []
   actions:
-  - variables:
-      lights: "{% set ns = namespace(lights=[]) %} {% set groups = integration_entities('group')
-        | select('search', '^light.') | list %}     {% if groups %}\n    {% for group
-        in groups %}\n        {% set individual_lights = state_attr(group, 'entity_id')
-        %}\n        {% if individual_lights %}\n            {% for individual_light
-        in individual_lights %}\n                {% if \"group\" not in individual_light
-        and state_attr(individual_light, 'rgb_color') %}\n                    {% set
-        ns.lights = ns.lights + [individual_light] %}\n                {% endif %}\n
-        \           {% endfor %}\n        {% endif %}\n    {% endfor %}\n{% endif
-        %}     {{ ns.lights }}\n"
-  - repeat:
-      sequence:
-      - data:
-          light:
-          - '{{repeat.item}}'
-          saturation: 60
-        action: script.change_received_lights_to_random_pastel_colors
-      for_each: '{{ lights }}'
+  - action: script.change_received_lights_to_random_pastel_colors
+    metadata: {}
+    data:
+      light: light.group_all_lights
+      only_on: true
   mode: single
 - id: '1714150045572'
   alias: Mute chromecasts when they play PLEX visuals
@@ -2044,9 +2033,8 @@
 - id: '1716329212232'
   alias: Notify on potential package
   description: Uses camera AI analysis to detect a potential package delivery at the
-    front door and sends a photo notification to Maxi when the waiting-for-package
-    flag is on. Opening the front-door contact acknowledges the delivery and cancels
-    reminders.
+    front door and sends a repeated broadcast when the waiting-for-package flag is
+    on.
   triggers:
   - entity_id:
     - binary_sensor.front_door_camera_person_occupancy
@@ -2056,7 +2044,7 @@
       minutes: 0
       seconds: 2
     trigger: state
-    id: delivery_person_detected
+    alias: Trigger when someone is detected by frigate
   - entity_id:
     - binary_sensor.front_door_camera_package_occupancy
     to:
@@ -2066,103 +2054,113 @@
       minutes: 0
       seconds: 1
     trigger: state
-    id: package_detected
-  - trigger: state
-    entity_id: binary_sensor.sensor_front_door_contact
-    to: 'on'
-    id: front_door_opened
+    alias: Trigger when a package is detected by Frigate
   conditions:
   - condition: state
     entity_id: input_boolean.waiting_package
     state: 'on'
+    alias: Continue only if I am waiting a package.
   actions:
-  - if:
-    - condition: trigger
-      id: front_door_opened
-    then:
-    - action: input_boolean.turn_off
-      target:
-        entity_id: input_boolean.waiting_package
-    else:
-    - action: select.select_option
-      metadata: {}
-      target:
-        entity_id: select.front_door_ptz_camera_ptz_preset
-      data:
-        option: Package
-      alias: Set Camera focus on the package zone
-    - delay:
-        hours: 0
-        minutes: 0
-        seconds: 3
-        milliseconds: 0
-    - alias: Perform LLM vision to analyse to see if a Package or delivery guy is
-        present
-      action: llmvision.image_analyzer
-      data:
-        include_filename: false
-        target_width: 1280
-        response_format: text
-        title_field: title
-        description_field: description
-        provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
-        store_in_timeline: false
-        message: 'Answer with ONLY ''''yes'' or ''no'', is there a package or a deliveryman
-          in this picture?
+  - action: select.select_option
+    metadata: {}
+    target:
+      entity_id: select.front_door_ptz_camera_ptz_preset
+    data:
+      option: Package
+    alias: Set Camera focus on the package zone
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 3
+      milliseconds: 0
+    alias: Give 3 seconds to the stream to catch up before looking for a package
+  - alias: Perform LLM vision lookup to analyze the image and see if a Package or
+      Postman is present
+    action: llmvision.image_analyzer
+    data:
+      include_filename: false
+      target_width: 1280
+      response_format: text
+      title_field: title
+      description_field: description
+      provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
+      store_in_timeline: false
+      message: 'Answer with ONLY ''''yes'' or ''no'', is there a package or a deliveryman
+        in this picture?
 
-          '
-        image_entity:
-        - camera.front_door_ptz_camera_clear
-        generate_title: false
-        expose_images: false
-      response_variable: answer
-    - if:
+        '
+      image_entity:
+      - camera.front_door_ptz_camera_clear
+      generate_title: false
+      expose_images: false
+    response_variable: answer
+  - repeat:
+      while:
       - condition: template
         value_template: '{{ "YES" in answer.response_text | upper }}'
         alias: 'Continue if a delivery man or a package is present '
-      then:
-      - metadata: {}
-        data:
-          data:
-            image: /local/llmvision/front_door_camera.jpg
-          message: Package is being delivered
-          title: Package Detected
-        action: notify.maxi_notification_group
-      - metadata: {}
-        data:
-          message: A package is being delivered!
-          color: Blue
-        action: script.broadcast_alert_in_the_house
-      - alias: Set Camera focus on the package zone
+      sequence:
+      - alias: Set Camera focus on the doorway zone
         action: select.select_option
         metadata: {}
         target:
           entity_id: select.front_door_ptz_camera_ptz_preset
         data:
           option: Doorway
+      - metadata: {}
+        data:
+          message: A package has been delivered! Go pick it up!
+          color: Blue
+        action: script.broadcast_alert_in_the_house
+        alias: Announce that there is a package at the door
       - delay:
           hours: 0
           minutes: 5
-          seconds: 5
+          seconds: 0
           milliseconds: 0
-      - repeat:
-          sequence:
-          - action: script.non_important_broadcast_alert_in_the_house
-            data:
-              message: A package has been delivered! Go check the door
-          - wait_for_trigger:
-            - trigger: state
-              entity_id: lock.lock_front_door
-            - trigger: state
-              entity_id: input_boolean.waiting_package
-              to: 'off'
-            timeout:
-              minutes: 5
-            continue_on_timeout: true
-          until:
-          - condition: template
-            value_template: '{{ wait.trigger is not none }}'
-  mode: restart
+      - action: select.select_option
+        metadata: {}
+        target:
+          entity_id:
+          - select.front_door_ptz_camera_ptz_preset
+        data:
+          option: Package
+        alias: Set Camera focus on the package zone
+      - delay:
+          hours: 0
+          minutes: 0
+          seconds: 3
+          milliseconds: 0
+        alias: Give 3 seconds to the stream to catch up before looking for a package
+      - alias: Perform LLM vision lookup to analyze the image and see if a Package
+          or Postman is present
+        action: llmvision.image_analyzer
+        data:
+          include_filename: false
+          target_width: 1280
+          response_format: text
+          title_field: title
+          description_field: description
+          provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
+          store_in_timeline: false
+          message: 'Answer with ONLY ''''yes'' or ''no'', is there a package or a
+            deliveryman in this picture?
+
+            '
+          image_entity:
+          - camera.front_door_ptz_camera_clear
+          generate_title: false
+          expose_images: false
+        response_variable: answer
+      - alias: Set Camera focus on the doorway zone
+        action: select.select_option
+        metadata: {}
+        target:
+          entity_id: select.front_door_ptz_camera_ptz_preset
+        data:
+          option: Doorway
+    alias: Repeat the following actions as long as there is a package present
+  mode: single
 - id: '1716912930623'
   alias: Turn camera to doorway on doorbell action
   description: Points the front door PTZ camera to the doorway preset whenever the
@@ -2497,11 +2495,11 @@
   mode: restart
 - id: '1717284487763'
   alias: Arm night alarm when everyone is sleeping
-  description: Arms the alarm in night mode 5 minutes after all residents are detected
-    as sleeping, securing the home overnight.
+  description: Arms the alarm in night mode after All Present Sleeping has stayed
+    on continuously for 5 minutes.
   triggers:
   - entity_id:
-    - binary_sensor.all_residents_sleeping
+    - binary_sensor.all_present_sleeping
     to: 'on'
     for:
       hours: 0
@@ -4379,7 +4377,7 @@
   triggers:
   - entity_id:
     - sensor.sensor_stove_temperature_humidity
-    above: 75
+    above: 80
     trigger: numeric_state
   conditions:
   - condition: state
@@ -6338,11 +6336,13 @@
   alias: Analyze person in the parking when car is present to detect burglary
   description: Uses AI vision to analyze parking camera footage when a person is detected
     near the car, sending an alert and offering a siren activation option if a potential
-    break-in is detected.
+    break-in is detected. The "Ring the siren!" button is handled by the "Turn parking
+    horn on" automation.
   triggers:
   - trigger: state
     entity_id:
     - binary_sensor.parking_exit_camera_person_occupancy
+    - binary_sensor.parking_camera_person_occupancy
     for:
       hours: 0
       minutes: 1
@@ -6352,6 +6352,7 @@
   - trigger: state
     entity_id:
     - binary_sensor.parking_exit_camera_person_occupancy
+    - binary_sensor.parking_camera_person_occupancy
     for:
       hours: 0
       minutes: 0
@@ -6361,6 +6362,7 @@
   - trigger: state
     entity_id:
     - binary_sensor.parking_exit_camera_person_occupancy
+    - binary_sensor.parking_camera_person_occupancy
     for:
       hours: 0
       minutes: 1
@@ -6370,21 +6372,13 @@
   - trigger: state
     entity_id:
     - binary_sensor.parking_exit_camera_person_occupancy
+    - binary_sensor.parking_camera_person_occupancy
     for:
       hours: 0
       minutes: 0
       seconds: 15
     to:
     - 'on'
-  - trigger: state
-    entity_id:
-    - binary_sensor.group_parking_occupancy
-    to:
-    - 'on'
-    for:
-      hours: 0
-      minutes: 0
-      seconds: 15
   conditions:
   - condition: or
     conditions:
@@ -6392,13 +6386,6 @@
       entity_id: binary_sensor.parking_camera_car_occupancy
       state:
       - 'on'
-  - condition: zone.in_zone
-    target:
-      entity_id: person.myriam
-    options:
-      behavior: any
-      for: 00:00:00
-      zone: zone.home
   - condition: switch.is_off
     target:
       entity_id: input_boolean.party_in_the_back_yard
@@ -6440,50 +6427,6 @@
         - action: turn_parking_horn_on
           title: Ring the siren!
     action: notify.maxi_notification_group
-  - delay:
-      hours: 0
-      minutes: 0
-      seconds: 3
-      milliseconds: 0
-  - wait_for_trigger:
-    - event_type: mobile_app_notification_action
-      context: {}
-      event_data:
-        action: turn_parking_horn_on
-      trigger: event
-    continue_on_timeout: false
-    timeout:
-      hours: 0
-      minutes: 4
-      seconds: 0
-      milliseconds: 0
-  - action: switch.turn_on
-    metadata: {}
-    target:
-      entity_id: switch.plug_parking_horn
-    data: {}
-  - wait_for_trigger:
-    - event_type: mobile_app_notification_action
-      context: {}
-      event_data:
-        action: stop_parking_horn
-      trigger: event
-    continue_on_timeout: false
-    timeout:
-      hours: 0
-      minutes: 3
-      seconds: 0
-      milliseconds: 0
-  - action: switch.turn_off
-    metadata: {}
-    target:
-      entity_id: switch.plug_parking_horn
-    data: {}
-  - action: siren.turn_off
-    metadata: {}
-    data: {}
-    target:
-      entity_id: siren.parking_exit_camera_siren
   mode: single
 - id: '1743004781903'
   alias: Alert if someone is loitering by the car for too long
@@ -6531,49 +6474,11 @@
         priority: high
         image: /media/local/parking_car_loiterer.png
         actions:
-        - action: blow_parking_horn
+        - action: turn_parking_horn_on
           title: Blow the horn for 2 minutes?
         channel: security_alerts_notifications
       title: Person near the car
     action: notify.maxi_notification_group
-  - wait_for_trigger:
-    - event_type: mobile_app_notification_action
-      context:
-        user_id:
-        - 7f1de31122574f6fa2215e519d6083ea
-      event_data:
-        action: blow_parking_horn
-      trigger: event
-    continue_on_timeout: false
-    timeout:
-      hours: 0
-      minutes: 10
-      seconds: 0
-      milliseconds: 0
-  - action: switch.turn_on
-    metadata: {}
-    target:
-      entity_id:
-      - switch.plug_parking_horn
-    data: {}
-  - wait_for_trigger:
-    - trigger: state
-      entity_id:
-      - binary_sensor.parking_exit_camera_person_occupancy
-      from:
-      - 'on'
-      to:
-      - 'off'
-      for:
-        hours: 0
-        minutes: 0
-        seconds: 10
-  - action: switch.turn_off
-    metadata: {}
-    target:
-      entity_id:
-      - switch.plug_parking_horn
-    data: {}
   mode: single
 - id: '1743179648448'
   alias: Alert when someone is in the parking
@@ -6691,7 +6596,7 @@
             priority: high
             image: /media/local/parking_exit_movement.png
             actions:
-            - action: blow_parking_horn
+            - action: turn_parking_horn_on
               title: Blow the horn for 2 minutes?
             - action: URI
               title: Open Camera
@@ -6720,7 +6625,7 @@
             priority: high
             image: /media/local/parking_movement.png
             actions:
-            - action: blow_parking_horn
+            - action: turn_parking_horn_on
               title: Blow the horn for 2 minutes?
             - action: URI
               title: Open Camera
@@ -6748,7 +6653,7 @@
             priority: high
             image: /media/local/reolink_parking_movement.png
             actions:
-            - action: blow_parking_horn
+            - action: turn_parking_horn_on
               title: Blow the horn for 2 minutes?
             - action: URI
               title: Open Camera
@@ -6776,7 +6681,7 @@
             priority: high
             image: /media/local/reolink_parking_exit_movement.png
             actions:
-            - action: blow_parking_horn
+            - action: turn_parking_horn_on
               title: Blow the horn for 2 minutes?
             - action: URI
               title: Open Camera
@@ -6784,25 +6689,6 @@
                 Exit Camera;S.ALMTYPE=Person;S.ALMCHN=<CAM_CHANNEL_HERE>;S.ALMNAME=Detection;S.ALMTIME={{now().isoformat()}};end '
             channel: security_alerts_notifications
         action: notify.maxi_notification_group
-  - wait_for_trigger:
-    - event_type: mobile_app_notification_action
-      context:
-        user_id:
-        - 7f1de31122574f6fa2215e519d6083ea
-      event_data:
-        action: blow_parking_horn
-      trigger: event
-    continue_on_timeout: false
-    timeout:
-      hours: 0
-      minutes: 5
-      seconds: 0
-      milliseconds: 0
-  - metadata: {}
-    data: {}
-    action: switch.turn_on
-    target:
-      entity_id: switch.plug_parking_horn
   mode: parallel
   max: 4
 - id: '1743281098829'
@@ -8363,11 +8249,15 @@
     entity_id: switch.adaptive_lighting_sleep_mode_adaptive_lighting
     state: 'off'
   actions:
+  - variables:
+      area: '{{ area_id(trigger.entity_id) }}
+
+        '
   - metadata: {}
     data: {}
     action: light.turn_off
     target:
-      area_id: '{{ area_id(trigger.entity_id) }}'
+      area_id: '{{area}}'
   mode: parallel
   max: 10
 - id: '1748032160039'
@@ -10888,9 +10778,9 @@
   max: 2
 - id: '1754679794287'
   alias: Turn on Blue Light with UV Lamps in Same Area
-  description: When any UV lamp in the hallway, kitchen, lounge, patio, or workshop
-    turns on, this automation turns on the same area's lights with a bright blue color
-    (RGB 0,0,255) for a smooth transition.
+  description: When any UV lamp in the hallway, kitchen, lounge, patio, salon or workshop
+    turns on, this automation sets the color lights of that room to bright blue (RGB
+    0,0,255) through script change_received_lights_to_blue.
   triggers:
   - trigger: state
     entity_id:
@@ -10909,17 +10799,12 @@
     entity_id: input_boolean.live_concert
     state: 'off'
   actions:
-  - action: light.turn_on
+  - action: script.change_received_lights_to_blue
     metadata: {}
     data:
+      area: '{{ area_id(trigger.entity_id) }}'
       brightness_pct: 100
-      transition: 1
-      rgb_color:
-      - 0
-      - 0
-      - 255
-    target:
-      area_id: '{{area_id(trigger.entity_id)}}'
+      transition_speed: 1
   mode: parallel
   max: 10
 - id: '1754680196397'
@@ -10943,9 +10828,7 @@
   conditions: []
   actions:
   - variables:
-      on_lights_in_room: '{{ area_name(trigger.entity_id) }}
-
-        '
+      room: '{{ area_id(trigger.entity_id) }}'
   - choose:
     - conditions:
       - condition: or
@@ -10954,12 +10837,11 @@
           entity_id: input_boolean.party_mode
           state: 'on'
       sequence:
-      - action: script.changes_selected_lights_to_warm_pale_colors
+      - action: script.change_received_lights_to_random_pastel_colors
+        metadata: {}
         data:
-          area: '{{ on_lights_in_room }}
-
-            '
-          saturation: 100
+          area: '{{ room }}'
+          only_on: true
       alias: Pastel on party mode on
     - conditions:
       - condition: or
@@ -10968,13 +10850,12 @@
           entity_id: input_boolean.kink_party
           state: 'on'
       sequence:
-      - action: script.changes_selected_light_group_to_single_warm_colors
+      - action: script.change_received_lights_to_warm_pale_colors
         metadata: {}
         data:
-          area: '{{ on_lights_in_room  }}
-
-            '
-          saturation: 100
+          area: '{{ room }}'
+          only_on: true
+      alias: Warm pale on kink party on
     - conditions:
       - condition: or
         conditions:
@@ -10985,16 +10866,16 @@
       - action: script.change_received_lights_to_random_colors
         metadata: {}
         data:
-          area: '{{ on_lights_in_room  }}
-
-            '
+          area: '{{ room }}'
+          only_on: true
           saturation: 100
+      alias: Random colors on acid time on
     default:
     - action: adaptive_lighting.apply
       metadata: {}
       data:
-        lights: '{{ area_entities(on_lights_in_room) | select(''match'', ''light.group_'')
-          | list }} '
+        lights: '{{ area_entities(room) | select(''match'', ''light.group_'') | list
+          }}'
         transition: '1'
   mode: parallel
   max: 10
@@ -11457,19 +11338,115 @@
     data: {}
   mode: single
 - id: '1760286041191'
-  alias: Ring parking horn on actionnable notification from mobile
-  description: Activates the parking siren when a mobile notification action is triggered,
-    then automatically turns it off after the parking area is clear for 7 seconds
-    or after a 5-minute timeout.
+  alias: Turn parking horn on
+  description: Central handler for the horn button on parking alerts (notification
+    action turn_parking_horn_on; blow_parking_horn is still accepted for alerts sent
+    before the switch). Rings right away if a person is still detected in the parking
+    or the back yard, or if the horn is already sounding; otherwise it asks for confirmation
+    and rings only if that is confirmed within 2 minutes. Turns on the parking horn
+    plug and the parking exit camera siren, then turns both off once the parking is
+    clear for 7 seconds or after 5 minutes. The plug horn is also capped at 2 minutes
+    by its own auto-off automation.
   triggers:
-  - event_type: mobile_app_notification_action
-    context: {}
+  - trigger: event
+    event_type: mobile_app_notification_action
     event_data:
       action: turn_parking_horn_on
+  - alias: Legacy button on alerts sent before the switch to turn_parking_horn_on
     trigger: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: blow_parking_horn
   conditions: []
   actions:
-  - action: siren.turn_on
+  - alias: Unique confirmation actions for this run, so a stale tap can't ring later
+    variables:
+      action_confirm: '{{ ''CONFIRM_PARKING_HORN_'' ~ context.id }}'
+      action_cancel: '{{ ''CANCEL_PARKING_HORN_'' ~ context.id }}'
+  - alias: Ask for confirmation if nobody is in the parking or the back yard anymore
+    if:
+    - alias: Nobody detected (is_state, so a missing or unavailable sensor also asks)
+      condition: template
+      value_template: '{{ not (is_state(''binary_sensor.group_parking_occupancy'',
+        ''on'') or is_state(''binary_sensor.reolink_parking_camera_person'', ''on'')
+        or is_state(''binary_sensor.reolink_parking_exit_camera_person'', ''on'')
+        or is_state(''binary_sensor.back_yard_camera_person_occupancy'', ''on''))
+        }}'
+    - alias: Horn isn't already sounding, so a re-tap while it rings just keeps it
+        going
+      condition: not
+      conditions:
+      - condition: state
+        entity_id: switch.plug_parking_horn
+        state: 'on'
+    then:
+    - action: notify.maxi_notification_group
+      metadata: {}
+      data:
+        title: Confirm the parking horn
+        message: '{% if states(''binary_sensor.group_parking_occupancy'') in [''unavailable'',
+          ''unknown''] or states(''binary_sensor.back_yard_camera_person_occupancy'')
+          in [''unavailable'', ''unknown''] %}Person detection is unavailable right
+          now.{% else %}Nobody is detected in the parking or the back yard anymore.{%
+          endif %} Ring the parking horn anyway?'
+        data:
+          tag: parking_horn_confirmation
+          timeout: 110
+          ttl: 0
+          priority: high
+          channel: security_alerts_notifications
+          image: /api/camera_proxy/camera.reolink_parking_exit_camera_fluent
+          actions:
+          - action: '{{ action_confirm }}'
+            title: Ring the horn!
+          - action: '{{ action_cancel }}'
+            title: Cancel
+    - wait_for_trigger:
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: '{{ action_confirm }}'
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: '{{ action_cancel }}'
+      - alias: Confirmation swiped away
+        trigger: event
+        event_type: mobile_app_notification_cleared
+        event_data:
+          action_1_key: '{{ action_confirm }}'
+      timeout:
+        hours: 0
+        minutes: 2
+        seconds: 0
+        milliseconds: 0
+      continue_on_timeout: true
+    - alias: Clear the confirmation if it was not confirmed
+      if:
+      - condition: template
+        value_template: '{{ wait.trigger is none or wait.trigger.event.data.get(''action'')
+          != action_confirm }}'
+      then:
+      - action: notify.maxi_notification_group
+        metadata: {}
+        data:
+          message: clear_notification
+          data:
+            tag: parking_horn_confirmation
+    - alias: Only continue if the horn was explicitly confirmed
+      condition: template
+      value_template: '{{ wait.trigger is not none and wait.trigger.event.data.get(''action'')
+        == action_confirm }}'
+  - action: switch.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_parking_horn
+    continue_on_error: true
+  - alias: Camera siren too (continue_on_error, so a flaky camera can't block turning
+      the horn off)
+    action: siren.turn_on
+    continue_on_error: true
     metadata: {}
     data: {}
     target:
@@ -11489,12 +11466,19 @@
       minutes: 5
       seconds: 0
       milliseconds: 0
+  - action: switch.turn_off
+    metadata: {}
+    data: {}
+    target:
+      entity_id: switch.plug_parking_horn
+    continue_on_error: true
   - action: siren.turn_off
+    continue_on_error: true
     metadata: {}
     data: {}
     target:
       entity_id: siren.parking_exit_camera_siren
-  mode: single
+  mode: restart
 - id: '1760287140341'
   alias: Alert when parking siren goes on and offer to turn it off
   description: Takes a parking camera snapshot and sends an actionable notification
@@ -12499,10 +12483,10 @@
   mode: single
 - id: '1766817510039'
   alias: Vibrating color effect automation
-  description: Fans out a parallel "vibrate one light" subscript for every color-capable
-    light while input_boolean.vibrating_colors_effect is on, so all lights oscillate
-    at once. When the toggle goes off, stops every instance and restores adaptive
-    lighting.
+  description: Starts the vibrating color effect (script change_received_lights_to_vibrating_colors)
+    on every color light that is on while input_boolean.vibrating_colors_effect is
+    on, so all lights oscillate at once. When the toggle goes off, stops every instance
+    and restores adaptive lighting.
   triggers:
   - trigger: state
     entity_id:
@@ -12519,7 +12503,7 @@
     state: 'off'
   actions:
   - choose:
-    - alias: Effect ON — fan out one subscript per light
+    - alias: Effect ON — start the effect on every eligible light
       conditions:
       - condition: state
         entity_id: input_boolean.vibrating_colors_effect
@@ -12527,7 +12511,7 @@
       sequence:
       - action: script.turn_off
         target:
-          entity_id: script.vibrate_one_light
+          entity_id: script.set_one_light_to_vibrating_colors
         data: {}
       - variables:
           lights: "{{ integration_entities('group') | select('search', 'light.group_all_lights')\n
@@ -12535,21 +12519,15 @@
             \">\", 33)\n   | selectattr(\"attributes.color_mode\", \"eq\", 'xy')\n
             \  | selectattr(\"state\", \"eq\", \"on\") | map(attribute='entity_id')
             | list | shuffle }}\n"
-      - repeat:
-          for_each: '{{ lights }}'
-          sequence:
-          - action: script.turn_on
-            target:
-              entity_id: script.vibrate_one_light
-            data:
-              variables:
-                target_light: '{{ repeat.item }}'
-          - delay: '{{ range(100, 3000) | random | int }}'
+      - action: script.change_received_lights_to_vibrating_colors
+        metadata: {}
+        data:
+          light: '{{ lights }}'
     default:
     - alias: Stop all vibrate subscripts
       action: script.turn_off
       target:
-        entity_id: script.vibrate_one_light
+        entity_id: script.set_one_light_to_vibrating_colors
     - variables:
         lights: "{{ integration_entities('group') | select('search', 'light.group_all_lights')\n
           \  | expand | selectattr(\"attributes.hs_color\", \"defined\")\n   | selectattr(\"attributes.supported_features\",
@@ -12757,31 +12735,36 @@
     - conditions:
       - condition: template
         value_template: '{{ ''ici une heure'' in trigger.event.data.subject }}'
-        alias: When {{ 'ici une heure' in trigger.event.data.subject }} is true
+        alias: When 'ici une heure' ('In an hour' in French) is present in the Subject
+          of the email. As to only trigger when the package is nearby
       sequence:
       - action: input_boolean.turn_on
         metadata: {}
         target:
           entity_id: input_boolean.waiting_package
         data: {}
+        alias: Turn on the boolean toggle called 'Waiting Package'
       alias: When package is nearing
     - conditions:
       - condition: template
         value_template: '{{ ''Votre colis est arriv'' in trigger.event.data.subject
           }}'
-        alias: When {{ 'Votre colis est arriv' in trigger.event.data.subject }} is
-          true
+        alias: When 'Votre colis est arriv' ('Your package has arrived' in French)
+          is in the Subject
       sequence:
       - delay:
           hours: 0
           minutes: 10
           seconds: 0
           milliseconds: 0
+        alias: Delay for 10 minutes, as sometimes they trigger that second email in
+          advance.
       - action: input_boolean.turn_off
         metadata: {}
         target:
           entity_id: input_boolean.waiting_package
         data: {}
+        alias: Turn off the boolean toggle called 'Waiting Package'
       alias: When package arrives
   mode: single
 - id: '1768863734220'
@@ -12940,8 +12923,8 @@
       trigger: numeric_state
     continue_on_timeout: false
     timeout:
-      hours: 0
-      minutes: 20
+      hours: 1
+      minutes: 0
       seconds: 0
       milliseconds: 0
     enabled: true
@@ -13233,6 +13216,17 @@
     - media_player.mass_closet_vpe_speaker
     - media_player.mass_hallway_wiim_speaker
     - media_player.mass_lounge_wiim_speaker
+  - alias: Salon Chromecast → off
+    trigger: state
+    id: cc_to_off
+    from:
+    - playing
+    - idle
+    to: 'off'
+    for:
+      seconds: 1
+    entity_id:
+    - media_player.universal_salon_chromecast
   conditions:
   - condition: template
     value_template: '{{ trigger.to_state.state != ''unavailable'' }}'
@@ -13342,8 +13336,8 @@
             entity_id: '{{ chromecasts_to_unmute | list }}'
   - if:
     - condition: template
-      value_template: "{{ trigger.id in ['cc_from_playing', 'spk_to_playing']\n   or
-        (trigger.id == 'cc_mute_status'\n       and trigger.to_state.attributes.is_volume_muted
+      value_template: "{{ trigger.id in ['cc_from_playing', 'cc_to_off', 'spk_to_playing']\n
+        \  or (trigger.id == 'cc_mute_status'\n       and trigger.to_state.attributes.is_volume_muted
         == true) }}\n"
     - alias: 10-min anti-flap gate (spk_to_playing / cc_from_playing)
       condition: template
@@ -13393,6 +13387,9 @@
     attribute: event_type
     to:
     - swipe_up
+    - swipe_down
+    - swipe_left
+    - swipe_right
   conditions: []
   actions:
   - action: script.apply_random_existing_effect_to_a_light_entity
@@ -13447,25 +13444,18 @@
               list }}
 
               '
-        - repeat:
-            for_each: '{{lights}}'
-            sequence:
-            - action: script.llm_random_dissimilar_colors_script
-              metadata: {}
-              data:
-                saturation: '{{states(''input_number.trippy_lights_color_saturation'')}}'
-                transition_speed: '{{ states(''input_number.trippy_lights_effect_speed'')}}'
-                light:
-                - '{{repeat.item}}'
-            - action: light.turn_on
-              metadata: {}
-              data:
-                transition: '{{ states(''input_number.trippy_lights_effect_speed'')}}'
-                hs_color: '{{ range(0, 360) | random }},{{ states(''input_number.trippy_lights_color_saturation'')}}'
-              target:
-                entity_id: '{{repeat.item}}'
-              enabled: false
-        - delay: 00:00:{{ states('input_number.trippy_lights_effect_speed')}}
+        - action: script.change_received_lights_to_random_colors
+          metadata: {}
+          data:
+            light: '{{ lights }}'
+            saturation: '{{ states(''input_number.trippy_lights_color_saturation'')
+              }}'
+            transition_speed: '{{ states(''input_number.trippy_lights_effect_speed'')
+              }}'
+        - alias: Hold the new colors as long as the fade took
+          delay:
+            seconds: '{{ (states(''input_number.trippy_lights_effect_speed'') | float(4))
+              * 2 }}'
   - condition: state
     state:
     - 'off'
@@ -13536,17 +13526,18 @@
               list }}
 
               '
-        - repeat:
-            for_each: '{{lights}}'
-            sequence:
-            - action: script.llm_ranged_dissimilar_colors_generation_script
-              metadata: {}
-              data:
-                saturation: '{{states(''input_number.trippy_lights_color_saturation'')}}'
-                transition_speed: '{{ states(''input_number.trippy_lights_effect_speed'')}}'
-                light:
-                - '{{repeat.item}}'
-        - delay: 00:00:{{ states('input_number.trippy_lights_effect_speed')}}
+        - action: script.change_received_lights_to_warm_saturated_colors
+          metadata: {}
+          data:
+            light: '{{ lights }}'
+            saturation: '{{ states(''input_number.trippy_lights_color_saturation'')
+              }}'
+            transition_speed: '{{ states(''input_number.trippy_lights_effect_speed'')
+              }}'
+        - alias: Hold the new colors as long as the fade took
+          delay:
+            seconds: '{{ (states(''input_number.trippy_lights_effect_speed'') | float(4))
+              * 2 }}'
   - condition: state
     state:
     - 'off'
@@ -14880,7 +14871,8 @@
   alias: Trigger parking siren for 1 seconds if someone is loitering by the car
   description: Uses AI vision to analyze parking camera footage when a person is detected
     near the car after 30 seconds or more, if someone is present, ring the siren for
-    1 horn and await for maxi's signal to trigger the full size hornfor 2minutes
+    1 horn and send Maxi a button to blow the full size horn for 2 minutes (handled
+    by the "Turn parking horn on" automation)
   triggers:
   - trigger: state
     entity_id:
@@ -15070,29 +15062,10 @@
         priority: high
         image: /media/local/parking_exit_siren_triggered.png
         actions:
-        - action: blow_parking_horn
+        - action: turn_parking_horn_on
           title: Blow the horn for 2 minutes?
         channel: security_alerts_notifications
     action: notify.maxi_notification_group
-  - wait_for_trigger:
-    - event_type: mobile_app_notification_action
-      context:
-        user_id:
-        - 7f1de31122574f6fa2215e519d6083ea
-      event_data:
-        action: blow_parking_horn
-      trigger: event
-    continue_on_timeout: false
-    timeout:
-      hours: 0
-      minutes: 10
-      seconds: 0
-      milliseconds: 0
-  - metadata: {}
-    data: {}
-    action: switch.turn_on
-    target:
-      entity_id: switch.plug_parking_horn
   mode: parallel
   max: 3
 - id: '1780337448813'
@@ -15561,11 +15534,31 @@
   triggers:
   - trigger: state
     entity_id:
-    - light.patio_patio_projector_light
+    - light.patio_projector_light
     from:
     - 'off'
     to:
     - 'on'
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 3
+  - trigger: state
+    entity_id:
+    - light.patio_projector_light
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 1
+    attribute: rgb_color
+  - trigger: state
+    entity_id:
+    - light.patio_projector_light
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 1
+    attribute: color_temp_kelvin
   conditions: []
   actions:
   - choose:
@@ -15582,8 +15575,8 @@
         target:
           entity_id:
           - light.group_patio_lights
-          - light.patio_patio_projector_light
           - light.group_server_lights
+          - light.patio_projector_light
         data:
           brightness_pct: 100
           rgb_color:
@@ -15591,19 +15584,14 @@
           - 0
           - 255
     default:
-    - action: script.change_received_lights_to_random_colors
-      metadata: {}
-      data:
-        saturation: 100
-        transition_speed: 1
-        area:
-        - patio
     - action: light.turn_on
       metadata: {}
       target:
         entity_id: light.group_patio_lights
       data:
-        brightness_pct: 1
+        rgb_color: '{{ state_attr(''light.patio_projector_light'', ''rgb_color'')
+          }}'
+        transition: 2
   mode: restart
 - id: '1782525664476'
   alias: Restore patio lights when projector turns off
@@ -15613,7 +15601,7 @@
   triggers:
   - trigger: state
     entity_id:
-    - light.patio_patio_projector_light
+    - light.patio_projector_light
     from:
     - 'on'
     to:
@@ -15624,10 +15612,6 @@
       seconds: 2
   conditions: []
   actions:
-  - variables:
-      on_lights_in_room: 'light.group_patio_lights
-
-        '
   - choose:
     - conditions:
       - condition: or
@@ -15636,13 +15620,11 @@
           entity_id: input_boolean.party_mode
           state: 'on'
       sequence:
-      - action: script.changes_selected_lights_to_warm_pale_colors
+      - action: script.change_received_lights_to_random_pastel_colors
         metadata: {}
         data:
-          light: '{{ on_lights_in_room | first }}
-
-            '
-          saturation: 100
+          light: light.group_patio_lights
+          only_on: true
       alias: Pastel on party mode on
     - conditions:
       - condition: or
@@ -15651,13 +15633,12 @@
           entity_id: input_boolean.kink_party
           state: 'on'
       sequence:
-      - action: script.changes_selected_light_group_to_single_warm_colors
+      - action: script.change_received_lights_to_warm_pale_colors
         metadata: {}
         data:
-          light: '{{ on_lights_in_room | first }}
-
-            '
-          saturation: 100
+          light: light.group_patio_lights
+          only_on: true
+      alias: Warm pale on kink party on
     - conditions:
       - condition: or
         conditions:
@@ -15668,15 +15649,15 @@
       - action: script.change_received_lights_to_random_colors
         metadata: {}
         data:
-          light: '{{ on_lights_in_room | first }}
-
-            '
+          light: light.group_patio_lights
+          only_on: true
           saturation: 100
+      alias: Random colors on acid time on
     default:
     - action: adaptive_lighting.apply
       metadata: {}
       data:
-        lights: '{{on_lights_in_room}}'
+        lights: light.group_patio_lights
         transition: '1'
   mode: parallel
   max: 10
@@ -16314,6 +16295,7 @@
     entity_id: binary_sensor.kitchen_radar_occupancy_occupancy
     state:
     - 'off'
+    enabled: false
   - condition: state
     entity_id: timer.cooking
     state:
@@ -16970,3 +16952,138 @@
     current_group: ''
   mode: single
   max_exceeded: silent
+- id: '1790484221121'
+  alias: Trigger Update of the Eink Day Brief display
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - event.od2734e0_button_1
+    to:
+    - button_down
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 5
+    id: hold_down
+    attribute: event_type
+  - trigger: state
+    entity_id:
+    - event.od2734e0_button_1
+    id: button_up
+    attribute: event_type
+    to:
+    - button_up
+  - trigger: time
+    at: 06:00:00
+    id: morning_6am
+  conditions: []
+  actions:
+  - choose:
+    - conditions:
+      - condition: trigger
+        id:
+        - hold_down
+        - morning_6am
+      sequence:
+      - action: script.daily_calendar_briefing_opendisplay
+        metadata: {}
+        data:
+          preview: false
+    - conditions:
+      - condition: trigger
+        id:
+        - button_up
+      sequence:
+      - action: script.daily_calendar_briefing_opendisplay_only_agenda
+        metadata: {}
+        data:
+          preview: false
+  mode: single
+- id: '1790557048186'
+  alias: Turn off water utilities when leak detected
+  description: ''
+  triggers:
+  - trigger: moisture.detected
+    target:
+      entity_id: binary_sensor.kitchen_dishwasher_water_leak_detector
+    options:
+      behavior: each
+      for: 00:00:00
+  - trigger: state
+    entity_id:
+    - binary_sensor.kitchen_dishwasher_water_leak_detector_opening
+    to:
+    - 'on'
+  conditions: []
+  actions:
+  - action: switch.turn_off
+    metadata: {}
+    target:
+      entity_id:
+      - switch.plug_kitchen_dishwasher
+      - switch.plug_kitchen_washer
+    data: {}
+  mode: single
+- id: '1790639700406'
+  alias: Reboot patio projector when it goes offline
+  description: ''
+  triggers:
+  - trigger: state
+    entity_id:
+    - light.patio_projector_light
+    to:
+    - unavailable
+    - unknown
+    for:
+      hours: 0
+      minutes: 15
+      seconds: 0
+  - trigger: switch.turned_on
+    target:
+      entity_id: switch.plug_patio_projector_override_switch
+    options:
+      for:
+        hours: 0
+        minutes: 2
+        seconds: 0
+  conditions:
+  - condition: state
+    entity_id: light.patio_projector_light
+    state:
+    - unavailable
+    - unknown
+  actions:
+  - action: switch.turn_off
+    metadata: {}
+    target:
+      entity_id: switch.plug_patio_projector_override_switch
+    data: {}
+  - delay:
+      hours: 0
+      minutes: 1
+      seconds: 0
+      milliseconds: 0
+  - action: switch.turn_on
+    metadata: {}
+    target:
+      entity_id: switch.plug_patio_projector_override_switch
+    data: {}
+  - delay:
+      hours: 0
+      minutes: 1
+      seconds: 0
+      milliseconds: 0
+  - action: homeassistant.reload_config_entry
+    metadata: {}
+    data:
+      entry_id: 01K31KYTQF945SGT94QTT1RGGT
+  mode: single
+- id: '1790871675188'
+  alias: Entrance hue dial automation
+  description: ''
+  use_blueprint:
+    path: maxi/hue_dial_automation_blueprint.yaml
+    input:
+      target_light: light.group_entrance_lights
+      dial_device: f8e18c1f03ebf78fa0e8b4344efdd298
