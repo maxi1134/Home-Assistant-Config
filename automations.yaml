@@ -35,9 +35,8 @@
         before: '11:00:00'
         after: 03:00:00
       - condition: state
-        entity_id: person.myriam
-        state:
-        - home
+        entity_id: binary_sensor.myriam_at_maxis
+        state: 'on'
       sequence:
       - action: media_player.shuffle_set
         metadata: {}
@@ -78,12 +77,12 @@
     metadata: {}
     data: {}
     target:
-      entity_id: media_player.mass_bedroom_aux2_speaker
+      entity_id: media_player.mass_bedroom_vpe_speaker
   - metadata: {}
     data: {}
     action: media_player.turn_off
     target:
-      entity_id: media_player.mass_bedroom_aux2_speaker
+      entity_id: media_player.mass_bedroom_vpe_speaker
   mode: single
 - id: '1711565389493'
   alias: Assist Restart Music Assistant
@@ -591,7 +590,6 @@
           volume_level: 0.1
         target:
           entity_id:
-          - media_player.bathroom_speaker
           - media_player.mass_bathroom_vpe_speaker
         action: media_player.volume_set
     - conditions:
@@ -768,12 +766,17 @@
         '
   - repeat:
       sequence:
-      - metadata: {}
-        data:
-          effect: effect_stop
-        target:
-          entity_id: '{{ repeat.item }}'
-        action: light.turn_on
+      - alias: Stop the running effect only on lights that support effect_stop
+        if:
+        - condition: template
+          value_template: '{{ ''effect_stop'' in (state_attr(repeat.item, ''effect_list'') or []) }}'
+        then:
+        - metadata: {}
+          data:
+            effect: effect_stop
+          target:
+            entity_id: '{{ repeat.item }}'
+          action: light.turn_on
         enabled: true
       - action: adaptive_lighting.apply
         metadata: {}
@@ -1328,6 +1331,14 @@
     condition: template
     value_template: '{{trigger.to_state.attributes.is_volume_muted != true }}'
     enabled: true
+  - alias: Salon TV - only mute when the TV is on (RS-232 commands fail in standby)
+    condition: or
+    conditions:
+    - condition: template
+      value_template: '{{ trigger.entity_id != ''media_player.universal_salon_chromecast'' }}'
+    - condition: state
+      entity_id: media_player.bravia_4k_ae2
+      state: 'on'
   actions:
   - metadata: {}
     data:
@@ -1349,7 +1360,7 @@
     - media_player.mass_workshop_wiim_speaker
     - media_player.mass_salon_wiim_speaker
     - media_player.mass_closet_vpe_speaker
-    - media_player.mass_bedroom_aux2_speaker
+    - media_player.mass_bedroom_vpe_speaker
     - media_player.mass_kitchen_wiim_speaker
     - media_player.mass_patio_wiim_speaker
     - media_player.group_mass_home_group_speakers
@@ -1970,8 +1981,9 @@
     trigger: state
   conditions:
   - condition: state
-    entity_id: sensor.maxi_watch_battery_level
+    entity_id: sensor.maxi_watch_battery_state
     state:
+    - full
     - charging
   actions:
   - metadata: {}
@@ -2066,7 +2078,7 @@
     target:
       entity_id: select.front_door_ptz_camera_ptz_preset
     data:
-      option: Package
+      option: package
     alias: Set Camera focus on the package zone
   - delay:
       hours: 0
@@ -2106,7 +2118,7 @@
         target:
           entity_id: select.front_door_ptz_camera_ptz_preset
         data:
-          option: Doorway
+          option: doorway
       - metadata: {}
         data:
           message: A package has been delivered! Go pick it up!
@@ -2124,7 +2136,7 @@
           entity_id:
           - select.front_door_ptz_camera_ptz_preset
         data:
-          option: Package
+          option: package
         alias: Set Camera focus on the package zone
       - delay:
           hours: 0
@@ -2158,7 +2170,7 @@
         target:
           entity_id: select.front_door_ptz_camera_ptz_preset
         data:
-          option: Doorway
+          option: doorway
     alias: Repeat the following actions as long as there is a package present
   mode: single
 - id: '1716912930623'
@@ -2188,7 +2200,7 @@
     target:
       entity_id: select.front_door_ptz_camera_ptz_preset
     data:
-      option: Doorway
+      option: doorway
   mode: single
 - id: '1716933958613'
   alias: Automatically turn off the front security horn after 2 minutes and ask if
@@ -2857,7 +2869,7 @@
       entity_id:
       - media_player.group_mass_home_group_speakers
       - media_player.mass_bathroom_vpe_speaker
-      - media_player.mass_bedroom_aux2_speaker
+      - media_player.mass_bedroom_vpe_speaker
       - media_player.mass_lounge_wiim_speaker
       - media_player.mass_kitchen_wiim_speaker
       - media_player.mass_hallway_wiim_speaker
@@ -2872,7 +2884,7 @@
       entity_id:
       - media_player.group_mass_home_group_speakers
       - media_player.mass_bathroom_vpe_speaker
-      - media_player.mass_bedroom_aux2_speaker
+      - media_player.mass_bedroom_vpe_speaker
       - media_player.mass_lounge_wiim_speaker
       - media_player.mass_kitchen_wiim_speaker
       - media_player.mass_hallway_wiim_speaker
@@ -2887,6 +2899,7 @@
       entity_id:
       - switch.plug_back_door_horn
       - switch.plug_front_door_horn
+      - switch.plug_parking_horn
     continue_on_error: true
   - alias: Re-enable automatic light automation
     action: automation.turn_on
@@ -2968,7 +2981,7 @@
       data: {}
       action: media_player.turn_on
       target:
-        entity_id: media_player.mass_bedroom_aux2_speaker
+        entity_id: media_player.mass_bedroom_vpe_speaker
     - metadata: {}
       data: {}
       action: media_player.turn_on
@@ -3015,7 +3028,7 @@
         is_volume_muted: false
       action: media_player.volume_mute
       target:
-        entity_id: media_player.mass_bedroom_aux2_speaker
+        entity_id: media_player.mass_bedroom_vpe_speaker
     - metadata: {}
       data:
         is_volume_muted: false
@@ -3059,7 +3072,7 @@
         volume_level: 1
       action: media_player.volume_set
       target:
-        entity_id: media_player.mass_bedroom_aux2_speaker
+        entity_id: media_player.mass_bedroom_vpe_speaker
     - metadata: {}
       data:
         volume_level: 1
@@ -3533,23 +3546,6 @@
               '
           target:
             entity_id: '{{playing_chromecasts.0}}'
-  mode: single
-- id: '1727273501229'
-  alias: Assist Play random music
-  description: Starts a shuffled playlist of 500 random tracks on the home group speakers
-    via a voice conversation command.
-  triggers:
-  - command:
-    - play random music
-    trigger: conversation
-  conditions: []
-  actions:
-  - action: media_player.play_media
-    target:
-      entity_id: media_player.group_mass_home_group_speakers
-    data:
-      media_content_id: 500 Random tracks
-      media_content_type: playlist
   mode: single
 - id: '1728309825943'
   alias: Sleep actions when "sleeper in workshop" is turned on
@@ -4113,7 +4109,7 @@
     data:
       volume_level: 1
     target:
-      entity_id: media_player.mass_bedroom_aux2_speaker
+      entity_id: media_player.mass_bedroom_vpe_speaker
   - repeat:
       while:
       - condition: or
@@ -4133,7 +4129,7 @@
         metadata: {}
         data:
           cache: true
-          media_player_entity_id: media_player.mass_bedroom_aux2_speaker
+          media_player_entity_id: media_player.mass_bedroom_vpe_speaker
           message: Please leave this room immediately.
         target:
           entity_id:
@@ -4143,7 +4139,7 @@
         data:
           volume_level: 1
         target:
-          entity_id: media_player.mass_bedroom_aux2_speaker
+          entity_id: media_player.mass_bedroom_vpe_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -5079,7 +5075,7 @@
   actions:
   - variables:
       esp32_mute_entities: '{{([area_id(trigger.entity_id)]  | map(''area_entities'')
-        | sum(start=[]) |select(''match'', ''switch.*mute$'') |  unique | list ) }}
+        | sum(start=[]) |select(''match'', ''switch.*mute$'') | select(''has_value'') |  unique | list ) }}
 
         '
   - repeat:
@@ -5123,7 +5119,7 @@
   actions:
   - variables:
       esp32_mute_entities: '{{([area_id(trigger.entity_id)]  | map(''area_entities'')
-        | sum(start=[]) |select(''match'', ''switch.*mute$'') |  unique | list ) }}
+        | sum(start=[]) |select(''match'', ''switch.*mute$'') | select(''has_value'') |  unique | list ) }}
 
         '
   - repeat:
@@ -5165,7 +5161,7 @@
   actions:
   - variables:
       esp32_screens_entities: '{{([area_id(trigger.entity_id)]  | map(''area_entities'')
-        | sum(start=[]) |select(''match'', ''light.*screen$'') |  unique | list )
+        | sum(start=[]) |select(''match'', ''light.*screen$'') | select(''has_value'') |  unique | list )
         }}
 
         '
@@ -5210,7 +5206,7 @@
   actions:
   - variables:
       esp32_screens_entities: '{{([area_id(trigger.entity_id)]  | map(''area_entities'')
-        | sum(start=[]) |select(''match'', ''light.*screen$'') |  unique | list )
+        | sum(start=[]) |select(''match'', ''light.*screen$'') | select(''has_value'') |  unique | list )
         }}
 
         '
@@ -5389,7 +5385,7 @@
   description: Uses the script 'Speaker Automatic Volume Adjustment script'
   triggers:
   - entity_id:
-    - media_player.mass_bedroom_aux2_speaker
+    - media_player.mass_bedroom_vpe_speaker
     - media_player.mass_salon_wiim_speaker
     - media_player.mass_closet_vpe_speaker
     - media_player.mass_hallway_wiim_speaker
@@ -5405,7 +5401,7 @@
     id: from_idle_to_play
     enabled: true
   - entity_id:
-    - media_player.mass_bedroom_aux2_speaker
+    - media_player.mass_bedroom_vpe_speaker
     - media_player.mass_salon_wiim_speaker
     - media_player.mass_closet_vpe_speaker
     - media_player.mass_hallway_wiim_speaker
@@ -5418,7 +5414,7 @@
     - 'off'
     trigger: state
   - entity_id:
-    - media_player.mass_bedroom_aux2_speaker
+    - media_player.mass_bedroom_vpe_speaker
     - media_player.mass_salon_wiim_speaker
     - media_player.mass_closet_vpe_speaker
     - media_player.mass_hallway_wiim_speaker
@@ -6069,7 +6065,6 @@
       entity_id:
       - light.group_closet_lights
       - light.closet_string_2
-      - light.closet_string_1
   - action: switch.turn_off
     metadata: {}
     data: {}
@@ -6109,7 +6104,6 @@
       entity_id:
       - light.group_closet_lights
       - light.closet_string_2
-      - light.closet_string_1
   - repeat:
       count: 20
       sequence:
@@ -6122,7 +6116,6 @@
           entity_id:
           - light.group_closet_lights
           - light.closet_string_2
-          - light.closet_string_1
       - delay:
           hours: 0
           minutes: 0
@@ -6403,7 +6396,7 @@
       max_tokens: 100
       temperature: 0.1
       provider: 01KPNMJBE3FPHY7TEGKG6K7MVM
-      model: Qwen3.5-4B-UD-MTP-Q8_K_XL.gguf
+      model: Qwen3.5_4B
       message: Answer only with yes or no; Is this person trying to interact with
         the car?
       image_entity:
@@ -6446,13 +6439,9 @@
   - condition: state
     entity_id: binary_sensor.parking_exit_camera_car_occupancy
     state: 'on'
-  - condition: zone.in_zone
-    target:
-      entity_id: person.myriam
-    options:
-      behavior: any
-      for: 00:00:00
-      zone: zone.home
+  - condition: state
+    entity_id: binary_sensor.myriam_at_maxis
+    state: 'on'
   - condition: switch.is_off
     target:
       entity_id: input_boolean.party_in_the_back_yard
@@ -6539,9 +6528,8 @@
     - condition: or
       conditions:
       - condition: state
-        entity_id: person.myriam
-        state:
-        - home
+        entity_id: binary_sensor.myriam_at_maxis
+        state: 'on'
       - condition: and
         conditions:
         - condition: state
@@ -6715,8 +6703,8 @@
       entity_id: camera.back_door_camera
   - if:
     - condition: state
-      entity_id: person.myriam
-      state: home
+      entity_id: binary_sensor.myriam_at_maxis
+      state: 'on'
     then:
     - metadata: {}
       data:
@@ -6733,10 +6721,11 @@
       action: notify.mobile_app_phone_myriam
   - parallel: []
   - if:
-    - condition: state
-      entity_id: person.myriam
-      state:
-      - not_home
+    - condition: not
+      conditions:
+      - condition: state
+        entity_id: binary_sensor.myriam_at_maxis
+        state: 'on'
     - condition: state
       entity_id: person.maximiliano
       state:
@@ -7620,7 +7609,7 @@
       - ''
       camera:
       - camera.front_door_camera
-      notify_device: 76061f2c15b668e8ebc77cfaf47e5b64
+      notify_device: 351e8ae8a89482b8a4b05785f651bf91
       title: Front Door Presence Detected
       message: '{{ label }} detected - {{ camera_name }} at {{event[''after''][''start_time'']|timestamp_custom(''%H:%M'')}}'
       update_sub_label: false
@@ -7691,17 +7680,24 @@
   triggers:
   - trigger: state
     entity_id:
-    - person.myriam
     - person.maximiliano
-    - person.lylou
-    from: not_home
-    to: home
+    from:
+    - not_home
+    to:
+    - home
     id: myriam_arrives
+  - trigger: state
+    entity_id: binary_sensor.myriam_at_maxis
+    from: 'off'
+    to: 'on'
+    id: myriam_arrives
+    note: Myriam via the Wi-Fi-confirmed sensor; her GPS alone false-arrives from
+      her place a street away.
   conditions:
   - alias: The user has been not_home for over 120 seconds
     condition: template
     value_template: '{{  ((as_timestamp((now()) )   - (as_timestamp(trigger.from_state.last_changed))))
-      | float > 120 and trigger.from_state.state == ''not_home'' }}'
+      | float > 120 and trigger.from_state.state in [''not_home'', ''off''] }}'
   - condition: state
     entity_id: input_boolean.maxi_is_scared
     state: 'on'
@@ -8155,9 +8151,25 @@
     - alarm_control_panel.home_alarm
     to: armed_away
   conditions:
-  - condition: state
-    entity_id: zone.home
-    state: '0'
+  - condition: or
+    alias: Nobody home (Myriam's GPS ignored unless the Wi-Fi confirms her)
+    conditions:
+    - condition: state
+      entity_id: zone.home
+      state: '0'
+    - condition: and
+      conditions:
+      - condition: state
+        entity_id: zone.home
+        state: '1'
+      - condition: state
+        entity_id: person.myriam
+        state: home
+      - condition: not
+        conditions:
+        - condition: state
+          entity_id: binary_sensor.myriam_at_maxis
+          state: 'on'
   actions:
   - action: input_boolean.turn_on
     metadata: {}
@@ -8643,9 +8655,7 @@
         data:
           volume_level: 0.36
         target:
-          entity_id:
-          - media_player.mass_bedroom_vpe_speaker
-          - media_player.mass_bedroom_vpe_speaker
+          entity_id: media_player.mass_bedroom_vpe_speaker
       - data:
           media:
             media_content_id: http://192.168.0.15:8123/local/sounds/thunderstorm.mp3/
@@ -8665,9 +8675,7 @@
         data:
           volume_level: 0.4
         target:
-          entity_id:
-          - media_player.mass_bedroom_vpe_speaker
-          - media_player.mass_bedroom_vpe_speaker
+          entity_id: media_player.mass_bedroom_vpe_speaker
       - delay:
           hours: 0
           minutes: 0
@@ -8776,7 +8784,7 @@
     on any playing speaker when Myriam is home.
   triggers:
   - entity_id:
-    - media_player.mass_bedroom_aux2_speaker
+    - media_player.mass_bedroom_vpe_speaker
     - media_player.mass_closet_vpe_speaker
     - media_player.mass_kitchen_wiim_speaker
     - media_player.mass_lounge_wiim_speaker
@@ -8788,8 +8796,8 @@
     attribute: media_title
   conditions:
   - condition: state
-    entity_id: person.myriam
-    state: home
+    entity_id: binary_sensor.myriam_at_maxis
+    state: 'on'
     enabled: true
   - condition: template
     value_template: "{% set disliked_songs = ['Mr. Blue Sky','Mr Blue Sky'] %}\n    \n
@@ -8823,24 +8831,24 @@
       seconds: 0
   conditions:
   - condition: template
-    value_template: '{{ ''thunderstorm'' in state_attr(''media_player.mass_bedroom_aux2_speaker'',''media_title'')}}'
+    value_template: '{{ ''thunderstorm'' in (state_attr(''media_player.mass_bedroom_vpe_speaker'',''media_title'') | default('''', true)) }}'
   actions:
   - action: media_player.clear_playlist
     metadata: {}
     data: {}
     target:
       entity_id:
-      - media_player.mass_bedroom_aux2_speaker
+      - media_player.mass_bedroom_vpe_speaker
   - action: media_player.turn_off
     metadata: {}
     data: {}
     target:
-      entity_id: media_player.mass_bedroom_aux2_speaker
+      entity_id: media_player.mass_bedroom_vpe_speaker
   mode: single
 - id: '1749333714992'
   alias: Sleeper actions when salon sleeper turns on
   description: Prepares the salon for sleep by fading out lights, closing blinds,
-    turning off the lounge TV, dimming nearby rooms if empty, and playing thunderstorm
+    turning off the salon TV, dimming nearby rooms if empty, and playing thunderstorm
     sounds if someone is located in the salon.
   triggers:
   - trigger: state
@@ -8884,11 +8892,18 @@
       target:
         entity_id:
         - light.group_lounge_lights
-  - action: remote.turn_off
-    metadata: {}
-    target:
-      entity_id: remote.salon_salon_bravia_tv
-    data: {}
+  - alias: Turn the salon TV off over RS-232 if it is on (braviatv pointed at a stale IP)
+    if:
+    - condition: state
+      entity_id: media_player.bravia_4k_ae2
+      state: 'on'
+    then:
+    - action: media_player.turn_off
+      metadata: {}
+      target:
+        entity_id: media_player.sony_tv
+      data: {}
+      continue_on_error: true
   - if:
     - condition: or
       conditions:
@@ -9011,6 +9026,7 @@
     domain: zwave_js
     type: event.notification.notification
     command_class: 113
+    event_label: Keypad unlock operation
     trigger: device
   conditions:
   - condition: template
@@ -9068,17 +9084,24 @@
   triggers:
   - trigger: state
     entity_id:
-    - person.myriam
     - person.maximiliano
-    - person.lylou
-    from: not_home
-    to: home
+    from:
+    - not_home
+    to:
+    - home
     id: myriam_arrives
+  - trigger: state
+    entity_id: binary_sensor.myriam_at_maxis
+    from: 'off'
+    to: 'on'
+    id: myriam_arrives
+    note: Myriam via the Wi-Fi-confirmed sensor; her GPS alone false-arrives from
+      her place a street away.
   conditions:
   - alias: The user has been not_home for over 300 seconds
     condition: template
     value_template: '{{  ((as_timestamp((now()) )   - (as_timestamp(trigger.from_state.last_changed))))
-      | float > 300 and trigger.from_state.state == ''not_home'' }}'
+      | float > 300 and trigger.from_state.state in [''not_home'', ''off''] }}'
   actions:
   - sequence:
     - alias: Wait For someone to pass through the parking cameras for 10 minutes
@@ -9371,7 +9394,7 @@
     target:
       entity_id: select.front_door_ptz_camera_ptz_preset
     data:
-      option: Doorway
+      option: doorway
   mode: restart
 - id: '1751674442304'
   alias: Stop home group when maxi leaves
@@ -9469,7 +9492,7 @@
       - ''
       camera:
       - camera.front_door_camera
-      notify_device: 76061f2c15b668e8ebc77cfaf47e5b64
+      notify_device: 351e8ae8a89482b8a4b05785f651bf91
       title: Front Door Presence Detected
       message: '{{ label }} detected - {{ camera_name }} at {{event[''after''][''start_time'']|timestamp_custom(''%H:%M'')}}'
       update_sub_label: false
@@ -10918,7 +10941,7 @@
     metadata: {}
     data:
       effect: Solid
-      color_temp: 324
+      color_temp_kelvin: 3086
       brightness: 1
     target:
       entity_id: light.salon_door_leds
@@ -11246,9 +11269,10 @@
   mode: single
 - id: '1759251745280'
   alias: Notify maxi when myriam arrives at home
-  description: Sends a mobile notification to Maxi when Myriam arrives home, but only
-    if she has been away for at least 4 minutes to avoid false triggers from brief
-    location changes.
+  description: Sends a mobile notification to Maxi when Myriam arrives home after
+    being away for over 4000 s (~67 min), but only once her phone joins the home Wi-Fi
+    (Chilling Family or Chilling Hotspot) within 15 minutes of entering the home zone.
+    She lives a street away, so the GPS zone alone gives false alerts.
   triggers:
   - trigger: state
     entity_id:
@@ -11262,6 +11286,25 @@
     value_template: '{{  ((as_timestamp((now()) )   - (as_timestamp(trigger.from_state.last_changed))))
       | float > 4000 and trigger.from_state.state == ''not_home'' }}'
   actions:
+  - alias: Only notify once Myriam's phone is on the home Wi-Fi
+    if:
+    - condition: not
+      conditions:
+      - condition: state
+        entity_id: sensor.phone_myriam_s26_wi_fi_connection
+        state:
+        - Chilling Family
+        - Chilling Hotspot
+    then:
+    - wait_for_trigger:
+      - trigger: state
+        entity_id: sensor.phone_myriam_s26_wi_fi_connection
+        to:
+        - Chilling Family
+        - Chilling Hotspot
+      timeout:
+        minutes: 15
+      continue_on_timeout: false
   - metadata: {}
     data:
       data:
@@ -11290,8 +11333,8 @@
   - condition: not
     conditions:
     - condition: state
-      entity_id: person.myriam
-      state: home
+      entity_id: binary_sensor.myriam_at_maxis
+      state: 'on'
   actions:
   - metadata: {}
     data:
@@ -11535,8 +11578,8 @@
           entity_id: siren.parking_exit_camera_siren
     - if:
       - condition: state
-        entity_id: person.myriam
-        state: home
+        entity_id: binary_sensor.myriam_at_maxis
+        state: 'on'
       then:
       - metadata: {}
         data:
@@ -13180,7 +13223,7 @@
     entity_id:
     - media_player.mass_workshop_wiim_speaker
     - media_player.mass_salon_wiim_speaker
-    - media_player.mass_bedroom_aux2_speaker
+    - media_player.mass_bedroom_vpe_speaker
     - media_player.mass_kitchen_wiim_speaker
     - media_player.mass_closet_vpe_speaker
     - media_player.mass_hallway_wiim_speaker
@@ -13197,7 +13240,7 @@
     entity_id:
     - media_player.mass_workshop_wiim_speaker
     - media_player.mass_salon_wiim_speaker
-    - media_player.mass_bedroom_aux2_speaker
+    - media_player.mass_bedroom_vpe_speaker
     - media_player.mass_kitchen_wiim_speaker
     - media_player.mass_closet_vpe_speaker
     - media_player.mass_hallway_wiim_speaker
@@ -13211,7 +13254,7 @@
     entity_id:
     - media_player.mass_workshop_wiim_speaker
     - media_player.mass_salon_wiim_speaker
-    - media_player.mass_bedroom_aux2_speaker
+    - media_player.mass_bedroom_vpe_speaker
     - media_player.mass_kitchen_wiim_speaker
     - media_player.mass_closet_vpe_speaker
     - media_player.mass_hallway_wiim_speaker
@@ -13279,6 +13322,14 @@
       - condition: template
         value_template: '{{ unmuted_playing_speakers != [] and chromecasts_to_mute
           != [] }}'
+      - alias: Salon TV - only mute when the TV is on (RS-232 commands fail in standby)
+        condition: or
+        conditions:
+        - condition: template
+          value_template: '{{ ''media_player.universal_salon_chromecast'' not in chromecasts_to_mute }}'
+        - condition: state
+          entity_id: media_player.bravia_4k_ae2
+          state: 'on'
       then:
       - action: media_player.volume_mute
         data:
@@ -14203,8 +14254,8 @@
       - camera.reolink_parking_exit_camera_fluent
   - if:
     - condition: state
-      entity_id: person.myriam
-      state: home
+      entity_id: binary_sensor.myriam_at_maxis
+      state: 'on'
     then:
     - metadata: {}
       data:
@@ -14258,7 +14309,7 @@
     continue_on_timeout: false
     timeout:
       hours: 0
-      minutes: 3
+      minutes: 40
       seconds: 0
       milliseconds: 0
   - data: {}
@@ -14971,13 +15022,9 @@
       entity_id: binary_sensor.parking_camera_car_occupancy
       state:
       - 'on'
-  - condition: zone.in_zone
-    target:
-      entity_id: person.myriam
-    options:
-      behavior: any
-      for: 00:00:00
-      zone: zone.home
+  - condition: state
+    entity_id: binary_sensor.myriam_at_maxis
+    state: 'on'
   - condition: switch.is_off
     target:
       entity_id: input_boolean.party_in_the_back_yard
@@ -16336,6 +16383,8 @@
     from:
     - '0.0'
   conditions:
+  - condition: template
+    value_template: '{{ has_value(trigger.entity_id) }}'
   - condition: not
     conditions:
     - condition: timer.is_active
@@ -17087,3 +17136,221 @@
     input:
       target_light: light.group_entrance_lights
       dial_device: f8e18c1f03ebf78fa0e8b4344efdd298
+- id: '1791202982399'
+  alias: Stop parking horns when "stop parking horn" notification is received
+  description: ''
+  triggers:
+  - event_type: mobile_app_notification_action
+    context: {}
+    event_data:
+      action: stop_parking_horn
+    trigger: event
+  conditions: []
+  actions:
+  - data: {}
+    action: switch.turn_off
+    target:
+      entity_id:
+      - switch.plug_parking_horn
+    continue_on_error: true
+  - action: siren.turn_off
+    metadata: {}
+    target:
+      entity_id: siren.parking_exit_camera_siren
+    data: {}
+  mode: single
+- id: '1791226670651'
+  alias: 'Alarm: disarm rules'
+  description: 'Every way the home alarm gets disarmed, in one place. AWAY: someone
+    comes home. NIGHT: the sun is up and someone is awake (checked when someone wakes,
+    and again at sunrise). KEYPAD: a main code unlocks the front door (any mode),
+    then snapshot + announce who arrived. Replaces four older disarm automations (Oct
+    2026).'
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.user_home
+    from: 'off'
+    to: 'on'
+    id: arrival
+    alias: Someone came home
+  - trigger: state
+    entity_id: binary_sensor.all_residents_sleeping
+    from: 'on'
+    to: 'off'
+    id: woke_up
+    alias: Household no longer all asleep
+  - trigger: state
+    entity_id: sensor.is_maxi_asleep
+    from: 'on'
+    to: 'off'
+    id: woke_up
+    alias: Maxi woke up
+    note: This sensor reports on/off. The old automation listened for asleep→awake,
+      which never happens.
+  - trigger: sun.sunrise
+    id: sunrise
+    alias: Sunrise (catch-up for early risers)
+    note: Someone who woke before sunrise was blocked by sun.is_up; this re-checks
+      at sunrise. sun.is_up is guaranteed true at this instant.
+  - trigger: event
+    event_type: zha_event
+    event_data:
+      device_ieee: 90:fd:9f:ff:fe:64:47:36
+      command: operation_event_notification
+      args:
+        operation: Unlock
+        code_slot: 3
+    id: keypad
+    alias: Maxi's code (slot 3)
+    variables:
+      who: Maxi
+  - trigger: event
+    event_type: zha_event
+    event_data:
+      device_ieee: 90:fd:9f:ff:fe:64:47:36
+      command: operation_event_notification
+      args:
+        operation: Unlock
+        code_slot: 4
+    id: keypad
+    alias: Myriam's code (slot 4)
+    variables:
+      who: Myriam
+  - trigger: event
+    event_type: zha_event
+    event_data:
+      device_ieee: 90:fd:9f:ff:fe:64:47:36
+      command: operation_event_notification
+      args:
+        operation: Unlock
+        code_slot: 5
+    id: keypad
+    alias: Lylou's code (slot 5)
+    variables:
+      who: Lylou
+  - trigger: event
+    event_type: zha_event
+    event_data:
+      device_ieee: 90:fd:9f:ff:fe:64:47:36
+      command: operation_event_notification
+      args:
+        operation: Unlock
+        code_slot: 28
+    id: keypad
+    alias: Felix's code (slot 28)
+    variables:
+      who: Felix
+  conditions:
+  - condition: or
+    alias: Any disarm rule matches
+    conditions:
+    - alias: 'AWAY: someone came home'
+      condition: and
+      conditions:
+      - condition: trigger
+        id: arrival
+      - condition: alarm_control_panel.is_armed_away
+        target:
+          entity_id: alarm_control_panel.home_alarm
+    - alias: 'NIGHT: sun is up and someone is awake'
+      condition: and
+      conditions:
+      - condition: trigger
+        id:
+        - woke_up
+        - sunrise
+      - condition: alarm_control_panel.is_armed_night
+        target:
+          entity_id: alarm_control_panel.home_alarm
+      - condition: sun.is_up
+      - condition: or
+        alias: Someone just woke up, or (at sunrise) Maxi is already up
+        conditions:
+        - condition: trigger
+          id: woke_up
+        - condition: state
+          entity_id: sensor.is_maxi_asleep
+          state: 'off'
+    - alias: 'KEYPAD: main code at the front door (any mode)'
+      condition: trigger
+      id: keypad
+  actions:
+  - alias: Disarm
+    action: alarm_control_panel.alarm_disarm
+    target:
+      entity_id: alarm_control_panel.home_alarm
+  - alias: 'KEYPAD only: snapshot + announce who arrived'
+    if:
+    - condition: trigger
+      id: keypad
+    then:
+    - action: camera.snapshot
+      target:
+        entity_id: camera.front_door_ptz_camera_fluent
+      data:
+        filename: /media/front_door_capture_on_opening.png
+      continue_on_error: true
+      note: Don't let an offline camera block the announcement.
+    - action: script.broadcast_alert_in_the_house
+      data:
+        message: '{{ who }} is in the place'
+        color: cyan
+        phone_data:
+          message: '{{ who }} has arrived'
+          data:
+            ttl: 0
+            priority: high
+            channel: doorbell_notifications
+            image: /media/local/front_door_capture_on_opening.png
+  mode: queued
+  max: 5
+- id: '1791243091319'
+  alias: Salon LIFX paint room colours
+  description: Paints the colours of every Salon bulb across the Salon LIFX lights
+    when Salon Lights switch into colour mode.
+  use_blueprint:
+    path: maxi/lifx_paint_room_colors.yaml
+    input:
+      light_group: light.group_salon_lights
+- id: '1791243097212'
+  alias: WorkShop LIFX paint room colours
+  description: Paints the colours of every WorkShop bulb across the WorkShop LIFX
+    lights when workshop Lights switch into colour mode.
+  use_blueprint:
+    path: maxi/lifx_paint_room_colors.yaml
+    input:
+      light_group: light.group_workshop_lights
+      power_on: false
+      include_white: false
+- id: '1791243098918'
+  alias: Lounge LIFX paint room colours
+  description: Paints the colours of every lounge bulb across the lounge LIFX lights
+    when lounge Lights switch into colour mode.
+  use_blueprint:
+    path: maxi/lifx_paint_room_colors.yaml
+    input:
+      light_group: light.group_lounge_lights
+- id: '1791243102262'
+  alias: Kitchen LIFX paint room colours
+  description: Paints the colours of every Kitchen bulb across the Kitchen LIFX lights
+    when Kitchen Lights switch into colour mode.
+  use_blueprint:
+    path: maxi/lifx_paint_room_colors.yaml
+    input:
+      light_group: light.group_kitchen_lights
+- id: '1791243103355'
+  alias: Bathroom LIFX paint room colours
+  description: Paints the colours of every Bathroom bulb across the Bathroom LIFX
+    lights when Bathroom Lights switch into colour mode.
+  use_blueprint:
+    path: maxi/lifx_paint_room_colors.yaml
+    input:
+      light_group: light.group_bathroom_lights
+- id: '1791243191698'
+  alias: Hotbox LIFX paint room colours
+  description: Paints the colours of every Hotbox bulb across the Hotbox LIFX lights
+    when Hotbox Lights switch into colour mode.
+  use_blueprint:
+    path: maxi/lifx_paint_room_colors.yaml
+    input:
+      light_group: light.group_hotbox_lights

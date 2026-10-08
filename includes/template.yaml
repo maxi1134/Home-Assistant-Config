@@ -28,9 +28,13 @@
         unique_id: maxi_alone
         delay_off:
           minutes: 1
+        # zone.home counts Myriam's GPS; swap her for the Wi-Fi-confirmed sensor so a false
+        # GPS arrival from her place doesn't make Maxi "not alone".
         state: >-
+          {% set others_home = (states('zone.home') | int(0)) - (1 if is_state('person.myriam', 'home') else 0) %}
+          {% set people_home = others_home + (1 if is_state('binary_sensor.myriam_at_maxis', 'on') else 0) %}
           {{ is_state('person.maximiliano', 'home')
-             and is_state('zone.home', '1')
+             and people_home == 1
              and is_state('sensor.chilling_hotspot_client_count', '0') }}
 
       - name: "Lylou is Alone"
@@ -47,6 +51,23 @@
           {{ is_state('person.myriam', 'home')
              and is_state('zone.home', '1')
              and is_state('sensor.chilling_hotspot_client_count', '0') }}
+
+      # Wi-Fi-confirmed person.myriam: on only when her GPS says home AND her phone is on
+      # the house Wi-Fi. Use this, not person.myriam, for "is Myriam here?".
+      # She lives a street away; at her place her phone rests ~100 m from the 13 m home
+      # zone, so any GPS fix worse than ~88 m accuracy is a false arrival (same failure as
+      # noted on "All residents Sleeping"). On 2026-10-02 and 2026-10-04 those false
+      # arrivals turned "Users Present" on and disarmed the armed-away alarm.
+      # Her phone only joins "Chilling Family" / "Chilling Hotspot" here (history checked
+      # 2026-09-25 -> 10-05); "Chilling Voisin" is deliberately not accepted.
+      # delay_off rides out short Wi-Fi drops while she's here.
+      - name: "Myriam at Maxis"
+        unique_id: myriam_at_maxis
+        delay_off:
+          minutes: 2
+        state: >-
+          {{ is_state('person.myriam', 'home')
+             and states('sensor.phone_myriam_s26_wi_fi_connection') in ['Chilling Family', 'Chilling Hotspot'] }}
 
       # ─── Sleep Detection Binary Sensors ───
       # Hysteresis wrapper for Maxi's CPAP power (plug idles ~2.0-2.5 W):
@@ -98,15 +119,16 @@
       - trigger: homeassistant
         event: start
     binary_sensor:
-      # True when all present household members are asleep (Maxi must be home and asleep)
+      # True when all present household members are asleep (Maxi must be home and asleep).
+      # Works when Maxi is alone: one active sleeper covers one person home.
       - name: "All Present Sleeping"
         unique_id: all_present_sleeping
         state: >
-          {% if ( states('person.maximiliano') == 'home' and states('sensor.is_maxi_asleep') == 'on' ) and (states('sensor.active_sleeper_amount') | int(0) != 0 and states('sensor.active_sleeper_amount') | int(0) >= 2 and states('sensor.active_sleeper_amount') | int(0) >= states('sensor.total_amount_people_home') | int(0) ) %}
-            on
-          {% else %}
-            off
-          {% endif %}
+          {% set sleepers = states('sensor.active_sleeper_amount') | int(0) %}
+          {{ is_state('person.maximiliano', 'home')
+             and is_state('sensor.is_maxi_asleep', 'on')
+             and sleepers > 0
+             and sleepers >= states('sensor.total_amount_people_home') | int(0) }}
 
 
   - binary_sensor:
@@ -1100,7 +1122,6 @@
           - media_player.workshop_chromecast
           - media_player.group_mass_home_group_speakers
           - media_player.mass_bathroom_vpe_speaker
-          - media_player.mass_bedroom_aux2_speaker
           - media_player.mass_closet_vpe_speaker
           - media_player.mass_lounge_wiim_speaker
           - media_player.mass_kitchen_wiim_speaker
@@ -1180,9 +1201,7 @@
       - name: "Playing on Bedroom Speaker"
         unique_id: playing_on_bedroom_speaker
         state: >-
-          {% set e = 'media_player.mass_bedroom_aux2_speaker'
-                     if is_state('media_player.mass_bedroom_aux2_speaker', 'playing')
-                     else 'media_player.mass_bedroom_vpe_speaker' %}
+          {% set e = 'media_player.mass_bedroom_vpe_speaker' %}
           {% if state_attr(e, 'media_album_name') %}
             {{ state_attr(e, 'media_title') }} - {{ state_attr(e, 'media_album_name') }} by {{ state_attr(e, 'media_artist') }}
           {% elif state_attr(e, 'media_title') %}
@@ -1289,6 +1308,7 @@
         entity_id:
           - person.maximiliano
           - person.myriam
+          - binary_sensor.myriam_at_maxis
           - person.fay
           - person.lylou
       - trigger: homeassistant
@@ -1298,8 +1318,11 @@
         unique_id: user_home
         delay_off:
           minutes: 7
+        # Myriam counts only via binary_sensor.myriam_at_maxis (Wi-Fi confirmed): her GPS alone
+        # false-arrives from her place and was disarming the alarm (2026-10-02, 2026-10-04).
         state: >-
-          {{ states.person | selectattr('state', 'eq', 'home') | list | count > 0 }}
+          {{ states.person | rejectattr('entity_id', 'eq', 'person.myriam') | selectattr('state', 'eq', 'home') | list | count > 0
+             or is_state('binary_sensor.myriam_at_maxis', 'on') }}
     sensor:
       - name: "amount partners home"
         unique_id: "amount_partners_home"
@@ -1307,7 +1330,9 @@
         state: >-
             {% set ns = namespace(total_partners = 0) %}
             {% for person in states.person %}
-            {% if "partners" in person.entity_id | labels() and person.state == "home" %}
+            {# Myriam counts only when binary_sensor.myriam_at_maxis confirms it (see Users Present) #}
+            {% set is_home = is_state('binary_sensor.myriam_at_maxis', 'on') if person.entity_id == 'person.myriam' else person.state == "home" %}
+            {% if "partners" in person.entity_id | labels() and is_home %}
               {% set ns.total_partners = ns.total_partners + 1 %}
             {% endif %}
             {% endfor %}
@@ -1331,7 +1356,9 @@
         state: >-
             {% set ns = namespace(residents = 0) %}
             {% for person in states.person %}
-            {% if "residents" in person.entity_id | labels() and person.state == "home" %}
+            {# Myriam counts only when binary_sensor.myriam_at_maxis confirms it (see Users Present) #}
+            {% set is_home = is_state('binary_sensor.myriam_at_maxis', 'on') if person.entity_id == 'person.myriam' else person.state == "home" %}
+            {% if "residents" in person.entity_id | labels() and is_home %}
               {% set ns.residents = ns.residents + 1 %}
             {% endif %}
             {% endfor %}
@@ -1341,7 +1368,7 @@
             {% set info = [
               ('watch', 'sensor.bermuda_maxi_watch_bps_zone', 'sensor.bermuda_maxi_watch_area'),
               ('bracelet', 'sensor.bermuda_maxi_ankle_beacon_bps_zone', 'sensor.bermuda_maxi_ankle_beacon_bps_zone'),
-              ('phone', 'device_tracker.espresense_phone_maxi', 'sensor.bermuda_maxi_phone_area'),
+              ('phone', 'sensor.bermuda_maxi_phone_bps_zone', 'sensor.bermuda_maxi_phone_area'),
             ] %}
             {% set gpslocation = states('device_tracker.phone_maxi') | lower %}
             {% set ns = namespace(rooms=[], results=[]) %}
@@ -1421,7 +1448,6 @@
           - media_player.universal_workshop_chromecast
           - media_player.universal_tablet_myriam_s8
           - media_player.mass_bathroom_vpe_speaker
-          - media_player.mass_bedroom_aux2_speaker
           - media_player.mass_closet_vpe_speaker
           - media_player.mass_lounge_wiim_speaker
           - media_player.mass_kitchen_wiim_speaker
@@ -1497,7 +1523,6 @@
         state: >-
             {% set playing = expand(
               'media_player.mass_bathroom_vpe_speaker',
-              'media_player.mass_bedroom_aux2_speaker',
               'media_player.mass_closet_vpe_speaker',
               'media_player.mass_lounge_wiim_speaker',
               'media_player.mass_kitchen_wiim_speaker',
@@ -1519,7 +1544,6 @@
           muted_rooms: >-
               {% set playing = expand(
                 'media_player.mass_bathroom_vpe_speaker',
-                'media_player.mass_bedroom_aux2_speaker',
                 'media_player.mass_closet_vpe_speaker',
                 'media_player.mass_lounge_wiim_speaker',
                 'media_player.mass_kitchen_wiim_speaker',
@@ -1541,7 +1565,6 @@
           unmuted_rooms: >-
               {% set playing = expand(
                 'media_player.mass_bathroom_vpe_speaker',
-                'media_player.mass_bedroom_aux2_speaker',
                 'media_player.mass_closet_vpe_speaker',
                 'media_player.mass_lounge_wiim_speaker',
                 'media_player.mass_kitchen_wiim_speaker',
@@ -1569,7 +1592,6 @@
         state: >-
             {% set speakers = expand(
               'media_player.mass_bathroom_vpe_speaker',
-              'media_player.mass_bedroom_aux2_speaker',
               'media_player.mass_closet_vpe_speaker',
               'media_player.mass_lounge_wiim_speaker',
               'media_player.mass_kitchen_wiim_speaker',
@@ -1606,7 +1628,6 @@
           speakers: >-
               {{ expand(
                 'media_player.mass_bathroom_vpe_speaker',
-                'media_player.mass_bedroom_aux2_speaker',
                 'media_player.mass_closet_vpe_speaker',
                 'media_player.mass_lounge_wiim_speaker',
                 'media_player.mass_kitchen_wiim_speaker',
@@ -1704,10 +1725,11 @@
 
   # ─── Myriam Indoor Location (Petro Algorithm) ───
   # Same voting-based location algorithm as Maxi's, but using Myriam's phone tracker.
+  # ESPresense was retired on 2026-10-06. sensor.bermuda_myriam_phone_area only exists
+  # once her phone is added to Bermuda; until then this falls back to GPS / last room.
   - trigger:
       - trigger: state
         entity_id:
-          - device_tracker.myriam_s24_espresense
           - sensor.bermuda_myriam_phone_area
           - device_tracker.phone_myriam_gps
           - binary_sensor.myriam_alone
@@ -1717,15 +1739,12 @@
         unique_id: myriam_location_by_petro
         state: >-
             {% set info = [
-              ('phone', 'device_tracker.myriam_s24_espresense', 'sensor.bermuda_myriam_phone_area'),
+              ('phone', 'sensor.bermuda_myriam_phone_area'),
             ] %}
             {% set gpslocation = states('device_tracker.phone_myriam_gps') | lower %}
             {% set ns = namespace(rooms=[], results=[]) %}
-            {% for name, room, sensor in info %}
-              {% set room, sensor = (room, sensor) | map('states') | map('lower') | list %}
-                {% if room != 'not_home' and room != 'main floor' and room  != 'unknown' and room  != 'home' and room!= 'unavailable' %}
-                  {% set ns.rooms = ns.rooms + [(name, room.split('_').0)] %}
-                {% endif %}
+            {% for name, sensor in info %}
+              {% set sensor = states(sensor) | lower %}
                 {% if sensor != 'not_home' and sensor != 'main floor' and sensor  != 'unknown' and sensor  != 'home' and sensor != 'unavailable' %}
                   {% set ns.rooms = ns.rooms + [(name, sensor.split('_').0)] %}
                 {% endif %}

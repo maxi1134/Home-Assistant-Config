@@ -50,11 +50,11 @@
 #    name: Universal bedroom Speakers
 #    unique_id: universal_bedroom_speakers
 #    children:
-#      - media_player.mass_bedroom_aux2_speaker
+#      - media_player.mass_bedroom_vpe_speaker
 #      - media_player.wiim_bedroom_linkplay
 #      - media_player.group_mass_home_group_speakers
 #    active_child_template: >-
-#                  {% set mass_speaker = 'media_player.mass_bedroom_aux2_speaker' %}
+#                  {% set mass_speaker = 'media_player.mass_bedroom_vpe_speaker' %}
 #                  {% set linkplay_speaker = 'media_player.wiim_bedroom_linkplay' %}
 #                  {% set mass_home_group = 'media_player.group_mass_home_group_speakers' %}
 #                  {% if states(linkplay_speaker) == 'idle' and states(mass_speaker) == 'idle' %}
@@ -63,7 +63,7 @@
 #                    {{ mass_speaker }}
 #                  {% endif %}
 #    state_template: >-
-#                  {% set mass_speaker = 'media_player.mass_bedroom_aux2_speaker' %}
+#                  {% set mass_speaker = 'media_player.mass_bedroom_vpe_speaker' %}
 #                  {% set linkplay_speaker = 'media_player.wiim_bedroom_linkplay' %}
 #                  {% set mass_home_group = 'media_player.group_mass_home_group_speakers' %}
 #                  {% if states(linkplay_speaker) == 'idle' and states(mass_speaker) == 'idle' %}
@@ -100,12 +100,12 @@
 #        service: media_player.clear_playlist
 #        target:
 #          entity_id: 
-#            - media_player.mass_bedroom_aux2_speaker
+#            - media_player.mass_bedroom_vpe_speaker
 #      turn_on:
 #        service: media_player.media_play
 #        target:
 #          entity_id: 
-#            - media_player.mass_bedroom_aux2_speaker
+#            - media_player.mass_bedroom_vpe_speaker
 #    attributes:
 #      is_volume_muted: media_player.wiim_bedroom_linkplay|is_volume_muted
 #      volume_level: media_player.wiim_bedroom_linkplay|volume_level
@@ -644,24 +644,25 @@
 
 
   ########################## Universal salon Chromecast  ##########################
-  # Sony Bravia TV (salon) unified from its 3 Home Assistant integrations:
+  # Sony Bravia TV (salon) unified from 2 Home Assistant integrations:
   #   cast (Google TV)   -> media_player.salon_chromecast          : now-playing metadata while casting
-  #   braviatv (Bravia)  -> media_player.salon_salon_bravia_tv : power, HDMI/source, volume & mute (control device)
   #   androidtv_remote   -> media_player.bravia_4k_ae2         : on/off + foreground app
-  # active_child priority: matching Plex player -> Google TV (cast) -> Bravia -> Android TV Remote -> Bravia (off).
-  # Volume/mute + power route to the Bravia integration; transport (play/pause/seek)
-  # auto-forwards to whichever child is active so Plex/Cast keep their richer controls.
+  # Control device (RS-232 via the Connect Aux-2 serial proxy):
+  #   sony_tv_rs232      -> media_player.sony_tv               : power, input, volume & mute
+  # braviatv was dropped as a child on 2026-10-07: it pointed at a stale IP and only ever reported off.
+  # active_child priority: matching Plex player -> Google TV (cast) -> Android TV Remote.
+  # Power, input, volume and mute route to RS-232 (discrete mute on/off, works even when
+  # the Bravia network API is unreachable); transport (play/pause/seek) auto-forwards to
+  # whichever child is active so Plex/Cast keep their richer controls.
   - platform: universal
     unique_id: universal_salon_chromecast
     name: Universal salon chromecast
     children:
       - media_player.salon_chromecast
-      - media_player.salon_salon_bravia_tv
       - media_player.bravia_4k_ae2
     active_child_template: >-
       {%- set cast = "media_player.salon_chromecast" -%}
       {%- set atv = "media_player.bravia_4k_ae2" -%}
-      {%- set brav = "media_player.salon_salon_bravia_tv" -%}
       {%- set ns = namespace(plex_entity = "", active = "") -%}
       {#- bravia_4k_ae2 (Android TV Remote) is the power authority. When the TV is off, default the active child to the Cast endpoint so playback can be initiated (casting wakes the TV). state_template still reports 'off'. -#}
       {%- if states(atv) != 'on' -%}
@@ -701,8 +702,6 @@
           {%- set ns.active = ns.plex_entity -%}
         {%- elif cast_state in ['playing', 'paused', 'buffering'] -%}
           {%- set ns.active = cast -%}
-        {%- elif states(brav) == 'on' -%}
-          {%- set ns.active = brav -%}
         {%- elif cast_state not in ['off', 'unavailable', 'unknown'] -%}
           {%- set ns.active = cast -%}
         {%- else -%}
@@ -712,7 +711,7 @@
       {{- ns.active -}}
     state_template: >-
       {#- bravia_4k_ae2 (Android TV Remote) is the power authority: not 'on' -> off. -#}
-      {#- androidtv_remote + braviatv only report on/off; cast reports real playing/paused only for true Cast sessions. -#}
+      {#- androidtv_remote only reports on/off; cast reports real playing/paused only for true Cast sessions. -#}
       {#- Infer 'playing' from the Android TV foreground app_id. Caveat: a native app cannot expose pause -> a paused native app reads as 'playing'. -#}
       {%- set cast = "media_player.salon_chromecast" -%}
       {%- set atv = "media_player.bravia_4k_ae2" -%}
@@ -754,38 +753,45 @@
         service: media_player.volume_mute
         target:
           entity_id:
-            - media_player.salon_salon_bravia_tv
+            - media_player.sony_tv
         data:
           is_volume_muted: "{{ is_volume_muted }}"
       volume_set:
         service: media_player.volume_set
         target:
           entity_id:
-            - media_player.salon_salon_bravia_tv
+            - media_player.sony_tv
         data:
           volume_level: "{{ volume_level }}"
       volume_up:
         service: media_player.volume_up
         target:
           entity_id:
-            - media_player.salon_salon_bravia_tv
+            - media_player.sony_tv
       volume_down:
         service: media_player.volume_down
         target:
           entity_id:
-            - media_player.salon_salon_bravia_tv
+            - media_player.sony_tv
+      select_source:
+        service: media_player.select_source
+        target:
+          entity_id:
+            - media_player.sony_tv
+        data:
+          source: "{{ source }}"
+      # Power over RS-232 only: Android TV Remote's power is a POWER key toggle and
+      # could undo the RS-232 command if both were sent together.
       turn_on:
         service: media_player.turn_on
         target:
           entity_id:
-            - media_player.salon_salon_bravia_tv
-            - media_player.bravia_4k_ae2
+            - media_player.sony_tv
       turn_off:
         service: media_player.turn_off
         target:
           entity_id:
-            - media_player.salon_salon_bravia_tv
-            - media_player.bravia_4k_ae2
+            - media_player.sony_tv
       play_media:
         service: media_player.play_media
         data:
@@ -795,8 +801,10 @@
           entity_id:
             - media_player.salon_chromecast
     attributes:
-      is_volume_muted: media_player.salon_salon_bravia_tv|is_volume_muted
-      volume_level: media_player.salon_salon_bravia_tv|volume_level
+      is_volume_muted: media_player.sony_tv|is_volume_muted
+      volume_level: media_player.sony_tv|volume_level
+      source: media_player.sony_tv|source
+      source_list: media_player.sony_tv|source_list
 
       
   ########################## Universal kitchen Chromecast  ########################## 

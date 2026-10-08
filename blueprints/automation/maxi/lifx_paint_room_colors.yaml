@@ -1,0 +1,137 @@
+blueprint:
+  name: LIFX - paint the room's colours
+  description: When a room's light group switches into a colour mode or its colour
+    changes, collect every distinct colour currently shown by the bulbs in that group
+    and paint them across the group's LIFX lights with `lifx.paint_theme`.
+  domain: automation
+  author: Maxi
+  homeassistant:
+    min_version: 2024.10.0
+  input:
+    light_group:
+      name: Room light group
+      description: Light group for the room. Nested groups are expanded. Every bulb
+        in it is a colour source; only its LIFX members get painted.
+      selector:
+        entity:
+          filter:
+          - domain:
+            - light
+            integration: group
+          multiple: false
+          reorder: false
+    settle_time:
+      name: Settle time
+      description: Wait this long after the trigger so every bulb has reported its
+        new colour before the palette is read.
+      default:
+        seconds: 2
+      selector:
+        duration:
+          enable_second: true
+    transition:
+      name: Transition
+      default: 1
+      selector:
+        number:
+          min: 0.0
+          max: 60.0
+          step: 0.5
+          unit_of_measurement: s
+          mode: slider
+    power_on:
+      name: Turn on LIFX lights that are off
+      description: 'Off: LIFX lights that are off get the painted colours silently
+        and show them next time they turn on. On: they are switched on.'
+      default: false
+      selector:
+        boolean: {}
+    include_white:
+      name: Include white bulbs
+      description: Also add bulbs in colour-temperature mode to the palette as whites
+        at their current Kelvin.
+      default: false
+      selector:
+        boolean: {}
+mode: restart
+variables:
+  light_group: !input light_group
+  include_white: !input include_white
+  color_modes:
+  - hs
+  - xy
+  - rgb
+  - rgbw
+  - rgbww
+triggers:
+- trigger: state
+  id: into_colour
+  entity_id: !input light_group
+  attribute: color_mode
+  to:
+  - hs
+  - xy
+  - rgb
+  - rgbw
+  - rgbww
+  not_from:
+  - hs
+  - xy
+  - rgb
+  - rgbw
+  - rgbww
+- trigger: state
+  id: colour_changed
+  entity_id: !input light_group
+  attribute: hs_color
+conditions:
+- condition: state
+  entity_id: !input light_group
+  attribute: color_mode
+  state:
+  - hs
+  - xy
+  - rgb
+  - rgbw
+  - rgbww
+- condition: or
+  conditions:
+  - condition: trigger
+    id: into_colour
+  - condition: template
+    value_template: "{{ (expand(light_group) | sort(attribute='last_updated', reverse=true)\n
+      \   | first).entity_id not in integration_entities('lifx') }}"
+actions:
+- delay: !input settle_time
+- variables:
+    lifx_lights: "{{ expand(light_group) | map(attribute='entity_id')\n   | select('in',
+      integration_entities('lifx')) | list }}"
+    brightness: '{{ [((state_attr(light_group, ''brightness'') | int(255)) / 255)
+      | round(3), 0.004] | max }}'
+    palette: "{%- set ns = namespace(all=[], ranked=[], sectors=[], palette=[]) -%}
+      {%- for s in expand(light_group) | selectattr('state', 'eq', 'on') -%}\n  {%-
+      set mode = s.attributes.color_mode -%}\n  {%- set hs = s.attributes.hs_color
+      -%}\n  {%- set kelvin = s.attributes.color_temp_kelvin -%}\n  {%- if mode in
+      color_modes and hs -%}\n    {%- set ns.all = ns.all + [[hs[0] | round(0) | int,
+      (hs[1] / 100) | round(2), brightness, 3500]] -%}\n  {%- elif include_white and
+      mode == 'color_temp' and kelvin -%}\n    {%- set ns.all = ns.all + [[0, 0, brightness,
+      kelvin | int]] -%}\n  {%- endif -%}\n{%- endfor -%} {#- Distinct colours, the
+      ones on the most bulbs first -#} {%- for c in ns.all -%}\n  {%- if c not in
+      (ns.ranked | map(attribute='1') | list) -%}\n    {%- set ns.ranked = ns.ranked
+      + [[ns.all | select('eq', c) | list | count, c]] -%}\n  {%- endif -%}\n{%- endfor
+      -%} {%- set ranked = ns.ranked | sort(attribute='0', reverse=true) | map(attribute='1')
+      | list -%} {#- Over 16: keep the most common colour in each 16th of the colour
+      wheel -#} {%- for c in ranked -%}\n  {%- set sector = 'white' ~ c[3] if c[1]
+      < 0.1 else ((c[0] / 22.5) | round(0) | int) % 16 -%}\n  {%- if sector not in
+      ns.sectors -%}\n    {%- set ns.sectors = ns.sectors + [sector] -%}\n    {%-
+      set ns.palette = ns.palette + [c] -%}\n  {%- endif -%}\n{%- endfor -%} {{ ranked
+      if ranked | count <= 16 else ns.palette[:16] }}"
+- condition: template
+  value_template: '{{ lifx_lights | count > 0 and palette | count > 0 }}'
+- action: lifx.paint_theme
+  target:
+    entity_id: '{{ lifx_lights }}'
+  data:
+    palette: '{{ palette if palette | count > 1 else palette + palette }}'
+    transition: !input transition
+    power_on: !input power_on
