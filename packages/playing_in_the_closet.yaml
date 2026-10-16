@@ -1,0 +1,35 @@
+template:
+- triggers:
+  - trigger: numeric_state
+    entity_id: sensor.closet_humidity_rise_10m
+    above: 2
+    for: "00:00:03"
+    id: humidity_spike
+  - trigger: state
+    entity_id: binary_sensor.group_closet_motion_occupancy
+    to: "off"
+    for: "00:10:00"
+    id: vacancy
+  - trigger: time_pattern
+    minutes: "/1"
+    id: vacancy_recovery
+  binary_sensor:
+  - name: Playing in the closet
+    unique_id: playing_in_the_closet
+    icon: mdi:hanger
+    state: >-
+      {% set occ = 'binary_sensor.group_closet_motion_occupancy' %}
+      {% set temp = 'sensor.closet_sensor_closet_temperature_closet_temperature_rise_45m' %}
+      {% if is_state(occ, 'off') and
+            (trigger.id == 'vacancy' or
+             (now() - states.binary_sensor.group_closet_motion_occupancy.last_changed).total_seconds() >= 600) %}
+        false
+      {% elif trigger.id == 'humidity_spike' and
+              is_state(occ, 'on') and
+              (now() - states.sensor.sensor_closet_temperature_humidity.last_changed).total_seconds() <= 30 and
+              has_value(temp) and
+              states(temp) | float(-100) >= 0.3 %}
+        true
+      {% else %}
+        {{ this.state == 'on' }}
+      {% endif %}

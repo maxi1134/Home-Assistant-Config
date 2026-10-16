@@ -1990,3 +1990,86 @@
           vacuum: >-
             {{ states('vacuum.roborock_qrevo_curv_series') }} /
             {{ states('sensor.roborock_qrevo_curv_series_current_room') }}
+
+  # ─── Dashboard Counters ───
+  # Small counts for the Maxi PC header badges.
+  # Room lights come from the room_light label because the light domain is full of
+  # status LEDs and keyboard zones; doors are an explicit list of door contacts.
+  - sensor:
+      - name: "Room Lights On"
+        unique_id: room_lights_on
+        icon: mdi:lightbulb-group
+        state_class: measurement
+        state: >-
+          {{ label_entities('room_light') | select('is_state', 'on') | list | count }}
+        attributes:
+          lights: >-
+            {{ label_entities('room_light') | select('is_state', 'on')
+               | map('state_attr', 'friendly_name') | list }}
+
+      - name: "Doors Open"
+        unique_id: doors_open
+        icon: mdi:door-open
+        state: >-
+          {{ expand(
+               'binary_sensor.sensor_front_door_contact',
+               'binary_sensor.sensor_front_outside_door_contact',
+               'binary_sensor.sensor_back_outside_door_contact',
+               'binary_sensor.sensor_patio_door_contact',
+               'binary_sensor.sensor_server_door_contact',
+               'binary_sensor.sensor_bathroom_door_contact',
+               'binary_sensor.sensor_hotbox_door_contact',
+               'binary_sensor.sensor_bedroom_door_contact')
+             | selectattr('state', 'eq', 'on') | list | count }}
+        attributes:
+          doors: >-
+            {{ expand(
+                 'binary_sensor.sensor_front_door_contact',
+                 'binary_sensor.sensor_front_outside_door_contact',
+                 'binary_sensor.sensor_back_outside_door_contact',
+                 'binary_sensor.sensor_patio_door_contact',
+                 'binary_sensor.sensor_server_door_contact',
+                 'binary_sensor.sensor_bathroom_door_contact',
+                 'binary_sensor.sensor_hotbox_door_contact',
+                 'binary_sensor.sensor_bedroom_door_contact')
+               | selectattr('state', 'eq', 'on')
+               | map(attribute='name') | map('replace', 'sensor ', '') | list }}
+
+  # Battery and update counts scan whole domains, so refresh on a timer instead of
+  # on every sensor change. Phones are left out: they cross 30% daily.
+  - trigger:
+      - trigger: time_pattern
+        minutes: "/5"
+      - trigger: homeassistant
+        event: start
+      - trigger: event
+        event_type: event_template_reloaded
+    sensor:
+      - name: "Low Batteries"
+        unique_id: low_batteries
+        icon: mdi:battery-alert
+        state: >-
+          {{ states.sensor
+             | selectattr('attributes.device_class', 'defined')
+             | selectattr('attributes.device_class', 'eq', 'battery')
+             | rejectattr('entity_id', 'search', '^sensor\.phone_')
+             | map(attribute='state') | select('is_number') | map('float')
+             | select('lt', 30) | list | count }}
+        attributes:
+          batteries: >-
+            {% set ns = namespace(low=[]) %}
+            {% for s in states.sensor
+                 | selectattr('attributes.device_class', 'defined')
+                 | selectattr('attributes.device_class', 'eq', 'battery')
+                 | rejectattr('entity_id', 'search', '^sensor\.phone_')
+                 if s.state | is_number and s.state | float < 30 %}
+              {% set ns.low = ns.low + [s.name ~ ' ' ~ (s.state | float | round(0) | int) ~ '%'] %}
+            {% endfor %}
+            {{ ns.low }}
+
+      - name: "Pending Updates"
+        unique_id: pending_updates
+        icon: mdi:package-up
+        state: "{{ states.update | selectattr('state', 'eq', 'on') | list | count }}"
+        attributes:
+          updates: "{{ states.update | selectattr('state', 'eq', 'on') | map(attribute='name') | list }}"

@@ -40,9 +40,8 @@ substitutions:
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
-  min_version: 2026.8.0  # esphome-audio-stack v2026.9.0 + the intercom v2026.9.0 speaker
-                         # fork are aligned with ESPHome 2026.8 (callback-based
-                         # automation contract) and ESP-IDF 5.5.5
+  min_version: 2026.9.0  # validated on ESPHome 2026.9.1 with esphome-audio-stack v2026.9.2
+                         # + the intercom v2026.9.2 speaker fork
   name_add_mac_suffix: false
   on_boot:
     - priority: 600
@@ -63,13 +62,14 @@ esphome:
 
 external_components:
   # Audio backend (esp_audio_stack + esp_aec) lives in the dedicated
-  # esphome-audio-stack repo since 2026.7.0; v2026.9.0 is aligned with
-  # ESPHome 2026.8 / ESP-IDF 5.5.5 and pins the esp_codec_dev IDF component.
-  - source: github://n-IA-hane/esphome-audio-stack@v2026.9.0
+  # esphome-audio-stack repo since 2026.7.0; v2026.9.2 is the newest release
+  # on the stable esp_codec_dev 1.x line (library versions pinned under
+  # esp32: framework: components:).
+  - source: github://n-IA-hane/esphome-audio-stack@v2026.9.2
     components: [esp_audio_stack, esp_aec]
   # The speaker/media_player fork (pause_releases_pipeline) still ships with
-  # esphome-intercom; v2026.9.0 tracks the ESPHome 2026.8-era core.
-  - source: github://n-IA-hane/esphome-intercom@v2026.9.0
+  # esphome-intercom; v2026.9.2 = ESPHome 2026.9.1 core + that patch.
+  - source: github://n-IA-hane/esphome-intercom@v2026.9.2
     components: [speaker]
 
 
@@ -95,6 +95,24 @@ esp32:
       CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP: "y"
       CONFIG_MDNS_TASK_CREATE_FROM_SPIRAM: "y"
       CONFIG_MDNS_MEMORY_ALLOC_SPIRAM: "y"
+    # Exact pins for the audio libraries esphome-audio-stack v2026.9.2 only
+    # declares as caret ranges. YAML-declared components override a
+    # component's own refs, so a fleet rebuild can't silently pick up
+    # unreviewed codec/AEC code. These are the versions audited + compiled
+    # on 2026-10-14: esp_codec_dev 1.6.2 keeps the ES7210 TDM driver and the
+    # I2S/TDM data interface byte-identical to the hardware-validated 1.5.10
+    # (ES8311 register writes incl. reg 0x32 unchanged). Do NOT move to
+    # esp_codec_dev 2.0.0-beta (audio-stack >= v2026.10.0) without a hardware
+    # duplex/AEC test: 2.x takes over I2S bring-up and TDM slot mapping.
+    # The builder logs "IDF component ... version conflict ^x replaced by y"
+    # for each entry below — that is the override working, not an error.
+    components:
+      - name: espressif/esp_codec_dev
+        ref: 1.6.2
+      - name: espressif/esp_audio_effects
+        ref: 1.4.3
+      - name: espressif/esp-sr
+        ref: 2.6.0
 
 psram:
   mode: octal
@@ -543,12 +561,16 @@ micro_wake_word:
         # haven't already cancelled — if user_cancelled is true, the announcing
         # state is stale (the network HTTP reader hasn't released yet) and a new
         # wake word should start a fresh turn instead of looping back into cancel.
+        # A ringing timer ALWAYS counts, independent of user_cancelled (same as
+        # the touch handler), so 'Stop' dismisses the alarm even after a cancel
+        # that left user_cancelled set.
         condition:
           or:
             - voice_assistant.is_running:
             - and:
                 - media_player.is_announcing:
                 - lambda: 'return !id(user_cancelled);'
+            - switch.is_on: timer_ringing
         then:
           # A repeated activation word doesn't just cancel — it re-opens
           # listening for a fresh turn ('Stop' stays cancel-only). ORDER
@@ -566,11 +588,15 @@ micro_wake_word:
           # word, model double-fires, impatient re-utterances) must NOT run
           # global_cancel again — a second cancel can kill the very turn the
           # restart machinery just started. Updating pending_wake_restart
-          # above is enough.
+          # above is enough. A ringing alarm bypasses the guard (global_cancel
+          # switches timer_ringing off synchronously).
           - if:
               condition:
-                lambda: 'return !id(user_cancelled);'
+                lambda: 'return !id(user_cancelled) || id(timer_ringing).state;'
               then:
+                # 'Stop' stays cancel-only: when it rings off the alarm, drop any
+                # leftover restart request so the cancel can't start a turn.
+                - lambda: 'if (wake_word == "Stop" && id(timer_ringing).state) id(pending_wake_restart).clear();'
                 - script.execute: global_cancel
           - if:
               condition:
@@ -652,6 +678,7 @@ voice_assistant:
           - lambda: id(voice_assistant_phase) = ${voice_assist_replying_phase_id};
           - script.execute: draw_display
   on_end:
+    - lambda: id(turn_end_started_ms) = millis();
     # ── FAST BARGE-IN RESTART ────────────────────────────────────────────
     # A repeated wake word mid-turn requested a fresh turn. The cancel already
     # stopped the media player, flushed+paused the speaker and painted the
@@ -794,6 +821,15 @@ voice_assistant:
                       # Show a visible "busy" indicator so user knows the device is alive but waiting.
                       - lambda: id(voice_assistant_phase) = ${voice_assist_error_phase_id};
                       - script.execute: draw_display
+                    else:
+                      # Nothing playing, no turn live: this turn's cancel is resolved.
+                      # A cancel that ran while nothing was playing never reaches
+                      # media_player.on_idle, so clear the marker here (kept while
+                      # still announcing — the wedge recovery relies on it). Only for
+                      # a cancel older than this turn-end (wraparound-safe compare).
+                      - lambda: |-
+                          if ((int32_t) (id(turn_end_started_ms) - id(last_cancel_ms)) >= 0)
+                            id(user_cancelled) = false;
                 # Restart only mWW if enabled; streaming wake words automatically restart.
                 # (Can't reuse start_wake_word here — its `not voice_assistant.is_running`
                 # guard can still be false while on_end is executing.)
@@ -862,7 +898,9 @@ voice_assistant:
 script:
   - id: global_cancel
     then:
-      - lambda: id(user_cancelled) = true;
+      - lambda: |-
+          id(user_cancelled) = true;
+          id(last_cancel_ms) = millis();
       - voice_assistant.stop:
       - media_player.stop:
           announcement: true
@@ -1379,6 +1417,18 @@ globals:
     type: bool
     restore_value: false
     initial_value: "false"
+  # millis() of the last global_cancel / of the latest voice_assistant.on_end
+  # entry. on_end's cleanup only clears user_cancelled for a cancel that
+  # happened BEFORE that turn-end began, so it can never wipe the flag of a
+  # newer turn's cancel (wedge + repeated barge-in race).
+  - id: last_cancel_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+  - id: turn_end_started_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
   # Wake word that requested a cancel+restart, consumed by voice_assistant.on_end.
   # Empty = no restart pending.
   - id: pending_wake_restart

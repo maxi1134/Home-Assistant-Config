@@ -2,7 +2,8 @@ blueprint:
   name: LIFX - paint the room's colours
   description: When a room's light group switches into a colour mode or its colour
     changes, collect every distinct colour currently shown by the bulbs in that group
-    and paint them across the group's LIFX lights with `lifx.paint_theme`.
+    and paint them across the group's LIFX lights with zones with `lifx.paint_theme`.
+    Paused while a party mode is on.
   domain: automation
   author: Maxi
   homeassistant:
@@ -10,8 +11,9 @@ blueprint:
   input:
     light_group:
       name: Room light group
-      description: Light group for the room. Nested groups are expanded. Every bulb
-        in it is a colour source; only its LIFX members get painted.
+      description: Light group for the room. Nested groups are expanded. Its LIFX
+        lights with zones get painted; the other bulbs, simple LIFX bulbs included,
+        provide the colours.
       selector:
         entity:
           filter:
@@ -19,6 +21,20 @@ blueprint:
             - light
             integration: group
           multiple: false
+          reorder: false
+    party_modes:
+      name: Party modes
+      description: Don't paint while any of these is on (the morph automation takes
+        over). Repaint when the last one turns off.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+          - domain:
+            - input_boolean
+            - switch
+            - binary_sensor
           reorder: false
     settle_time:
       name: Settle time
@@ -53,16 +69,29 @@ blueprint:
       default: false
       selector:
         boolean: {}
+    ignore_painted_colours:
+      name: Ignore the painted lights' colours
+      description: Build the palette only from the room's other bulbs, leaving out
+        the colours of the LIFX lights being painted.
+      default: true
+      selector:
+        boolean: {}
 mode: restart
 variables:
   light_group: !input light_group
   include_white: !input include_white
+  ignore_painted_colours: !input ignore_painted_colours
   color_modes:
   - hs
   - xy
   - rgb
   - rgbw
   - rgbww
+  painted_lights: "{%- set lifx = integration_entities('lifx') -%} {%- set ns = namespace(lights=[])
+    -%} {%- for s in expand(light_group) if s.entity_id in lifx -%}\n  {%- if (s.attributes.get('effect_list')
+    or [])\n        | select('in', ['effect_move', 'effect_morph', 'effect_flame',
+    'effect_sky'])\n        | list | count > 0 -%}\n    {%- set ns.lights = ns.lights
+    + [s.entity_id] -%}\n  {%- endif -%}\n{%- endfor -%} {{ ns.lights }}"
 triggers:
 - trigger: state
   id: into_colour
@@ -84,7 +113,18 @@ triggers:
   id: colour_changed
   entity_id: !input light_group
   attribute: hs_color
+- trigger: state
+  id: party_ended
+  entity_id: !input party_modes
+  from: 'on'
+  to: 'off'
 conditions:
+- condition: not
+  conditions:
+  - condition: state
+    entity_id: !input party_modes
+    state: 'on'
+    match: any
 - condition: state
   entity_id: !input light_group
   attribute: color_mode
@@ -97,20 +137,21 @@ conditions:
 - condition: or
   conditions:
   - condition: trigger
-    id: into_colour
+    id:
+    - into_colour
+    - party_ended
   - condition: template
     value_template: "{{ (expand(light_group) | sort(attribute='last_updated', reverse=true)\n
-      \   | first).entity_id not in integration_entities('lifx') }}"
+      \   | first).entity_id not in painted_lights }}"
 actions:
 - delay: !input settle_time
 - variables:
-    lifx_lights: "{{ expand(light_group) | map(attribute='entity_id')\n   | select('in',
-      integration_entities('lifx')) | list }}"
     brightness: '{{ [((state_attr(light_group, ''brightness'') | int(255)) / 255)
       | round(3), 0.004] | max }}'
     palette: "{%- set ns = namespace(all=[], ranked=[], sectors=[], palette=[]) -%}
-      {%- for s in expand(light_group) | selectattr('state', 'eq', 'on') -%}\n  {%-
-      set mode = s.attributes.color_mode -%}\n  {%- set hs = s.attributes.hs_color
+      {%- for s in expand(light_group) | selectattr('state', 'eq', 'on')\n      |
+      rejectattr('entity_id', 'in', painted_lights if ignore_painted_colours else
+      []) -%}\n  {%- set mode = s.attributes.color_mode -%}\n  {%- set hs = s.attributes.hs_color
       -%}\n  {%- set kelvin = s.attributes.color_temp_kelvin -%}\n  {%- if mode in
       color_modes and hs -%}\n    {%- set ns.all = ns.all + [[hs[0] | round(0) | int,
       (hs[1] / 100) | round(2), brightness, 3500]] -%}\n  {%- elif include_white and
@@ -127,10 +168,10 @@ actions:
       set ns.palette = ns.palette + [c] -%}\n  {%- endif -%}\n{%- endfor -%} {{ ranked
       if ranked | count <= 16 else ns.palette[:16] }}"
 - condition: template
-  value_template: '{{ lifx_lights | count > 0 and palette | count > 0 }}'
+  value_template: '{{ painted_lights | count > 0 and palette | count > 0 }}'
 - action: lifx.paint_theme
   target:
-    entity_id: '{{ lifx_lights }}'
+    entity_id: '{{ painted_lights }}'
   data:
     palette: '{{ palette if palette | count > 1 else palette + palette }}'
     transition: !input transition

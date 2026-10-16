@@ -338,8 +338,45 @@
                       }
                     },
                     {
-                      "type": "horizontal-stack",
+                      "type": "vertical-stack",
                       "cards": [
+                        {
+                          "type": "conditional",
+                          "conditions": [
+                            {
+                              "condition": "state",
+                              "entity": "media_player.universal_workshop_chromecast",
+                              "state_not": "off"
+                            }
+                          ],
+                          "card": {
+                            "type": "custom:yet-another-media-player",
+                            "entities": [
+                              {
+                                "entity_id": "media_player.universal_workshop_chromecast"
+                              }
+                            ],
+                            "card_type": "default",
+                            "dim_chips_on_idle": true,
+                            "appearance": "dark",
+                            "alternate_progress_bar": false,
+                            "match_theme": false,
+                            "display_timestamps": true,
+                            "search_view": "card_minimal",
+                            "control_layout": "modern",
+                            "swap_pause_for_stop": false,
+                            "adaptive_controls": false,
+                            "hide_active_entity_label": false,
+                            "adaptive_text_targets": [],
+                            "details_alignment": "left",
+                            "volume_mode": "stepper",
+                            "volume_step": 0.02,
+                            "collapse_on_idle": false,
+                            "hide_menu_player": false,
+                            "extend_artwork": false,
+                            "card_height": "{# TV + speaker both shown: TV gets what the speaker card leaves below the sliders (Tab A8 = 901x1442 CSS px); 1020 when alone #}\n{% set w = states('media_player.mass_workshop_wiim_speaker') %}\n{% set g = states('media_player.group_mass_home_group_speakers') %}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{{ (372 if clock_shown else 405) if w != 'off' and (g != 'off' or w != 'idle') else 1020 }}"
+                          }
+                        },
                         {
                           "type": "conditional",
                           "conditions": [
@@ -384,49 +421,12 @@
                             "collapse_on_idle": false,
                             "hide_menu_player": false,
                             "extend_artwork": false,
-                            "card_height": 1020,
+                            "card_height": "{# TV shown too: take ~65% of the space below the sliders (TV gets the rest); 1020 when alone #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{{ (690 if clock_shown else 753) if not is_state('media_player.universal_workshop_chromecast', 'off') else 1020 }}",
                             "always_show_lyrics": true,
                             "lyrics_mode": "default",
                             "lyrics_pre_roll": 17,
                             "lyrics_source": "lrclib",
                             "search_results_sort": "play_count_desc"
-                          }
-                        },
-                        {
-                          "type": "conditional",
-                          "conditions": [
-                            {
-                              "condition": "state",
-                              "entity": "media_player.universal_workshop_chromecast",
-                              "state_not": "off"
-                            }
-                          ],
-                          "card": {
-                            "type": "custom:yet-another-media-player",
-                            "entities": [
-                              {
-                                "entity_id": "media_player.universal_workshop_chromecast"
-                              }
-                            ],
-                            "card_type": "default",
-                            "dim_chips_on_idle": true,
-                            "appearance": "dark",
-                            "alternate_progress_bar": false,
-                            "match_theme": false,
-                            "display_timestamps": true,
-                            "search_view": "card_minimal",
-                            "control_layout": "modern",
-                            "swap_pause_for_stop": false,
-                            "adaptive_controls": false,
-                            "hide_active_entity_label": false,
-                            "adaptive_text_targets": [],
-                            "details_alignment": "left",
-                            "volume_mode": "stepper",
-                            "volume_step": 0.02,
-                            "collapse_on_idle": false,
-                            "hide_menu_player": false,
-                            "extend_artwork": false,
-                            "card_height": 1020
                           }
                         },
                         {
@@ -441,6 +441,16 @@
                               "condition": "state",
                               "entity": "media_player.mass_workshop_wiim_speaker",
                               "state_not": "off"
+                            },
+                            {
+                              "condition": "not",
+                              "conditions": [
+                                {
+                                  "condition": "numeric_state",
+                                  "entity": "sensor.workshop_tablet_battery",
+                                  "below": 35
+                                }
+                              ]
                             }
                           ],
                           "card": {
@@ -449,7 +459,10 @@
                               {
                                 "type": "iframe",
                                 "url": "http://192.168.0.15:8095/#/party?frameless=true",
-                                "aspect_ratio": "106.5%"
+                                "aspect_ratio": "106.5%",
+                                "card_mod": {
+                                  "style": "{# TV shown too: size the iframe so this card (iframe + ~111px of controls) is 690/753px tall #}\n{% if not is_state('media_player.universal_workshop_chromecast', 'off') %}\n#root {\n  padding-top: 0 !important;\n  height: {{ 579 if is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') else 642 }}px !important;\n}\n{% endif %}"
+                                }
                               },
                               {
                                 "type": "custom:mushroom-media-player-card",
@@ -492,6 +505,58 @@
                                 "icon_type": "none"
                               }
                             ]
+                          }
+                        },
+                        {
+                          "type": "conditional",
+                          "conditions": [
+                            {
+                              "condition": "state",
+                              "entity": "media_player.group_mass_home_group_speakers",
+                              "state_not": "off"
+                            },
+                            {
+                              "condition": "state",
+                              "entity": "media_player.mass_workshop_wiim_speaker",
+                              "state_not": "off"
+                            },
+                            {
+                              "condition": "numeric_state",
+                              "entity": "sensor.workshop_tablet_battery",
+                              "below": 35
+                            }
+                          ],
+                          "card": {
+                            "type": "custom:yet-another-media-player",
+                            "entities": [
+                              {
+                                "entity_id": "media_player.mass_workshop_wiim_speaker"
+                              }
+                            ],
+                            "card_type": "default",
+                            "dim_chips_on_idle": true,
+                            "appearance": "dark",
+                            "alternate_progress_bar": false,
+                            "match_theme": false,
+                            "display_timestamps": true,
+                            "search_view": "card_minimal",
+                            "control_layout": "modern",
+                            "swap_pause_for_stop": false,
+                            "adaptive_controls": false,
+                            "hide_active_entity_label": false,
+                            "adaptive_text_targets": [],
+                            "details_alignment": "left",
+                            "volume_mode": "stepper",
+                            "volume_step": 0.02,
+                            "collapse_on_idle": false,
+                            "hide_menu_player": false,
+                            "extend_artwork": false,
+                            "card_height": "{# battery saver: stands in for the MA party block (iframe + controls), so the same height: 690/753 with the TV shown, else the 106.5% iframe + controls #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{{ (690 if clock_shown else 753) if not is_state('media_player.universal_workshop_chromecast', 'off') else 1068 }}",
+                            "always_show_lyrics": true,
+                            "lyrics_mode": "default",
+                            "lyrics_pre_roll": 17,
+                            "lyrics_source": "lrclib",
+                            "search_results_sort": "play_count_desc"
                           }
                         }
                       ]

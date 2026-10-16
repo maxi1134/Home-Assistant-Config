@@ -1,0 +1,198 @@
+blueprint:
+  name: LIFX - morph the room's colours
+  description: While a party mode is on, when a room's light group switches into a
+    colour mode or its colour changes, run `lifx.effect_morph` on the group's LIFX
+    lights that support it, using the distinct colours shown by the room's other lights.
+    The morph stops when the last party mode turns off.
+  domain: automation
+  author: Maxi
+  homeassistant:
+    min_version: 2024.10.0
+  input:
+    light_group:
+      name: Room light group
+      description: Light group for the room. Nested groups are expanded. Its LIFX
+        lights that support morph run the effect; every other bulb is a colour source.
+      selector:
+        entity:
+          filter:
+          - domain:
+            - light
+            integration: group
+          multiple: false
+          reorder: false
+    party_modes:
+      name: Party modes
+      description: Morph only while at least one of these is on. When the last one
+        turns off, the morph stops.
+      selector:
+        entity:
+          multiple: true
+          filter:
+          - domain:
+            - input_boolean
+            - switch
+            - binary_sensor
+          reorder: false
+    settle_time:
+      name: Settle time
+      description: Wait this long after the trigger so every bulb has reported its
+        new colour before the palette is read.
+      default:
+        seconds: 2
+      selector:
+        duration:
+          enable_second: true
+    speed:
+      name: Morph speed
+      description: Seconds per morph cycle.
+      default: 25
+      selector:
+        number:
+          min: 1.0
+          max: 25.0
+          step: 1.0
+          unit_of_measurement: s
+          mode: slider
+    power_on:
+      name: Turn on morph lights that are off
+      description: 'Off: morph lights that are off are not switched on. On: they are.'
+      default: false
+      selector:
+        boolean: {}
+    include_white:
+      name: Include white bulbs
+      description: Also add bulbs in colour-temperature mode to the palette as whites
+        at their current Kelvin.
+      default: false
+      selector:
+        boolean: {}
+mode: restart
+variables:
+  light_group: !input light_group
+  include_white: !input include_white
+  color_modes:
+  - hs
+  - xy
+  - rgb
+  - rgbw
+  - rgbww
+  morph_lights: "{%- set lifx = integration_entities('lifx') -%} {%- set ns = namespace(lights=[])
+    -%} {%- for s in expand(light_group) -%}\n  {%- if s.entity_id in lifx and 'effect_morph'
+    in (s.attributes.get('effect_list') or []) -%}\n    {%- set ns.lights = ns.lights
+    + [s.entity_id] -%}\n  {%- endif -%}\n{%- endfor -%} {{ ns.lights }}"
+triggers:
+- trigger: state
+  id: into_colour
+  entity_id: !input light_group
+  attribute: color_mode
+  to:
+  - hs
+  - xy
+  - rgb
+  - rgbw
+  - rgbww
+  not_from:
+  - hs
+  - xy
+  - rgb
+  - rgbw
+  - rgbww
+- trigger: state
+  id: colour_changed
+  entity_id: !input light_group
+  attribute: hs_color
+- trigger: state
+  id: party_started
+  entity_id: !input party_modes
+  from: 'off'
+  to: 'on'
+- trigger: state
+  id: party_ended
+  entity_id: !input party_modes
+  from: 'on'
+  to: 'off'
+conditions:
+- condition: or
+  conditions:
+  - condition: and
+    conditions:
+    - condition: trigger
+      id: party_ended
+    - condition: not
+      conditions:
+      - condition: state
+        entity_id: !input party_modes
+        state: 'on'
+        match: any
+  - condition: and
+    conditions:
+    - condition: state
+      entity_id: !input party_modes
+      state: 'on'
+      match: any
+    - condition: state
+      entity_id: !input light_group
+      attribute: color_mode
+      state:
+      - hs
+      - xy
+      - rgb
+      - rgbw
+      - rgbww
+    - condition: or
+      conditions:
+      - condition: trigger
+        id:
+        - into_colour
+        - party_started
+      - condition: template
+        value_template: "{{ (expand(light_group) | sort(attribute='last_updated',
+          reverse=true)\n    | first).entity_id not in morph_lights }}"
+actions:
+- if:
+  - condition: trigger
+    id: party_ended
+  then:
+  - variables:
+      morphing: "{{ expand(morph_lights) | selectattr('attributes.effect', 'eq', 'effect_morph')\n
+        \  | map(attribute='entity_id') | list }}"
+  - if:
+    - condition: template
+      value_template: '{{ morphing | count > 0 }}'
+    then:
+    - action: lifx.effect_stop
+      target:
+        entity_id: '{{ morphing }}'
+  - stop: Party over, morph stopped
+- delay: !input settle_time
+- variables:
+    brightness: '{{ [((state_attr(light_group, ''brightness'') | int(255)) / 255)
+      | round(3), 0.004] | max }}'
+    palette: "{%- set ns = namespace(all=[], ranked=[], sectors=[], palette=[]) -%}
+      {%- for s in expand(light_group) | selectattr('state', 'eq', 'on')\n      |
+      rejectattr('entity_id', 'in', morph_lights) -%}\n  {%- set mode = s.attributes.color_mode
+      -%}\n  {%- set hs = s.attributes.hs_color -%}\n  {%- set kelvin = s.attributes.color_temp_kelvin
+      -%}\n  {%- if mode in color_modes and hs -%}\n    {%- set ns.all = ns.all +
+      [[hs[0] | round(0) | int, (hs[1] / 100) | round(2), brightness, 3500]] -%}\n
+      \ {%- elif include_white and mode == 'color_temp' and kelvin -%}\n    {%- set
+      ns.all = ns.all + [[0, 0, brightness, kelvin | int]] -%}\n  {%- endif -%}\n{%-
+      endfor -%} {#- Distinct colours, the ones on the most bulbs first -#} {%- for
+      c in ns.all -%}\n  {%- if c not in (ns.ranked | map(attribute='1') | list) -%}\n
+      \   {%- set ns.ranked = ns.ranked + [[ns.all | select('eq', c) | list | count,
+      c]] -%}\n  {%- endif -%}\n{%- endfor -%} {%- set ranked = ns.ranked | sort(attribute='0',
+      reverse=true) | map(attribute='1') | list -%} {#- Over 16: keep the most common
+      colour in each 16th of the colour wheel -#} {%- for c in ranked -%}\n  {%- set
+      sector = 'white' ~ c[3] if c[1] < 0.1 else ((c[0] / 22.5) | round(0) | int)
+      % 16 -%}\n  {%- if sector not in ns.sectors -%}\n    {%- set ns.sectors = ns.sectors
+      + [sector] -%}\n    {%- set ns.palette = ns.palette + [c] -%}\n  {%- endif -%}\n{%-
+      endfor -%} {{ ranked if ranked | count <= 16 else ns.palette[:16] }}"
+- condition: template
+  value_template: '{{ morph_lights | count > 0 and palette | count > 0 }}'
+- action: lifx.effect_morph
+  target:
+    entity_id: '{{ morph_lights }}'
+  data:
+    palette: '{{ palette if palette | count > 1 else palette + palette }}'
+    speed: !input speed
+    power_on: !input power_on

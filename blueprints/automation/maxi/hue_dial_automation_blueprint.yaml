@@ -104,6 +104,18 @@ triggers:
   subtype: button_1
   trigger: device
   id: button_1_quintuple_press
+- device_id: !input dial_device
+  domain: zha
+  type: remote_button_triple_press
+  subtype: button_1
+  trigger: device
+  id: button_1_triple_press
+- device_id: !input dial_device
+  domain: zha
+  type: remote_button_triple_press
+  subtype: button_3
+  trigger: device
+  id: button_3_triple_press
 conditions: []
 actions:
 - choose:
@@ -331,6 +343,61 @@ actions:
           speed: 3
         target:
           entity_id: '{{ morph_lights }}'
+  - conditions:
+    - condition: trigger
+      id:
+      - button_1_triple_press
+    sequence:
+    - variables:
+        room_areas: "{{ ((expand(controlled_light) | map(attribute='entity_id')\n
+          \    | map('area_id') | list)\n    + [area_id(controlled_light)])\n   |
+          reject('none') | unique | list }}"
+        morph_automations: "{%- set ns = namespace(c=[]) -%} {%- for a in room_areas
+          -%}\n  {%- set ns.c = ns.c\n      + ['automation.' ~ a ~ '_lifx_morph_room_colours']
+          -%}\n{%- endfor -%} {{ expand(ns.c) | map(attribute='entity_id') | list
+          }}"
+        morph_lights_off: "{{ expand(room_areas | map('area_entities') | sum(start=[])\n
+          \         | select('match', 'light\\.') | list)\n   | selectattr('attributes.effect_list',
+          'defined')\n   | rejectattr('attributes.effect_list', 'none')\n   | selectattr('attributes.effect_list',
+          'contains', 'effect_morph')\n   | selectattr('state', 'eq', 'off')\n   |
+          map(attribute='entity_id') | unique | list }}"
+    - if:
+      - condition: template
+        value_template: '{{ morph_lights_off | count > 0 }}'
+      then:
+      - action: light.turn_on
+        target:
+          entity_id: '{{ morph_lights_off }}'
+      - delay:
+          seconds: 2
+    - if:
+      - condition: template
+        value_template: '{{ morph_automations | count > 0 }}'
+      then:
+      - action: automation.trigger
+        data:
+          skip_condition: true
+        target:
+          entity_id: '{{ morph_automations }}'
+  - conditions:
+    - condition: trigger
+      id:
+      - button_3_triple_press
+    sequence:
+    - variables:
+        room_areas: "{{ ((expand(controlled_light) | map(attribute='entity_id')\n
+          \    | map('area_id') | list)\n    + [area_id(controlled_light)])\n   |
+          reject('none') | unique | list }}"
+    - if:
+      - condition: template
+        value_template: '{{ room_areas | count > 0 }}'
+      then:
+      - action: script.turn_on
+        target:
+          entity_id: script.change_lights_in_an_area_to_a_random_fake_white
+        data:
+          variables:
+            area: '{{ room_areas }}'
   - conditions:
     - condition: trigger
       id:
