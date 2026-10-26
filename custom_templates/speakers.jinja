@@ -1,0 +1,35 @@
+{#-
+  ─── Speaker targets ────────────────────────────────────────────────────────
+  Which media_players to send whole-house audio to. Shared by
+  script.assist_broadcast, script.broadcast_alert_tts_announce,
+  script.broadcast_alert_play_audio_url, script.inside_only_home_defense_script
+  and the "Trigger police announcement on triggered alarm" automation.
+
+  Why: Music Assistant starts a powered-off sync group as ONE AirPlay session
+  across all of its members. If a single WiiM fails to connect (Salon Wiim's
+  AirPlay stopped answering on 2026-10-19), the whole session aborts and none
+  of the WiiMs play. Sending to each member separately limits a failure to
+  that one speaker. While the group is powered on, MA already hands an
+  announcement to each member itself, so the group is used as before.
+
+  home_group_members(group)  JSON list of the group's members.
+  home_group_targets(group)  JSON list: [group] while it is on, otherwise its
+                             members. Unavailable players are dropped.
+
+  Use:  {% from 'speakers.jinja' import home_group_targets %}
+        {{ home_group_targets() | from_json }}
+
+  After editing:  Developer Tools -> Actions -> "Reload custom Jinja2 templates"
+-#}
+
+{%- macro home_group_members(group='media_player.group_mass_home_group_speakers') -%}
+{{- (state_attr(group, 'group_members') or []) | reject('is_state', 'unavailable') | list | to_json -}}
+{%- endmacro -%}
+
+{%- macro home_group_targets(group='media_player.group_mass_home_group_speakers') -%}
+{%- if states(group) in ['off', 'unavailable', 'unknown'] -%}
+{{- home_group_members(group) -}}
+{%- else -%}
+{{- [group] | to_json -}}
+{%- endif -%}
+{%- endmacro -%}
