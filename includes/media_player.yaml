@@ -5,10 +5,11 @@
 #
 # Architecture:
 #   - Tablet universals: Combine Jellyfin players for tablet media playback
-#   - Chromecast universals: Wrap each room's Chromecast with Plex-aware active child
-#     selection (prefers the Plex entity when titles match, for better playback control)
+#   - Chromecast universals: one per video Chromecast, each acting as its room's TV
+#     (TV power, Plex artwork, controls routed to whichever device can do them);
+#     shared logic in custom_templates/universal_tv.jinja
 #   - Speaker universals (commented out): Were planned MASS/WiiM/LinkPlay wrappers
-#   - Following speaker (commented out): Would auto-route media to Maxi's current room
+#   - Following media: routes media to the player in Maxi's current room
 #
 # Most speaker universal players are commented out as they were replaced by
 # Music Assistant's native grouping and routing capabilities.
@@ -524,736 +525,678 @@
 #      
 # 
   ##########################  CHROMECASTS  ##########################
-  # Each room's Chromecast gets a universal media player wrapper.
-  # The active_child_template detects if Plex is playing on the Chromecast
-  # by matching media titles, and if so, selects the Plex entity as the
-  # active child. This allows play/pause/seek via Plex's richer API.
-  # Volume commands always route to the Chromecast hardware.
+  # One universal per video Chromecast; each one is the TV of its room.
+  # Shared logic: custom_templates/universal_tv.jinja (see its header).
+  #   state     tv_state: 'off' when the TV is off; else the cast session's state,
+  #             else a native TV app's playback, else 'idle' while a cast app is
+  #             open but stopped, else 'on' (screen on, nothing playing). A Home
+  #             Assistant dashboard on a screen counts as 'on', except on the
+  #             kitchen hub where it is the resting screen and counts as 'off'.
+  #   child     tv_child: the Plex entity playing the cast's Plex ratingKey, so the
+  #             Plex artwork and metadata show (and media_library_title, which the
+  #             light automations read through active_child); else the native TV
+  #             app while it plays; else the cast.
+  #   play / pause / stop -> tv_target: the cast session, else the native app while
+  #             it plays, else nobody ('none').
+  #   next / previous     -> script.universal_tv_skip (cast queue, Plex client,
+  #             Android TV media key, then the neighbouring Plex TV episode).
+  #   power     the TV's own integration where there is one; a plain Chromecast can
+  #             wake its TV over HDMI-CEC but not put it in standby, so turn_off
+  #             only stops casting there.
+  # media_seek can't be overridden in a universal: it always goes to the active
+  # child, so there is no seeking while a Plex Cast session is the child (Plex
+  # Cast clients refuse remote control; pause/play/stop go to the cast instead).
 
   ########################## Universal bedroom Chromecast  ##########################
-  
-  
+  # Plain Chromecast and no TV integration: the cast is the only power witness
+  # (it reads 'off' when HDMI-CEC says the TV is off or on another input).
   - platform: universal
     unique_id: universal_bedroom_chromecast
     name: Universal bedroom chromecast
+    device_class: tv
     children:
       - media_player.bedroom_chromecast
+    browse_media_entity: media_player.bedroom_chromecast
     active_child_template: >-
-      {%- set cast = "media_player.bedroom_chromecast" -%}
-      {%- set ns = namespace(plex_entity = "", active = "") -%}
-      {%- set cast_state = states(cast) -%}
-      {#- Correlate this room's Plex session by Plex ratingKey (media_content_id): cast may send a path/URL, plex sends the bare key. Strip query string, take last "/" segment. -#}
-      {%- set cast_cid = ((state_attr(cast, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
-      {%- set cast_title = state_attr(cast, 'media_title') | default("", true) -%}
-      {%- set cast_series = state_attr(cast, 'media_series_title') | default("", true) -%}
-      {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
-        {%- set plex_cid = ((state_attr(player.entity_id, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
-        {%- if cast_cid and plex_cid and cast_cid == plex_cid -%}
-          {%- set ns.plex_entity = player.entity_id -%}
-        {%- endif -%}
-      {%- endfor -%}
-      {%- if not ns.plex_entity -%}
-        {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
-          {%- set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) -%}
-          {%- set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) -%}
-          {%- if cast_title and plex_title == cast_title -%}
-            {%- set ns.plex_entity = player.entity_id -%}
-          {%- elif cast_series and plex_series == cast_series -%}
-            {%- set ns.plex_entity = player.entity_id -%}
-          {%- endif -%}
-        {%- endfor -%}
-      {%- endif -%}
-      {%- if not ns.plex_entity and not cast_cid and not cast_title and cast_state in ['playing', 'paused', 'buffering'] -%}
-        {%- for player in states.media_player if "plex" in player.entity_id and "cast" in player.entity_id and player.state == cast_state and state_attr(player.entity_id, 'media_title') and not ns.plex_entity -%}
-          {%- set ns.plex_entity = player.entity_id -%}
-        {%- endfor -%}
-      {%- endif -%}
-      {%- if ns.plex_entity and states(ns.plex_entity) in ['playing', 'paused', 'idle'] -%}
-        {%- set ns.active = ns.plex_entity -%}
-      {%- else -%}
-        {%- set ns.active = cast -%}
-      {%- endif -%}
-      {{- ns.active -}}
+      {%- from 'universal_tv.jinja' import tv_child -%}
+      {{- tv_child('media_player.bedroom_chromecast') -}}
+    state_template: >-
+      {%- from 'universal_tv.jinja' import tv_state -%}
+      {{- tv_state('media_player.bedroom_chromecast') -}}
     commands:
+      turn_on:
+        action: media_player.turn_on
+        target: &bedroom_cast
+          entity_id: media_player.bedroom_chromecast
+      turn_off:
+        action: media_player.turn_off
+        target: *bedroom_cast
       volume_mute:
-        service: media_player.volume_mute
-        target:
-          entity_id: 
-            - media_player.bedroom_chromecast            
+        action: media_player.volume_mute
+        target: *bedroom_cast
         data:
           is_volume_muted: "{{ is_volume_muted }}"
       volume_set:
-        service: media_player.volume_set
-        target:
-          entity_id: 
-            - media_player.bedroom_chromecast            
+        action: media_player.volume_set
+        target: *bedroom_cast
         data:
           volume_level: "{{ volume_level }}"
       volume_up:
-        service: media_player.volume_up
-        target:
-          entity_id: 
-            - media_player.bedroom_chromecast            
+        action: media_player.volume_up
+        target: *bedroom_cast
       volume_down:
-        service: media_player.volume_down
-        target:
-          entity_id: 
-            - media_player.bedroom_chromecast              
-      media_pause:
-        service: media_player.media_pause
-        target:
-          entity_id: 
-            - media_player.bedroom_chromecast             
-      media_play_pause:
-        service: media_player.media_play_pause
-        target:
-          entity_id: 
-            - media_player.bedroom_chromecast            
-      turn_on:
-        service: media_player.turn_on
-        target:
-          entity_id: 
-            - media_player.bedroom_chromecast            
-      turn_off:
-        service: media_player.turn_off
-        target:
-          entity_id: 
-            - media_player.bedroom_chromecast         
-      media_stop:
-        service: media_player.media_stop
-        target:
-          entity_id: 
-            - media_player.bedroom_chromecast   
+        action: media_player.volume_down
+        target: *bedroom_cast
       media_play:
-        service: media_player.media_play
+        action: media_player.media_play
+        target: &bedroom_transport
+          entity_id: >-
+            {%- from 'universal_tv.jinja' import tv_target -%}
+            {{- tv_target('media_player.bedroom_chromecast') or 'none' -}}
+      media_pause:
+        action: media_player.media_pause
+        target: *bedroom_transport
+      media_play_pause:
+        action: media_player.media_play_pause
+        target: *bedroom_transport
+      media_stop:
+        action: media_player.media_stop
+        target: *bedroom_transport
+      media_next_track:
+        action: script.turn_on
         target:
-          entity_id: 
-            - media_player.bedroom_chromecast    
-      play_media :
-        service: media_player.play_media
+          entity_id: script.universal_tv_skip
         data:
-          media_content_type: '{{media_content_type}}'
-          media_content_id: '{{media_content_id}}'
+          variables:
+            direction: next
+            cast: media_player.bedroom_chromecast
+      media_previous_track:
+        action: script.turn_on
         target:
-          entity_id: 
-            - media_player.bedroom_chromecast            
+          entity_id: script.universal_tv_skip
+        data:
+          variables:
+            direction: previous
+            cast: media_player.bedroom_chromecast
+      play_media:
+        action: media_player.play_media
+        target: *bedroom_cast
+        data:
+          media_content_type: "{{ media_content_type }}"
+          media_content_id: "{{ media_content_id }}"
     attributes:
       is_volume_muted: media_player.bedroom_chromecast|is_volume_muted
       volume_level: media_player.bedroom_chromecast|volume_level
-      state: media_player.bedroom_chromecast
 
 
   ########################## Universal salon Chromecast  ##########################
-  # Sony Bravia TV (salon) unified from 2 Home Assistant integrations:
-  #   cast (Google TV)   -> media_player.salon_chromecast          : now-playing metadata while casting
-  #   androidtv_remote   -> media_player.bravia_4k_ae2         : on/off + foreground app
-  # Control device (RS-232 via the Connect Aux-2 serial proxy):
-  #   sony_tv_rs232      -> media_player.sony_tv               : power, input, volume & mute
-  # braviatv was dropped as a child on 2026-10-07: it pointed at a stale IP and only ever reported off.
-  # active_child priority: matching Plex player -> Google TV (cast) -> Android TV Remote.
-  # Power, input, volume and mute route to RS-232 (discrete mute on/off, works even when
-  # the Bravia network API is unreachable); transport (play/pause/seek) auto-forwards to
-  # whichever child is active so Plex/Cast keep their richer controls.
+  # Sony Bravia with Google TV inside, five integrations:
+  #   cast              media_player.salon_chromecast        now-playing while casting
+  #   androidtv_remote  media_player.bravia_4k_ae2           power state, foreground app, mute state
+  #   sony_tv_rs232     media_player.sony_tv                 power, input, volume and mute commands
+  #   jellyfin          media_player.salon_sony_tv           the Jellyfin app's own playback
+  #   braviatv          media_player.salon_salon_bravia_tv   exact current input, volume level
+  # Power, input, volume and mute go over RS-232 (discrete, and independent of the
+  # TV's network API). Power only over RS-232: Android TV Remote's power is a POWER
+  # key toggle that could undo it. Input/volume/mute are skipped ('none') while
+  # bravia_4k_ae2 reports standby, where RS-232 commands fail.
+  # braviatv (IP control) was re-added on 2026-10-22. It reports any app as
+  # "Smart TV" with no playback state, and polls every 2 min in standby, so it lags
+  # a TV just woken. It supplies the input (source, source list, the Batocera helper
+  # below) and the volume level.
+  # This TV reads 'off' whenever nobody is using it, even with the screen on, so
+  # the Speaker/Chromecast mutual mute automation leaves the room's music alone:
+  # - screen on with nothing playing (home screen, screensaver): the macro's 'on'
+  # - Jellyfin on its menus. Android TV Remote only says which app is in front, so
+  #   while that is Jellyfin its own client (media_player.salon_sony_tv, polled
+  #   every 10 s) decides: playing/paused/buffering as reported, anything else
+  #   (menus, or no session yet) reads off. During playback it is also the active
+  #   child, for titles, series and artwork.
+  # - Batocera (retro console, HDMI 1) with no controller connected, where the cast
+  #   reports the input viewer ("TV") as playing. binary_sensor.salon_tv_batocera_idle
+  #   (a template helper, also used by "Mute the salon TV while Batocera sits idle
+  #   on HDMI 1") holds that rule: the foreground app is the input viewer
+  #   (com.sony.dtv.tvlin), on HDMI 1, with batocera_controller off, unavailable or
+  #   count 0. The input comes from IP control when it reports one
+  #   (extInput:hdmi?port=1, polled every 10 s), else RS-232 (every 60 s, keeps the
+  #   last input even while an app is up), else HDMI 1 is assumed.
+  # An overlay (the settings panel, notifications) puts com.android.systemui in front
+  # of whatever plays underneath, so while it is up the state and active child keep
+  # their current values (read back from this entity) until the overlay closes.
   - platform: universal
     unique_id: universal_salon_chromecast
     name: Universal salon chromecast
+    device_class: tv
     children:
       - media_player.salon_chromecast
       - media_player.bravia_4k_ae2
+    browse_media_entity: media_player.salon_chromecast
     active_child_template: >-
-      {%- set cast = "media_player.salon_chromecast" -%}
-      {%- set atv = "media_player.bravia_4k_ae2" -%}
-      {%- set ns = namespace(plex_entity = "", active = "") -%}
-      {#- bravia_4k_ae2 (Android TV Remote) is the power authority. When the TV is off, default the active child to the Cast endpoint so playback can be initiated (casting wakes the TV). state_template still reports 'off'. -#}
-      {%- if states(atv) != 'on' -%}
-        {%- set ns.active = cast -%}
-      {%- else -%}
-        {%- set cast_state = states(cast) -%}
-        {#- Correlate THIS TV's Plex session by Plex ratingKey. Cast reports media_content_id "/library/metadata/<key>"; the plex entity reports "<key>". Normalise both to the last "/" segment. -#}
-        {%- set cast_cid = (state_attr(cast, 'media_content_id') | default('', true) | string).split('/') | last -%}
-        {%- set cast_title = state_attr(cast, 'media_title') | default("", true) -%}
-        {%- set cast_series = state_attr(cast, 'media_series_title') | default("", true) -%}
-        {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
-          {%- set plex_cid = (state_attr(player.entity_id, 'media_content_id') | default('', true) | string).split('/') | last -%}
-          {%- if cast_cid and plex_cid and cast_cid == plex_cid -%}
-            {%- set ns.plex_entity = player.entity_id -%}
-          {%- endif -%}
-        {%- endfor -%}
-        {#- Secondary: exact title/series match if no ratingKey match. -#}
-        {%- if not ns.plex_entity -%}
-          {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
-            {%- set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) -%}
-            {%- set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) -%}
-            {%- if cast_title and plex_title == cast_title -%}
-              {%- set ns.plex_entity = player.entity_id -%}
-            {%- elif cast_series and plex_series == cast_series -%}
-              {%- set ns.plex_entity = player.entity_id -%}
-            {%- endif -%}
-          {%- endfor -%}
-        {%- endif -%}
-        {#- Fallback: cast active but dropped all metadata (e.g. on pause) -> grab the Plex cast client in the same state that still has a title. -#}
-        {%- if not ns.plex_entity and not cast_cid and not cast_title and cast_state in ['playing', 'paused', 'buffering'] -%}
-          {%- for player in states.media_player if "plex" in player.entity_id and "cast" in player.entity_id and player.state == cast_state and state_attr(player.entity_id, 'media_title') and not ns.plex_entity -%}
-            {%- set ns.plex_entity = player.entity_id -%}
-          {%- endfor -%}
-        {%- endif -%}
-        {#- Always prefer the found Plex entity while it is playing / paused / idle. -#}
-        {%- if ns.plex_entity and states(ns.plex_entity) in ['playing', 'paused', 'idle'] -%}
-          {%- set ns.active = ns.plex_entity -%}
-        {%- elif cast_state in ['playing', 'paused', 'buffering'] -%}
-          {%- set ns.active = cast -%}
-        {%- elif cast_state not in ['off', 'unavailable', 'unknown'] -%}
-          {%- set ns.active = cast -%}
-        {%- else -%}
-          {%- set ns.active = atv -%}
-        {%- endif -%}
-      {%- endif -%}
-      {{- ns.active -}}
+      {%- from 'universal_tv.jinja' import tv_child -%}
+      {%- set child = tv_child('media_player.salon_chromecast', 'media_player.bravia_4k_ae2', '', 'media_player.bravia_4k_ae2') -%}
+      {%- set jellyfin_plays = is_state_attr('media_player.bravia_4k_ae2', 'app_id', 'org.jellyfin.androidtv')
+            and states('media_player.salon_sony_tv') in ['playing', 'paused', 'buffering'] -%}
+      {%- set child = 'media_player.salon_sony_tv' if jellyfin_plays else child -%}
+      {%- set held = state_attr('media_player.universal_salon_chromecast', 'active_child') -%}
+      {{- held if held and is_state_attr('media_player.bravia_4k_ae2', 'app_id', 'com.android.systemui') else child -}}
     state_template: >-
-      {#- bravia_4k_ae2 (Android TV Remote) is the power authority: not 'on' -> off. -#}
-      {#- androidtv_remote only reports on/off; cast reports real playing/paused only for true Cast sessions. -#}
-      {#- Infer 'playing' from the Android TV foreground app_id. Caveat: a native app cannot expose pause -> a paused native app reads as 'playing'. -#}
-      {%- set cast = "media_player.salon_chromecast" -%}
-      {%- set atv = "media_player.bravia_4k_ae2" -%}
-      {%- set cs = states(cast) -%}
-      {%- set atv_app = (state_attr(atv, 'app_id') or '') | lower -%}
-      {%- set home_apps = ['', 'none', 'com.google.android.tvlauncher', 'com.google.android.apps.tv.launcherx', 'com.sony.dtv.tvx', 'com.sony.dtv.smarthome'] -%}
-      {{- 'off' if states(atv) != 'on' else (cs if cs in ['playing', 'buffering', 'paused'] else ('playing' if atv_app not in home_apps else 'on')) -}}
+      {%- from 'universal_tv.jinja' import tv_state -%}
+      {%- set state = tv_state('media_player.salon_chromecast', 'media_player.bravia_4k_ae2', '', 'media_player.bravia_4k_ae2') -%}
+      {%- if is_state_attr('media_player.bravia_4k_ae2', 'app_id', 'org.jellyfin.androidtv') -%}
+        {%- set jellyfin = states('media_player.salon_sony_tv') -%}
+        {%- set state = jellyfin if jellyfin in ['playing', 'paused', 'buffering'] else 'on' -%}
+      {%- endif -%}
+      {%- set state = 'off' if state == 'on' or is_state('binary_sensor.salon_tv_batocera_idle', 'on') else state -%}
+      {%- set held = states('media_player.universal_salon_chromecast') -%}
+      {{- held if is_state_attr('media_player.bravia_4k_ae2', 'app_id', 'com.android.systemui')
+            and held not in ['unknown', 'unavailable'] else state -}}
     commands:
-      media_pause:
-        service: media_player.media_pause
-        target: &salon_transport_target
-          entity_id: >-
-            {%- if states('media_player.salon_chromecast') in ['playing', 'paused', 'buffering'] -%}
-            media_player.salon_chromecast
-            {%- else -%}
-            media_player.bravia_4k_ae2
-            {%- endif -%}
-      media_play:
-        service: media_player.media_play
-        target: *salon_transport_target
-      media_play_pause:
-        service: media_player.media_play_pause
-        target: *salon_transport_target
-      media_stop:
-        service: media_player.media_stop
-        target: *salon_transport_target
-      media_next_track:
-        service: media_player.media_next_track
-        target: *salon_transport_target
-      media_previous_track:
-        service: media_player.media_previous_track
-        target: *salon_transport_target
-      media_seek:
-        service: media_player.media_seek
-        target: *salon_transport_target
-        data:
-          seek_position: "{{ seek_position }}"
-      volume_mute:
-        service: media_player.volume_mute
+      turn_on:
+        action: media_player.turn_on
         target:
-          entity_id:
-            - media_player.sony_tv
+          entity_id: media_player.sony_tv
+      turn_off:
+        action: media_player.turn_off
+        target:
+          entity_id: media_player.sony_tv
+      volume_mute:
+        action: media_player.volume_mute
+        target: &salon_rs232
+          entity_id: "{{ 'none' if is_state('media_player.bravia_4k_ae2', 'off') else 'media_player.sony_tv' }}"
         data:
           is_volume_muted: "{{ is_volume_muted }}"
       volume_set:
-        service: media_player.volume_set
-        target:
-          entity_id:
-            - media_player.sony_tv
+        action: media_player.volume_set
+        target: *salon_rs232
         data:
           volume_level: "{{ volume_level }}"
       volume_up:
-        service: media_player.volume_up
-        target:
-          entity_id:
-            - media_player.sony_tv
+        action: media_player.volume_up
+        target: *salon_rs232
       volume_down:
-        service: media_player.volume_down
-        target:
-          entity_id:
-            - media_player.sony_tv
+        action: media_player.volume_down
+        target: *salon_rs232
+      # The source list is IP control's input titles ("HDMI 3 (eARC/ARC)"); RS-232
+      # still switches, under its own names ("hdmi3"). A name RS-232 doesn't know
+      # goes to IP control.
       select_source:
-        service: media_player.select_source
+        action: media_player.select_source
         target:
-          entity_id:
-            - media_player.sony_tv
+          entity_id: >-
+            {%- set rs232 = source | regex_replace('^HDMI (\\d).*$', 'hdmi\\1') -%}
+            {{- 'none' if is_state('media_player.bravia_4k_ae2', 'off')
+                else 'media_player.sony_tv' if rs232 in (state_attr('media_player.sony_tv', 'source_list') or [])
+                else 'media_player.salon_salon_bravia_tv' -}}
         data:
-          source: "{{ source }}"
-      # Power over RS-232 only: Android TV Remote's power is a POWER key toggle and
-      # could undo the RS-232 command if both were sent together.
-      turn_on:
-        service: media_player.turn_on
+          source: >-
+            {%- set rs232 = source | regex_replace('^HDMI (\\d).*$', 'hdmi\\1') -%}
+            {{- rs232 if rs232 in (state_attr('media_player.sony_tv', 'source_list') or []) else source -}}
+      media_play:
+        action: media_player.media_play
+        target: &salon_transport
+          entity_id: >-
+            {%- from 'universal_tv.jinja' import tv_target -%}
+            {{- tv_target('media_player.salon_chromecast', 'media_player.bravia_4k_ae2', '', 'media_player.bravia_4k_ae2') or 'none' -}}
+      media_pause:
+        action: media_player.media_pause
+        target: *salon_transport
+      media_play_pause:
+        action: media_player.media_play_pause
+        target: *salon_transport
+      media_stop:
+        action: media_player.media_stop
+        target: *salon_transport
+      media_next_track:
+        action: script.turn_on
         target:
-          entity_id:
-            - media_player.sony_tv
-      turn_off:
-        service: media_player.turn_off
+          entity_id: script.universal_tv_skip
+        data:
+          variables:
+            direction: next
+            cast: media_player.salon_chromecast
+            tv: media_player.bravia_4k_ae2
+            native: media_player.bravia_4k_ae2
+      media_previous_track:
+        action: script.turn_on
         target:
-          entity_id:
-            - media_player.sony_tv
+          entity_id: script.universal_tv_skip
+        data:
+          variables:
+            direction: previous
+            cast: media_player.salon_chromecast
+            tv: media_player.bravia_4k_ae2
+            native: media_player.bravia_4k_ae2
       play_media:
-        service: media_player.play_media
-        data:
-          media_content_type: '{{media_content_type}}'
-          media_content_id: '{{media_content_id}}'
+        action: media_player.play_media
         target:
-          entity_id:
-            - media_player.salon_chromecast
+          entity_id: media_player.salon_chromecast
+        data:
+          media_content_type: "{{ media_content_type }}"
+          media_content_id: "{{ media_content_id }}"
     attributes:
-      is_volume_muted: media_player.sony_tv|is_volume_muted
-      volume_level: media_player.sony_tv|volume_level
-      source: media_player.sony_tv|source
-      source_list: media_player.sony_tv|source_list
+      # Mute is read from Android TV Remote, which the TV pushes the moment it
+      # changes, even though the commands above go over RS-232. RS-232 only noticed a
+      # change 18-47 s later (2026-10-25). Right after power-on Android TV Remote says
+      # unmuted for 3-7 s before the real value comes in.
+      is_volume_muted: media_player.bravia_4k_ae2|is_volume_muted
+      # Volume comes from IP control (polled every 10 s while on), because Android TV
+      # Remote reports 0 while muted and RS-232 is slower. In standby IP control polls
+      # every 2 min, so it can take ~75 s after a power-on to have a volume again.
+      volume_level: media_player.salon_salon_bravia_tv|volume_level
+      # IP control reports the input actually on screen (none while an app is up);
+      # RS-232 keeps reporting the last input it selected.
+      source: media_player.salon_salon_bravia_tv|source
+      source_list: media_player.salon_salon_bravia_tv|source_list
 
-      
-  ########################## Universal kitchen Chromecast  ########################## 
 
-
+  ########################## Universal kitchen Chromecast  ##########################
+  # Google Nest Hub. Its resting screen is the hub dashboard, so a Home Assistant
+  # dashboard on it counts as 'off' (dashboard_state='off'); the TV only reads on
+  # while media is cast to it. "kitchen google display automation" re-casts the
+  # dashboard a minute after anything else ends, so turn_off only stops what is
+  # casting, and turn_on brings the dashboard straight back (still 'off').
+  # An 'off' media player hides its attributes, so automations that need the
+  # hub's app_id or mute state read media_player.kitchen_google_hub directly.
   - platform: universal
     unique_id: universal_kitchen_chromecast
     name: Universal kitchen chromecast
+    device_class: tv
     children:
       - media_player.kitchen_google_hub
+    browse_media_entity: media_player.kitchen_google_hub
     active_child_template: >-
-      {%- set cast = "media_player.kitchen_google_hub" -%}
-      {%- set ns = namespace(plex_entity = "", active = "") -%}
-      {%- set cast_state = states(cast) -%}
-      {#- Correlate this room's Plex session by Plex ratingKey (media_content_id): cast may send a path/URL, plex sends the bare key. Strip query string, take last "/" segment. -#}
-      {%- set cast_cid = ((state_attr(cast, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
-      {%- set cast_title = state_attr(cast, 'media_title') | default("", true) -%}
-      {%- set cast_series = state_attr(cast, 'media_series_title') | default("", true) -%}
-      {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
-        {%- set plex_cid = ((state_attr(player.entity_id, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
-        {%- if cast_cid and plex_cid and cast_cid == plex_cid -%}
-          {%- set ns.plex_entity = player.entity_id -%}
-        {%- endif -%}
-      {%- endfor -%}
-      {%- if not ns.plex_entity -%}
-        {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
-          {%- set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) -%}
-          {%- set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) -%}
-          {%- if cast_title and plex_title == cast_title -%}
-            {%- set ns.plex_entity = player.entity_id -%}
-          {%- elif cast_series and plex_series == cast_series -%}
-            {%- set ns.plex_entity = player.entity_id -%}
-          {%- endif -%}
-        {%- endfor -%}
-      {%- endif -%}
-      {%- if not ns.plex_entity and not cast_cid and not cast_title and cast_state in ['playing', 'paused', 'buffering'] -%}
-        {%- for player in states.media_player if "plex" in player.entity_id and "cast" in player.entity_id and player.state == cast_state and state_attr(player.entity_id, 'media_title') and not ns.plex_entity -%}
-          {%- set ns.plex_entity = player.entity_id -%}
-        {%- endfor -%}
-      {%- endif -%}
-      {%- if ns.plex_entity and states(ns.plex_entity) in ['playing', 'paused', 'idle'] -%}
-        {%- set ns.active = ns.plex_entity -%}
-      {%- else -%}
-        {%- set ns.active = cast -%}
-      {%- endif -%}
-      {{- ns.active -}}
+      {%- from 'universal_tv.jinja' import tv_child -%}
+      {{- tv_child('media_player.kitchen_google_hub') -}}
+    state_template: >-
+      {%- from 'universal_tv.jinja' import tv_state -%}
+      {{- tv_state('media_player.kitchen_google_hub', dashboard_state='off') -}}
     commands:
+      turn_on:
+        action: cast.show_lovelace_view
+        data:
+          entity_id: media_player.kitchen_google_hub
+          dashboard_path: lovelace-hub
+          view_path: kitchen-google-hub
+      turn_off:
+        action: media_player.turn_off
+        target: &kitchen_cast
+          entity_id: media_player.kitchen_google_hub
       volume_mute:
-        service: media_player.volume_mute
-        target:
-          entity_id: 
-            - media_player.kitchen_google_hub            
+        action: media_player.volume_mute
+        target: *kitchen_cast
         data:
           is_volume_muted: "{{ is_volume_muted }}"
       volume_set:
-        service: media_player.volume_set
-        target:
-          entity_id: 
-            - media_player.kitchen_google_hub            
+        action: media_player.volume_set
+        target: *kitchen_cast
         data:
           volume_level: "{{ volume_level }}"
       volume_up:
-        service: media_player.volume_up
-        target:
-          entity_id: 
-            - media_player.kitchen_google_hub            
+        action: media_player.volume_up
+        target: *kitchen_cast
       volume_down:
-        service: media_player.volume_down
-        target:
-          entity_id: 
-            - media_player.kitchen_google_hub              
-      media_pause:
-        service: media_player.media_pause
-        target:
-          entity_id: 
-            - media_player.kitchen_google_hub             
-      media_play_pause:
-        service: media_player.media_play_pause
-        target:
-          entity_id: 
-            - media_player.kitchen_google_hub            
-      turn_on:
-        service: media_player.turn_on
-        target:
-          entity_id: 
-            - media_player.kitchen_google_hub            
-      turn_off:
-        service: media_player.turn_off
-        target:
-          entity_id: 
-            - media_player.kitchen_google_hub         
-      media_stop:
-        service: media_player.media_stop
-        target:
-          entity_id: 
-            - media_player.kitchen_google_hub     
+        action: media_player.volume_down
+        target: *kitchen_cast
       media_play:
-        service: media_player.media_play
+        action: media_player.media_play
+        target: &kitchen_transport
+          entity_id: >-
+            {%- from 'universal_tv.jinja' import tv_target -%}
+            {{- tv_target('media_player.kitchen_google_hub') or 'none' -}}
+      media_pause:
+        action: media_player.media_pause
+        target: *kitchen_transport
+      media_play_pause:
+        action: media_player.media_play_pause
+        target: *kitchen_transport
+      media_stop:
+        action: media_player.media_stop
+        target: *kitchen_transport
+      media_next_track:
+        action: script.turn_on
         target:
-          entity_id: 
-            - media_player.kitchen_google_hub          
-      play_media :
-        service: media_player.play_media
+          entity_id: script.universal_tv_skip
         data:
-          media_content_type: '{{media_content_type}}'
-          media_content_id: '{{media_content_id}}'
+          variables:
+            direction: next
+            cast: media_player.kitchen_google_hub
+      media_previous_track:
+        action: script.turn_on
         target:
-          entity_id: 
-            - media_player.kitchen_google_hub       
+          entity_id: script.universal_tv_skip
+        data:
+          variables:
+            direction: previous
+            cast: media_player.kitchen_google_hub
+      play_media:
+        action: media_player.play_media
+        target: *kitchen_cast
+        data:
+          media_content_type: "{{ media_content_type }}"
+          media_content_id: "{{ media_content_id }}"
     attributes:
       is_volume_muted: media_player.kitchen_google_hub|is_volume_muted
       volume_level: media_player.kitchen_google_hub|volume_level
-      state: media_player.kitchen_google_hub
-
-  ########################## Universal hotbox_top Chromecast  ########################## 
 
 
+  ########################## Universal hotbox_top Chromecast  ##########################
+  # Chromecast Ultra on HDMI 1 ("Chromecast") of the Sharp Roku TV:
+  #   media_player.hotbox_roku_tv  power (standby reads 'off'), inputs/apps, and
+  #                                native Roku apps report playing/paused.
+  # The volume level and mute stay on the cast: Roku has no volume level and its
+  # mute is a blind toggle. Volume up/down step the TV speaker (Roku) while the TV
+  # is on, so the dial works whatever the cast volume is.
   - platform: universal
     unique_id: universal_hotbox_top_chromecast
     name: Universal hotbox top chromecast
+    device_class: tv
     children:
       - media_player.hotbox_top_chromecast
+      - media_player.hotbox_roku_tv
+    browse_media_entity: media_player.hotbox_top_chromecast
     active_child_template: >-
-      {%- set cast = "media_player.hotbox_top_chromecast" -%}
-      {%- set ns = namespace(plex_entity = "", active = "") -%}
-      {%- set cast_state = states(cast) -%}
-      {#- Correlate this room's Plex session by Plex ratingKey (media_content_id): cast may send a path/URL, plex sends the bare key. Strip query string, take last "/" segment. -#}
-      {%- set cast_cid = ((state_attr(cast, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
-      {%- set cast_title = state_attr(cast, 'media_title') | default("", true) -%}
-      {%- set cast_series = state_attr(cast, 'media_series_title') | default("", true) -%}
-      {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
-        {%- set plex_cid = ((state_attr(player.entity_id, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
-        {%- if cast_cid and plex_cid and cast_cid == plex_cid -%}
-          {%- set ns.plex_entity = player.entity_id -%}
-        {%- endif -%}
-      {%- endfor -%}
-      {%- if not ns.plex_entity -%}
-        {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
-          {%- set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) -%}
-          {%- set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) -%}
-          {%- if cast_title and plex_title == cast_title -%}
-            {%- set ns.plex_entity = player.entity_id -%}
-          {%- elif cast_series and plex_series == cast_series -%}
-            {%- set ns.plex_entity = player.entity_id -%}
-          {%- endif -%}
-        {%- endfor -%}
-      {%- endif -%}
-      {%- if not ns.plex_entity and not cast_cid and not cast_title and cast_state in ['playing', 'paused', 'buffering'] -%}
-        {%- for player in states.media_player if "plex" in player.entity_id and "cast" in player.entity_id and player.state == cast_state and state_attr(player.entity_id, 'media_title') and not ns.plex_entity -%}
-          {%- set ns.plex_entity = player.entity_id -%}
-        {%- endfor -%}
-      {%- endif -%}
-      {%- if ns.plex_entity and states(ns.plex_entity) in ['playing', 'paused', 'idle'] -%}
-        {%- set ns.active = ns.plex_entity -%}
-      {%- else -%}
-        {%- set ns.active = cast -%}
-      {%- endif -%}
-      {{- ns.active -}}
+      {%- from 'universal_tv.jinja' import tv_child -%}
+      {{- tv_child('media_player.hotbox_top_chromecast', 'media_player.hotbox_roku_tv', 'tvinput.hdmi1', 'media_player.hotbox_roku_tv') -}}
+    state_template: >-
+      {%- from 'universal_tv.jinja' import tv_state -%}
+      {{- tv_state('media_player.hotbox_top_chromecast', 'media_player.hotbox_roku_tv', 'tvinput.hdmi1', 'media_player.hotbox_roku_tv') -}}
     commands:
-      volume_mute:
-        service: media_player.volume_mute
+      turn_on:
+        action: script.turn_on
         target:
-          entity_id: 
-            - media_player.hotbox_top_chromecast            
+          entity_id: script.universal_tv_power
+        data:
+          variables:
+            turn: "on"
+            cast: media_player.hotbox_top_chromecast
+            tv: media_player.hotbox_roku_tv
+            source: Chromecast
+      turn_off:
+        action: script.turn_on
+        target:
+          entity_id: script.universal_tv_power
+        data:
+          variables:
+            turn: "off"
+            cast: media_player.hotbox_top_chromecast
+            tv: media_player.hotbox_roku_tv
+      volume_mute:
+        action: media_player.volume_mute
+        target: &hotbox_cast
+          entity_id: media_player.hotbox_top_chromecast
         data:
           is_volume_muted: "{{ is_volume_muted }}"
       volume_set:
-        service: media_player.volume_set
-        target:
-          entity_id: 
-            - media_player.hotbox_top_chromecast            
+        action: media_player.volume_set
+        target: *hotbox_cast
         data:
           volume_level: "{{ volume_level }}"
       volume_up:
-        service: media_player.volume_up
-        target:
-          entity_id: 
-            - media_player.hotbox_top_chromecast            
+        action: media_player.volume_up
+        target: &hotbox_speaker
+          entity_id: >-
+            {{ 'media_player.hotbox_top_chromecast'
+               if states('media_player.hotbox_roku_tv') in ['off', 'unavailable', 'unknown']
+               else 'media_player.hotbox_roku_tv' }}
       volume_down:
-        service: media_player.volume_down
+        action: media_player.volume_down
+        target: *hotbox_speaker
+      select_source:
+        action: media_player.select_source
         target:
-          entity_id: 
-            - media_player.hotbox_top_chromecast              
-      media_pause:
-        service: media_player.media_pause
-        target:
-          entity_id: 
-            - media_player.hotbox_top_chromecast             
-      media_play_pause:
-        service: media_player.media_play_pause
-        target:
-          entity_id: 
-            - media_player.hotbox_top_chromecast            
-      turn_on:
-        service: media_player.turn_on
-        target:
-          entity_id: 
-            - media_player.hotbox_top_chromecast            
-      turn_off:
-        service: media_player.turn_off
-        target:
-          entity_id: 
-            - media_player.hotbox_top_chromecast         
-      media_stop:
-        service: media_player.media_stop
-        target:
-          entity_id: 
-            - media_player.hotbox_top_chromecast   
-      media_play:
-        service: media_player.media_play
-        target:
-          entity_id: 
-            - media_player.hotbox_top_chromecast            
-      play_media :
-        service: media_player.play_media
+          entity_id: media_player.hotbox_roku_tv
         data:
-          media_content_type: '{{media_content_type}}'
-          media_content_id: '{{media_content_id}}'
+          source: "{{ source }}"
+      media_play:
+        action: media_player.media_play
+        target: &hotbox_transport
+          entity_id: >-
+            {%- from 'universal_tv.jinja' import tv_target -%}
+            {{- tv_target('media_player.hotbox_top_chromecast', 'media_player.hotbox_roku_tv', 'tvinput.hdmi1', 'media_player.hotbox_roku_tv') or 'none' -}}
+      media_pause:
+        action: media_player.media_pause
+        target: *hotbox_transport
+      media_play_pause:
+        action: media_player.media_play_pause
+        target: *hotbox_transport
+      media_stop:
+        action: media_player.media_stop
+        target: *hotbox_transport
+      media_next_track:
+        action: script.turn_on
         target:
-          entity_id: 
-            - media_player.hotbox_top_chromecast            
+          entity_id: script.universal_tv_skip
+        data:
+          variables:
+            direction: next
+            cast: media_player.hotbox_top_chromecast
+            tv: media_player.hotbox_roku_tv
+            tv_input: tvinput.hdmi1
+            native: media_player.hotbox_roku_tv
+      media_previous_track:
+        action: script.turn_on
+        target:
+          entity_id: script.universal_tv_skip
+        data:
+          variables:
+            direction: previous
+            cast: media_player.hotbox_top_chromecast
+            tv: media_player.hotbox_roku_tv
+            tv_input: tvinput.hdmi1
+            native: media_player.hotbox_roku_tv
+      play_media:
+        action: media_player.play_media
+        target: *hotbox_cast
+        data:
+          media_content_type: "{{ media_content_type }}"
+          media_content_id: "{{ media_content_id }}"
     attributes:
       is_volume_muted: media_player.hotbox_top_chromecast|is_volume_muted
       volume_level: media_player.hotbox_top_chromecast|volume_level
-      state: media_player.hotbox_top_chromecast
+      source: media_player.hotbox_roku_tv|source
+      source_list: media_player.hotbox_roku_tv|source_list
 
-  ########################## Universal patio Chromecast  ########################## 
 
-
+  ########################## Universal patio Chromecast  ##########################
+  # Plain Chromecast and no TV integration: the cast is the only power witness
+  # (it reads 'off' when HDMI-CEC says the TV is off or on another input).
   - platform: universal
     unique_id: universal_patio_chromecast
     name: Universal patio chromecast
+    device_class: tv
     children:
       - media_player.patio_chromecast
+    browse_media_entity: media_player.patio_chromecast
     active_child_template: >-
-      {%- set cast = "media_player.patio_chromecast" -%}
-      {%- set ns = namespace(plex_entity = "", active = "") -%}
-      {%- set cast_state = states(cast) -%}
-      {#- Correlate this room's Plex session by Plex ratingKey (media_content_id): cast may send a path/URL, plex sends the bare key. Strip query string, take last "/" segment. -#}
-      {%- set cast_cid = ((state_attr(cast, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
-      {%- set cast_title = state_attr(cast, 'media_title') | default("", true) -%}
-      {%- set cast_series = state_attr(cast, 'media_series_title') | default("", true) -%}
-      {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
-        {%- set plex_cid = ((state_attr(player.entity_id, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
-        {%- if cast_cid and plex_cid and cast_cid == plex_cid -%}
-          {%- set ns.plex_entity = player.entity_id -%}
-        {%- endif -%}
-      {%- endfor -%}
-      {%- if not ns.plex_entity -%}
-        {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
-          {%- set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) -%}
-          {%- set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) -%}
-          {%- if cast_title and plex_title == cast_title -%}
-            {%- set ns.plex_entity = player.entity_id -%}
-          {%- elif cast_series and plex_series == cast_series -%}
-            {%- set ns.plex_entity = player.entity_id -%}
-          {%- endif -%}
-        {%- endfor -%}
-      {%- endif -%}
-      {%- if not ns.plex_entity and not cast_cid and not cast_title and cast_state in ['playing', 'paused', 'buffering'] -%}
-        {%- for player in states.media_player if "plex" in player.entity_id and "cast" in player.entity_id and player.state == cast_state and state_attr(player.entity_id, 'media_title') and not ns.plex_entity -%}
-          {%- set ns.plex_entity = player.entity_id -%}
-        {%- endfor -%}
-      {%- endif -%}
-      {%- if ns.plex_entity and states(ns.plex_entity) in ['playing', 'paused', 'idle'] -%}
-        {%- set ns.active = ns.plex_entity -%}
-      {%- else -%}
-        {%- set ns.active = cast -%}
-      {%- endif -%}
-      {{- ns.active -}}
+      {%- from 'universal_tv.jinja' import tv_child -%}
+      {{- tv_child('media_player.patio_chromecast') -}}
+    state_template: >-
+      {%- from 'universal_tv.jinja' import tv_state -%}
+      {{- tv_state('media_player.patio_chromecast') -}}
     commands:
+      turn_on:
+        action: media_player.turn_on
+        target: &patio_cast
+          entity_id: media_player.patio_chromecast
+      turn_off:
+        action: media_player.turn_off
+        target: *patio_cast
       volume_mute:
-        service: media_player.volume_mute
-        target:
-          entity_id: 
-            - media_player.patio_chromecast            
+        action: media_player.volume_mute
+        target: *patio_cast
         data:
           is_volume_muted: "{{ is_volume_muted }}"
       volume_set:
-        service: media_player.volume_set
-        target:
-          entity_id: 
-            - media_player.patio_chromecast            
+        action: media_player.volume_set
+        target: *patio_cast
         data:
           volume_level: "{{ volume_level }}"
       volume_up:
-        service: media_player.volume_up
-        target:
-          entity_id: 
-            - media_player.patio_chromecast            
+        action: media_player.volume_up
+        target: *patio_cast
       volume_down:
-        service: media_player.volume_down
-        target:
-          entity_id: 
-            - media_player.patio_chromecast              
-      media_pause:
-        service: media_player.media_pause
-        target:
-          entity_id: 
-            - media_player.patio_chromecast             
-      media_play_pause:
-        service: media_player.media_play_pause
-        target:
-          entity_id: 
-            - media_player.patio_chromecast            
-      turn_on:
-        service: media_player.turn_on
-        target:
-          entity_id: 
-            - media_player.patio_chromecast            
-      turn_off:
-        service: media_player.turn_off
-        target:
-          entity_id: 
-            - media_player.patio_chromecast         
-      media_stop:
-        service: media_player.media_stop
-        target:
-          entity_id: 
-            - media_player.patio_chromecast    
+        action: media_player.volume_down
+        target: *patio_cast
       media_play:
-        service: media_player.media_play
+        action: media_player.media_play
+        target: &patio_transport
+          entity_id: >-
+            {%- from 'universal_tv.jinja' import tv_target -%}
+            {{- tv_target('media_player.patio_chromecast') or 'none' -}}
+      media_pause:
+        action: media_player.media_pause
+        target: *patio_transport
+      media_play_pause:
+        action: media_player.media_play_pause
+        target: *patio_transport
+      media_stop:
+        action: media_player.media_stop
+        target: *patio_transport
+      media_next_track:
+        action: script.turn_on
         target:
-          entity_id: 
-            - media_player.patio_chromecast           
-      play_media :
-        service: media_player.play_media
+          entity_id: script.universal_tv_skip
         data:
-          media_content_type: '{{media_content_type}}'
-          media_content_id: '{{media_content_id}}'
+          variables:
+            direction: next
+            cast: media_player.patio_chromecast
+      media_previous_track:
+        action: script.turn_on
         target:
-          entity_id: 
-            - media_player.patio_chromecast                 
+          entity_id: script.universal_tv_skip
+        data:
+          variables:
+            direction: previous
+            cast: media_player.patio_chromecast
+      play_media:
+        action: media_player.play_media
+        target: *patio_cast
+        data:
+          media_content_type: "{{ media_content_type }}"
+          media_content_id: "{{ media_content_id }}"
     attributes:
       is_volume_muted: media_player.patio_chromecast|is_volume_muted
       volume_level: media_player.patio_chromecast|volume_level
-      state: media_player.patio_chromecast
-
-  ########################## Universal workshop Chromecast  ########################## 
 
 
+  ########################## Universal workshop Chromecast  ##########################
+  # Google TV Streamer on HDMI 1 ("chromecast") of the LG webOS TV:
+  #   cast              media_player.workshop_chromecast  now-playing while casting
+  #   androidtv_remote  media_player.workshop_google_tv   wakes/sleeps the Streamer
+  #                     (which turns the LG on/off over HDMI-CEC) + foreground app
+  #   webostv           media_player.lg_workshop_tv       power state and input. It
+  #                     can turn the LG off but not on (no Wake-on-LAN), so turning
+  #                     on goes through the Streamer.
+  # Volume and mute only ever touch the Chromecast's own volume, never the LG's.
   - platform: universal
     unique_id: universal_workshop_chromecast
     name: Universal workshop chromecast
+    device_class: tv
     children:
       - media_player.workshop_chromecast
+      - media_player.workshop_google_tv
+      - media_player.lg_workshop_tv
+    browse_media_entity: media_player.workshop_chromecast
     active_child_template: >-
-      {%- set cast = "media_player.workshop_chromecast" -%}
-      {%- set ns = namespace(plex_entity = "", active = "") -%}
-      {%- set cast_state = states(cast) -%}
-      {#- Correlate this room's Plex session by Plex ratingKey (media_content_id): cast may send a path/URL, plex sends the bare key. Strip query string, take last "/" segment. -#}
-      {%- set cast_cid = ((state_attr(cast, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
-      {%- set cast_title = state_attr(cast, 'media_title') | default("", true) -%}
-      {%- set cast_series = state_attr(cast, 'media_series_title') | default("", true) -%}
-      {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
-        {%- set plex_cid = ((state_attr(player.entity_id, 'media_content_id') | default('', true) | string).split('?') | first).split('/') | last -%}
-        {%- if cast_cid and plex_cid and cast_cid == plex_cid -%}
-          {%- set ns.plex_entity = player.entity_id -%}
-        {%- endif -%}
-      {%- endfor -%}
-      {%- if not ns.plex_entity -%}
-        {%- for player in states.media_player if "plex" in player.entity_id and player.state != "unavailable" and not ns.plex_entity -%}
-          {%- set plex_title = state_attr(player.entity_id, 'media_title') | default("", true) -%}
-          {%- set plex_series = state_attr(player.entity_id, 'media_series_title') | default("", true) -%}
-          {%- if cast_title and plex_title == cast_title -%}
-            {%- set ns.plex_entity = player.entity_id -%}
-          {%- elif cast_series and plex_series == cast_series -%}
-            {%- set ns.plex_entity = player.entity_id -%}
-          {%- endif -%}
-        {%- endfor -%}
-      {%- endif -%}
-      {%- if not ns.plex_entity and not cast_cid and not cast_title and cast_state in ['playing', 'paused', 'buffering'] -%}
-        {%- for player in states.media_player if "plex" in player.entity_id and "cast" in player.entity_id and player.state == cast_state and state_attr(player.entity_id, 'media_title') and not ns.plex_entity -%}
-          {%- set ns.plex_entity = player.entity_id -%}
-        {%- endfor -%}
-      {%- endif -%}
-      {%- if ns.plex_entity and states(ns.plex_entity) in ['playing', 'paused', 'idle'] -%}
-        {%- set ns.active = ns.plex_entity -%}
-      {%- else -%}
-        {%- set ns.active = cast -%}
-      {%- endif -%}
-      {{- ns.active -}}
+      {%- from 'universal_tv.jinja' import tv_child -%}
+      {{- tv_child('media_player.workshop_chromecast', 'media_player.lg_workshop_tv', 'com.webos.app.hdmi1', 'media_player.workshop_google_tv') -}}
+    state_template: >-
+      {%- from 'universal_tv.jinja' import tv_state -%}
+      {{- tv_state('media_player.workshop_chromecast', 'media_player.lg_workshop_tv', 'com.webos.app.hdmi1', 'media_player.workshop_google_tv') -}}
     commands:
-      volume_mute:
-        service: media_player.volume_mute
+      turn_on:
+        action: script.turn_on
         target:
-          entity_id: 
-            - media_player.workshop_chromecast            
+          entity_id: script.universal_tv_power
+        data:
+          variables:
+            turn: "on"
+            cast: media_player.workshop_chromecast
+            tv: media_player.lg_workshop_tv
+            wake: media_player.workshop_google_tv
+            source: chromecast
+      turn_off:
+        action: script.turn_on
+        target:
+          entity_id: script.universal_tv_power
+        data:
+          variables:
+            turn: "off"
+            cast: media_player.workshop_chromecast
+            tv: media_player.lg_workshop_tv
+            wake: media_player.workshop_google_tv
+      volume_mute:
+        action: media_player.volume_mute
+        target: &workshop_cast
+          entity_id: media_player.workshop_chromecast
         data:
           is_volume_muted: "{{ is_volume_muted }}"
       volume_set:
-        service: media_player.volume_set
-        target:
-          entity_id: 
-            - media_player.workshop_chromecast            
+        action: media_player.volume_set
+        target: *workshop_cast
         data:
           volume_level: "{{ volume_level }}"
       volume_up:
-        service: media_player.volume_up
-        target:
-          entity_id: 
-            - media_player.workshop_chromecast            
+        action: media_player.volume_up
+        target: *workshop_cast
       volume_down:
-        service: media_player.volume_down
+        action: media_player.volume_down
+        target: *workshop_cast
+      select_source:
+        action: media_player.select_source
         target:
-          entity_id: 
-            - media_player.workshop_chromecast              
-      media_pause:
-        service: media_player.media_pause
-        target:
-          entity_id: 
-            - media_player.workshop_chromecast             
-      media_play_pause:
-        service: media_player.media_play_pause
-        target:
-          entity_id: 
-            - media_player.workshop_chromecast            
-      turn_on:
-        service: media_player.turn_on
-        target:
-          entity_id: 
-            - media_player.workshop_chromecast            
-      turn_off:
-        service: media_player.turn_off
-        target:
-          entity_id: 
-            - media_player.workshop_chromecast         
-      media_stop:
-        service: media_player.media_stop
-        target:
-          entity_id: 
-            - media_player.workshop_chromecast     
-      media_play:
-        service: media_player.media_play
-        target:
-          entity_id: 
-            - media_player.workshop_chromecast            
-      play_media :
-        service: media_player.play_media
+          entity_id: "{{ 'media_player.lg_workshop_tv' if is_state('media_player.lg_workshop_tv', 'on') else 'none' }}"
         data:
-          media_content_type: '{{media_content_type}}'
-          media_content_id: '{{media_content_id}}'
+          source: "{{ source }}"
+      media_play:
+        action: media_player.media_play
+        target: &workshop_transport
+          entity_id: >-
+            {%- from 'universal_tv.jinja' import tv_target -%}
+            {{- tv_target('media_player.workshop_chromecast', 'media_player.lg_workshop_tv', 'com.webos.app.hdmi1', 'media_player.workshop_google_tv') or 'none' -}}
+      media_pause:
+        action: media_player.media_pause
+        target: *workshop_transport
+      media_play_pause:
+        action: media_player.media_play_pause
+        target: *workshop_transport
+      media_stop:
+        action: media_player.media_stop
+        target: *workshop_transport
+      media_next_track:
+        action: script.turn_on
         target:
-          entity_id: 
-            - media_player.workshop_chromecast                    
+          entity_id: script.universal_tv_skip
+        data:
+          variables:
+            direction: next
+            cast: media_player.workshop_chromecast
+            tv: media_player.lg_workshop_tv
+            tv_input: com.webos.app.hdmi1
+            native: media_player.workshop_google_tv
+      media_previous_track:
+        action: script.turn_on
+        target:
+          entity_id: script.universal_tv_skip
+        data:
+          variables:
+            direction: previous
+            cast: media_player.workshop_chromecast
+            tv: media_player.lg_workshop_tv
+            tv_input: com.webos.app.hdmi1
+            native: media_player.workshop_google_tv
+      play_media:
+        action: media_player.play_media
+        target:
+          entity_id: media_player.workshop_chromecast
+        data:
+          media_content_type: "{{ media_content_type }}"
+          media_content_id: "{{ media_content_id }}"
     attributes:
       is_volume_muted: media_player.workshop_chromecast|is_volume_muted
       volume_level: media_player.workshop_chromecast|volume_level
-      state: media_player.workshop_chromecast
+      source: media_player.lg_workshop_tv|source
+      source_list: media_player.lg_workshop_tv|source_list
 
 
   ##########################  following speaker ##########################
