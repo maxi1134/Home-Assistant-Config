@@ -1,0 +1,152 @@
+{#-
+  ─── Universal TV ───────────────────────────────────────────────────────────
+  Shared logic for the per-TV universal media players in
+  includes/media_player.yaml and for script.universal_tv_skip.
+
+  Every macro describes one TV with the same four arguments:
+    cast    Google Cast media_player of the TV (required).
+    power   media_player that knows whether the screen is on; '' when the cast
+            is the only witness (plain Chromecast, Nest Hub). While power is
+            unavailable/unknown the cast is trusted instead.
+    input   power's app_id while the TV shows the cast's HDMI input; '' when
+            the cast is built into the TV.
+    native  media_player reporting what a native TV app is doing; '' for none.
+            Roku reports playing/paused itself. Android TV Remote reports only
+            on/off and the foreground app, so any non-home app counts as
+            playing (it cannot tell a paused app from a playing one).
+  tv_state also takes dashboard_state: the state while the cast shows a Home
+  Assistant dashboard. 'on' by default; 'off' for a screen whose resting state
+  is a dashboard (the kitchen hub).
+
+  Macros return text, so compare their output as strings.
+
+  After editing: run homeassistant.reload_custom_templates, then universal.reload.
+-#}
+
+{#- Plex media_player playing exactly what `cast` shows, or '' when none.
+    Plex Cast sessions get a fresh entity id now and then, so the join is the
+    Plex ratingKey: the cast reports '/library/metadata/<key>', the Plex entity
+    the bare <key> (an integer). Several TVs can play the same item at once
+    (one shuffled playlist on every TV); then the session in the cast's state
+    whose timeline started closest to the cast's wins. Never match on titles
+    or on "a Plex session in the same state": that hands one room's session to
+    another room. -#}
+{%- macro plex_session(cast) -%}
+  {%- set ns = namespace(entity='', score=none) -%}
+  {%- set cast_state = states(cast) -%}
+  {%- set cid = (state_attr(cast, 'media_content_id') or '') | string -%}
+  {%- set key = (cid.split('?') | first).rstrip('/').split('/') | last -%}
+  {%- set in_plex = state_attr(cast, 'app_id') == '9AC194DC'
+        or state_attr(cast, 'app_name') == 'Plex' -%}
+  {%- if in_plex and key | int(0) > 0
+        and cast_state in ['playing', 'paused', 'buffering', 'idle'] -%}
+    {%- set cast_at = state_attr(cast, 'media_position_updated_at') -%}
+    {%- set cast_pos = state_attr(cast, 'media_position') -%}
+    {%- set cast_start = as_timestamp(cast_at, 0) - cast_pos | float(0)
+          if cast_at and cast_pos is not none else none -%}
+    {%- for plex in integration_entities('plex') | select('match', 'media_player[.]')
+          if states(plex) in ['playing', 'paused', 'buffering']
+          and state_attr(plex, 'media_content_id') | string == key -%}
+      {%- set plex_at = state_attr(plex, 'media_position_updated_at') -%}
+      {%- set plex_pos = state_attr(plex, 'media_position') -%}
+      {%- set gap = ((as_timestamp(plex_at, 0) - plex_pos | float(0)) - cast_start) | abs
+            if cast_start is not none and plex_at and plex_pos is not none else 0 -%}
+      {%- set score = gap + (0 if states(plex) == cast_state else 86400) -%}
+      {%- if ns.score is none or score < ns.score -%}
+        {%- set ns.entity = plex -%}
+        {%- set ns.score = score -%}
+      {%- endif -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {{- ns.entity -}}
+{%- endmacro -%}
+
+{#- One evaluation of the TV's facts, rendered as `what`:
+      'state'   universal state: 'off' when the TV is off; otherwise the cast
+                session's state, else a native app's playback, else 'idle'
+                while a cast app is open but stopped, else 'on' (screen on,
+                nothing playing). A Home Assistant dashboard cast to a screen
+                is furniture, not media: it reads dashboard_state.
+      'child'   active child: the Plex entity playing the cast's item (Plex
+                artwork and metadata, incl. media_library_title that the light
+                automations read through active_child), else the TV's native
+                app entity while it plays, else the cast.
+      'target'  who takes play/pause/stop/skip: the cast session, else the
+                native app entity while it plays, else '' (nobody). -#}
+{%- macro tv(what, cast, power='', input='', native='', dashboard_state='on') -%}
+  {#- ───────── constants ───────── -#}
+  {%- set OFF = ['off', 'standby'] -%}
+  {%- set UNKNOWN = ['unavailable', 'unknown'] -%}
+  {%- set SESSION = ['playing', 'paused', 'buffering', 'idle'] -%}
+  {%- set DASHBOARD_APPS = ['A078F6B0', '84912283'] -%}
+  {#- Android TV foreground apps that mean "nothing is playing". mediashell
+      hosts cast receivers: while it casts, the cast entity speaks for it. -#}
+  {%- set HOME_APPS = ['', 'none', 'unknown',
+        'com.android.systemui',
+        'com.google.android.tvlauncher',
+        'com.google.android.apps.tv.launcherx',
+        'com.google.android.apps.tv.dreamx',
+        'com.google.android.apps.mediashell',
+        'com.sony.dtv.tvx',
+        'com.sony.dtv.smarthome',
+        'com.sony.dtv.update.agent.ota'] -%}
+
+  {#- ───────── facts ───────── -#}
+  {#- now() makes HA re-render this once a minute. The universal platform only
+      applies a template's first result when something it reads changes (or at
+      HA start), so after universal.reload a quiet TV would otherwise sit at
+      'unknown' until one of its devices next reports. -#}
+  {%- set _ = now() -%}
+  {%- set cast_state = states(cast) -%}
+  {%- set dashboard = state_attr(cast, 'app_id') in DASHBOARD_APPS -%}
+  {%- set power_state = states(power) if power else 'unknown' -%}
+  {%- set tv_off = power_state in OFF -%}
+  {%- set tv_on = power != '' and power_state not in OFF + UNKNOWN -%}
+  {%- set tv_app = (state_attr(power, 'app_id') or '') | string if power else '' -%}
+  {%- set on_input = input == '' or tv_app in ['', input] -%}
+  {%- set cast_live = on_input and not dashboard and cast_state in SESSION -%}
+  {%- set native_state = states(native) if native else 'unknown' -%}
+  {%- set native_app = (state_attr(native, 'app_id') or '') | string | lower if native else '' -%}
+  {%- set native_live = native != '' and (native == power or on_input)
+        and native_state not in OFF + UNKNOWN
+        and not native_app.startswith('tvinput.') -%}
+  {%- set native_play = native_state
+        if native_live and native_state in ['playing', 'paused', 'buffering']
+        else 'playing' if native_live and native_state == 'on' and native_app not in HOME_APPS
+        else '' -%}
+
+  {#- ───────── result ───────── -#}
+  {%- if what == 'state' -%}
+    {%- if tv_off -%}off
+    {%- elif dashboard -%}{{ dashboard_state }}
+    {%- elif tv_on -%}
+      {%- if cast_live and cast_state != 'idle' -%}{{ cast_state }}
+      {%- elif native_play -%}{{ native_play }}
+      {%- elif cast_live -%}idle
+      {%- else -%}on
+      {%- endif -%}
+    {%- elif power and cast_state in UNKNOWN -%}off
+    {%- else -%}{{ cast_state }}
+    {%- endif -%}
+  {%- elif what == 'child' -%}
+    {%- set plex = plex_session(cast) | trim if on_input and not tv_off else '' -%}
+    {{- plex if plex else native if tv_on and not cast_live and native_play else cast -}}
+  {%- elif what == 'target' -%}
+    {{- '' if tv_off else cast if cast_live else native if native_play else '' -}}
+  {%- endif -%}
+{%- endmacro -%}
+
+{#- state_template of a universal TV. -#}
+{%- macro tv_state(cast, power='', input='', native='', dashboard_state='on') -%}
+  {{- tv('state', cast, power, input, native, dashboard_state) -}}
+{%- endmacro -%}
+
+{#- active_child_template of a universal TV. -#}
+{%- macro tv_child(cast, power='', input='', native='') -%}
+  {{- tv('child', cast, power, input, native) -}}
+{%- endmacro -%}
+
+{#- Entity that takes play/pause/stop/skip right now, or '' for nobody. -#}
+{%- macro tv_target(cast, power='', input='', native='') -%}
+  {{- tv('target', cast, power, input, native) -}}
+{%- endmacro -%}
