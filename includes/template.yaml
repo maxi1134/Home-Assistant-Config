@@ -98,6 +98,55 @@
             {{ this is defined and this.state == 'on' }}
           {% endif %}
 
+      # Phone actually in use = screen on AND unlocked; stays on for 20 minutes after.
+      # Neither half works alone at night:
+      # - interactive: around 05:10-05:30 the screen comes on right after a Bluetooth
+      #   reconnect and stays on for 30-340 min while the phone stays locked (11 of 12
+      #   nights, 2026-10-13 -> 10-24) - Maxi is asleep through it.
+      # - device_locked: read "unlocked" with the screen off from 23:30 to 02:07 on
+      #   2026-10-24.
+      # Unavailable when either phone sensor is, so a dead companion app can never look
+      # like an idle phone to "Maxi Asleep Inferred" below.
+      - name: "Maxi Phone Used Recently"
+        unique_id: maxi_phone_used_recently
+        delay_off:
+          minutes: 20
+        availability: >-
+          {{ has_value('binary_sensor.phone_maxi_interactive')
+             and has_value('binary_sensor.phone_maxi_device_locked') }}
+        state: >-
+          {{ is_state('binary_sensor.phone_maxi_interactive', 'on')
+             and is_state('binary_sensor.phone_maxi_device_locked', 'off') }}
+
+      # Sleep inferred without the CPAP or the sleeper button: Maxi in the bedroom
+      # (petro_v2), phone not used for 20 min, and the phone's Google Sleep API
+      # confidence high. Read by the "Sleeping" rule in activity.jinja (detail
+      # "bedroom (inferred)") and by the automation that turns on the bedroom sleeper
+      # after 30 min of it.
+      # Confidence alone is useless at home: it reads >=75 most evenings while Maxi is
+      # up with the phone lying still. It only works combined with location + phone idle.
+      # Hysteresis: enter at >=75, stay while >=50 (core sleep never dipped below 50).
+      # delay_off rides out petro_v2 flicking out of the bedroom for under a minute.
+      # Backtest 2026-10-13 -> 10-24 (11 nights): no daytime episodes. On 2026-10-24
+      # (fell asleep to Rick and Morty with the lights on, no CPAP, no button) it turns
+      # on at 00:26 instead of the 03:18 button press, and drops correctly for the 00:58
+      # fridge trip and the 01:39 phone check. On 3 other nights it turned on 14-36 min
+      # before the button, each time lying in bed with the bedroom TV on.
+      # Sweep (15-30 min idle, entry 75-90, delay 5-15 min): same nights, timings move
+      # by a few minutes. Re-run the backtest if petro_v2 or the phone changes.
+      - name: "Maxi Asleep Inferred"
+        unique_id: maxi_asleep_inferred
+        delay_on:
+          minutes: 10
+        delay_off:
+          minutes: 1
+        state: >-
+          {% set threshold = 50 if (this is defined and this.state == 'on') else 75 %}
+          {{ is_state('person.maximiliano', 'home')
+             and states('sensor.maxi_location_by_petro_v2') | lower == 'bedroom'
+             and is_state('binary_sensor.maxi_phone_used_recently', 'off')
+             and states('sensor.phone_maxi_sleep_confidence') | int(0) >= threshold }}
+
 
   - binary_sensor:
       # ─── Bathroom & Utility Binary Sensors ───
@@ -984,6 +1033,9 @@
           - sensor.bermuda_maxi_ankle_beacon_bps_zone
           - sensor.bermuda_maxi_phone_area
           - sensor.bermuda_maxi_phone_bps_zone
+          # occupied/allowed_rooms and the active_rooms attribute both read this,
+          # so without it here they are snapshots from the last BLE change.
+          - sensor.active_motion_rooms
       # Without this the sensor sits at 'unknown' after a restart until the next
       # BLE update arrives, which starves every downstream room-based sensor.
       - trigger: homeassistant
@@ -1053,9 +1105,10 @@
                    state, which it can only do when it disagrees with one. #}
                 {% set ns.votes = ns.votes + [(last_room, 1, as_timestamp(states['sensor.last_active_room'].last_changed, 0))] %}
               {% endif %}
-              {% if (gpslocation == 'home' or phone_bps_home) and current_room != '' %}
-                {% set ns.votes = ns.votes + [(current_room, 1, 0)] %}
-              {% endif %}
+              {# No unconditional vote for current_room. It handed the incumbent a
+                 point it hadn't earned, and by keeping it in ns.results it made the
+                 "no candidate is in an occupied room" fallback below unreachable,
+                 so a score-3 room with no motion lost to the previous state. #}
               {% for room, votes in ns.votes | groupby(attribute='0') %}
                 {% set total = votes | map(attribute='1') | sum %}
                 {% set latest = votes | map(attribute='2') | max %}
@@ -1068,7 +1121,12 @@
                   {% set allowed_rooms = allowed_rooms + [current_room] %}
                 {% endif %}
                 {% set candidates = ns.results | selectattr('0', 'in', allowed_rooms) | list %}
-                {% if candidates | length == 0 %}
+                {# Motion is already weighted as the +1 bonus above, so this filter must
+                   never veto a strictly better-scored room: a device that agrees with
+                   itself (score 3) beats a room that merely has motion. Short-circuit
+                   on the length test keeps `| max` off an empty ns.results. #}
+                {% if candidates | length == 0 or (candidates | map(attribute='1') | max)
+                                                  < (ns.results | map(attribute='1') | max) %}
                   {% set candidates = ns.results %}
                 {% endif %}
                 {% if candidates | length > 0 %}
@@ -1680,19 +1738,36 @@
           - binary_sensor.group_patio_motion_occupancy
           - binary_sensor.group_server_motion_occupancy
           - binary_sensor.group_bathroom_motion_occupancy
+      # group_hotbox_top/_down are deliberately absent: they are members of
+      # group_hotbox_motion_occupancy (above), whose area is Hotbox and matches the
+      # BPS zone. Their own areas, "Hotbox Top"/"Hotbox Down", match no BPS zone, so
+      # they are kept out of binary_sensor.home_occupancy and out of this list.
       - trigger: homeassistant
         event: start
+      # `homeassistant: start` does not fire on a template reload, and these are
+      # trigger-based entities: after a reload they restore their old value and wait.
+      # If no motion group happens to change state afterwards (sitting still in a room
+      # that was already occupied), the restored value sticks indefinitely. This
+      # backstop re-renders them so a reload self-corrects within five minutes.
+      - trigger: time_pattern
+        minutes: "/5"
     sensor:
       # Lists rooms with currently active motion sensors (using area_name lookup).
       # Iterates over the security occupancy sensor group and returns unique area names.
       - name: "active_motion_rooms"
         unique_id: "active_motion_rooms"
         state: >-
+            {# expand() recurses through the room groups down to the individual motion
+               sensors, so area_name() here resolves the LEAF sensor's area, not the
+               group's. A leaf with no area assigned yields None, which is why these
+               templates skip falsy rooms rather than collecting them. #}
             {% set ns = namespace(mediaactiverooms = []) %}
             {% for motion_sensor in expand('binary_sensor.home_occupancy') -%}
               {%- if motion_sensor.state == 'on' -%}
                 {% set currentroomname = area_name(motion_sensor.entity_id) %}
-                {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname] -%}
+                {%- if currentroomname -%}
+                  {%- set ns.mediaactiverooms = ns.mediaactiverooms + [currentroomname] -%}
+                {%- endif -%}
               {%- endif -%}
             {% endfor %}
             {{ ns.mediaactiverooms | unique | list }}
@@ -1702,26 +1777,24 @@
       - name: "last active room"
         unique_id: last_active_room
         state: >-
-            {% set groups = [
-              'binary_sensor.group_bedroom_motion_occupancy',
-              'binary_sensor.group_closet_motion_occupancy',
-              'binary_sensor.group_lounge_motion_occupancy',
-              'binary_sensor.group_hallway_motion_occupancy',
-              'binary_sensor.group_kitchen_motion_occupancy',
-              'binary_sensor.group_entrance_motion_occupancy',
-              'binary_sensor.group_workshop_motion_occupancy',
-              'binary_sensor.group_workstation_motion_occupancy',
-              'binary_sensor.group_salon_motion_occupancy',
-              'binary_sensor.group_patio_motion_occupancy',
-              'binary_sensor.group_server_motion_occupancy',
-              'binary_sensor.group_bathroom_motion_occupancy'
-            ] %}
-            {% set active = expand(groups)
-              | selectattr('state', 'eq', 'on')
-              | sort(reverse=true, attribute='last_changed')
-              | map(attribute='entity_id')
-              | first | default(none) %}
-            {{ area_name(active) | lower if active else this.state | default('unknown') }}
+            {# expand() recurses through the room groups down to the individual motion
+               sensors, so area_name() here resolves the LEAF sensor's area, not the
+               group's. A leaf with no area assigned yields None, which is why these
+               templates skip falsy rooms rather than collecting them. #}
+            {# Take the most recently triggered sensor that actually resolves to an
+               area, instead of bailing out when the newest one happens to have none
+               (None | lower would also raise). Falls back to holding the previous
+               state when nothing is on. #}
+            {% set ns = namespace(room = none) %}
+            {% for entity in expand('binary_sensor.home_occupancy')
+                 | selectattr('state', 'eq', 'on')
+                 | sort(reverse=true, attribute='last_changed')
+                 | map(attribute='entity_id') %}
+              {%- if ns.room is none and area_name(entity) -%}
+                {%- set ns.room = area_name(entity) -%}
+              {%- endif -%}
+            {% endfor %}
+            {{ ns.room | lower if ns.room else this.state | default('unknown') }}
 
   # ─── Myriam Indoor Location (Petro Algorithm) ───
   # Same voting-based location algorithm as Maxi's, but using Myriam's phone tracker.
@@ -1860,6 +1933,7 @@
           # presence & sleep
           - person.maximiliano
           - sensor.is_maxi_asleep
+          - binary_sensor.maxi_asleep_inferred
           - sensor.maxi_location_by_petro_v2
           - binary_sensor.maxi_alone
           # away
