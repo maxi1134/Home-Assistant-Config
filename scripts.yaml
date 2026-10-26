@@ -331,11 +331,13 @@ broadcast_alert_flash_notification_lights:
   icon: mdi:lightbulb-alert
 broadcast_alert_tts_announce:
   alias: Broadcast alert - TTS announcement
-  description: Speaks the message on the home speaker group, the bathroom speaker
-    and the bedroom speaker with the NabuDemon voice, or with Piper when NabuDemon
-    is unavailable. The bedroom speaker is skipped while someone sleeps in the bedroom;
-    in the Piper fallback it still speaks there when Maxi's sleep location is the
-    bedroom.
+  description: Speaks the message on the home speakers, the bathroom speaker and the
+    bedroom speaker with the NabuDemon voice, or with Piper when NabuDemon is unavailable.
+    The home speakers are the Home Group while it is on and each of its WiiMs while
+    it is off (home_group_targets in custom_templates/speakers.jinja), so one unreachable
+    WiiM cannot silence the rest. The bedroom speaker is skipped while someone sleeps
+    in the bedroom; in the Piper fallback it still speaks there when Maxi's sleep
+    location is the bedroom.
   fields:
     message:
       description: Text-to-speech message.
@@ -395,7 +397,7 @@ broadcast_alert_tts_announce:
     then:
     - alias: Announcements via Music Assistant with Nabu Demon Voice
       parallel:
-      - alias: Speak on home speaker group (NabuDemon)
+      - alias: Speak on home speakers (NabuDemon)
         action: tts.speak
         metadata: {}
         target:
@@ -403,9 +405,13 @@ broadcast_alert_tts_announce:
           - tts.openai_tts_nabudemon
         data:
           cache: true
-          media_player_entity_id: media_player.group_mass_home_group_speakers
+          media_player_entity_id: '{% from ''speakers.jinja'' import home_group_targets
+            %}{{ home_group_targets() | from_json }}'
           message: '{{ message }}'
         continue_on_error: true
+        note: 'The group while it is on, each WiiM while it is off (speakers.jinja):
+          an off group starts as one AirPlay session that plays nowhere if one WiiM
+          fails.'
       - alias: If nobody sleeps in the bedroom
         if:
         - alias: Nobody sleeping in the bedroom
@@ -440,16 +446,20 @@ broadcast_alert_tts_announce:
       then:
       - alias: Announce via Piper voice in parallel
         parallel:
-        - alias: Speak on home speaker group (Piper)
+        - alias: Speak on home speakers (Piper)
           action: tts.speak
           metadata: {}
           target:
             entity_id: tts.piper_2
           data:
             cache: true
-            media_player_entity_id: media_player.group_mass_home_group_speakers
+            media_player_entity_id: '{% from ''speakers.jinja'' import home_group_targets
+              %}{{ home_group_targets() | from_json }}'
             message: '{{ message }}'
           continue_on_error: true
+          note: 'The group while it is on, each WiiM while it is off (speakers.jinja):
+            an off group starts as one AirPlay session that plays nowhere if one WiiM
+            fails.'
         - alias: If bedroom announcement is allowed
           if:
           - alias: Maxi sleeps in bedroom or no bedroom sleeper
@@ -490,9 +500,12 @@ broadcast_alert_tts_announce:
   icon: mdi:bullhorn
 broadcast_alert_play_audio_url:
   alias: Broadcast alert - play audio URL
-  description: Plays an audio URL as a Music Assistant announcement on the home speaker
-    group plus the bedroom, closet, and bathroom speakers. The hotbox speaker is also
-    included when `include_hotbox` is true (Lylou-alone mode).
+  description: Plays an audio URL as a Music Assistant announcement on the home speakers
+    plus the bedroom, closet, and bathroom speakers. The home speakers are the Home
+    Group while it is on and each of its WiiMs while it is off (home_group_targets
+    in custom_templates/speakers.jinja), so one unreachable WiiM cannot silence the
+    rest. The hotbox speaker is also included when `include_hotbox` is true (Lylou-alone
+    mode) and it is not already a Home Group member.
   fields:
     broadcast_url:
       description: Audio URL to play as an announcement.
@@ -516,14 +529,18 @@ broadcast_alert_play_audio_url:
   sequence:
   - alias: Announce on all speakers in parallel
     parallel:
-    - alias: Announce URL on home speaker group
+    - alias: Announce URL on home speakers
       action: music_assistant.play_announcement
       data:
         url: '{{ broadcast_url }}'
         announce_volume: '{{ announce_volume | default(35) | int }}'
       target:
-        entity_id: media_player.group_mass_home_group_speakers
+        entity_id: '{% from ''speakers.jinja'' import home_group_targets %}{{ home_group_targets()
+          | from_json }}'
       continue_on_error: true
+      note: 'The group while it is on, each WiiM while it is off (speakers.jinja):
+        an off group starts as one AirPlay session that plays nowhere if one WiiM
+        fails.'
     - alias: Announce URL on bedroom speaker
       action: music_assistant.play_announcement
       data:
@@ -550,9 +567,11 @@ broadcast_alert_play_audio_url:
       continue_on_error: true
     - alias: If the hotbox should be included
       if:
-      - alias: include_hotbox is true
+      - alias: include_hotbox is true and the hotbox is not already a Home Group member
         condition: template
-        value_template: '{{ include_hotbox | default(false) | bool }}'
+        value_template: '{{ include_hotbox | default(false) | bool and ''media_player.mass_hotbox_wiim_speaker''
+          not in (state_attr(''media_player.group_mass_home_group_speakers'', ''group_members'')
+          or []) }}'
       then:
       - alias: Announce URL on hotbox speaker
         action: music_assistant.play_announcement
@@ -562,6 +581,8 @@ broadcast_alert_play_audio_url:
         target:
           entity_id: media_player.mass_hotbox_wiim_speaker
         continue_on_error: true
+      note: The hotbox WiiM is in the Home Group, so the home speakers step already
+        covers it; announcing it twice would play the clip twice.
   mode: parallel
   max: 10
   icon: mdi:speaker-wireless
@@ -1704,11 +1725,9 @@ inside_only_home_defense_script:
     action: media_player.play_media
     metadata: {}
     target:
-      entity_id:
-      - media_player.group_mass_home_group_speakers
-      - media_player.mass_bathroom_vpe_speaker
-      - media_player.mass_bedroom_vpe_speaker
-      - media_player.mass_closet_vpe_speaker
+      entity_id: '{% from ''speakers.jinja'' import home_group_members %}{{ (home_group_members()
+        | from_json) + [''media_player.mass_bathroom_vpe_speaker'', ''media_player.mass_bedroom_vpe_speaker'',
+        ''media_player.mass_closet_vpe_speaker''] }}'
     data:
       media:
         media_content_id: media-source://media_source/local/burglar_alarm.mp3
@@ -1726,6 +1745,9 @@ inside_only_home_defense_script:
             media_content_id: media-source://media_source/local/.
           browse_entity_id: media_player.group_mass_home_group_speakers
     continue_on_error: true
+    note: Plays on each Home Group WiiM separately (speakers.jinja). The group was
+      just turned off, and MA starts an off group as one AirPlay session that plays
+      nowhere if one WiiM fails to connect.
   - alias: Set all home speakers to full volume
     action: media_player.volume_set
     metadata: {}
@@ -1769,12 +1791,13 @@ inside_only_home_defense_script:
     metadata: {}
     data: {}
     target:
-      entity_id:
-      - media_player.group_mass_home_group_speakers
-      - media_player.mass_bathroom_vpe_speaker
-      - media_player.mass_bedroom_vpe_speaker
-      - media_player.mass_closet_vpe_speaker
+      entity_id: '{% from ''speakers.jinja'' import home_group_members %}{{ [''media_player.group_mass_home_group_speakers'']
+        + (home_group_members() | from_json) + [''media_player.mass_bathroom_vpe_speaker'',
+        ''media_player.mass_bedroom_vpe_speaker'', ''media_player.mass_closet_vpe_speaker'']
+        }}'
     continue_on_error: true
+    note: Stops the WiiMs individually too, since the alarm plays on each of them
+      rather than through the group.
   - alias: Turn music following back on
     action: input_boolean.turn_on
     metadata: {}
@@ -1784,10 +1807,12 @@ inside_only_home_defense_script:
     continue_on_error: true
   mode: restart
   description: 'Indoor-only alarm: turns off music following, stops the home speaker
-    group and plays a burglar alarm at full volume on the home speakers. Once the
-    security occupancy sensors go from detected to clear for 5 minutes, it stops the
-    alarm and turns music following back on. If that does not happen within 40 minutes
-    the script ends and the alarm keeps playing.'
+    group and plays a burglar alarm at full volume on each Home Group WiiM separately
+    (custom_templates/speakers.jinja, so one unreachable WiiM cannot silence the rest)
+    plus the bathroom, bedroom and closet speakers. Once the security occupancy sensors
+    go from detected to clear for 5 minutes, it stops the alarm and turns music following
+    back on. If that does not happen within 40 minutes the script ends and the alarm
+    keeps playing.'
 start_plex_media_on_requested_player:
   alias: Start plex media on requested player
   sequence:
@@ -1872,6 +1897,7 @@ set_whole_house_to_cozy_ambiance_2:
         - light.hotbox_desk_tube_light
         - light.salon_ceiling_light
         - light.bathroom_bathroom_mirror_light
+        - light.kitchen_kitchen_cabinet_side_light
       continue_on_error: true
     - alias: 'Patio lights: breathe, 2668 K, 75%'
       action: light.turn_on
@@ -1882,24 +1908,6 @@ set_whole_house_to_cozy_ambiance_2:
         color_temp_kelvin: 2668
       target:
         entity_id: light.group_patio_lights
-      continue_on_error: true
-    - alias: 'Lounge Christmas tree: ''1 Vintage'' effect, 2668 K, 100%'
-      action: light.turn_on
-      metadata: {}
-      data:
-        brightness_pct: 100
-        effect: 1 Vintage
-        color_temp_kelvin: 2668
-      target:
-        entity_id: light.lounge_christmas_tree_light
-      continue_on_error: true
-    - alias: Blaze effect on the lounge Nanoleaf
-      action: light.set_effect
-      metadata: {}
-      target:
-        entity_id: light.lounge_nanoleaf_light
-      data:
-        effect: Blaze
       continue_on_error: true
     - alias: Start Fireplace Visuals on idle TVs (unless include_visuals is false)
       if:
@@ -1914,6 +1922,25 @@ set_whole_house_to_cozy_ambiance_2:
           requested_playlist: Fireplace Visuals
           start_on_off_only: false
         continue_on_error: true
+    - alias: 'Lounge Christmas tree: ''1 Vintage'' effect, 2668 K, 100%'
+      action: light.turn_on
+      metadata: {}
+      data:
+        brightness_pct: 100
+        effect: 1 Vintage
+      target:
+        entity_id: light.lounge_christmas_tree_light
+      continue_on_error: true
+    - alias: Blaze effect on the lounge Nanoleaf
+      action: light.set_effect
+      metadata: {}
+      target:
+        entity_id:
+        - light.lounge_nanoleaf_light
+        - light.kitchen_wall_light
+      data:
+        effect: Blaze
+      continue_on_error: true
   description: 'Sets a cozy fireplace ambiance: first a warm 2236 K base at 40% on
     all inside lights (60-second fade), then the fireplace effect at full brightness
     on the inside lights (LIFX bulbs excluded), the flame effect on six LIFX wall
@@ -2351,48 +2378,77 @@ llm_script_for_music_assitant_voice_requests:
   alias: 'LLM Script to start TV SHOWS and MOVIES on TVs '
 set_whole_house_tonsexy_ambiance:
   sequence:
-  - alias: Set Fireplace effect on all hue lights
-    action: light.turn_on
-    metadata: {}
-    data:
-      effect: fireplace
-      brightness_pct: 100
-    target:
-      label_id: phlips_bulbs
-  - alias: Flame effect on three wall and ceiling lights
-    action: light.turn_on
-    metadata: {}
-    data:
-      effect: effect_flame
-      brightness_pct: 100
-    target:
-      entity_id:
-      - light.salon_wall_light
-      - light.workshop_wall_light
-      - light.lounge_ceiling_light
   - alias: 'Patio lights: breathe, 2668 K, 50%'
     action: light.turn_on
     metadata: {}
     data:
       brightness_pct: 50
-      effect: breathe
-      color_temp_kelvin: 2668
+      color_temp_kelvin: 2254
     target:
-      entity_id: light.group_patio_lights
-  - alias: 'Lounge decorative lamp: breathe, 2668 K, 100%'
+      entity_id:
+      - light.group_patio_lights
+      - light.group_all_inside_lights
+    continue_on_error: true
+  - alias: Flame effect on three wall and ceiling lights
+    action: lifx.effect_flame
+    metadata: {}
+    data:
+      speed: 20
+    target:
+      entity_id:
+      - light.salon_wall_light
+      - light.workshop_wall_light
+      - light.lounge_ceiling_light
+      - light.bathroom_bathroom_mirror_light
+      - light.hotbox_desk_tube_light
+      - light.kitchen_kitchen_cabinet_side_light
+      - light.kitchen_ceiling
+      - light.salon_ceiling_light
+      - light.workshop_center_light
+    continue_on_error: true
+  - alias: Set Fireplace effect on all hue lights
     action: light.turn_on
     metadata: {}
     data:
       brightness_pct: 100
-      effect: breathe
-      color_temp_kelvin: 2668
+      effect: fireplace
     target:
-      entity_id: light.group_lounge_decorative_lamp
+      label_id: phlips_bulbs
+    continue_on_error: true
+  - alias: 'Lounge decorative lamp: breathe, 2668 K, 100%'
+    action: light.turn_on
+    metadata: {}
+    data:
+      brightness_pct: 0
+      effect: 13 Molten Rainbow
+    target:
+      entity_id: light.lounge_christmas_tree_light
+    continue_on_error: true
+  - alias: 'Lounge decorative lamp: breathe, 2668 K, 100%'
+    action: light.turn_on
+    metadata: {}
+    data:
+      brightness_pct: 0
+      effect: Blaze
+    target:
+      entity_id:
+      - light.lounge_nanoleaf_light
+      - light.kitchen_wall_light
+    continue_on_error: true
+  - action: cover.close_cover
+    metadata: {}
+    target:
+      entity_id:
+      - cover.group_all_blinds
+      - cover.cover_bedroom_blinds
+    data: {}
+    continue_on_error: true
   - alias: Start Fireplace Visuals on idle TVs
     metadata: {}
     data:
       requested_playlist: Fireplace Visuals
     action: script.start_visual_playlist_on_plex
+    continue_on_error: true
   - alias: Play Pornosonic on home speakers
     action: music_assistant.play_media
     metadata: {}
@@ -2402,6 +2458,7 @@ set_whole_house_tonsexy_ambiance:
       album: 'Pornosonic '
     target:
       entity_id: media_player.group_mass_home_group_speakers
+    continue_on_error: true
   alias: Set whole house to sexy ambiance
   description: 'Sets a sexy fireplace mood: fireplace effect on the Philips Hue bulbs,
     flame effect on three wall and ceiling lights, a warm 2668 K breathing effect
@@ -2844,9 +2901,9 @@ reset_tablet_endpoint_interface:
   sequence:
   - alias: Find the area's tablet restart-browser buttons
     variables:
-      load_url: "{{  integration_entities('fully_kiosk')     \n        | select('search',
-        'restart_browser') \n        | select('search',  area )\n        | list \n
-        \       }}\n"
+      load_url: "{{  integration_entities('esphome')     \n        | select('search',
+        '^button\\\\.kiosk_.*_restart_app$') \n        | select('search',  area )\n
+        \       | list \n        }}\n"
   - alias: Press the tablet restart-browser buttons
     action: button.press
     metadata: {}
@@ -2855,8 +2912,8 @@ reset_tablet_endpoint_interface:
       entity_id: '{{ load_url }}'
   mode: parallel
   max_exceeded: silent
-  description: Restarts the Fully Kiosk browser on the tablet(s) in the given area
-    by pressing each Fully Kiosk 'restart browser' button whose entity id contains
+  description: Restarts the Kiosk Assistant app on the tablet(s) in the given area
+    by pressing each Kiosk Assistant 'Restart app' button whose entity id contains
     the area id. The LLM can use it to reload and reset the interface on a tablet.
   fields:
     area:
@@ -3489,11 +3546,10 @@ start_a_random_maxi_playlist:
         | string | trim -%} {{- requested_playlist | string | trim -}} {%- else -%}
         Maxi''s Smart Playlist {%- endif %}'
       home_group_members: "{% set want = ['salon', 'workshop', 'kitchen', 'lounge',
-        'hallway', 'hotbox', 'patio'] -%} {% set ns = namespace(members=[]) -%} {%
-        for aid in areas() -%}\n  {% if ((area_name(aid) or '') | lower) in want -%}\n
-        \   {% set ns.members = ns.members + (area_entities(aid) | select('search',
-        'media_player.mass.*_speaker') | list) -%}\n  {% endif -%}\n{% endfor -%}
-        {{ ns.members | unique | list }}"
+        'hallway', 'hotbox'] -%} {% set ns = namespace(members=[]) -%} {% for aid
+        in areas() -%}\n  {% if ((area_name(aid) or '') | lower) in want -%}\n    {%
+        set ns.members = ns.members + (area_entities(aid) | select('search', 'media_player.mass.*_speaker')
+        | list) -%}\n  {% endif -%}\n{% endfor -%} {{ ns.members | unique | list }}"
       players: "{% set ns = namespace(players=[]) -%} {% if player_entity is defined
         and player_entity is mapping and player_entity.entity_id is defined and player_entity.entity_id
         -%}\n  {% if player_entity.entity_id is string -%}\n    {% set ns.players
@@ -3521,6 +3577,7 @@ start_a_random_maxi_playlist:
       action: media_player.unjoin
       target:
         entity_id: '{{ players }}'
+      data: {}
     - alias: Wait 1 second
       delay:
         seconds: 1
@@ -4012,28 +4069,28 @@ launch_party_mode_on_all_kiosks:
   - alias: 'Run in parallel: load party page on kitchen and workshop tablets'
     parallel:
     - alias: Load party page on hallway tablet (disabled)
-      action: fully_kiosk.load_url
+      action: esphome.ks_kiosk_hallway_wall_tablet_open_url
       data:
         url: http://192.168.0.15:8095/#/party?frameless=true
-        device_id: 9e6b82b1f2fa641af98d847cc1cf06a6
+        hold_mode: true
       continue_on_error: true
       enabled: false
     - alias: Load party page on Tablet Kitchen S6 Lite
-      action: fully_kiosk.load_url
+      action: esphome.kiosk_satellite_008182_open_url
       data:
         url: http://192.168.0.15:8095/#/party?frameless=true
-        device_id: a94170d4bf7a596defcb763eda129822
+        hold_mode: true
       continue_on_error: true
     - alias: Load party page on workshop tablet
-      action: fully_kiosk.load_url
+      action: esphome.kiosk_satellite_85b34c_open_url
       data:
         url: http://192.168.0.15:8095/#/party?frameless=true
-        device_id: ea5d6e406b53af2043a0e3e21444f36e
+        hold_mode: true
       continue_on_error: true
   alias: Launch Party Mode Jukebox on All Kiosks
-  description: Loads the Music Assistant party jukebox page on the kitchen and workshop
-    tablets at the same time through Fully Kiosk; the hallway tablet step is disabled.
-    Useful for hosting events or gatherings.
+  description: Opens the Music Assistant party jukebox page on the kitchen and workshop
+    tablets at the same time through Kiosk Assistant's open-URL action (held until
+    closed); the hallway tablet step is disabled. Useful for hosting events or gatherings.
 apply_random_existing_effect_to_a_light_entity:
   alias: Apply random existing effect to a light entity
   description: Turns on each given light with a random effect from its own effect
@@ -5313,7 +5370,7 @@ start_retro_gaming_session:
     target:
       entity_id: media_player.sony_tv
     data:
-      source: HDMI 1
+      source: hdmi1
     continue_on_error: true
   - alias: Wait 3 seconds
     delay: 00:00:03
@@ -5323,7 +5380,7 @@ start_retro_gaming_session:
     target:
       entity_id: media_player.sony_tv
     data:
-      source: HDMI 1
+      source: hdmi1
 change_received_lights_to_vibrating_colors:
   alias: Change received lights to vibrating colors
   description: Starts the vibrating color effect on lights. Each light shimmers around
@@ -6181,3 +6238,378 @@ daily_calendar_briefing_opendisplay_only_agenda:
   - alias: Stop and return the agenda
     stop: Seven-day agenda generated
     response_variable: briefing_response
+universal_tv_skip:
+  alias: Universal TV skip
+  description: 'Next/previous for the universal TV players in includes/media_player.yaml.
+    Uses the first thing this TV supports: the native TV app that is playing, the
+    cast receiver''s own queue, a Plex client that accepts remote control, the Android
+    TV media key (kept only if the cast''s content then changes), and for Plex TV
+    episodes the neighbouring episode by season/episode number. Previous falls back
+    to restarting the current item. The universals start it with script.turn_on, so
+    a slow fallback never blocks the caller. Who is playing comes from custom_templates/universal_tv.jinja.'
+  mode: parallel
+  max: 10
+  icon: mdi:skip-next
+  fields:
+    direction:
+      name: Direction
+      description: next or previous.
+      required: true
+      default: next
+      selector:
+        select:
+          options:
+          - next
+          - previous
+    cast:
+      name: Cast
+      description: Google Cast media player of the TV.
+      required: true
+      selector:
+        entity:
+          filter:
+          - domain: media_player
+            integration: cast
+    tv:
+      name: TV
+      description: Media player that knows whether the screen is on.
+      selector:
+        entity:
+          filter:
+          - domain: media_player
+    tv_input:
+      name: Cast input
+      description: The TV's app_id while it shows the cast's HDMI input.
+      selector:
+        text: {}
+    native:
+      name: Native apps
+      description: Media player that reports the TV's own apps.
+      selector:
+        entity:
+          filter:
+          - domain: media_player
+  sequence:
+  - alias: Fill in the optional fields
+    variables:
+      tv: '{{ tv | default('''') }}'
+      tv_input: '{{ tv_input | default('''') }}'
+      native: '{{ native | default('''') }}'
+      skip_action: media_player.media_{{ direction }}_track
+      feature: '{{ 32 if direction == ''next'' else 16 }}'
+  - alias: Find what is playing
+    variables:
+      target: '{%- from ''universal_tv.jinja'' import tv_target -%}
+
+        {{- tv_target(cast, tv, tv_input, native) -}}'
+      plex: '{%- from ''universal_tv.jinja'' import plex_session -%}
+
+        {{- plex_session(cast) -}}'
+      before: '{{ state_attr(cast, ''media_content_id'') }}'
+  - alias: Nothing is playing on this TV
+    if:
+    - '{{ target == '''' }}'
+    then:
+    - stop: Nothing is playing on this TV
+  - alias: A native TV app is playing
+    if:
+    - '{{ target == native }}'
+    then:
+    - action: '{{ skip_action }}'
+      target:
+        entity_id: '{{ native }}'
+    - stop: Sent to the native TV app
+  - alias: The cast receiver can skip by itself
+    if:
+    - '{{ state_attr(cast, ''supported_features'') | int(0) | bitwise_and(feature)
+      > 0 }}'
+    then:
+    - action: '{{ skip_action }}'
+      target:
+        entity_id: '{{ cast }}'
+    - stop: Skipped by the cast receiver
+  - alias: The Plex client accepts remote control
+    if:
+    - '{{ plex != '''' and state_attr(plex, ''supported_features'') | int(0) | bitwise_and(feature)
+      > 0 }}'
+    then:
+    - action: '{{ skip_action }}'
+      target:
+        entity_id: '{{ plex }}'
+    - stop: Skipped through Plex
+  - alias: Google TV inside - try the Android TV media key
+    if:
+    - '{{ native != '''' and is_state(native, ''on'') and native in integration_entities(''androidtv_remote'')
+      }}'
+    then:
+    - action: '{{ skip_action }}'
+      target:
+        entity_id: '{{ native }}'
+      continue_on_error: true
+    - wait_template: '{{ state_attr(cast, ''media_content_id'') != before }}'
+      timeout: 00:00:05
+    - if:
+      - '{{ wait.completed }}'
+      then:
+      - stop: Skipped with the Android TV media key
+  - alias: Plex TV episode - play the neighbouring episode
+    if:
+    - "{{ plex != ''\n   and state_attr(plex, 'media_content_type') == 'tvshow'\n
+      \  and state_attr(plex, 'media_library_title') not in [none, '']\n   and state_attr(plex,
+      'media_series_title') not in [none, '']\n   and state_attr(plex, 'media_season')
+      is number\n   and state_attr(plex, 'media_episode') is number }}"
+    then:
+    - variables:
+        library: '{{ state_attr(plex, ''media_library_title'') }}'
+        show: '{{ state_attr(plex, ''media_series_title'') }}'
+        season: '{{ state_attr(plex, ''media_season'') | int }}'
+        episode: '{{ state_attr(plex, ''media_episode'') | int }}'
+    - if:
+      - '{{ direction == ''next'' }}'
+      then:
+      - alias: Next episode in this season
+        action: media_player.play_media
+        target:
+          entity_id: '{{ cast }}'
+        data:
+          media_content_type: episode
+          media_content_id: '{%- set q = {''library_name'': library, ''show.title=='':
+            show, ''season.index'': season, ''episode.index'': episode + 1} -%}
+
+            plex://{{ q | to_json }}'
+        continue_on_error: true
+      - wait_template: '{{ state_attr(cast, ''media_content_id'') != before }}'
+        timeout: 00:00:08
+      - alias: Last episode of the season - first episode of the next one
+        if:
+        - '{{ not wait.completed }}'
+        then:
+        - action: media_player.play_media
+          target:
+            entity_id: '{{ cast }}'
+          data:
+            media_content_type: episode
+            media_content_id: '{%- set q = {''library_name'': library, ''show.title=='':
+              show, ''season.index'': season + 1, ''episode.index'': 1} -%}
+
+              plex://{{ q | to_json }}'
+          continue_on_error: true
+      - stop: Asked Plex for the next episode
+    - if:
+      - '{{ episode > 1 }}'
+      then:
+      - alias: Previous episode in this season
+        action: media_player.play_media
+        target:
+          entity_id: '{{ cast }}'
+        data:
+          media_content_type: episode
+          media_content_id: '{%- set q = {''library_name'': library, ''show.title=='':
+            show, ''season.index'': season, ''episode.index'': episode - 1} -%}
+
+            plex://{{ q | to_json }}'
+        continue_on_error: true
+      - stop: Asked Plex for the previous episode
+  - alias: Previous with nothing else to go to - restart the current item
+    if:
+    - '{{ direction == ''previous'' and state_attr(cast, ''supported_features'') |
+      int(0) | bitwise_and(2) > 0 }}'
+    then:
+    - action: media_player.media_seek
+      target:
+        entity_id: '{{ cast }}'
+      data:
+        seek_position: 0
+    - stop: Restarted the current item
+  - stop: Nothing on this TV can skip
+universal_tv_power:
+  alias: Universal TV power
+  description: Turns a TV on or off for the universal TV players in includes/media_player.yaml
+    when one call is not enough. wake is a streaming box whose wake/sleep switches
+    the TV over HDMI-CEC (Android TV Remote); tv is the TV's own integration (Roku,
+    webOS). Turning on also selects the cast's input. Turning off quits the cast app
+    first, so a Plex session stops and saves its progress instead of playing on to
+    a dark screen. The universals start it with script.turn_on.
+  mode: parallel
+  max: 10
+  icon: mdi:television
+  fields:
+    turn:
+      name: Turn
+      description: on or off.
+      required: true
+      selector:
+        select:
+          options:
+          - 'on'
+          - 'off'
+    cast:
+      name: Cast
+      description: Google Cast media player of the TV.
+      required: true
+      selector:
+        entity:
+          filter:
+          - domain: media_player
+            integration: cast
+    tv:
+      name: TV
+      description: The TV's own media player (power state, source).
+      selector:
+        entity:
+          filter:
+          - domain: media_player
+    wake:
+      name: Streaming box
+      description: Android TV Remote media player whose wake/sleep switches the TV
+        over HDMI-CEC.
+      selector:
+        entity:
+          filter:
+          - domain: media_player
+            integration: androidtv_remote
+    source:
+      name: Cast input
+      description: TV source to select once the TV is on.
+      selector:
+        text: {}
+  sequence:
+  - alias: Fill in the optional fields
+    variables:
+      tv: '{{ tv | default('''') }}'
+      wake: '{{ wake | default('''') }}'
+      source: '{{ source | default('''') }}'
+      turning_on: '{{ turn | string | lower in [''on'', ''true''] }}'
+      dark:
+      - 'off'
+      - standby
+      - unavailable
+      - unknown
+  - if:
+    - '{{ turning_on }}'
+    then:
+    - alias: Box awake but TV dark - sleep the box so waking it switches the TV on
+      if:
+      - '{{ wake != '''' and is_state(wake, ''on'') and tv != '''' and states(tv)
+        in dark }}'
+      then:
+      - action: media_player.turn_off
+        target:
+          entity_id: '{{ wake }}'
+        continue_on_error: true
+      - wait_template: '{{ not is_state(wake, ''on'') }}'
+        timeout: 00:00:10
+    - choose:
+      - alias: Wake the streaming box (HDMI-CEC wakes the TV)
+        conditions:
+        - '{{ wake != '''' }}'
+        sequence:
+        - action: media_player.turn_on
+          target:
+            entity_id: '{{ wake }}'
+      - alias: The TV can turn itself on
+        conditions:
+        - '{{ tv != '''' and state_attr(tv, ''supported_features'') | int(0) | bitwise_and(128)
+          > 0 }}'
+        sequence:
+        - action: media_player.turn_on
+          target:
+            entity_id: '{{ tv }}'
+      default:
+      - alias: Plain Chromecast - starting an app wakes the TV over HDMI-CEC
+        action: media_player.turn_on
+        target:
+          entity_id: '{{ cast }}'
+    - alias: Show the cast's input
+      if:
+      - '{{ tv != '''' and source != '''' }}'
+      then:
+      - wait_template: '{{ states(tv) not in dark }}'
+        timeout: 00:00:30
+        continue_on_timeout: false
+      - if:
+        - '{{ state_attr(tv, ''source'') != source }}'
+        then:
+        - action: media_player.select_source
+          target:
+            entity_id: '{{ tv }}'
+          data:
+            source: '{{ source }}'
+    else:
+    - alias: Stop casting
+      if:
+      - '{{ states(cast) not in [''off'', ''unavailable'', ''unknown''] }}'
+      then:
+      - action: media_player.turn_off
+        target:
+          entity_id: '{{ cast }}'
+        continue_on_error: true
+    - alias: Sleep the streaming box (HDMI-CEC switches the TV off)
+      if:
+      - '{{ wake != '''' and is_state(wake, ''on'') }}'
+      then:
+      - action: media_player.turn_off
+        target:
+          entity_id: '{{ wake }}'
+        continue_on_error: true
+      - if:
+        - '{{ tv != '''' }}'
+        then:
+        - wait_template: '{{ states(tv) in dark }}'
+          timeout: 00:00:10
+    - alias: Turn the TV off directly if it is still on
+      if:
+      - '{{ tv != '''' and states(tv) not in dark }}'
+      then:
+      - action: media_player.turn_off
+        target:
+          entity_id: '{{ tv }}'
+assist_broadcast:
+  alias: Assist broadcast
+  description: 'Speaks a message with the Maxi voice (tts.openai_tts_maxi) on every
+    house speaker at once: the Home Group WiiMs (lounge, hallway, hotbox, workshop,
+    salon, patio, kitchen) plus the bathroom, closet and bedroom VPE speakers. Use
+    it when someone asks to broadcast or announce something to the whole house. While
+    the Home Group is powered on it announces through the group; while it is off it
+    announces on each WiiM separately, (home_group_targets in custom_templates/speakers.jinja),
+    because Music Assistant starts an off group as one AirPlay session that plays
+    nowhere if a single WiiM fails to connect. The bedroom speaker is skipped while
+    someone sleeps in the bedroom, and unavailable speakers are skipped. Runs are
+    queued so broadcasts never talk over each other.'
+  icon: mdi:bullhorn-variant
+  mode: queued
+  max: 5
+  fields:
+    message:
+      name: Message
+      description: The text to announce on every speaker, exactly as it should be
+        spoken.
+      required: true
+      example: Dinner is ready
+      selector:
+        text:
+          multiline: true
+  sequence:
+  - alias: Pick the speakers (group when on, each WiiM when off; bedroom only if nobody
+      sleeps there)
+    note: 'Home speakers come from home_group_targets in custom_templates/speakers.jinja:
+      the group while it is on, each WiiM while it is off. An off group starts as
+      one AirPlay session that plays nowhere if one WiiM fails to connect (Salon,
+      2026-10-19).'
+    variables:
+      speakers: '{% from ''speakers.jinja'' import home_group_targets %}{% set extra
+        = [''media_player.mass_bathroom_vpe_speaker'', ''media_player.mass_closet_vpe_speaker'']
+        + ([] if is_state(''input_boolean.sleeper_in_bedroom'', ''on'') else [''media_player.mass_bedroom_vpe_speaker''])
+        %}{{ ((home_group_targets() | from_json) + extra) | reject(''is_state'', ''unavailable'')
+        | list }}'
+  - alias: Speak the message on all speakers with the Maxi voice
+    note: One speaker failing still lets the others play; the failure stays visible
+      in the trace.
+    action: tts.speak
+    target:
+      entity_id: tts.openai_tts_maxi
+    data:
+      cache: true
+      media_player_entity_id: '{{ speakers }}'
+      message: '{{ message }}'
+    continue_on_error: true
