@@ -452,9 +452,9 @@
   - alias: Within daytime hours
     condition: or
     conditions:
-    - alias: Weekdays 08:00–22:00
+    - alias: Weekdays 06:30–22:00
       condition: time
-      after: 08:00:00
+      after: 06:30:00
       before: '22:00:00'
       weekday:
       - fri
@@ -462,9 +462,9 @@
       - wed
       - tue
       - mon
-    - alias: Weekends 10:00–22:00
+    - alias: Weekends 08:45–22:00
       condition: time
-      after: '10:00:00'
+      after: 08:45:00
       before: '22:00:00'
       weekday:
       - sun
@@ -785,7 +785,7 @@
   triggers:
   - alias: Hallway tablet battery changes
     entity_id:
-    - sensor.hallway_tablet_battery
+    - sensor.kiosk_hallway_wall_tablet_battery
     trigger: state
   conditions: []
   actions:
@@ -795,7 +795,7 @@
       conditions:
       - alias: Battery above 90%
         condition: numeric_state
-        entity_id: sensor.hallway_tablet_battery
+        entity_id: sensor.kiosk_hallway_wall_tablet_battery
         above: 90
       sequence:
       - alias: Turn off the hallway tablet charger
@@ -808,7 +808,7 @@
       conditions:
       - alias: Battery below 15%
         condition: numeric_state
-        entity_id: sensor.hallway_tablet_battery
+        entity_id: sensor.kiosk_hallway_wall_tablet_battery
         below: 15
       sequence:
       - alias: Turn on the hallway tablet charger
@@ -818,30 +818,38 @@
           entity_id: switch.plug_hallway_tablet
         action: switch.turn_on
       - alias: Set tablet screen brightness to 25
-        action: number.set_value
-        metadata: {}
-        data:
-          value: '25'
-        target:
-          entity_id: number.hallway_tablet_screen_brightness
+        if:
+        - condition: state
+          entity_id: light.kiosk_hallway_wall_tablet_screen
+          state: 'on'
+        then:
+        - action: light.turn_on
+          target:
+            entity_id: light.kiosk_hallway_wall_tablet_screen
+          data:
+            brightness: 25
     - alias: Charging above 20% → brightness 100
       conditions:
       - alias: Battery above 20%
         condition: numeric_state
-        entity_id: sensor.hallway_tablet_battery
+        entity_id: sensor.kiosk_hallway_wall_tablet_battery
         above: 20
       - alias: Tablet is plugged in
         condition: state
-        entity_id: binary_sensor.hallway_tablet_plugged_in
+        entity_id: binary_sensor.kiosk_hallway_wall_tablet_charging
         state: 'on'
       sequence:
       - alias: Set tablet screen brightness to 100
-        action: number.set_value
-        metadata: {}
-        data:
-          value: '100'
-        target:
-          entity_id: number.hallway_tablet_screen_brightness
+        if:
+        - condition: state
+          entity_id: light.kiosk_hallway_wall_tablet_screen
+          state: 'on'
+        then:
+        - action: light.turn_on
+          target:
+            entity_id: light.kiosk_hallway_wall_tablet_screen
+          data:
+            brightness: 100
   mode: single
 - id: '1713574201448'
   alias: Turn lights to white when we stop a movie
@@ -1158,15 +1166,14 @@
     data: {}
     target:
       entity_id:
-      - button.hallway_tablet_load_start_url
-      - button.workshop_tablet_load_start_url
-      - button.closet_tablet_load_start_url
-      - button.tablet_kitchen_s6_lite_load_start_url
-      - button.bedroom_tablet_load_start_url
+      - button.kiosk_hallway_wall_tablet_reload_page
+      - button.kiosk_workshop_wall_tablet_reload_page
+      - button.kiosk_satellite_reload_page
+      - button.kiosk_kitchen_tablet_reload_page
+      - button.kiosk_bedroom_tablet_reload_page
       - button.front_door_phone_load_start_url
-      - button.hallway_desk_tablet_load_start_url
-      - button.salon_desk_tablet_load_start_url
-      - button.server_tablet_load_start_url
+      - button.kiosk_salon_tablet_reload_page
+      - button.kiosk_serrver_tablet_reload_page
     action: button.press
   mode: single
 - id: '1713824382107'
@@ -1189,6 +1196,7 @@
     - binary_sensor.group_salon_motion_occupancy
     - binary_sensor.group_bathroom_motion_occupancy
     - binary_sensor.hallway_radar_occupancy_zone_3_occupancy
+    - binary_sensor.group_hotbox_motion_occupancy
     for:
       hours: 0
       minutes: 0
@@ -1720,8 +1728,8 @@
     action: button.press
     target:
       entity_id:
-      - button.hallway_tablet_load_start_url
-      - button.salon_desk_tablet_load_start_url
+      - button.kiosk_hallway_wall_tablet_reload_page
+      - button.kiosk_salon_tablet_reload_page
   mode: single
 - id: '1714497353040'
   alias: Turn off lights when the house is empty
@@ -1917,27 +1925,27 @@
   - alias: Battery rises above 91%
     trigger: numeric_state
     entity_id:
-    - sensor.workshop_tablet_battery
+    - sensor.kiosk_workshop_wall_tablet_battery
     above: 91
   - alias: Battery drops below 29%
     trigger: numeric_state
     entity_id:
-    - sensor.workshop_tablet_battery
+    - sensor.kiosk_workshop_wall_tablet_battery
     below: 29
   - alias: Battery drops below 25%
     trigger: numeric_state
     entity_id:
-    - sensor.workshop_tablet_battery
+    - sensor.kiosk_workshop_wall_tablet_battery
     below: 25
   - alias: Battery drops below 10%
     trigger: numeric_state
     entity_id:
-    - sensor.workshop_tablet_battery
+    - sensor.kiosk_workshop_wall_tablet_battery
     below: 10
   - alias: Battery drops below 15%
     trigger: numeric_state
     entity_id:
-    - sensor.workshop_tablet_battery
+    - sensor.kiosk_workshop_wall_tablet_battery
     below: 15
   conditions:
   - alias: Battery above 90% or below 30%
@@ -1945,11 +1953,11 @@
     conditions:
     - alias: Battery above 90%
       condition: numeric_state
-      entity_id: sensor.workshop_tablet_battery
+      entity_id: sensor.kiosk_workshop_wall_tablet_battery
       above: 90
     - alias: Battery below 30%
       condition: numeric_state
-      entity_id: sensor.workshop_tablet_battery
+      entity_id: sensor.kiosk_workshop_wall_tablet_battery
       below: 30
   actions:
   - alias: Charge or stop by battery level
@@ -1958,7 +1966,7 @@
       conditions:
       - alias: Battery above 90%
         condition: numeric_state
-        entity_id: sensor.workshop_tablet_battery
+        entity_id: sensor.kiosk_workshop_wall_tablet_battery
         above: 90
       - alias: Between 09:00 and 23:00
         condition: time
@@ -1975,7 +1983,7 @@
       conditions:
       - alias: Battery above 90%
         condition: numeric_state
-        entity_id: sensor.workshop_tablet_battery
+        entity_id: sensor.kiosk_workshop_wall_tablet_battery
         above: 90
       - alias: Between 23:00 and 09:00
         condition: time
@@ -2000,7 +2008,7 @@
       conditions:
       - alias: Battery below 30%
         condition: numeric_state
-        entity_id: sensor.workshop_tablet_battery
+        entity_id: sensor.kiosk_workshop_wall_tablet_battery
         below: 30
       sequence:
       - alias: Turn on the workshop tablet charger
@@ -2010,17 +2018,21 @@
           entity_id: switch.plug_workshop_tablet
         action: switch.turn_on
       - alias: Set tablet screen brightness to 25
-        action: number.set_value
-        metadata: {}
-        data:
-          value: '25'
-        target:
-          entity_id: number.workshop_tablet_screen_brightness
+        if:
+        - condition: state
+          entity_id: light.kiosk_workshop_wall_tablet_screen
+          state: 'on'
+        then:
+        - action: light.turn_on
+          target:
+            entity_id: light.kiosk_workshop_wall_tablet_screen
+          data:
+            brightness: 25
     - alias: Very low → charge and turn screen off
       conditions:
       - alias: Battery below 16%
         condition: numeric_state
-        entity_id: sensor.workshop_tablet_battery
+        entity_id: sensor.kiosk_workshop_wall_tablet_battery
         below: 16
       sequence:
       - alias: Turn on the workshop tablet charger
@@ -2032,16 +2044,20 @@
       - alias: Turn off the workshop tablet screen
         metadata: {}
         data: {}
-        action: switch.turn_off
+        action: light.turn_off
         target:
-          entity_id: switch.workshop_tablet_screen
+          entity_id: light.kiosk_workshop_wall_tablet_screen
       - alias: Set tablet screen brightness to 25
-        action: number.set_value
-        metadata: {}
-        data:
-          value: '25'
-        target:
-          entity_id: number.workshop_tablet_screen_brightness
+        if:
+        - condition: state
+          entity_id: light.kiosk_workshop_wall_tablet_screen
+          state: 'on'
+        then:
+        - action: light.turn_on
+          target:
+            entity_id: light.kiosk_workshop_wall_tablet_screen
+          data:
+            brightness: 25
   mode: single
 - id: '1715664801848'
   alias: Auto close closet tablet screen when someone is sleeping
@@ -2050,7 +2066,7 @@
   triggers:
   - alias: Closet tablet screen turns on
     entity_id:
-    - switch.closet_tablet_screen
+    - light.kiosk_satellite_screen
     to: 'on'
     trigger: state
   conditions:
@@ -2070,8 +2086,8 @@
     data: {}
     target:
       entity_id:
-      - switch.closet_tablet_screen
-    action: switch.turn_off
+      - light.kiosk_satellite_screen
+    action: light.turn_off
   mode: single
 - id: '1715696933725'
   alias: Tell maxi about the weather when he awakes
@@ -3407,11 +3423,13 @@
   mode: single
 - id: '1717358415139'
   alias: Trigger police announcement on triggered alarm
-  description: When the alarm is triggered, notifies Maxi and Myriam with a camera
+  description: 'When the alarm is triggered, notifies Maxi and Myriam with a camera
     snapshot (and an option to blare the inside alert), turns off music following
     and all lights, and plays the police de-escalation announcement at full volume
-    on the home speaker group. It then unmutes the seven house speakers, sets them
-    to full volume, and stops the speaker group after 30 seconds.
+    on the home speakers: the Home Group while it is on, each of its WiiMs while it
+    is off (custom_templates/speakers.jinja), so one unreachable WiiM cannot silence
+    the rest. It then unmutes the seven house speakers, sets them to full volume,
+    and stops the speaker group after 30 seconds.'
   triggers:
   - alias: Alarm is triggered
     entity_id:
@@ -3502,7 +3520,13 @@
       use_pre_announce: true
     action: music_assistant.play_announcement
     target:
-      entity_id: media_player.group_mass_home_group_speakers
+      entity_id: '{% from ''speakers.jinja'' import home_group_targets %}{{ home_group_targets()
+        | from_json }}'
+    continue_on_error: true
+    note: 'The group while it is on, each WiiM while it is off (speakers.jinja): an
+      off group starts as one AirPlay session that plays nowhere if one WiiM fails.
+      continue_on_error keeps the unmute, volume and stop steps running if one speaker
+      fails.'
   - alias: Unmute seven speakers in parallel
     parallel:
     - alias: Unmute the bathroom speaker
@@ -3639,8 +3663,8 @@
   mode: single
 - id: '1717360188815'
   alias: Lock tablets on triggered alarm
-  description: Puts the hallway, workshop, kitchen and closet tablets into Fully Kiosk
-    maintenance mode when the alarm is triggered, so intruders cannot use the dashboards.
+  description: Puts the hallway, workshop, kitchen and closet tablets into Kiosk Assistant
+    lockdown mode when the alarm is triggered, so intruders cannot use the dashboards.
   triggers:
   - alias: Alarm is triggered
     entity_id:
@@ -3654,15 +3678,15 @@
     data: {}
     target:
       entity_id:
-      - switch.hallway_tablet_maintenance_mode
-      - switch.workshop_tablet_maintenance_mode
-      - switch.tablet_kitchen_s6_lite_maintenance_mode
-      - switch.closet_tablet_maintenance_mode
+      - switch.kiosk_hallway_wall_tablet_lockdown_mode
+      - switch.kiosk_workshop_wall_tablet_lockdown_mode
+      - switch.kiosk_kitchen_tablet_lockdown_mode
+      - switch.kiosk_satellite_lockdown_mode
     action: switch.turn_on
   mode: single
 - id: '1717360231281'
   alias: Unlock tablets on disarmed alarm
-  description: Turns off Fully Kiosk maintenance mode on the hallway, workshop, kitchen
+  description: Turns off Kiosk Assistant lockdown mode on the hallway, workshop, kitchen
     and closet tablets whenever the alarm is disarmed.
   triggers:
   - alias: Alarm is disarmed
@@ -3679,10 +3703,10 @@
   - alias: Turn off maintenance mode on four tablets
     target:
       entity_id:
-      - switch.hallway_tablet_maintenance_mode
-      - switch.workshop_tablet_maintenance_mode
-      - switch.tablet_kitchen_s6_lite_maintenance_mode
-      - switch.closet_tablet_maintenance_mode
+      - switch.kiosk_hallway_wall_tablet_lockdown_mode
+      - switch.kiosk_workshop_wall_tablet_lockdown_mode
+      - switch.kiosk_kitchen_tablet_lockdown_mode
+      - switch.kiosk_satellite_lockdown_mode
     data: {}
     action: switch.turn_off
   mode: single
@@ -4153,24 +4177,37 @@
       - light.workshop_table_assistant_04dc50_screen
       - light.workshop_window_assistant_screen
   - alias: Dim both workshop tablets to 1
-    action: number.set_value
-    metadata: {}
-    data:
-      value: '1'
-    target:
-      entity_id:
-      - number.workshop_tablet_screen_brightness
-      - number.workshop_secondary_tablet_screen_brightness
+    sequence:
+    - if:
+      - condition: state
+        entity_id: light.kiosk_workshop_wall_tablet_screen
+        state: 'on'
+      then:
+      - action: light.turn_on
+        target:
+          entity_id: light.kiosk_workshop_wall_tablet_screen
+        data:
+          brightness: 1
+    - if:
+      - condition: state
+        entity_id: light.kiosk_workshop_tv_tablet_screen
+        state: 'on'
+      then:
+      - action: light.turn_on
+        target:
+          entity_id: light.kiosk_workshop_tv_tablet_screen
+        data:
+          brightness: 1
   - alias: Turn off workshop tablet screens and motion
-    action: switch.turn_off
+    action: homeassistant.turn_off
     metadata: {}
     data: {}
     target:
       entity_id:
-      - switch.workshop_tablet_screen
-      - switch.workshop_tablet_motion_detection
-      - switch.workshop_secondary_tablet_screen
-      - switch.workshop_secondary_tablet_motion_detection
+      - light.kiosk_workshop_wall_tablet_screen
+      - switch.kiosk_workshop_wall_tablet_screensaver_motion_detection
+      - light.kiosk_workshop_tv_tablet_screen
+      - switch.kiosk_workshop_tv_tablet_screensaver_motion_detection
   - alias: Ask Google Assistant to power off workshop TV
     action: google_assistant_sdk.send_text_command
     metadata: {}
@@ -4215,15 +4252,15 @@
       - media_player.mass_workshop_wiim_speaker
       - media_player.mass_hallway_wiim_speaker
   - alias: Turn workshop tablet screens and motion on
-    action: switch.turn_on
+    action: homeassistant.turn_on
     metadata: {}
     data: {}
     target:
       entity_id:
-      - switch.workshop_tablet_screen
-      - switch.workshop_tablet_motion_detection
-      - switch.workshop_secondary_tablet_screen
-      - switch.workshop_secondary_tablet_motion_detection
+      - light.kiosk_workshop_wall_tablet_screen
+      - switch.kiosk_workshop_wall_tablet_screensaver_motion_detection
+      - light.kiosk_workshop_tv_tablet_screen
+      - switch.kiosk_workshop_tv_tablet_screensaver_motion_detection
   - alias: Unmute the two workshop voice assistants
     action: switch.turn_off
     metadata: {}
@@ -4866,21 +4903,19 @@
     conditions:
     - alias: Music subview with camera anchor
       condition: state
-      entity_id: sensor.hallway_tablet_current_page
-      attribute: full_url
-      state: http://192.168.0.15:8123/tablets-subviews/subview-music#camera_motion_detected
+      entity_id: sensor.kiosk_hallway_wall_tablet_current_page
+      state: http://127.0.0.1:2325/tablets-subviews/subview-music#camera_motion_detected
     - alias: Music subview
       condition: state
-      entity_id: sensor.hallway_tablet_current_page
-      attribute: full_url
-      state: http://192.168.0.15:8123/tablets-subviews/subview-music
+      entity_id: sensor.kiosk_hallway_wall_tablet_current_page
+      state: http://127.0.0.1:2325/tablets-subviews/subview-music
   actions:
   - alias: Reload the hallway tablet start page
     action: button.press
     metadata: {}
     data: {}
     target:
-      entity_id: button.hallway_tablet_load_start_url
+      entity_id: button.kiosk_hallway_wall_tablet_go_to_dashboard
   mode: single
 - id: '1731345211107'
   alias: Alert if the front door remains unlocked for too long
@@ -4961,7 +4996,7 @@
     trigger: numeric_state
     entity_id:
     - sensor.patio_camera_sound_level
-    above: -25
+    above: -20
   conditions:
   - alias: Someone is on the patio
     condition: state
@@ -4996,21 +5031,23 @@
             image: /api/camera_proxy/camera.patio_camera
   - alias: 'If Maxi is away: ask guests to quiet down'
     choose:
-    - alias: Maxi away in party mode → ask for quiet
+    - alias: Late night in party mode → ask for quiet
       conditions:
-      - alias: Maxi is away
-        condition: state
-        entity_id: person.maximiliano
-        state: not_home
       - alias: Party mode is on
         condition: state
         entity_id: input_boolean.party_mode
         state: 'on'
+      - condition: time
+        after: '23:00:00'
+        before: 07:00:00
       sequence:
-      - alias: 'Announce: please reduce the noise on the patio'
-        action: script.broadcast_alert_in_the_house
+      - action: music_assistant.play_announcement
         data:
-          message: Please reduce the noise on the Patio!
+          tts_entity_id: tts.openai_tts_maxi
+          message: Please Guys, I will need you to lower the volume and be quieter.
+          announce_volume: 50
+        target:
+          entity_id: media_player.mass_patio_wiim_speaker
       - alias: 'Notify Maxi: guests asked to reduce noise'
         action: notify.maxi_notification_group
         metadata: {}
@@ -5159,7 +5196,7 @@
         data:
           title: Smoke has been detected in the kitchen! Act quickly!
           data:
-            image: /api/camera_proxy/camera.kitchen_tablet
+            image: /api/camera_proxy/camera.kiosk_kitchen_tablet_camera
             ttl: 0
             priority: high
             channel: security_alerts_notifications
@@ -5856,8 +5893,10 @@
   mode: restart
 - id: '1734282252470'
   alias: Assist Unmute ESP32 endpoints when room is occupied
-  description: When motion is detected in a room with no sleeper, unmutes that room's
-    voice assistant microphones by turning off every '…mute' switch in the room.
+  description: 'When motion is detected in a room with no sleeper, unmutes that room''s
+    voice assistant microphones by turning off every ''…mute'' switch in the room.
+    The salon Sony TV''s own mute switch is skipped: unmuting it together with the
+    speakers made the mutual mute automation flip the TV and WiiM back and forth (2026-10-25).'
   triggers:
   - alias: Motion detected in a room
     entity_id:
@@ -5891,8 +5930,8 @@
   - alias: List the room's mute switches
     variables:
       esp32_mute_entities: '{{([area_id(trigger.entity_id)]  | map(''area_entities'')
-        | sum(start=[]) |select(''match'', ''switch.*mute$'') | select(''has_value'')
-        |  unique | list ) }}
+        | sum(start=[]) |select(''match'', ''switch.*mute$'') | reject(''eq'', ''switch.salon_sony_tv_mute'')
+        | select(''has_value'') |  unique | list ) }}
 
         '
   - alias: 'For each mute switch: turn it off'
@@ -5909,9 +5948,10 @@
   max: 25
 - id: '1734282372322'
   alias: Assist mute ESP32 endpoints when room is unoccupied
-  description: When a room (other than the bedroom) has had no motion for 2 minutes,
-    mutes its voice assistant microphones by turning on every '…mute' switch in the
-    room.
+  description: 'When a room (other than the bedroom) has had no motion for 2 minutes,
+    mutes its voice assistant microphones by turning on every ''…mute'' switch in
+    the room. The salon Sony TV''s own mute switch is skipped (2026-10-25): the TV
+    is handled by the mutual mute automation.'
   triggers:
   - alias: Room empty for 2 min
     entity_id:
@@ -5942,8 +5982,8 @@
   - alias: List the room's mute switches
     variables:
       esp32_mute_entities: '{{([area_id(trigger.entity_id)]  | map(''area_entities'')
-        | sum(start=[]) |select(''match'', ''switch.*mute$'') | select(''has_value'')
-        |  unique | list ) }}
+        | sum(start=[]) |select(''match'', ''switch.*mute$'') | reject(''eq'', ''switch.salon_sony_tv_mute'')
+        | select(''has_value'') |  unique | list ) }}
 
         '
   - alias: 'For each mute switch: turn it on'
@@ -6524,11 +6564,11 @@
       - light.server_assistant_screen
       - light.seeed_studio_heartbeat_sensor_seeed_mr60bha2_rgb_light
   - alias: Turn off both hotbox tablet screens
-    action: switch.turn_off
+    action: homeassistant.turn_off
     metadata: {}
     target:
       entity_id:
-      - switch.hotbox_hotbox_tablet_screen
+      - light.kiosk_hotbox_desk_tablet_screen
       - switch.hotbox_hotbox_bed_tablet_screen
     data: {}
   - alias: Turn off the hotbox Roku
@@ -6538,11 +6578,11 @@
     target:
       entity_id: remote.hotbox_roku
   - alias: Turn off both hotbox tablet screens again
-    action: switch.turn_off
+    action: homeassistant.turn_off
     metadata: {}
     target:
       entity_id:
-      - switch.hotbox_hotbox_tablet_screen
+      - light.kiosk_hotbox_desk_tablet_screen
       - switch.hotbox_hotbox_bed_tablet_screen
     data: {}
   mode: single
@@ -6990,7 +7030,7 @@
   conditions:
   - alias: Closet tablet battery above 50%
     condition: numeric_state
-    entity_id: sensor.closet_tablet_battery
+    entity_id: sensor.kiosk_satellite_battery
     above: 50
   actions:
   - alias: Read the closet light brightness
@@ -6999,12 +7039,16 @@
 
         '
   - alias: Set the tablet screen to that brightness
-    action: number.set_value
-    metadata: {}
-    data:
-      value: '{{brightness}}'
-    target:
-      entity_id: number.closet_tablet_screen_brightness
+    if:
+    - condition: state
+      entity_id: light.kiosk_satellite_screen
+      state: 'on'
+    then:
+    - action: light.turn_on
+      target:
+        entity_id: light.kiosk_satellite_screen
+      data:
+        brightness: '{{ [ (brightness) | int(0), 1 ] | max }}'
   mode: restart
 - id: '1740935638351'
   alias: Execute sleep actions when "Sleeper in closet" turns on
@@ -7029,13 +7073,13 @@
       - light.group_closet_lights
       - light.closet_string_2
   - alias: Turn off closet tablet screen and motion
-    action: switch.turn_off
+    action: homeassistant.turn_off
     metadata: {}
     data: {}
     target:
       entity_id:
-      - switch.closet_tablet_screen
-      - switch.closet_tablet_motion_detection
+      - light.kiosk_satellite_screen
+      - switch.kiosk_satellite_screensaver_motion_detection
   mode: single
 - id: '1740935693012'
   alias: Undo sleeper actions when Sleeper in closet turns off
@@ -7052,13 +7096,13 @@
   conditions: []
   actions:
   - alias: Turn on closet tablet screen and motion
-    action: switch.turn_on
+    action: homeassistant.turn_on
     metadata: {}
     data: {}
     target:
       entity_id:
-      - switch.closet_tablet_screen
-      - switch.closet_tablet_motion_detection
+      - light.kiosk_satellite_screen
+      - switch.kiosk_satellite_screensaver_motion_detection
   - alias: Closet lights magenta at 1% over 20 s
     action: light.turn_on
     metadata: {}
@@ -7154,6 +7198,10 @@
       - sensor.phone_maxi_phone_state
       to:
       - idle
+      for:
+        hours: 0
+        minutes: 2
+        seconds: 0
     continue_on_timeout: false
     timeout:
       hours: 0
@@ -7209,7 +7257,7 @@
   conditions:
   - alias: Hallway tablet battery above 30%
     condition: numeric_state
-    entity_id: sensor.hallway_tablet_battery
+    entity_id: sensor.kiosk_hallway_wall_tablet_battery
     above: 30
   actions:
   - alias: Read the hallway light brightness
@@ -7218,12 +7266,16 @@
 
         '
   - alias: Set the tablet screen to that brightness
-    action: number.set_value
-    metadata: {}
-    data:
-      value: '{{brightness}}'
-    target:
-      entity_id: number.hallway_tablet_screen_brightness
+    if:
+    - condition: state
+      entity_id: light.kiosk_hallway_wall_tablet_screen
+      state: 'on'
+    then:
+    - action: light.turn_on
+      target:
+        entity_id: light.kiosk_hallway_wall_tablet_screen
+      data:
+        brightness: '{{ [ (brightness) | int(0), 1 ] | max }}'
   mode: restart
 - id: '1741877702709'
   alias: Start music when maxi returns home
@@ -9480,7 +9532,7 @@
   conditions:
   - alias: Workshop tablet battery above 30%
     condition: numeric_state
-    entity_id: sensor.workshop_tablet_battery
+    entity_id: sensor.kiosk_workshop_wall_tablet_battery
     above: 30
   - alias: Nobody sleeping in the workshop
     condition: state
@@ -9493,12 +9545,16 @@
 
         '
   - alias: Set the tablet screen to that brightness
-    action: number.set_value
-    metadata: {}
-    data:
-      value: '{{brightness}}'
-    target:
-      entity_id: number.workshop_tablet_screen_brightness
+    if:
+    - condition: state
+      entity_id: light.kiosk_workshop_wall_tablet_screen
+      state: 'on'
+    then:
+    - action: light.turn_on
+      target:
+        entity_id: light.kiosk_workshop_wall_tablet_screen
+      data:
+        brightness: '{{ [ (brightness) | int(0), 1 ] | max }}'
   mode: restart
 - id: '1747973723106'
   alias: Turn off lights when a room is empty and sleep mode is off V2
@@ -9715,13 +9771,11 @@
     conditions:
     - alias: Tablet on the entrance main view
       condition: state
-      entity_id: sensor.hallway_tablet_current_page
-      attribute: full_url
-      state: http://192.168.0.15:8123/tablet-entrance-dashboard/main-view?kiosk
+      entity_id: sensor.kiosk_hallway_wall_tablet_current_page
+      state: http://127.0.0.1:2325/tablet-entrance-dashboard/main-view
     - alias: Tablet on the party page
       condition: state
-      entity_id: sensor.hallway_tablet_current_page
-      attribute: full_url
+      entity_id: sensor.kiosk_hallway_wall_tablet_current_page
       state:
       - http://192.168.0.15:8095/#/party
       - http://192.168.0.15:8095/#/party?frameless=true
@@ -9731,7 +9785,7 @@
     metadata: {}
     data: {}
     target:
-      entity_id: button.hallway_tablet_load_start_url
+      entity_id: button.kiosk_hallway_wall_tablet_go_to_dashboard
   mode: single
 - id: '1748703480244'
   alias: Reload workshop tablet start URL when occupancy of workshop goes to off for
@@ -9763,14 +9817,12 @@
     conditions:
     - alias: Tablet on the workshop main view
       condition: state
-      entity_id: sensor.workshop_tablet_current_page
-      state:
-      - http://192.168.0.15:8123/tablet-workshop-dashboard/main-view?kiosk=1
+      entity_id: sensor.kiosk_workshop_wall_tablet_current_page
+      state: http://127.0.0.1:2325/tablet-workshop-dashboard/main-view
     - alias: Tablet on the party page
       condition: state
-      entity_id: sensor.workshop_tablet_current_page
-      state:
-      - http://192.168.0.15:8095/#/party?frameless=true
+      entity_id: sensor.kiosk_workshop_wall_tablet_current_page
+      state: http://192.168.0.15:8095/#/party?frameless=true
   actions:
   - alias: Reload the workshop tablet start page
     action: button.press
@@ -9778,7 +9830,7 @@
     data: {}
     target:
       entity_id:
-      - button.workshop_tablet_load_start_url
+      - button.kiosk_workshop_wall_tablet_go_to_dashboard
   mode: single
 - id: '1748750771802'
   alias: Open bedroom blind in relation to bedroom ac
@@ -9877,13 +9929,13 @@
   - alias: Restore the bedroom in parallel
     parallel:
     - alias: Turn on bedroom tablet screen and motion
-      action: switch.turn_on
+      action: homeassistant.turn_on
       metadata: {}
       data: {}
       target:
         entity_id:
-        - switch.bedroom_tablet_screen
-        - switch.bedroom_tablet_motion_detection
+        - light.kiosk_bedroom_tablet_screen
+        - switch.kiosk_bedroom_tablet_screensaver_motion_detection
     - alias: Fade chandelier to 100%, 5126 K over 45 s
       action: light.turn_on
       metadata: {}
@@ -9953,13 +10005,13 @@
         entity_id: cover.cover_bedroom_blinds
       data: {}
     - alias: Turn off bedroom tablet screen and motion
-      action: switch.turn_off
+      action: homeassistant.turn_off
       metadata: {}
       data: {}
       target:
         entity_id:
-        - switch.bedroom_tablet_screen
-        - switch.bedroom_tablet_motion_detection
+        - light.kiosk_bedroom_tablet_screen
+        - switch.kiosk_bedroom_tablet_screensaver_motion_detection
     - alias: Fade out bedroom lights over 10 s
       action: light.turn_off
       metadata: {}
@@ -10385,10 +10437,10 @@
       - light.salon_assistant_0505ec_screen
     data: {}
   - alias: Turn off the salon desk tablet screen
-    action: switch.turn_off
+    action: light.turn_off
     metadata: {}
     target:
-      entity_id: switch.salon_desk_tablet_screen
+      entity_id: light.kiosk_salon_tablet_screen
     data: {}
   mode: single
 - id: '1749333829084'
@@ -11125,12 +11177,27 @@
             target:
               entity_id: media_player.salon_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_salon_wiim_speaker'',
-                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
-            target:
-              entity_id: media_player.mass_salon_wiim_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_salon_wiim_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_salon_wiim_speaker'',
+                  ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+              target:
+                entity_id: media_player.mass_salon_wiim_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -11170,12 +11237,27 @@
             target:
               entity_id: media_player.salon_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_salon_wiim_speaker'',
-                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
-            target:
-              entity_id: media_player.mass_salon_wiim_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_salon_wiim_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_salon_wiim_speaker'',
+                  ''volume_level'') | float(0)) + 0.06, 1] | min | round(2) }}'
+              target:
+                entity_id: media_player.mass_salon_wiim_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -11315,12 +11397,27 @@
             target:
               entity_id: media_player.workshop_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
-                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
-            target:
-              entity_id: media_player.mass_workshop_wiim_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_workshop_wiim_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
+                  ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+              target:
+                entity_id: media_player.mass_workshop_wiim_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -11360,12 +11457,27 @@
             target:
               entity_id: media_player.workshop_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
-                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
-            target:
-              entity_id: media_player.mass_workshop_wiim_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_workshop_wiim_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
+                  ''volume_level'') | float(0)) + 0.06, 1] | min | round(2) }}'
+              target:
+                entity_id: media_player.mass_workshop_wiim_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -11501,12 +11613,27 @@
             target:
               entity_id: media_player.workshop_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
-                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
-            target:
-              entity_id: media_player.mass_workshop_wiim_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_workshop_wiim_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
+                  ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+              target:
+                entity_id: media_player.mass_workshop_wiim_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -11546,12 +11673,29 @@
             target:
               entity_id: media_player.workshop_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
-                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
-            target:
-              entity_id: media_player.mass_workshop_wiim_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_workshop_wiim_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
+                  ''volume_level'') | float(0)) + 0.06, 1] | min | round(2) }}'
+              target:
+                entity_id: media_player.mass_workshop_wiim_speaker
+              note: 'Capped at 1: volume_set rejects anything above 1, which aborted
+                the rotate loop whenever the WiiM was at 0.95 or higher.'
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -11685,12 +11829,27 @@
             target:
               entity_id: media_player.universal_salon_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_salon_wiim_speaker'',
-                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
-            target:
-              entity_id: media_player.mass_salon_wiim_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_salon_wiim_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_salon_wiim_speaker'',
+                  ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+              target:
+                entity_id: media_player.mass_salon_wiim_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -11730,12 +11889,27 @@
             target:
               entity_id: media_player.universal_salon_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_salon_wiim_speaker'',
-                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
-            target:
-              entity_id: media_player.mass_salon_wiim_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_salon_wiim_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_salon_wiim_speaker'',
+                  ''volume_level'') | float(0)) + 0.06, 1] | min | round(2) }}'
+              target:
+                entity_id: media_player.mass_salon_wiim_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -11878,12 +12052,27 @@
             target:
               entity_id: media_player.universal_kitchen_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_kitchen_wiim_speaker'',
-                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
-            target:
-              entity_id: media_player.mass_kitchen_wiim_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_kitchen_wiim_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_kitchen_wiim_speaker'',
+                  ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+              target:
+                entity_id: media_player.mass_kitchen_wiim_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -11923,12 +12112,27 @@
             target:
               entity_id: media_player.universal_kitchen_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_kitchen_wiim_speaker'',
-                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
-            target:
-              entity_id: media_player.mass_kitchen_wiim_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_kitchen_wiim_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_kitchen_wiim_speaker'',
+                  ''volume_level'') | float(0)) + 0.06, 1] | min | round(2) }}'
+              target:
+                entity_id: media_player.mass_kitchen_wiim_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -12054,12 +12258,27 @@
       helper_last_controller_event: input_text.dial_lounge_helper
       action_rotate_left:
       - sequence:
-        - action: media_player.volume_set
-          data:
-            volume_level: '{{ [(state_attr(''media_player.mass_lounge_wiim_speaker'',
-              ''volume_level'') | float(0)) - 0.09, 0] | max }}'
-          target:
-            entity_id: media_player.mass_lounge_wiim_speaker
+        - alias: Only while the speaker is on
+          if:
+          - alias: Speaker is not off or unavailable
+            condition: not
+            conditions:
+            - condition: state
+              entity_id: media_player.mass_lounge_wiim_speaker
+              state:
+              - 'off'
+              - unavailable
+              - unknown
+          then:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_lounge_wiim_speaker'',
+                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+            target:
+              entity_id: media_player.mass_lounge_wiim_speaker
+          note: An off speaker reports no volume, so this step used to compute from
+            0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+            while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -12072,12 +12291,27 @@
       rotate_right_max_loop_repeats: 60
       action_rotate_right:
       - sequence:
-        - action: media_player.volume_set
-          data:
-            volume_level: '{{ [(state_attr(''media_player.mass_lounge_wiim_speaker'',
-              ''volume_level'') | float(0)) + 0.06, 0] | max }}'
-          target:
-            entity_id: media_player.mass_lounge_wiim_speaker
+        - alias: Only while the speaker is on
+          if:
+          - alias: Speaker is not off or unavailable
+            condition: not
+            conditions:
+            - condition: state
+              entity_id: media_player.mass_lounge_wiim_speaker
+              state:
+              - 'off'
+              - unavailable
+              - unknown
+          then:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_lounge_wiim_speaker'',
+                ''volume_level'') | float(0)) + 0.06, 1] | min | round(2) }}'
+            target:
+              entity_id: media_player.mass_lounge_wiim_speaker
+          note: An off speaker reports no volume, so this step used to compute from
+            0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+            while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -12608,12 +12842,27 @@
       action_rotate_left: []
       action_rotate_left_stop:
       - sequence:
-        - action: media_player.volume_set
-          data:
-            volume_level: '{{ [(state_attr(''media_player.mass_lounge_wiim_speaker'',
-              ''volume_level'') | float(0)) - 0.09, 0] | max }}'
-          target:
-            entity_id: media_player.mass_lounge_wiim_speaker
+        - alias: Only while the speaker is on
+          if:
+          - alias: Speaker is not off or unavailable
+            condition: not
+            conditions:
+            - condition: state
+              entity_id: media_player.mass_lounge_wiim_speaker
+              state:
+              - 'off'
+              - unavailable
+              - unknown
+          then:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_lounge_wiim_speaker'',
+                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+            target:
+              entity_id: media_player.mass_lounge_wiim_speaker
+          note: An off speaker reports no volume, so this step used to compute from
+            0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+            while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -12625,12 +12874,27 @@
       rotate_right_max_loop_repeats: 60
       action_rotate_right:
       - sequence:
-        - action: media_player.volume_set
-          data:
-            volume_level: '{{ [(state_attr(''media_player.mass_lounge_wiim_speaker'',
-              ''volume_level'') | float(0)) + 0.06, 0] | max }}'
-          target:
-            entity_id: media_player.mass_lounge_wiim_speaker
+        - alias: Only while the speaker is on
+          if:
+          - alias: Speaker is not off or unavailable
+            condition: not
+            conditions:
+            - condition: state
+              entity_id: media_player.mass_lounge_wiim_speaker
+              state:
+              - 'off'
+              - unavailable
+              - unknown
+          then:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_lounge_wiim_speaker'',
+                ''volume_level'') | float(0)) + 0.06, 1] | min | round(2) }}'
+            target:
+              entity_id: media_player.mass_lounge_wiim_speaker
+          note: An off speaker reports no volume, so this step used to compute from
+            0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+            while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -13462,12 +13726,27 @@
             target:
               entity_id: media_player.bedroom_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_bedroom_vpe_speaker'',
-                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
-            target:
-              entity_id: media_player.mass_bedroom_vpe_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_bedroom_vpe_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_bedroom_vpe_speaker'',
+                  ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+              target:
+                entity_id: media_player.mass_bedroom_vpe_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -13507,12 +13786,27 @@
             target:
               entity_id: media_player.universal_bedroom_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_bedroom_vpe_speaker'',
-                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
-            target:
-              entity_id: media_player.mass_bedroom_vpe_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_bedroom_vpe_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_bedroom_vpe_speaker'',
+                  ''volume_level'') | float(0)) + 0.06, 1] | min | round(2) }}'
+              target:
+                entity_id: media_player.mass_bedroom_vpe_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -13636,13 +13930,16 @@
 
         '
   - alias: Set the bedroom tablet screen brightness
-    action: number.set_value
-    metadata: {}
-    data:
-      value: '{{brightness}}'
-    target:
-      entity_id:
-      - number.bedroom_tablet_screen_brightness
+    if:
+    - condition: state
+      entity_id: light.kiosk_bedroom_tablet_screen
+      state: 'on'
+    then:
+    - action: light.turn_on
+      target:
+        entity_id: light.kiosk_bedroom_tablet_screen
+      data:
+        brightness: '{{ [ (brightness) | int(0), 1 ] | max }}'
   mode: restart
 - id: '1763775560173'
   alias: Workshop Desk Hue Dial automation
@@ -13950,8 +14247,8 @@
       - sensor.plug_kitchen_airfryer_electric_consumption_w
       for:
         hours: 0
-        minutes: 1
-        seconds: 0
+        minutes: 0
+        seconds: 30
       below: 4
       trigger: numeric_state
     continue_on_timeout: false
@@ -14003,13 +14300,13 @@
   - alias: Battery enters 50–55%
     trigger: numeric_state
     entity_id:
-    - sensor.closet_tablet_battery
+    - sensor.kiosk_satellite_battery
     above: 50
     below: 55
   - alias: Battery drops below 30%
     trigger: numeric_state
     entity_id:
-    - sensor.closet_tablet_battery
+    - sensor.kiosk_satellite_battery
     below: 30
   conditions: []
   actions:
@@ -14019,45 +14316,53 @@
       conditions:
       - alias: Battery below 30%
         condition: numeric_state
-        entity_id: sensor.closet_tablet_battery
+        entity_id: sensor.kiosk_satellite_battery
         below: 30
       - alias: Closet tablet screen is on
         condition: state
-        entity_id: switch.closet_tablet_screen
+        entity_id: light.kiosk_satellite_screen
         state: 'on'
       sequence:
       - alias: Set screen brightness to 1
-        action: number.set_value
-        metadata: {}
-        data:
-          value: '1'
-        target:
-          entity_id: number.closet_tablet_screen_brightness
+        if:
+        - condition: state
+          entity_id: light.kiosk_satellite_screen
+          state: 'on'
+        then:
+        - action: light.turn_on
+          target:
+            entity_id: light.kiosk_satellite_screen
+          data:
+            brightness: 1
       - alias: Turn off the closet tablet screen
-        action: switch.turn_off
+        action: light.turn_off
         metadata: {}
         data: {}
         target:
-          entity_id: switch.closet_tablet_screen
+          entity_id: light.kiosk_satellite_screen
         enabled: true
     - alias: Below 50% → dim the screen
       conditions:
       - alias: Battery below 50%
         condition: numeric_state
-        entity_id: sensor.closet_tablet_battery
+        entity_id: sensor.kiosk_satellite_battery
         below: 50
       - alias: Closet tablet screen is on
         condition: state
-        entity_id: switch.closet_tablet_screen
+        entity_id: light.kiosk_satellite_screen
         state: 'on'
       sequence:
       - alias: Set screen brightness to 25
-        action: number.set_value
-        metadata: {}
-        data:
-          value: '25'
-        target:
-          entity_id: number.closet_tablet_screen_brightness
+        if:
+        - condition: state
+          entity_id: light.kiosk_satellite_screen
+          state: 'on'
+        then:
+        - action: light.turn_on
+          target:
+            entity_id: light.kiosk_satellite_screen
+          data:
+            brightness: 25
   mode: single
 - id: '1765731514294'
   alias: Control bedroom tablet screen to avoid full discharge
@@ -14068,12 +14373,12 @@
   - alias: Battery rises above 95%
     trigger: numeric_state
     entity_id:
-    - sensor.bedroom_tablet_battery
+    - sensor.kiosk_bedroom_tablet_battery
     above: 95
   - alias: Battery drops below 50%
     trigger: numeric_state
     entity_id:
-    - sensor.bedroom_tablet_battery
+    - sensor.kiosk_bedroom_tablet_battery
     below: 50
   conditions: []
   actions:
@@ -14083,45 +14388,53 @@
       conditions:
       - alias: Battery below 15%
         condition: numeric_state
-        entity_id: sensor.bedroom_tablet_battery
+        entity_id: sensor.kiosk_bedroom_tablet_battery
         below: 15
       - alias: Bedroom tablet screen is on
         condition: state
-        entity_id: switch.bedroom_tablet_screen
+        entity_id: light.kiosk_bedroom_tablet_screen
         state: 'on'
       sequence:
       - alias: Set screen brightness to 1
-        action: number.set_value
-        metadata: {}
-        data:
-          value: '1'
-        target:
-          entity_id: number.bedroom_tablet_screen_brightness
+        if:
+        - condition: state
+          entity_id: light.kiosk_bedroom_tablet_screen
+          state: 'on'
+        then:
+        - action: light.turn_on
+          target:
+            entity_id: light.kiosk_bedroom_tablet_screen
+          data:
+            brightness: 1
       - alias: Turn off the bedroom tablet screen
-        action: switch.turn_off
+        action: light.turn_off
         metadata: {}
         data: {}
         target:
-          entity_id: switch.bedroom_tablet_screen
+          entity_id: light.kiosk_bedroom_tablet_screen
         enabled: true
     - alias: Below 50% → dim the screen
       conditions:
       - alias: Battery below 50%
         condition: numeric_state
-        entity_id: sensor.bedroom_tablet_battery
+        entity_id: sensor.kiosk_bedroom_tablet_battery
         below: 50
       - alias: Bedroom tablet screen is on
         condition: state
-        entity_id: switch.bedroom_tablet_screen
+        entity_id: light.kiosk_bedroom_tablet_screen
         state: 'on'
       sequence:
       - alias: Set screen brightness to 25
-        action: number.set_value
-        metadata: {}
-        data:
-          value: '25'
-        target:
-          entity_id: number.bedroom_tablet_screen_brightness
+        if:
+        - condition: state
+          entity_id: light.kiosk_bedroom_tablet_screen
+          state: 'on'
+        then:
+        - action: light.turn_on
+          target:
+            entity_id: light.kiosk_bedroom_tablet_screen
+          data:
+            brightness: 25
   mode: single
 - id: '1766609371758'
   alias: Start turning lights on before maxi's alarm rings on week days for work
@@ -14754,13 +15067,13 @@
       behavior: any
       for: 00:00:00
   actions:
-  - alias: Fade Buddha lights to 1/3 of salon main brightness over 5 s
+  - alias: Fade Buddha lights to 100% of salon main brightness over 5 s
     action: light.turn_on
     metadata: {}
     data:
       transition: 5
       brightness: '{{ state_attr("light.group_salon_main_lights", ''brightness'')
-        / 3 }}
+        }}
 
         '
     target:
@@ -14899,12 +15212,27 @@
       helper_last_controller_event: input_text.dial_hallway_helper
       action_rotate_left:
       - sequence:
-        - action: media_player.volume_set
-          data:
-            volume_level: '{{ [(state_attr(''media_player.mass_hallway_wiim_speaker'',
-              ''volume_level'') | float(0)) - 0.09, 0] | max }}'
-          target:
-            entity_id: media_player.mass_hallway_wiim_speaker
+        - alias: Only while the speaker is on
+          if:
+          - alias: Speaker is not off or unavailable
+            condition: not
+            conditions:
+            - condition: state
+              entity_id: media_player.mass_hallway_wiim_speaker
+              state:
+              - 'off'
+              - unavailable
+              - unknown
+          then:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_hallway_wiim_speaker'',
+                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+            target:
+              entity_id: media_player.mass_hallway_wiim_speaker
+          note: An off speaker reports no volume, so this step used to compute from
+            0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+            while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -14917,12 +15245,27 @@
       rotate_right_max_loop_repeats: 60
       action_rotate_right:
       - sequence:
-        - action: media_player.volume_set
-          data:
-            volume_level: '{{ [(state_attr(''media_player.mass_hallway_wiim_speaker'',
-              ''volume_level'') | float(0)) + 0.06, 0] | max }}'
-          target:
-            entity_id: media_player.mass_hallway_wiim_speaker
+        - alias: Only while the speaker is on
+          if:
+          - alias: Speaker is not off or unavailable
+            condition: not
+            conditions:
+            - condition: state
+              entity_id: media_player.mass_hallway_wiim_speaker
+              state:
+              - 'off'
+              - unavailable
+              - unknown
+          then:
+          - action: media_player.volume_set
+            data:
+              volume_level: '{{ [(state_attr(''media_player.mass_hallway_wiim_speaker'',
+                ''volume_level'') | float(0)) + 0.06, 1] | min | round(2) }}'
+            target:
+              entity_id: media_player.mass_hallway_wiim_speaker
+          note: An off speaker reports no volume, so this step used to compute from
+            0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+            while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -14994,7 +15337,12 @@
     speakers, and a speaker that starts playing or is unmuted mutes the room''s TVs
     (the salon TV only while it is on). When one source stops, goes idle or off, or
     is muted, the other is unmuted again, but only if the room has motion and no sleeper
-    and, for play/idle/off changes, the previous state lasted over 10 minutes.'
+    and, for play/idle/off changes, the previous state lasted over 10 minutes. Runs
+    are queued, and each mute or unmute waits up to 4 s for the device to report it,
+    so the next run decides from the real state. In parallel mode, a TV and a speaker
+    changing mute together kept flipping each other every second (salon, 2026-10-25).
+    A room includes its _top/_down sibling areas, so the hotbox_top TV pairs with
+    the Hotbox WiiM in hotbox.'
   triggers:
   - alias: Chromecasts → playing
     trigger: state
@@ -15039,9 +15387,11 @@
       seconds: 1
     entity_id:
     - media_player.universal_workshop_chromecast
+    - media_player.universal_hotbox_top_chromecast
     - media_player.universal_patio_chromecast
     - media_player.universal_salon_chromecast
     - media_player.universal_bedroom_chromecast
+    - media_player.universal_kitchen_chromecast
     - media_player.universal_tablet_myriam_s8
   - alias: Chromecast mute status
     trigger: state
@@ -15075,6 +15425,7 @@
     - media_player.mass_closet_vpe_speaker
     - media_player.mass_hallway_wiim_speaker
     - media_player.mass_lounge_wiim_speaker
+    - media_player.mass_hotbox_wiim_speaker
   - alias: Speakers from playing (1 s)
     trigger: state
     id: spk_from_playing
@@ -15092,6 +15443,7 @@
     - media_player.mass_closet_vpe_speaker
     - media_player.mass_hallway_wiim_speaker
     - media_player.mass_lounge_wiim_speaker
+    - media_player.mass_hotbox_wiim_speaker
   - alias: Speakers mute status (1 s)
     trigger: state
     id: spk_mute_status
@@ -15106,6 +15458,7 @@
     - media_player.mass_closet_vpe_speaker
     - media_player.mass_hallway_wiim_speaker
     - media_player.mass_lounge_wiim_speaker
+    - media_player.mass_hotbox_wiim_speaker
   - alias: Salon Chromecast → off
     trigger: state
     id: cc_to_off
@@ -15127,6 +15480,12 @@
     state:
     - 'on'
   actions:
+  - alias: Room = the trigger's area plus its _top/_down siblings (hotbox, hotbox_top,
+      hotbox_down)
+    variables:
+      rooms: '{% set base = area_id(trigger.entity_id) | replace(''_top'', '''') |
+        replace(''_down'', '''') %}{{ [base, base ~ ''_top'', base ~ ''_down''] |
+        select(''in'', areas()) | list }}'
   - alias: If a chromecast started playing or was unmuted
     if:
     - alias: Trigger is cc_to_playing, or chromecast unmuted
@@ -15136,13 +15495,13 @@
     then:
     - alias: Compute room's unmuted playing speakers and unmuted active chromecasts
       variables:
-        speakers_to_mute: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-          \ | sum(start=[])\n  | select('search', 'speaker')\n  | select('is_state',
-          'playing')\n  | expand\n  | selectattr('attributes.is_volume_muted', 'eq',
-          false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
-        unmuted_player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-          \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
-          'universal')\n  | expand\n  | rejectattr('state', 'eq', 'off')\n  | rejectattr('state',
+        speakers_to_mute: "{{ rooms\n  | map('area_entities')\n  | sum(start=[])\n
+          \ | select('search', 'speaker')\n  | select('is_state', 'playing')\n  |
+          expand\n  | selectattr('attributes.is_volume_muted', 'eq', false)\n  | map(attribute='entity_id')\n
+          \ | unique\n  | list }}\n"
+        unmuted_player_chromecasts: "{{ rooms\n  | map('area_entities')\n  | sum(start=[])\n
+          \ | select('search', 'chromecast')\n  | select('search', 'universal')\n
+          \ | expand\n  | rejectattr('state', 'eq', 'off')\n  | rejectattr('state',
           'eq', 'unavailable')\n  | selectattr('attributes.is_volume_muted', 'eq',
           false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
     - alias: If an unmuted chromecast and an unmuted playing speaker coexist
@@ -15158,6 +15517,12 @@
           is_volume_muted: true
         target:
           entity_id: '{{ speakers_to_mute | list }}'
+      - alias: Wait until the speakers report muted (4 s)
+        wait_template: '{{ speakers_to_mute | select(''is_state_attr'', ''is_volume_muted'',
+          true) | list | count == speakers_to_mute | count }}'
+        timeout:
+          seconds: 4
+        continue_on_timeout: true
   - alias: If a speaker started playing or was unmuted
     if:
     - alias: Trigger is spk_to_playing, or speaker unmuted
@@ -15167,13 +15532,13 @@
     then:
     - alias: Compute room's unmuted playing speakers and unmuted active chromecasts
       variables:
-        unmuted_playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-          \ | sum(start=[])\n  | select('search', 'speaker')\n  | select('is_state',
-          'playing')\n  | expand\n  | selectattr('attributes.is_volume_muted', 'eq',
-          false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
-        chromecasts_to_mute: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-          \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
-          'universal')\n  | expand\n  | rejectattr('state', 'eq', 'off')\n  | rejectattr('state',
+        unmuted_playing_speakers: "{{ rooms\n  | map('area_entities')\n  | sum(start=[])\n
+          \ | select('search', 'speaker')\n  | select('is_state', 'playing')\n  |
+          expand\n  | selectattr('attributes.is_volume_muted', 'eq', false)\n  | map(attribute='entity_id')\n
+          \ | unique\n  | list }}\n"
+        chromecasts_to_mute: "{{ rooms\n  | map('area_entities')\n  | sum(start=[])\n
+          \ | select('search', 'chromecast')\n  | select('search', 'universal')\n
+          \ | expand\n  | rejectattr('state', 'eq', 'off')\n  | rejectattr('state',
           'eq', 'unavailable')\n  | selectattr('attributes.is_volume_muted', 'eq',
           false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
     - alias: If both coexist and the salon TV guard passes
@@ -15200,6 +15565,12 @@
           is_volume_muted: true
         target:
           entity_id: '{{ chromecasts_to_mute | list }}'
+      - alias: Wait until the chromecasts report muted (4 s)
+        wait_template: '{{ chromecasts_to_mute | select(''is_state_attr'', ''is_volume_muted'',
+          true) | list | count == chromecasts_to_mute | count }}'
+        timeout:
+          seconds: 4
+        continue_on_timeout: true
   - alias: If chromecast became active or speaker stopped/muted, room awake and occupied
     if:
     - alias: Trigger is cc_from_off/spk_from_playing/cc_to_playing/cc_to_idle, or
@@ -15227,19 +15598,17 @@
     then:
     - alias: Compute room's unmuted playing MA speakers and muted active chromecasts
       variables:
-        unmuted_playing_speakers: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-          \ | sum(start=[])\n  | select('search', 'speaker')\n  | select('search',
-          'mass')\n  | select('is_state', 'playing')\n  | expand\n  | selectattr('attributes.is_volume_muted',
-          'eq', false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
-        playing_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-          \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
-          'universal')\n  | select('is_state', ['playing', 'idle'])\n  | unique\n
-          \ | list }}\n"
-        chromecasts_to_unmute: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-          \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
-          'universal')\n  | select('is_state', ['playing', 'idle'])\n  | expand\n
-          \ | selectattr('attributes.is_volume_muted', 'eq', true)\n  | map(attribute='entity_id')\n
-          \ | unique\n  | list }}\n"
+        unmuted_playing_speakers: "{{ rooms\n  | map('area_entities')\n  | sum(start=[])\n
+          \ | select('search', 'speaker')\n  | select('search', 'mass')\n  | select('is_state',
+          'playing')\n  | expand\n  | selectattr('attributes.is_volume_muted', 'eq',
+          false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
+        playing_chromecasts: "{{ rooms\n  | map('area_entities')\n  | sum(start=[])\n
+          \ | select('search', 'chromecast')\n  | select('search', 'universal')\n
+          \ | select('is_state', ['playing', 'idle'])\n  | unique\n  | list }}\n"
+        chromecasts_to_unmute: "{{ rooms\n  | map('area_entities')\n  | sum(start=[])\n
+          \ | select('search', 'chromecast')\n  | select('search', 'universal')\n
+          \ | select('is_state', ['playing', 'idle'])\n  | expand\n  | selectattr('attributes.is_volume_muted',
+          'eq', true)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
     - alias: If no speaker is audibly playing in the room
       if:
       - alias: No unmuted playing speakers in the room
@@ -15258,6 +15627,12 @@
             is_volume_muted: false
           target:
             entity_id: '{{ chromecasts_to_unmute | list }}'
+        - alias: Wait until the chromecasts report unmuted (4 s)
+          wait_template: '{{ chromecasts_to_unmute | select(''is_state_attr'', ''is_volume_muted'',
+            false) | list | count == chromecasts_to_unmute | count }}'
+          timeout:
+            seconds: 4
+          continue_on_timeout: true
   - alias: If chromecast stopped/off/muted or speaker started, room awake and occupied
     if:
     - alias: Trigger is cc_from_playing/cc_to_off/spk_to_playing, or chromecast muted
@@ -15273,8 +15648,8 @@
       enabled: true
     - alias: No sleeper present
       condition: template
-      value_template: "{{ area_id(trigger.entity_id) | string | lower\n   not in states('sensor.active_sleeper_rooms')
-        | string | lower }}\n"
+      value_template: "{{ area_id(trigger.entity_id)\n   | replace('_top','') | replace('_down','')\n
+        \  | lower not in states('sensor.active_sleeper_rooms') | string | lower }}\n"
     - alias: Motion present
       condition: template
       value_template: "{{ area_id(trigger.entity_id)\n   | replace('_top','') | replace('_down','')\n
@@ -15282,15 +15657,14 @@
     then:
     - alias: Compute room's muted playing MA speakers and unmuted active chromecasts
       variables:
-        speakers_to_unmute: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-          \ | sum(start=[])\n  | select('search', 'speaker')\n  | select('search',
-          'mass')\n  | select('is_state', 'playing')\n  | expand\n  | selectattr('attributes.is_volume_muted',
-          'eq', true)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
-        unmuted_player_chromecasts: "{{ [area_id(trigger.entity_id)]\n  | map('area_entities')\n
-          \ | sum(start=[])\n  | select('search', 'chromecast')\n  | select('search',
-          'universal')\n  | select('is_state', ['playing', 'idle'])\n  | expand\n
-          \ | selectattr('attributes.is_volume_muted', 'eq', false)\n  | map(attribute='entity_id')\n
-          \ | unique\n  | list }}\n"
+        speakers_to_unmute: "{{ rooms\n  | map('area_entities')\n  | sum(start=[])\n
+          \ | select('search', 'speaker')\n  | select('search', 'mass')\n  | select('is_state',
+          'playing')\n  | expand\n  | selectattr('attributes.is_volume_muted', 'eq',
+          true)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
+        unmuted_player_chromecasts: "{{ rooms\n  | map('area_entities')\n  | sum(start=[])\n
+          \ | select('search', 'chromecast')\n  | select('search', 'universal')\n
+          \ | select('is_state', ['playing', 'idle'])\n  | expand\n  | selectattr('attributes.is_volume_muted',
+          'eq', false)\n  | map(attribute='entity_id')\n  | unique\n  | list }}\n"
     - alias: If no chromecast is audibly active and a muted speaker is playing
       if:
       - alias: No unmuted chromecasts and muted playing speakers exist
@@ -15304,23 +15678,30 @@
           is_volume_muted: false
         target:
           entity_id: '{{ speakers_to_unmute | list }}'
-  mode: parallel
-  max: 10
+      - alias: Wait until the speakers report unmuted (4 s)
+        wait_template: '{{ speakers_to_unmute | select(''is_state_attr'', ''is_volume_muted'',
+          false) | list | count == speakers_to_unmute | count }}'
+        timeout:
+          seconds: 4
+        continue_on_timeout: true
+  mode: queued
+  max: 30
 - id: '1773975525008'
-  alias: Nanoleaf actions control automation
+  alias: Lounge Nanoleaf actions control automation
   description: When someone swipes in any direction on the lounge Nanoleaf panel,
     applies a random effect from its effect list, different from the current one.
   triggers:
   - alias: 'Lounge Nanoleaf touch gesture: swipe up/down/left/right'
-    trigger: state
-    entity_id:
-    - event.kitchen_nanoleaf_light_touch_gesture
-    attribute: event_type
-    to:
-    - swipe_up
-    - swipe_down
-    - swipe_left
-    - swipe_right
+    trigger: event.received
+    target:
+      entity_id:
+      - event.kitchen_nanoleaf_light_touch_gesture
+    options:
+      event_type:
+      - swipe_up
+      - swipe_down
+      - swipe_left
+      - swipe_right
   conditions: []
   actions:
   - alias: Apply a random different effect to the lounge Nanoleaf
@@ -15909,18 +16290,18 @@
   - alias: Workshop secondary tablet battery enters 50–55%
     trigger: numeric_state
     entity_id:
-    - sensor.workshop_secondary_tablet_battery
+    - sensor.kiosk_workshop_tv_tablet_battery
     above: 50
     below: 55
   - alias: Workshop secondary tablet battery drops below 15%
     trigger: numeric_state
     entity_id:
-    - sensor.workshop_secondary_tablet_battery
+    - sensor.kiosk_workshop_tv_tablet_battery
     below: 15
   - alias: Workshop secondary tablet battery rises above 70%
     trigger: numeric_state
     entity_id:
-    - sensor.workshop_secondary_tablet_battery
+    - sensor.kiosk_workshop_tv_tablet_battery
     above: 70
   conditions: []
   actions:
@@ -15930,63 +16311,75 @@
       conditions:
       - alias: Battery below 15%
         condition: numeric_state
-        entity_id: sensor.workshop_secondary_tablet_battery
+        entity_id: sensor.kiosk_workshop_tv_tablet_battery
         below: 15
       - alias: Secondary tablet screen is on
         condition: state
-        entity_id: switch.workshop_secondary_tablet_screen
+        entity_id: light.kiosk_workshop_tv_tablet_screen
         state: 'on'
       sequence:
       - alias: Set secondary tablet brightness to 1
-        action: number.set_value
-        metadata: {}
-        data:
-          value: '1'
-        target:
-          entity_id: number.workshop_secondary_tablet_screen_brightness
+        if:
+        - condition: state
+          entity_id: light.kiosk_workshop_tv_tablet_screen
+          state: 'on'
+        then:
+        - action: light.turn_on
+          target:
+            entity_id: light.kiosk_workshop_tv_tablet_screen
+          data:
+            brightness: 1
       - alias: Turn off secondary tablet screen
-        action: switch.turn_off
+        action: light.turn_off
         metadata: {}
         data: {}
         target:
-          entity_id: switch.workshop_secondary_tablet_screen
+          entity_id: light.kiosk_workshop_tv_tablet_screen
         enabled: true
     - alias: Battery below 50% with screen on → brightness 25 (unreachable)
       conditions:
       - alias: Battery below 50%
         condition: numeric_state
-        entity_id: sensor.workshop_secondary_tablet_battery
+        entity_id: sensor.kiosk_workshop_tv_tablet_battery
         below: 50
       - alias: Secondary tablet screen is on
         condition: state
-        entity_id: switch.workshop_secondary_tablet_screen
+        entity_id: light.kiosk_workshop_tv_tablet_screen
         state: 'on'
       sequence:
       - alias: Set secondary tablet brightness to 25
-        action: number.set_value
-        metadata: {}
-        data:
-          value: '25'
-        target:
-          entity_id: number.workshop_secondary_tablet_screen_brightness
+        if:
+        - condition: state
+          entity_id: light.kiosk_workshop_tv_tablet_screen
+          state: 'on'
+        then:
+        - action: light.turn_on
+          target:
+            entity_id: light.kiosk_workshop_tv_tablet_screen
+          data:
+            brightness: 25
     - alias: Battery above 70% with screen on → brightness 99
       conditions:
       - alias: Battery above 70%
         condition: numeric_state
-        entity_id: sensor.workshop_secondary_tablet_battery
+        entity_id: sensor.kiosk_workshop_tv_tablet_battery
         above: 70
       - alias: Secondary tablet screen is on
         condition: state
-        entity_id: switch.workshop_secondary_tablet_screen
+        entity_id: light.kiosk_workshop_tv_tablet_screen
         state: 'on'
       sequence:
       - alias: Set secondary tablet brightness to 99
-        action: number.set_value
-        metadata: {}
-        data:
-          value: '99'
-        target:
-          entity_id: number.workshop_secondary_tablet_screen_brightness
+        if:
+        - condition: state
+          entity_id: light.kiosk_workshop_tv_tablet_screen
+          state: 'on'
+        then:
+        - action: light.turn_on
+          target:
+            entity_id: light.kiosk_workshop_tv_tablet_screen
+          data:
+            brightness: 99
   mode: single
 - id: '1774748550086'
   alias: Workshop Tablet dial automation
@@ -16028,12 +16421,27 @@
             target:
               entity_id: media_player.workshop_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
-                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
-            target:
-              entity_id: media_player.mass_workshop_wiim_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_workshop_wiim_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
+                  ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+              target:
+                entity_id: media_player.mass_workshop_wiim_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -16073,12 +16481,27 @@
             target:
               entity_id: media_player.universal_workshop_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
-                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
-            target:
-              entity_id: media_player.mass_workshop_wiim_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_workshop_wiim_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_workshop_wiim_speaker'',
+                  ''volume_level'') | float(0)) + 0.06, 1] | min | round(2) }}'
+              target:
+                entity_id: media_player.mass_workshop_wiim_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -16574,13 +16997,15 @@
   mode: restart
 - id: '1778012300232'
   alias: Mute Kitchen hub when showing Home Assistant interface
-  description: Mutes the kitchen hub (the kitchen Chromecast player) when it switches
-    to one of the two Home Assistant dashboard cast apps, unless it is already muted.
+  description: 'Mutes the kitchen hub when it switches to one of the two Home Assistant
+    dashboard cast apps, unless it is already muted. Reads the hub''s own cast entity:
+    the kitchen TV universal reads off while a dashboard shows, and an off media player
+    hides its app_id and mute attributes.'
   triggers:
   - alias: Kitchen hub switches to a Home Assistant app
     trigger: state
     entity_id:
-    - media_player.universal_kitchen_chromecast
+    - media_player.kitchen_google_hub
     attribute: app_id
     to:
     - A078F6B0
@@ -16588,29 +17013,30 @@
   conditions:
   - alias: Kitchen hub app is a Home Assistant app
     condition: state
-    entity_id: media_player.universal_kitchen_chromecast
+    entity_id: media_player.kitchen_google_hub
     state:
     - A078F6B0
     - '84912283'
     attribute: app_id
   - alias: Chromecast is not already muted
     condition: template
-    value_template: '{{ state_attr(''media_player.universal_kitchen_chromecast'',
-      ''is_volume_muted'') != true }}'
+    value_template: '{{ state_attr(''media_player.kitchen_google_hub'', ''is_volume_muted'')
+      != true }}'
   actions:
   - alias: Mute the kitchen hub
     action: media_player.volume_mute
     metadata: {}
     target:
-      entity_id: media_player.universal_kitchen_chromecast
+      entity_id: media_player.kitchen_google_hub
     data:
       is_volume_muted: true
   mode: single
 - id: '1778078871016'
   alias: Mute Kitchen hub if showing Home-Assistant and music playing in the kitchen
-  description: Whenever the kitchen speaker changes state (held for 2 seconds) while
+  description: 'Whenever the kitchen speaker changes state (held for 2 seconds) while
     the kitchen hub shows a Home Assistant dashboard and is not muted, mutes the kitchen
-    hub.
+    hub. Reads the hub''s own cast entity: the kitchen TV universal reads off while
+    a dashboard shows, and an off media player hides its app_id and mute attributes.'
   triggers:
   - alias: Kitchen speaker state changes (2 s)
     trigger: state
@@ -16623,21 +17049,21 @@
   conditions:
   - alias: Kitchen hub shows a Home Assistant app
     condition: state
-    entity_id: media_player.universal_kitchen_chromecast
+    entity_id: media_player.kitchen_google_hub
     state:
     - A078F6B0
     - '84912283'
     attribute: app_id
   - alias: Chromecast is not already muted
     condition: template
-    value_template: '{{ state_attr(''media_player.universal_kitchen_chromecast'',
-      ''is_volume_muted'') != true }}'
+    value_template: '{{ state_attr(''media_player.kitchen_google_hub'', ''is_volume_muted'')
+      != true }}'
   actions:
   - alias: Mute the kitchen hub
     action: media_player.volume_mute
     metadata: {}
     target:
-      entity_id: media_player.universal_kitchen_chromecast
+      entity_id: media_player.kitchen_google_hub
     data:
       is_volume_muted: true
   mode: single
@@ -17358,12 +17784,27 @@
             target:
               entity_id: media_player.universal_kitchen_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_kitchen_wiim_speaker'',
-                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
-            target:
-              entity_id: media_player.mass_kitchen_wiim_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_kitchen_wiim_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_kitchen_wiim_speaker'',
+                  ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+              target:
+                entity_id: media_player.mass_kitchen_wiim_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -17403,12 +17844,27 @@
             target:
               entity_id: media_player.universal_kitchen_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_kitchen_wiim_speaker'',
-                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
-            target:
-              entity_id: media_player.mass_kitchen_wiim_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_kitchen_wiim_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_kitchen_wiim_speaker'',
+                  ''volume_level'') | float(0)) + 0.06, 1] | min | round(2) }}'
+              target:
+                entity_id: media_player.mass_kitchen_wiim_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -17718,8 +18174,9 @@
 - id: '1781915583649'
   alias: Turn off Salon Tv when no one is in front of it for 20 minutes
   description: When salon radar zone 2 (in front of the TV) has been empty for 20
-    minutes and the salon Chromecast is not playing, turns off the salon Sony TV through
-    its remote.
+    minutes and the salon TV (Universal salon chromecast) is not playing, turns off
+    the salon Sony TV through its remote. Batocera left on HDMI 1 with no controller
+    connected counts as not playing.
   triggers:
   - alias: Salon radar zone 2 empty for 20 min
     trigger: state
@@ -17732,14 +18189,10 @@
       minutes: 20
       seconds: 0
   conditions:
-  - alias: Salon Chromecast is not playing
-    condition: not
-    conditions:
-    - alias: Salon Chromecast is playing
-      condition: state
-      entity_id: media_player.salon_chromecast
-      state:
-      - playing
+  - alias: Salon TV is not playing (Batocera with no controller counts as not playing)
+    condition: media_player.is_not_playing
+    target:
+      entity_id: media_player.universal_salon_chromecast
   actions:
   - alias: Turn off the salon Sony TV
     action: remote.turn_off
@@ -17812,7 +18265,7 @@
         data:
           title: A leak has been detected in the kitchen! Investigate!
           data:
-            image: /api/camera_proxy/camera.kitchen_tablet
+            image: /api/camera_proxy/camera.kiosk_kitchen_tablet_camera
             ttl: 0
             priority: high
             channel: security_alerts_notifications
@@ -18904,7 +19357,7 @@
         data:
           title: Smoke has been detected in the hallway! Act quickly!
           data:
-            image: /api/camera_proxy/camera.hallway_tablet
+            image: /api/camera_proxy/camera.kiosk_hallway_wall_tablet_camera
             ttl: 0
             priority: high
             channel: security_alerts_notifications
@@ -19055,12 +19508,27 @@
             target:
               entity_id: media_player.hotbox_top_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_hotbox_wiim_speaker'',
-                ''volume_level'') | float(0)) - 0.09, 0] | max }}'
-            target:
-              entity_id: media_player.mass_hotbox_wiim_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_hotbox_wiim_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_hotbox_wiim_speaker'',
+                  ''volume_level'') | float(0)) - 0.09, 0] | max }}'
+              target:
+                entity_id: media_player.mass_hotbox_wiim_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -19100,12 +19568,27 @@
             target:
               entity_id: media_player.universal_hotbox_top_chromecast
           else:
-          - action: media_player.volume_set
-            data:
-              volume_level: '{{ [(state_attr(''media_player.mass_hotbox_wiim_speaker'',
-                ''volume_level'') | float(0)) + 0.06, 0] | max }}'
-            target:
-              entity_id: media_player.mass_hotbox_wiim_speaker
+          - alias: Only while the speaker is on
+            if:
+            - alias: Speaker is not off or unavailable
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_hotbox_wiim_speaker
+                state:
+                - 'off'
+                - unavailable
+                - unknown
+            then:
+            - action: media_player.volume_set
+              data:
+                volume_level: '{{ [(state_attr(''media_player.mass_hotbox_wiim_speaker'',
+                  ''volume_level'') | float(0)) + 0.06, 1] | min | round(2) }}'
+              target:
+                entity_id: media_player.mass_hotbox_wiim_speaker
+            note: An off speaker reports no volume, so this step used to compute from
+              0 and set it to 6% (turn right) or 0% (turn left). The turn is ignored
+              while the speaker is off.
         - delay:
             hours: 0
             minutes: 0
@@ -19481,10 +19964,9 @@
   max_exceeded: silent
 - id: '1790484221121'
   alias: Trigger Update of the Eink Day Brief display
-  description: At 06:00, or when button 1 on the OpenDisplay e-ink screen is held
-    for 5 seconds, redraws the screen with the full daily briefing (3-day agenda,
-    temperature and a news story). Releasing the button redraws it with the 7-day
-    agenda only.
+  description: At 06:00 redraws the screen with the 7-day agenda only. Holding button
+    1 on the OpenDisplay for 5 seconds draws the full 3-day briefing with news; releasing
+    the button returns to the 7-day agenda.
   triggers:
   - alias: Button 1 held for 5 s
     trigger: state
@@ -19512,26 +19994,26 @@
     id: morning_6am
   conditions: []
   actions:
-  - alias: Full briefing or agenda only
+  - alias: Select full briefing on hold; agenda only at 06:00 or release
     choose:
-    - alias: Hold or 06:00 → full briefing
+    - alias: Button hold → full briefing with news
       conditions:
-      - alias: Triggered by the hold or 06:00
+      - alias: Triggered by button hold
         condition: trigger
         id:
         - hold_down
-        - morning_6am
       sequence:
       - alias: Draw the full daily briefing
         action: script.daily_calendar_briefing_opendisplay
         metadata: {}
         data:
           preview: false
-    - alias: Button released → agenda only
+    - alias: 06:00 or button release → agenda only
       conditions:
-      - alias: Triggered by the button release
+      - alias: Triggered at 06:00 or by button release
         condition: trigger
         id:
+        - morning_6am
         - button_up
       sequence:
       - alias: Draw the agenda-only briefing
@@ -20790,4 +21272,313 @@
   - action: script.equalize_home_group_volume
     metadata: {}
     data: {}
+  mode: single
+- id: '1792187765498'
+  alias: Kitchen Nanoleaf actions control automation
+  description: When someone swipes in any direction on the kitchen Nanoleaf panel,
+    applies a random effect from its effect list, different from the current one.
+  triggers:
+  - alias: 'Kitchen Nanoleaf touch gesture: swipe up/down/left/right'
+    trigger: event.received
+    target:
+      entity_id:
+      - event.kitchen_kitchen_wall_light_touch_gesture
+    options:
+      event_type:
+      - swipe_up
+      - swipe_down
+      - swipe_left
+      - swipe_right
+  conditions: []
+  actions:
+  - alias: Apply a random different effect to the kitchen Nanoleaf
+    action: script.apply_random_existing_effect_to_a_light_entity
+    metadata: {}
+    data:
+      light:
+      - light.kitchen_wall_light
+  mode: single
+- id: '1792427300803'
+  alias: Set patio projector light to a random color when it turns on
+  description: When the patio projector light turns on from off, sets it to a random
+    fully saturated hue. Skipped during a neon UV party, where the projector is forced
+    to blue. The existing projector automation then copies the new color to the patio
+    lights.
+  triggers:
+  - alias: Projector light turns on
+    trigger: light.turned_on
+    target:
+      entity_id: light.patio_projector_light
+  conditions:
+  - alias: Neon UV party is off
+    condition: state
+    entity_id: input_boolean.neon_uv_party
+    state: 'off'
+  actions:
+  - alias: Set a random hue
+    action: light.turn_on
+    target:
+      entity_id: light.patio_projector_light
+    data:
+      hs_color: '{{ [range(360) | random, 100] }}'
+  mode: single
+- id: '1792440152922'
+  alias: assist Broadcast a spoken message
+  description: 'Voice command: "broadcast <message>", "announce <message>" or "tell
+    everyone <message>" from any Assist pipeline speaks the message on every house
+    speaker with the Maxi voice via script.assist_broadcast. A leading "that" is dropped,
+    the broadcast starts without waiting, and the satellite replies "Broadcasting."'
+  triggers:
+  - alias: 'Voice command: broadcast a message'
+    trigger: conversation
+    command:
+    - broadcast {message}
+    - announce {message}
+    - tell everyone {message}
+  conditions: []
+  actions:
+  - alias: Clean up the spoken message
+    variables:
+      message: '{{ trigger.slots.message | trim | regex_replace(''^that +'', '''',
+        ignorecase=True) }}'
+  - alias: Start the broadcast without waiting for it
+    action: script.turn_on
+    target:
+      entity_id: script.assist_broadcast
+    data:
+      variables:
+        message: '{{ message }}'
+  - alias: Reply to the speaker
+    set_conversation_response: Broadcasting.
+  mode: parallel
+  max: 10
+- id: '1792511895441'
+  alias: Change lights to wall colors
+  description: 'When Assist hears ''wall colors lights'', sets each room''s light
+    group to the hue of its walls at full saturation: salon red, lounge purple, hallway
+    and entrance blue, workshop crimson, kitchen green and hotbox teal. The patio
+    gets a random fake white, and the closet, bathroom and server groups get random
+    pastel colors. Lights that are off turn on.'
+  triggers:
+  - alias: 'Voice command: wall colors lights'
+    trigger: conversation
+    command:
+    - wall colors lights
+    - wall color lights
+    - wall colored lights
+    - lights to wall colors
+  conditions: []
+  actions:
+  - alias: Random fake white on the patio
+    action: script.turn_on
+    target:
+      entity_id: script.change_lights_in_an_area_to_a_random_fake_white
+    data:
+      variables:
+        area:
+        - patio
+  - alias: Random pastel colors in the closet, bathroom and server room
+    action: script.turn_on
+    target:
+      entity_id: script.change_received_lights_to_random_pastel_colors
+    data:
+      variables:
+        light:
+        - light.group_closet_lights
+        - light.group_bathroom_lights
+        - light.group_server_lights
+  - alias: Set every room group to its wall color at once
+    parallel:
+    - alias: Salon red
+      action: light.turn_on
+      target:
+        entity_id: light.group_salon_lights
+      data:
+        hs_color:
+        - 351.8
+        - 100
+        transition: 1
+      continue_on_error: true
+    - alias: Lounge purple
+      action: light.turn_on
+      target:
+        entity_id: light.group_lounge_lights
+      data:
+        hs_color:
+        - 274.7
+        - 100
+        transition: 1
+      continue_on_error: true
+    - alias: Hallway and entrance blue
+      action: light.turn_on
+      target:
+        entity_id:
+        - light.group_hallway_lights
+        - light.group_entrance_lights
+      data:
+        hs_color:
+        - 231.1
+        - 100
+        transition: 1
+      continue_on_error: true
+    - alias: Workshop crimson
+      action: light.turn_on
+      target:
+        entity_id: light.group_workshop_lights
+      data:
+        hs_color:
+        - 347.3
+        - 100
+        transition: 1
+      continue_on_error: true
+    - alias: Kitchen green
+      action: light.turn_on
+      target:
+        entity_id: light.group_kitchen_lights
+      data:
+        hs_color:
+        - 94.8
+        - 100
+        transition: 1
+      continue_on_error: true
+    - alias: Hotbox teal
+      action: light.turn_on
+      target:
+        entity_id: light.group_hotbox_lights
+      data:
+        hs_color:
+        - 166.1
+        - 100
+        transition: 1
+      continue_on_error: true
+  mode: single
+- id: '1792624803839'
+  alias: Mute the salon TV while Batocera sits idle on HDMI 1
+  description: 'Batocera (the retro console) is on the salon TV''s HDMI 1. Once Salon
+    TV Batocera idle (the TV shows Batocera with no controller connected) has been
+    on for 2 minutes, mutes the TV over RS-232, and mutes it again if anything unmutes
+    it while Batocera still sits idle (the Assist occupancy automations turn off every
+    ''…mute'' switch on motion, the TV''s HomeKit mute included). When the TV is in
+    use again (Universal salon chromecast leaves off: a controller connects, or anything
+    starts playing), unmutes it.'
+  triggers:
+  - alias: Batocera idle on the salon TV for 2 min
+    trigger: state
+    entity_id: binary_sensor.salon_tv_batocera_idle
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 0
+    id: idle
+  - alias: Bravia unmuted (mute it again if Batocera still sits idle)
+    trigger: media_player.unmuted
+    target:
+      entity_id: media_player.bravia_4k_ae2
+    id: idle
+  - alias: Salon TV in use again (controller connected, or something started)
+    trigger: media_player.turned_on
+    target:
+      entity_id: media_player.universal_salon_chromecast
+    id: in_use
+  conditions: []
+  actions:
+  - choose:
+    - alias: 'Batocera idle on HDMI 1 for 2 min: mute the TV'
+      conditions:
+      - condition: trigger
+        id: idle
+      - alias: Batocera idle for 2 min
+        condition: state
+        entity_id: binary_sensor.salon_tv_batocera_idle
+        state: 'on'
+        for:
+          hours: 0
+          minutes: 2
+          seconds: 0
+      - alias: TV not muted yet
+        condition: media_player.is_unmuted
+        target:
+          entity_id: media_player.bravia_4k_ae2
+      sequence:
+      - alias: Mute the salon TV over RS-232
+        action: media_player.volume_mute
+        target:
+          entity_id: media_player.sony_tv
+        data:
+          is_volume_muted: true
+    - alias: 'Salon TV in use again: unmute it'
+      conditions:
+      - condition: trigger
+        id: in_use
+      sequence:
+      - alias: A TV that just woke reports its retained mute a few seconds late, so
+          let it settle
+        if:
+        - condition: not
+          conditions:
+          - condition: media_player.is_on
+            target:
+              entity_id: media_player.bravia_4k_ae2
+            options:
+              for: 00:00:15
+        then:
+        - delay: 00:00:12
+      - alias: Salon TV still in use
+        condition: media_player.is_on
+        target:
+          entity_id: media_player.universal_salon_chromecast
+      - alias: TV is muted
+        condition: media_player.is_muted
+        target:
+          entity_id: media_player.bravia_4k_ae2
+      - alias: Unmute the salon TV over RS-232
+        action: media_player.volume_mute
+        target:
+          entity_id: media_player.sony_tv
+        data:
+          is_volume_muted: false
+  mode: queued
+  max: 5
+- id: '1792873302706'
+  alias: Turn on sleeper in bedroom when Maxi is inferred asleep
+  description: 'When Maxi has been inferred asleep in the bedroom for 30 minutes (binary_sensor.maxi_asleep_inferred:
+    phone unused for 20 min and the phone''s sleep confidence high) between 22:00
+    and 07:00 while he is home alone, turns on the bedroom sleeper flag as if the
+    sleeper button had been double-pressed, which runs the usual bedtime actions.
+    Covers nights he falls asleep without the CPAP or the button. Backtest 2026-10-13
+    to 10-24: on 2026-10-24 it fires at 00:56 instead of the 03:18 button press; one
+    early fire on 2026-10-18 at 00:57, 19 min before he pressed the button himself
+    while watching TV in bed. A wrong fire is undone by turning the chandelier up
+    (sleeper auto-off after 2 min) or double-pressing the button.'
+  triggers:
+  - alias: Maxi inferred asleep for 30 min
+    trigger: state
+    entity_id:
+    - binary_sensor.maxi_asleep_inferred
+    to: 'on'
+    for:
+      hours: 0
+      minutes: 30
+      seconds: 0
+  conditions:
+  - alias: Bedroom sleeper is not already on
+    condition: state
+    entity_id: input_boolean.sleeper_in_bedroom
+    state: 'off'
+  - alias: Between 22:00 and 07:00
+    condition: time
+    after: '22:00:00'
+    before: 07:00:00
+  - alias: Maxi is home alone
+    condition: state
+    entity_id: binary_sensor.maxi_alone
+    state: 'on'
+  actions:
+  - alias: Turn on the bedroom sleeper flag
+    action: input_boolean.turn_on
+    metadata: {}
+    data: {}
+    target:
+      entity_id: input_boolean.sleeper_in_bedroom
   mode: single
