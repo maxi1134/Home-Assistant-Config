@@ -69,7 +69,10 @@
                   "live_view_entity": "camera.front_door_camera",
                   "go2rtc_url": "http://192.168.0.11:1984",
                   "go2rtc_stream": "front_door_camera_sub",
-                  "live_view_aspect_ratio": "4/3"
+                  "live_view_aspect_ratio": "4/3",
+                  "card_mod": {
+                    "style": "{# kink/acid hide the clock and the cooking timer adds its bar under the clock: resize the live view so the left column still ends at y=792 (salon tablet, 853x533 CSS) #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set timer = is_state('timer.cooking', 'active') %}\n{% if timer or not clock_shown %}\n.live-view-container {\n  aspect-ratio: {{ ('287 / 168' if clock_shown else '287 / 226') if timer else '287 / 274' }} !important;\n}\n.live-view-video {\n  object-fit: cover !important;\n}\n{% endif %}\n"
+                  }
                 },
                 {
                   "type": "custom:frigate-events-card",
@@ -86,65 +89,107 @@
             {
               "cards": [
                 {
+                  "type": "custom:vertical-stack-in-card",
                   "cards": [
                     {
                       "type": "custom:mushroom-light-card",
                       "entity": "light.group_salon_lights",
                       "fill_container": true,
                       "primary_info": "none",
-                      "use_light_color": true,
-                      "show_brightness_control": true,
-                      "show_color_control": false,
+                      "secondary_info": "none",
                       "icon_type": "none",
                       "layout": "horizontal",
-                      "secondary_info": "none",
+                      "use_light_color": true,
                       "collapsible_controls": false,
+                      "show_brightness_control": true,
                       "show_color_temp_control": true,
+                      "show_color_control": false,
+                      "tap_action": {
+                        "action": "toggle"
+                      },
+                      "hold_action": {
+                        "action": "toggle"
+                      },
+                      "double_tap_action": {
+                        "action": "toggle"
+                      },
                       "card_mod": {
                         "style": {
-                          "mushroom-light-brightness-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          "mushroom-light-color-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          "mushroom-light-color-temp-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          ".": "mushroom-light-brightness-control {\n  height: 20px;\n}\nmushroom-light-color-control {\n  height: 20px;\n}\nmushroom-light-color-temp-control {\n  height: 20px;\n}\n"
+                          ".": "/* Maxi 2026-10-25: standard light block on every tablet: brightness + colour temperature row, 33px bars */\nha-card {\n  --mush-icon-size: 33px;\n  --icon-size: 33px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n"
                         }
                       }
                     },
                     {
-                      "type": "custom:mushroom-light-card",
-                      "entity": "light.group_salon_lights",
-                      "fill_container": true,
-                      "primary_info": "none",
-                      "use_light_color": true,
-                      "show_brightness_control": false,
-                      "show_color_control": true,
-                      "icon_type": "none",
-                      "layout": "horizontal",
-                      "secondary_info": "none",
-                      "collapsible_controls": false,
-                      "show_color_temp_control": false,
-                      "card_mod": {
-                        "style": {
-                          "mushroom-light-brightness-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          "mushroom-light-color-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          "mushroom-light-color-temp-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          ".": "mushroom-light-brightness-control {\n  height: 20px;\n}\nmushroom-light-color-control {\n  height: 20px;\n}\nmushroom-light-color-temp-control {\n  height: 20px;\n}\n"
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "light.group_salon_lights",
+                          "state": "on"
+                        }
+                      ],
+                      "card": {
+                        "type": "custom:mushroom-light-card",
+                        "entity": "light.group_salon_lights",
+                        "fill_container": true,
+                        "primary_info": "none",
+                        "secondary_info": "none",
+                        "icon_type": "none",
+                        "layout": "horizontal",
+                        "use_light_color": true,
+                        "collapsible_controls": false,
+                        "show_brightness_control": false,
+                        "show_color_temp_control": false,
+                        "show_color_control": true,
+                        "tap_action": {
+                          "action": "toggle"
+                        },
+                        "hold_action": {
+                          "action": "toggle"
+                        },
+                        "double_tap_action": {
+                          "action": "toggle"
+                        },
+                        "card_mod": {
+                          "style": {
+                            ".": "/* Maxi 2026-10-25: standard light block on every tablet: hue row (shown while the room is on), 33px bar */\nha-card {\n  --mush-icon-size: 33px;\n  --icon-size: 33px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "light.group_salon_lights",
+                          "state_not": "on"
+                        }
+                      ],
+                      "card": {
+                        "type": "button",
+                        "entity": "light.group_salon_lights",
+                        "show_name": false,
+                        "show_icon": false,
+                        "show_state": false,
+                        "tap_action": {
+                          "action": "toggle"
+                        },
+                        "hold_action": {
+                          "action": "toggle"
+                        },
+                        "double_tap_action": {
+                          "action": "toggle"
+                        },
+                        "card_mod": {
+                          "style": "/* Maxi 2026-10-25: standard light block on every tablet: hue row while the room is off. Mushroom can't draw its colour slider when the light is off at page load, so a dimmed rainbow (same size) stands in; tap turns the room on. */\nha-card {\n  height: 51px !important;\n  padding: 9px !important;\n  box-sizing: border-box;\n  display: block !important;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\nha-card::before {\n  content: \"\";\n  display: block;\n  height: 33px;\n  border-radius: var(--control-border-radius, 12px);\n  background: linear-gradient(to right, #ff0000, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000);\n  filter: saturate(0.45) brightness(0.5);\n}\n"
                         }
                       }
                     }
                   ],
-                  "type": "vertical-stack"
+                  "card_mod": {
+                    "style": "/* Maxi 2026-10-25: standard light block on every tablet: one box, 104px (keeps the space the old light cards used) */\nha-card {\n  height: 104px !important;\n  overflow: hidden;\n}\n"
+                  }
                 },
                 {
                   "type": "vertical-stack",
@@ -188,11 +233,15 @@
                         "collapse_on_idle": false,
                         "hide_menu_player": false,
                         "extend_artwork": false,
-                        "card_height": 475,
+                        "card_height": "{# salon WiiM, above the TV mini player (853x533 CSS): alone it fills the middle column to y=792 (410); with the TV shown the pair fills it: TV muted -> the rest (the TV is a 110px strip), WiiM muted -> 105 strip, both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set tv_m = is_state_attr('media_player.universal_salon_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_salon_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = 402 %}\n{% if not is_state('media_player.universal_salon_chromecast', 'off') %}\n{{ ((pair - 110) if tv_m and not mu_m else (105 if mu_m and not tv_m else pair / 2)) }}\n{% else %}\n{{ 410 }}\n{% endif %}",
                         "always_show_lyrics": true,
                         "lyrics_mode": "default",
-                        "yrics_pre_roll": 0,
-                        "queue_controls_style": "drag_handle"
+                        "lyrics_pre_roll": 0,
+                        "queue_controls_style": "drag_handle",
+                        "idle_timeout_ms": 0,
+                        "card_mod": {
+                          "style": "{# ☰ room (follow-up to Maxi's 2026-10-25 mute split): below 320 px this classic-layout YAMP drops its volume row and floats ☰ at the bottom right of the play row, where it covered the power button. While compact, keep room for it.\nThe block below is a copy of this card's card_height; keep the two in sync. #}\n{% set h %}{# salon WiiM, above the TV mini player (853x533 CSS): alone it fills the middle column to y=792 (410); with the TV shown the pair fills it: TV muted -> the rest (the TV is a 110px strip), WiiM muted -> 105 strip, both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set tv_m = is_state_attr('media_player.universal_salon_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_salon_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = 402 %}\n{% if not is_state('media_player.universal_salon_chromecast', 'off') %}\n{{ ((pair - 110) if tv_m and not mu_m else (105 if mu_m and not tv_m else pair / 2)) }}\n{% else %}\n{{ 410 }}\n{% endif %}{% endset %}\n{% if (h | trim | float(999)) < 320 %}\n.controls-row.adaptive {\n  padding-right: 52px !important;\n  --yamp-control-gap: 4px !important;\n  --yamp-control-min-width: 36px !important;\n}\n{% endif %}\n"
+                        }
                       }
                     }
                   ]
@@ -217,10 +266,15 @@
                         "toggle_power": true,
                         "artwork": "full-cover",
                         "scale": "1",
-                        "replace_mute": "play_stop",
                         "lyrics_source": "mass_lrclib",
                         "card_mod": {
-                          "style": "ha-card {\n  height: 480px;\n}\n:host {\n  --mini-media-player-overlay-base-color: white;\n  --mini-media-player-overlay-accent-color: red;\n  --mini-media-player-media-cover-info-color: white;\n  --mini-media-player-accent-color: red;\n  --mini-media-player-background-opacity: 1;\n  --mini-media-player-progress-height: 10px;\n  --mini-media-player-button-color: rgba(0,0,0,0.75);\n  } \n"
+                          "style": {
+                            ".": "/* salon tablet: alone it fills the middle column to y=792 (413; renders ~3 px short); under the WiiM card it is compact (no artwork aspect box, one-line info, no source menu) and: TV muted -> 110px strip, WiiM muted -> the rest, both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) */\n{% set tv_m = is_state_attr('media_player.universal_salon_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_salon_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = 402 %}\n{% set shown = states('media_player.mass_salon_wiim_speaker') not in ['off', 'idle'] %}\n{% set strip = shown and tv_m and not mu_m %}\n{% set h = (110 if strip else ((pair - 105) if mu_m and not tv_m else pair / 2)) if shown else 413 %}\nha-card {\n  height: {{ h }}px;\n}\n{% if shown %}\nha-card:before {\n  padding-top: 0 !important;\n}\n.entity__info__media {\n  white-space: nowrap;\n  overflow: hidden;\n  text-overflow: ellipsis;\n  max-height: 1.6em;\n}\n{% endif %}\n:host {\n  --mini-media-player-overlay-base-color: white;\n  --mini-media-player-overlay-accent-color: red;\n  --mini-media-player-media-cover-info-color: white;\n  --mini-media-player-accent-color: red;\n  --mini-media-player-background-opacity: 1;\n  --mini-media-player-progress-height: 10px;\n  --mini-media-player-button-color: rgba(0,0,0,0.75);\n  } \n",
+                            "mmp-powerstrip$": "{% set tv_m = is_state_attr('media_player.universal_salon_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_salon_wiim_speaker', 'is_volume_muted', true) %}\n{% set shown = states('media_player.mass_salon_wiim_speaker') not in ['off', 'idle'] %}\n{% set strip = shown and tv_m and not mu_m %}\n{% if shown %}\nmmp-source-menu {\n  display: none !important;\n}\n{% endif %}\n"
+                          }
+                        },
+                        "hide": {
+                          "play_stop": false
                         }
                       }
                     }
@@ -251,7 +305,10 @@
                           "entity": "input_boolean.waiting_package"
                         }
                       ],
-                      "columns": 5
+                      "columns": 5,
+                      "card_mod": {
+                        "style": "/* nothing playing: sized so the third tile row ends at y=792 and the fourth stays below the edge (salon tablet) */\nha-card {\n  height: 145px !important;\n  box-sizing: border-box;\n  display: flex;\n  flex-direction: column;\n  justify-content: center;\n}\n"
+                      }
                     },
                     {
                       "type": "horizontal-stack",
@@ -1266,7 +1323,7 @@
           ],
           "subview": false,
           "layout": {
-            "grid-template-columns": "35% 48.1% 16.9%",
+            "grid-template-columns": "35% 47.3% 17.7%",
             "grid-template-rows": null
           },
           "theme": "redwave"
@@ -1290,7 +1347,14 @@
                       "camera_entity": "camera.front_door_camera"
                     }
                   ],
-                  "profiles": []
+                  "profiles": [],
+                  "menu": {
+                    "buttons": {
+                      "media_player": {
+                        "enabled": false
+                      }
+                    }
+                  }
                 }
               ]
             },
@@ -5069,117 +5133,187 @@
                   }
                 },
                 {
-                  "type": "custom:mushroom-light-card",
-                  "entity": "light.group_patio_lights",
-                  "fill_container": true,
-                  "primary_info": "none",
-                  "use_light_color": true,
-                  "show_brightness_control": true,
-                  "show_color_control": false,
-                  "icon_type": "none",
-                  "layout": "horizontal",
-                  "secondary_info": "none",
-                  "show_color_temp_control": false,
-                  "collapsible_controls": false,
-                  "hold_action": {
-                    "action": "toggle"
-                  },
-                  "double_tap_action": {
-                    "action": "toggle"
-                  },
-                  "card_mod": {
-                    "style": "ha-card {\n  --control-height: 45px\n}\n"
-                  }
-                },
-                {
-                  "type": "custom:mushroom-light-card",
-                  "entity": "light.group_patio_lights",
-                  "fill_container": true,
-                  "primary_info": "none",
-                  "use_light_color": false,
-                  "show_brightness_control": false,
-                  "show_color_control": true,
-                  "icon_type": "none",
-                  "layout": "horizontal",
-                  "secondary_info": "none",
-                  "collapsible_controls": false,
-                  "show_color_temp_control": false,
-                  "card_mod": {
-                    "style": "ha-card {\n  --control-height: 85px;\n  min-height: 55.5px;\n}\n"
-                  }
-                },
-                {
-                  "type": "custom:mushroom-light-card",
-                  "entity": "light.group_patio_lights",
-                  "fill_container": true,
-                  "primary_info": "none",
-                  "use_light_color": true,
-                  "show_brightness_control": false,
-                  "show_color_control": false,
-                  "icon_type": "none",
-                  "layout": "horizontal",
-                  "secondary_info": "none",
-                  "show_color_temp_control": true,
-                  "collapsible_controls": false,
-                  "hold_action": {
-                    "action": "toggle"
-                  },
-                  "double_tap_action": {
-                    "action": "toggle"
-                  },
-                  "card_mod": {
-                    "style": "ha-card {\n  --control-height: 45px\n}\n"
-                  }
-                },
-                {
-                  "type": "horizontal-stack",
+                  "type": "custom:vertical-stack-in-card",
                   "cards": [
                     {
-                      "show_name": true,
-                      "show_icon": true,
-                      "name": "Fake White",
-                      "type": "button",
-                      "entity": "script.changes_selected_light_group_to_random_fake_white",
+                      "type": "custom:mushroom-light-card",
+                      "entity": "light.group_patio_lights",
+                      "fill_container": true,
+                      "primary_info": "none",
+                      "secondary_info": "none",
+                      "icon_type": "none",
+                      "layout": "horizontal",
+                      "use_light_color": true,
+                      "collapsible_controls": false,
+                      "show_brightness_control": true,
+                      "show_color_temp_control": true,
+                      "show_color_control": false,
                       "tap_action": {
-                        "action": "call-service",
-                        "service": "script.changes_selected_light_group_to_random_fake_white",
-                        "data": {
-                          "selected_group": "light.group_patio_lights"
+                        "action": "toggle"
+                      },
+                      "hold_action": {
+                        "action": "toggle"
+                      },
+                      "double_tap_action": {
+                        "action": "toggle"
+                      },
+                      "card_mod": {
+                        "style": {
+                          ".": "/* Maxi 2026-10-25: standard light block on every tablet: brightness + colour temperature row, 41px bars */\nha-card {\n  --mush-icon-size: 41px;\n  --icon-size: 41px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n",
+                          "mushroom-button:nth-child(2)$": ".button {\n  animation: ping 1.7s infinite;\n}\n@keyframes ping {\n  0% { box-shadow: 0 0 0 0 rgba(var(--rgb-white), 0.7); }\n  70% { box-shadow: 0 0 0 10px transparent; }\n  100% { box-shadow: 0 0 0 0 transparent; }\n}\n"
                         }
                       }
                     },
                     {
-                      "show_name": true,
-                      "show_icon": true,
-                      "name": "Rainbow",
-                      "type": "button",
-                      "entity": "script.change_all_on_lights_to_ordered_fake_white",
-                      "tap_action": {
-                        "action": "perform-action",
-                        "perform_action": "script.changes_all_on_lights_to_fake_white",
-                        "data": {
-                          "selected_group": "light.group_patio_lights"
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "light.group_patio_lights",
+                          "state": "on"
+                        }
+                      ],
+                      "card": {
+                        "type": "custom:mushroom-light-card",
+                        "entity": "light.group_patio_lights",
+                        "fill_container": true,
+                        "primary_info": "none",
+                        "secondary_info": "none",
+                        "icon_type": "none",
+                        "layout": "horizontal",
+                        "use_light_color": true,
+                        "collapsible_controls": false,
+                        "show_brightness_control": false,
+                        "show_color_temp_control": false,
+                        "show_color_control": true,
+                        "tap_action": {
+                          "action": "toggle"
+                        },
+                        "hold_action": {
+                          "action": "toggle"
+                        },
+                        "double_tap_action": {
+                          "action": "toggle"
+                        },
+                        "card_mod": {
+                          "style": {
+                            ".": "/* Maxi 2026-10-25: standard light block on every tablet: hue row (shown while the room is on), 41px bar */\nha-card {\n  --mush-icon-size: 41px;\n  --icon-size: 41px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n",
+                            "mushroom-light-color-control$": {
+                              "mushroom-slider$": ".slider {\n  animation: ping 1.6s infinite;\n}\n@keyframes ping {\n  0% { box-shadow: 0 0 0 0 rgba(var(--rgb-white), 0.7); }\n  70% { box-shadow: 0 0 0 10px transparent; }\n  100% { box-shadow: 0 0 0 0 transparent; }\n}\n"
+                            }
+                          }
                         }
                       }
                     },
                     {
-                      "show_name": true,
-                      "show_icon": true,
-                      "name": "Random Colors",
-                      "type": "button",
-                      "entity": "script.change_received_lights_to_random_colors",
-                      "tap_action": {
-                        "action": "call-service",
-                        "service": "script.change_received_lights_to_random_colors",
-                        "data": {
-                          "light": [
-                            "light.group_patio_lights"
-                          ],
-                          "saturation": 100
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "light.group_patio_lights",
+                          "state_not": "on"
+                        }
+                      ],
+                      "card": {
+                        "type": "button",
+                        "entity": "light.group_patio_lights",
+                        "show_name": false,
+                        "show_icon": false,
+                        "show_state": false,
+                        "tap_action": {
+                          "action": "toggle"
+                        },
+                        "hold_action": {
+                          "action": "toggle"
+                        },
+                        "double_tap_action": {
+                          "action": "toggle"
+                        },
+                        "card_mod": {
+                          "style": "/* Maxi 2026-10-25: standard light block on every tablet: hue row while the room is off. Mushroom can't draw its colour slider when the light is off at page load, so a dimmed rainbow (same size) stands in; tap turns the room on. */\nha-card {\n  height: 59px !important;\n  padding: 9px !important;\n  box-sizing: border-box;\n  display: block !important;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\nha-card::before {\n  content: \"\";\n  display: block;\n  height: 41px;\n  border-radius: var(--control-border-radius, 12px);\n  background: linear-gradient(to right, #ff0000, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000);\n  filter: saturate(0.45) brightness(0.5);\n  animation: ping 1.6s infinite;\n}\n@keyframes ping {\n  0% { box-shadow: 0 0 0 0 rgba(var(--rgb-white), 0.7); }\n  70% { box-shadow: 0 0 0 10px transparent; }\n  100% { box-shadow: 0 0 0 0 transparent; }\n}\n"
                         }
                       }
                     }
-                  ]
+                  ],
+                  "card_mod": {
+                    "style": "/* Maxi 2026-10-25: standard light block on every tablet: one box, 120px (keeps the space the old light cards used) */\nha-card {\n  height: 120px !important;\n  overflow: hidden;\n}\n"
+                  }
+                },
+                {
+                  "type": "conditional",
+                  "conditions": [
+                    {
+                      "condition": "or",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "media_player.universal_patio_chromecast",
+                          "state": [
+                            "off",
+                            "unavailable"
+                          ]
+                        },
+                        {
+                          "condition": "state",
+                          "entity": "media_player.mass_patio_wiim_speaker",
+                          "state": [
+                            "off",
+                            "idle"
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "card": {
+                    "type": "horizontal-stack",
+                    "cards": [
+                      {
+                        "show_name": true,
+                        "show_icon": true,
+                        "name": "Fake White",
+                        "type": "button",
+                        "entity": "script.changes_selected_light_group_to_random_fake_white",
+                        "tap_action": {
+                          "action": "call-service",
+                          "service": "script.changes_selected_light_group_to_random_fake_white",
+                          "data": {
+                            "selected_group": "light.group_patio_lights"
+                          }
+                        }
+                      },
+                      {
+                        "show_name": true,
+                        "show_icon": true,
+                        "name": "Rainbow",
+                        "type": "button",
+                        "entity": "script.change_all_on_lights_to_ordered_fake_white",
+                        "tap_action": {
+                          "action": "perform-action",
+                          "perform_action": "script.changes_all_on_lights_to_fake_white",
+                          "data": {
+                            "selected_group": "light.group_patio_lights"
+                          }
+                        }
+                      },
+                      {
+                        "show_name": true,
+                        "show_icon": true,
+                        "name": "Random Colors",
+                        "type": "button",
+                        "entity": "script.change_received_lights_to_random_colors",
+                        "tap_action": {
+                          "action": "call-service",
+                          "service": "script.change_received_lights_to_random_colors",
+                          "data": {
+                            "light": [
+                              "light.group_patio_lights"
+                            ],
+                            "saturation": 100
+                          }
+                        }
+                      }
+                    ]
+                  }
                 },
                 {
                   "cards": [
@@ -5190,14 +5324,50 @@
                           "type": "conditional",
                           "conditions": [
                             {
-                              "condition": "state",
-                              "entity": "media_player.mass_patio_wiim_speaker",
-                              "state_not": "off"
-                            },
-                            {
-                              "condition": "state",
-                              "entity": "media_player.mass_patio_wiim_speaker",
-                              "state_not": "idle"
+                              "condition": "or",
+                              "conditions": [
+                                {
+                                  "condition": "state",
+                                  "entity": "media_player.mass_patio_wiim_speaker",
+                                  "state_not": [
+                                    "off",
+                                    "idle"
+                                  ]
+                                },
+                                {
+                                  "condition": "and",
+                                  "conditions": [
+                                    {
+                                      "condition": "or",
+                                      "conditions": [
+                                        {
+                                          "condition": "state",
+                                          "entity": "input_boolean.party_mode",
+                                          "state": "on"
+                                        },
+                                        {
+                                          "condition": "state",
+                                          "entity": "input_boolean.kink_party",
+                                          "state": "on"
+                                        },
+                                        {
+                                          "condition": "state",
+                                          "entity": "input_boolean.acid_time",
+                                          "state": "on"
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "condition": "state",
+                                      "entity": "media_player.universal_patio_chromecast",
+                                      "state": [
+                                        "off",
+                                        "unavailable"
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
                             }
                           ],
                           "card": {
@@ -5225,12 +5395,189 @@
                             "collapse_on_idle": false,
                             "hide_menu_player": false,
                             "extend_artwork": false,
-                            "card_height": "{# fill the screen down to the bottom edge: kink/acid hide the clock row (+80px) #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{{ 462 if clock_shown else 542 }}",
+                            "card_height": "{# patio speaker, above the TV card: alone it fills down to the music covers row (434.83/514.83; kink/acid hide the clock row); with the TV shown the light-mode buttons hide and the pair fills to the bottom edge: TV muted -> the rest, speaker muted -> 110 strip, both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set tv_m = is_state_attr('media_player.universal_patio_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_patio_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = (636.17 if clock_shown else 716.17) %}\n{% if states('media_player.universal_patio_chromecast') not in ['off', 'unavailable'] %}\n{{ ((pair - 145) if tv_m and not mu_m else (110 if mu_m and not tv_m else pair / 2)) }}\n{% else %}\n{{ (434.83 if clock_shown else 514.83) }}\n{% endif %}",
                             "always_show_lyrics": true,
                             "lyrics_mode": "default",
                             "lyrics_pre_roll": 0,
                             "lyrics_source": "mass_lrclib",
-                            "queue_controls_style": "drag_handle"
+                            "queue_controls_style": "drag_handle",
+                            "idle_timeout_ms": 0,
+                            "card_mod": {
+                              "style": "{# ☰ room (follow-up to Maxi's 2026-10-25 mute split): below 320 px this classic-layout YAMP drops its volume row and floats ☰ at the bottom right of the play row, where it covered the power button. While compact, keep room for it.\nThe block below is a copy of this card's card_height; keep the two in sync. #}\n{% set h %}{# patio speaker, above the TV card: alone it fills down to the music covers row (434.83/514.83; kink/acid hide the clock row); with the TV shown the light-mode buttons hide and the pair fills to the bottom edge: TV muted -> the rest, speaker muted -> 110 strip, both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set tv_m = is_state_attr('media_player.universal_patio_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_patio_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = (636.17 if clock_shown else 716.17) %}\n{% if states('media_player.universal_patio_chromecast') not in ['off', 'unavailable'] %}\n{{ ((pair - 145) if tv_m and not mu_m else (110 if mu_m and not tv_m else pair / 2)) }}\n{% else %}\n{{ (434.83 if clock_shown else 514.83) }}\n{% endif %}{% endset %}\n{% if (h | trim | float(999)) < 320 %}\n.controls-row.adaptive {\n  padding-right: 52px !important;\n  --yamp-control-gap: 4px !important;\n  --yamp-control-min-width: 36px !important;\n}\n{% endif %}\n"
+                            }
+                          }
+                        },
+                        {
+                          "type": "conditional",
+                          "conditions": [
+                            {
+                              "condition": "state",
+                              "entity": "media_player.universal_patio_chromecast",
+                              "state_not": [
+                                "off",
+                                "unavailable"
+                              ]
+                            }
+                          ],
+                          "card": {
+                            "type": "custom:yet-another-media-player",
+                            "entities": [
+                              {
+                                "entity_id": "media_player.universal_patio_chromecast"
+                              }
+                            ],
+                            "card_type": "default",
+                            "dim_chips_on_idle": true,
+                            "appearance": "dark",
+                            "alternate_progress_bar": false,
+                            "match_theme": false,
+                            "display_timestamps": true,
+                            "search_view": "card_minimal",
+                            "control_layout": "modern",
+                            "swap_pause_for_stop": false,
+                            "adaptive_controls": false,
+                            "hide_active_entity_label": false,
+                            "adaptive_text_targets": [],
+                            "details_alignment": "left",
+                            "volume_mode": "slider",
+                            "volume_step": 0.02,
+                            "collapse_on_idle": false,
+                            "hide_menu_player": false,
+                            "extend_artwork": false,
+                            "card_height": "{# patio TV, under the speaker card. Alone it fills the slot like the speaker card (434.83/514.83; music covers stay on screen under it); with the speaker shown the light-mode buttons hide and the pair fills the screen to the bottom edge: TV muted -> 145 strip, speaker muted -> the rest, both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set tv_m = is_state_attr('media_player.universal_patio_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_patio_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = (636.17 if clock_shown else 716.17) %}\n{% if states('media_player.mass_patio_wiim_speaker') not in ['off', 'idle'] %}\n{{ (145 if tv_m and not mu_m else ((pair - 110) if mu_m and not tv_m else pair / 2)) }}\n{% else %}\n{{ (434.83 if clock_shown else 514.83) }}\n{% endif %}",
+                            "idle_timeout_ms": 0,
+                            "card_mod": {
+                              "style": "{# TV mute button (Maxi 2026-10-25: a way to unmute the muted TV). Below 320 px YAMP hides the volume row's mute button with an inline style; show it again (not while the options sheet is open).\nIn the strip (TV muted, music not) the volume row sits below the visible card, so lift the button into the play/skip row, left edge, styled like those buttons. #}\n{% set tv_m = is_state_attr('media_player.universal_patio_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_patio_wiim_speaker', 'is_volume_muted', true) %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  visibility: visible !important;\n  opacity: 1 !important;\n  pointer-events: auto !important;\n}\n{% if tv_m and not mu_m %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  transform: translate(-44px, -50px);\n}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] .volume-icon-btn {\n  width: 38px;\n  height: 38px;\n  min-width: 38px;\n  min-height: 38px;\n  background: rgba(255, 255, 255, 0.15);\n  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);\n}\n{% endif %}\n"
+                            }
+                          }
+                        },
+                        {
+                          "type": "conditional",
+                          "conditions": [
+                            {
+                              "condition": "state",
+                              "entity": "media_player.mass_patio_wiim_speaker",
+                              "state": [
+                                "off",
+                                "idle"
+                              ]
+                            },
+                            {
+                              "condition": "state",
+                              "entity": "input_boolean.party_mode",
+                              "state": "off"
+                            },
+                            {
+                              "condition": "state",
+                              "entity": "input_boolean.kink_party",
+                              "state": "off"
+                            },
+                            {
+                              "condition": "state",
+                              "entity": "input_boolean.acid_time",
+                              "state": "off"
+                            },
+                            {
+                              "condition": "state",
+                              "entity": "media_player.universal_patio_chromecast",
+                              "state": [
+                                "off",
+                                "unavailable"
+                              ]
+                            }
+                          ],
+                          "card": {
+                            "show_name": true,
+                            "show_icon": true,
+                            "show_state": true,
+                            "color": "state",
+                            "type": "glance",
+                            "entities": [
+                              {
+                                "entity": "input_boolean.sleeper_in_closet",
+                                "hold_action": {
+                                  "action": "more-info"
+                                },
+                                "tap_action": {
+                                  "action": "none"
+                                },
+                                "double_tap_action": {
+                                  "action": "toggle"
+                                }
+                              },
+                              {
+                                "entity": "input_boolean.sleeper_in_workshop",
+                                "hold_action": {
+                                  "action": "more-info"
+                                },
+                                "tap_action": {
+                                  "action": "none"
+                                },
+                                "double_tap_action": {
+                                  "action": "toggle"
+                                }
+                              },
+                              {
+                                "entity": "input_boolean.kink_party",
+                                "name": "Rowdy Mood"
+                              },
+                              {
+                                "entity": "input_boolean.acid_time",
+                                "name": "Funky Time"
+                              },
+                              {
+                                "entity": "input_boolean.party_mode"
+                              },
+                              {
+                                "entity": "input_boolean.sleeper_in_bedroom",
+                                "icon": "mdi:alpha-m-box",
+                                "hold_action": {
+                                  "action": "none"
+                                },
+                                "tap_action": {
+                                  "action": "none"
+                                },
+                                "double_tap_action": {
+                                  "action": "none"
+                                }
+                              },
+                              {
+                                "entity": "input_boolean.sleeper_in_hotbox",
+                                "name": "Sleeper HotBox",
+                                "icon": "mdi:cannabis",
+                                "hold_action": {
+                                  "action": "none"
+                                },
+                                "tap_action": {
+                                  "action": "none"
+                                },
+                                "double_tap_action": {
+                                  "action": "none"
+                                }
+                              },
+                              {
+                                "entity": "input_boolean.aerating_apartment",
+                                "hold_action": {
+                                  "action": "more-info"
+                                },
+                                "tap_action": {
+                                  "action": "none"
+                                },
+                                "double_tap_action": {
+                                  "action": "toggle"
+                                }
+                              },
+                              {
+                                "entity": "input_boolean.waiting_package"
+                              },
+                              {
+                                "entity": "input_boolean.waiting_uber"
+                              }
+                            ],
+                            "columns": 5,
+                            "card_mod": {
+                              "style": "/* nothing playing: fills the speaker slot; the music covers and visuals below end at y=1276 */\nha-card {\n  --mdc-icon-size: 85%;\n  height: 344.17px !important;\n  box-sizing: border-box;\n  display: flex;\n  flex-direction: column;\n  justify-content: center;\n}\n"
+                            }
                           }
                         }
                       ]
@@ -5415,69 +5762,171 @@
                           ]
                         }
                       ]
+                    },
+                    {
+                      "type": "horizontal-stack",
+                      "cards": [
+                        {
+                          "show_state": false,
+                          "show_name": false,
+                          "camera_view": "auto",
+                          "entity": "media_player.patio_chromecast",
+                          "aspect_ratio": "1",
+                          "type": "picture-entity",
+                          "image": "/local/visualcovers/walkingdude.png",
+                          "tap_action": {
+                            "action": "call-service",
+                            "service": "media_player.play_media",
+                            "service_data": {
+                              "media_content_type": "tvshow",
+                              "media_content_id": "plex://{ \"library_name\": \"Visuals\", \"title\": \"Walking Dude\" }"
+                            },
+                            "target": {
+                              "entity_id": "media_player.patio_chromecast"
+                            }
+                          },
+                          "hold_action": {
+                            "action": "none"
+                          },
+                          "camera_image": "",
+                          "state_filter": {
+                            "off": "saturate(1)"
+                          }
+                        },
+                        {
+                          "entity": "media_player.patio_chromecast",
+                          "aspect_ratio": "1",
+                          "show_state": false,
+                          "show_name": false,
+                          "camera_view": "auto",
+                          "type": "picture-entity",
+                          "image": "/local/visualcovers/liquid.png",
+                          "tap_action": {
+                            "action": "call-service",
+                            "service": "media_player.play_media",
+                            "service_data": {
+                              "media_content_type": "tvshow",
+                              "media_content_id": "plex://{ \"library_name\": \"Visuals\", \"title\": \"12 Hours Liquid Screensaver Colorful Psychedelic Background 4K ScreenSaver\" }"
+                            },
+                            "target": {
+                              "entity_id": "media_player.patio_chromecast"
+                            }
+                          },
+                          "hold_action": {
+                            "action": "none"
+                          },
+                          "state_filter": {
+                            "off": "saturate(1)"
+                          }
+                        },
+                        {
+                          "entity": "media_player.patio_chromecast",
+                          "aspect_ratio": "1",
+                          "show_state": false,
+                          "show_name": false,
+                          "camera_view": "auto",
+                          "type": "picture-entity",
+                          "image": "/local/visualcovers/brainmassage.png",
+                          "tap_action": {
+                            "action": "call-service",
+                            "service": "media_player.play_media",
+                            "service_data": {
+                              "media_content_type": "tvshow",
+                              "media_content_id": "plex://{ \"library_name\": \"Visuals\", \"title\": \"Brain Massage Calm Down and Relax Beautiful Relaxing Music for Stress Relief\" }"
+                            },
+                            "target": {
+                              "entity_id": "media_player.patio_chromecast"
+                            }
+                          },
+                          "hold_action": {
+                            "action": "none"
+                          },
+                          "state_filter": {
+                            "off": "saturate(1)"
+                          }
+                        },
+                        {
+                          "entity": "media_player.patio_chromecast",
+                          "aspect_ratio": "1",
+                          "show_state": false,
+                          "show_name": false,
+                          "camera_view": "auto",
+                          "type": "picture-entity",
+                          "image": "/local/visualcovers/colorfullpainting.png",
+                          "tap_action": {
+                            "action": "call-service",
+                            "service": "media_player.play_media",
+                            "service_data": {
+                              "media_content_type": "tvshow",
+                              "media_content_id": "plex://{ \"library_name\": \"Visuals\", \"title\": \"Relaxing 4K Screensaver 12 Hours No Sound Colorful Painting\" }"
+                            },
+                            "target": {
+                              "entity_id": "media_player.patio_chromecast"
+                            }
+                          },
+                          "hold_action": {
+                            "action": "none"
+                          },
+                          "state_filter": {
+                            "off": "saturate(1)"
+                          }
+                        },
+                        {
+                          "entity": "media_player.patio_chromecast",
+                          "aspect_ratio": "1",
+                          "show_state": false,
+                          "show_name": false,
+                          "camera_view": "auto",
+                          "type": "picture-entity",
+                          "image": "/local/visualcovers/electricsheeps.png",
+                          "tap_action": {
+                            "action": "call-service",
+                            "service": "media_player.play_media",
+                            "service_data": {
+                              "media_content_type": "tvshow",
+                              "media_content_id": "plex://{ \"library_name\": \"Visuals\", \"title\": \"Electric Sheeps\" }"
+                            },
+                            "target": {
+                              "entity_id": "media_player.patio_chromecast"
+                            }
+                          },
+                          "hold_action": {
+                            "action": "none"
+                          },
+                          "state_filter": {
+                            "off": "saturate(1)"
+                          }
+                        },
+                        {
+                          "entity": "media_player.patio_chromecast",
+                          "aspect_ratio": "1",
+                          "show_state": false,
+                          "show_name": false,
+                          "camera_view": "auto",
+                          "type": "picture-entity",
+                          "image": "/local/visualcovers/lavalamp.png",
+                          "tap_action": {
+                            "action": "call-service",
+                            "service": "media_player.play_media",
+                            "service_data": {
+                              "media_content_type": "tvshow",
+                              "media_content_id": "plex://{ \"library_name\": \"Visuals\", \"title\": \"10 hours of lavalamps\" }"
+                            },
+                            "target": {
+                              "entity_id": "media_player.patio_chromecast"
+                            }
+                          },
+                          "hold_action": {
+                            "action": "none"
+                          },
+                          "state_filter": {
+                            "off": "saturate(1)"
+                          }
+                        }
+                      ]
                     }
                   ],
                   "type": "vertical-stack"
-                },
-                {
-                  "show_name": true,
-                  "show_icon": true,
-                  "show_state": true,
-                  "type": "glance",
-                  "entities": [
-                    {
-                      "entity": "input_boolean.aerating_apartment",
-                      "name": "Aerating",
-                      "hold_action": {
-                        "action": "more-info"
-                      },
-                      "tap_action": {
-                        "action": "none"
-                      },
-                      "double_tap_action": {
-                        "action": "toggle"
-                      }
-                    },
-                    {
-                      "entity": "input_boolean.sleeper_in_workshop",
-                      "name": "Sleep LV",
-                      "hold_action": {
-                        "action": "more-info"
-                      },
-                      "tap_action": {
-                        "action": "none"
-                      },
-                      "double_tap_action": {
-                        "action": "toggle"
-                      }
-                    },
-                    {
-                      "entity": "input_boolean.waiting_uber",
-                      "icon": "mdi:car",
-                      "hold_action": {
-                        "action": "more-info"
-                      },
-                      "tap_action": {
-                        "action": "none"
-                      },
-                      "double_tap_action": {
-                        "action": "toggle"
-                      }
-                    },
-                    {
-                      "entity": "input_boolean.party_mode"
-                    },
-                    {
-                      "entity": "input_boolean.acid_time"
-                    },
-                    {
-                      "entity": "input_boolean.kink_party"
-                    },
-                    {
-                      "entity": "input_boolean.show_lyrics"
-                    }
-                  ],
-                  "columns": 7
                 }
               ]
             }
@@ -5508,78 +5957,280 @@
                     }
                   ],
                   "card": {
-                    "type": "custom:layout-card",
-                    "layout_type": "custom:grid-layout",
-                    "layout": {
-                      "grid-template-columns": "20% 20% auto",
-                      "grid-template-rows": "auto",
-                      "grid-template-areas": "\"clock temperature lights\"\n"
-                    },
-                    "cards": [
-                      {
-                        "type": "clock",
-                        "clock_style": "digital",
-                        "clock_size": "small",
-                        "show_seconds": true,
-                        "no_background": false,
-                        "view_layout": {
-                          "grid-area": "clock"
-                        },
-                        "date_format": [
-                          "weekday-short",
-                          "day-2-digit",
-                          "month-short",
-                          "year-2-digit"
-                        ]
-                      },
-                      {
-                        "type": "markdown",
-                        "content": "<center>    {{states(\"sensor.outside_temperature_with_fallback\")+\"°\" }} </center>",
-                        "card_mod": {
-                          "style": "ha-card {\n  font-size: 24px;\n}\n"
+                    "type": "custom:mod-card",
+                    "card_mod": {
+                      "style": {
+                        "layout-card$": {
+                          "grid-layout$": "#root {\n  padding: 0px !important;\n  margin: 0px !important;\n  column-gap: 8px !important;\n}\n#root > * {\n  margin: 0px !important;\n}\n"
                         }
+                      }
+                    },
+                    "card": {
+                      "type": "custom:layout-card",
+                      "layout_type": "custom:grid-layout",
+                      "layout": {
+                        "grid-template-columns": "20% 20% auto",
+                        "grid-template-rows": "auto",
+                        "grid-template-areas": "\"clock temperature lights\"\n"
                       },
+                      "cards": [
+                        {
+                          "type": "clock",
+                          "clock_style": "digital",
+                          "clock_size": "small",
+                          "show_seconds": true,
+                          "no_background": false,
+                          "view_layout": {
+                            "grid-area": "clock"
+                          },
+                          "date_format": [
+                            "weekday-short",
+                            "day-2-digit",
+                            "month-short",
+                            "year-2-digit"
+                          ],
+                          "card_mod": {
+                            "style": "/* Maxi 2026-10-25: standard light block on every tablet: the row is as tall as the light block (136.1px) */\nha-card {\n  height: 136.1px !important;\n  --ha-clock-card-digital-font-size-small: 48px;\n  --ha-font-size-xs: 15px;\n  --ha-font-size-s: 18px;\n}"
+                          }
+                        },
+                        {
+                          "type": "markdown",
+                          "content": "<center>    {{states(\"sensor.outside_temperature_with_fallback\")+\"°\" }} </center>",
+                          "card_mod": {
+                            "style": "ha-card {\n  font-size: 28px;\n  height: 136.1px !important;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n"
+                          }
+                        },
+                        {
+                          "type": "custom:vertical-stack-in-card",
+                          "cards": [
+                            {
+                              "type": "custom:mushroom-light-card",
+                              "entity": "light.group_closet_lights",
+                              "fill_container": true,
+                              "primary_info": "none",
+                              "secondary_info": "none",
+                              "icon_type": "none",
+                              "layout": "horizontal",
+                              "use_light_color": true,
+                              "collapsible_controls": false,
+                              "show_brightness_control": true,
+                              "show_color_temp_control": true,
+                              "show_color_control": false,
+                              "tap_action": {
+                                "action": "toggle"
+                              },
+                              "hold_action": {
+                                "action": "toggle"
+                              },
+                              "double_tap_action": {
+                                "action": "toggle"
+                              },
+                              "card_mod": {
+                                "style": {
+                                  ".": "/* Maxi 2026-10-25: standard light block on every tablet: brightness + colour temperature row, 49.05px bars */\nha-card {\n  --mush-icon-size: 49.05px;\n  --icon-size: 49.05px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n"
+                                }
+                              }
+                            },
+                            {
+                              "type": "conditional",
+                              "conditions": [
+                                {
+                                  "condition": "state",
+                                  "entity": "light.group_closet_lights",
+                                  "state": "on"
+                                }
+                              ],
+                              "card": {
+                                "type": "custom:mushroom-light-card",
+                                "entity": "light.group_closet_lights",
+                                "fill_container": true,
+                                "primary_info": "none",
+                                "secondary_info": "none",
+                                "icon_type": "none",
+                                "layout": "horizontal",
+                                "use_light_color": true,
+                                "collapsible_controls": false,
+                                "show_brightness_control": false,
+                                "show_color_temp_control": false,
+                                "show_color_control": true,
+                                "tap_action": {
+                                  "action": "toggle"
+                                },
+                                "hold_action": {
+                                  "action": "toggle"
+                                },
+                                "double_tap_action": {
+                                  "action": "toggle"
+                                },
+                                "card_mod": {
+                                  "style": {
+                                    ".": "/* Maxi 2026-10-25: standard light block on every tablet: hue row (shown while the room is on), 49.05px bar */\nha-card {\n  --mush-icon-size: 49.05px;\n  --icon-size: 49.05px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n"
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "type": "conditional",
+                              "conditions": [
+                                {
+                                  "condition": "state",
+                                  "entity": "light.group_closet_lights",
+                                  "state_not": "on"
+                                }
+                              ],
+                              "card": {
+                                "type": "button",
+                                "entity": "light.group_closet_lights",
+                                "show_name": false,
+                                "show_icon": false,
+                                "show_state": false,
+                                "tap_action": {
+                                  "action": "toggle"
+                                },
+                                "hold_action": {
+                                  "action": "toggle"
+                                },
+                                "double_tap_action": {
+                                  "action": "toggle"
+                                },
+                                "card_mod": {
+                                  "style": "/* Maxi 2026-10-25: standard light block on every tablet: hue row while the room is off. Mushroom can't draw its colour slider when the light is off at page load, so a dimmed rainbow (same size) stands in; tap turns the room on. */\nha-card {\n  height: 67.05px !important;\n  padding: 9px !important;\n  box-sizing: border-box;\n  display: block !important;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\nha-card::before {\n  content: \"\";\n  display: block;\n  height: 49.05px;\n  border-radius: var(--control-border-radius, 12px);\n  background: linear-gradient(to right, #ff0000, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000);\n  filter: saturate(0.45) brightness(0.5);\n}\n"
+                                }
+                              }
+                            }
+                          ],
+                          "card_mod": {
+                            "style": "/* Maxi 2026-10-25: standard light block on every tablet: one box, 136.1px (keeps the space the old light cards used) */\nha-card {\n  height: 136.1px !important;\n  overflow: hidden;\n}\n"
+                          },
+                          "view_layout": {
+                            "grid-area": "lights"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "type": "conditional",
+                  "conditions": [
+                    {
+                      "condition": "or",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "input_boolean.kink_party",
+                          "state": "on"
+                        },
+                        {
+                          "condition": "state",
+                          "entity": "input_boolean.acid_time",
+                          "state": "on"
+                        }
+                      ]
+                    }
+                  ],
+                  "card": {
+                    "type": "custom:vertical-stack-in-card",
+                    "cards": [
                       {
                         "type": "custom:mushroom-light-card",
                         "entity": "light.group_closet_lights",
                         "fill_container": true,
                         "primary_info": "none",
-                        "use_light_color": true,
-                        "show_brightness_control": true,
-                        "show_color_control": false,
+                        "secondary_info": "none",
                         "icon_type": "none",
                         "layout": "horizontal",
-                        "secondary_info": "none",
-                        "show_color_temp_control": true,
+                        "use_light_color": true,
                         "collapsible_controls": false,
+                        "show_brightness_control": true,
+                        "show_color_temp_control": true,
+                        "show_color_control": false,
+                        "tap_action": {
+                          "action": "toggle"
+                        },
                         "hold_action": {
                           "action": "toggle"
                         },
                         "double_tap_action": {
                           "action": "toggle"
                         },
-                        "view_layout": {
-                          "grid-area": "lights"
+                        "card_mod": {
+                          "style": {
+                            ".": "/* Maxi 2026-10-25: standard light block on every tablet: brightness + colour temperature row, 49.05px bars */\nha-card {\n  --mush-icon-size: 49.05px;\n  --icon-size: 49.05px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n"
+                          }
+                        }
+                      },
+                      {
+                        "type": "conditional",
+                        "conditions": [
+                          {
+                            "condition": "state",
+                            "entity": "light.group_closet_lights",
+                            "state": "on"
+                          }
+                        ],
+                        "card": {
+                          "type": "custom:mushroom-light-card",
+                          "entity": "light.group_closet_lights",
+                          "fill_container": true,
+                          "primary_info": "none",
+                          "secondary_info": "none",
+                          "icon_type": "none",
+                          "layout": "horizontal",
+                          "use_light_color": true,
+                          "collapsible_controls": false,
+                          "show_brightness_control": false,
+                          "show_color_temp_control": false,
+                          "show_color_control": true,
+                          "tap_action": {
+                            "action": "toggle"
+                          },
+                          "hold_action": {
+                            "action": "toggle"
+                          },
+                          "double_tap_action": {
+                            "action": "toggle"
+                          },
+                          "card_mod": {
+                            "style": {
+                              ".": "/* Maxi 2026-10-25: standard light block on every tablet: hue row (shown while the room is on), 49.05px bar */\nha-card {\n  --mush-icon-size: 49.05px;\n  --icon-size: 49.05px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "type": "conditional",
+                        "conditions": [
+                          {
+                            "condition": "state",
+                            "entity": "light.group_closet_lights",
+                            "state_not": "on"
+                          }
+                        ],
+                        "card": {
+                          "type": "button",
+                          "entity": "light.group_closet_lights",
+                          "show_name": false,
+                          "show_icon": false,
+                          "show_state": false,
+                          "tap_action": {
+                            "action": "toggle"
+                          },
+                          "hold_action": {
+                            "action": "toggle"
+                          },
+                          "double_tap_action": {
+                            "action": "toggle"
+                          },
+                          "card_mod": {
+                            "style": "/* Maxi 2026-10-25: standard light block on every tablet: hue row while the room is off. Mushroom can't draw its colour slider when the light is off at page load, so a dimmed rainbow (same size) stands in; tap turns the room on. */\nha-card {\n  height: 67.05px !important;\n  padding: 9px !important;\n  box-sizing: border-box;\n  display: block !important;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\nha-card::before {\n  content: \"\";\n  display: block;\n  height: 49.05px;\n  border-radius: var(--control-border-radius, 12px);\n  background: linear-gradient(to right, #ff0000, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000);\n  filter: saturate(0.45) brightness(0.5);\n}\n"
+                          }
                         }
                       }
-                    ]
-                  }
-                },
-                {
-                  "type": "custom:mushroom-light-card",
-                  "entity": "light.group_closet_lights",
-                  "fill_container": true,
-                  "primary_info": "none",
-                  "use_light_color": true,
-                  "show_brightness_control": false,
-                  "show_color_control": true,
-                  "icon_type": "none",
-                  "layout": "horizontal",
-                  "secondary_info": "none",
-                  "collapsible_controls": false,
-                  "show_color_temp_control": false,
-                  "card_mod": {
-                    "style": "ha-card {\n  --control-height: 30px\n}\n"
+                    ],
+                    "card_mod": {
+                      "style": "/* Maxi 2026-10-25: standard light block on every tablet: one box, 136.1px (keeps the space the old light cards used) */\nha-card {\n  height: 136.1px !important;\n  overflow: hidden;\n}\n"
+                    }
                   }
                 },
                 {
@@ -5782,32 +6433,27 @@
                   ]
                 },
                 {
-                  "type": "horizontal-stack",
-                  "cards": [
+                  "type": "conditional",
+                  "conditions": [
                     {
-                      "type": "conditional",
-                      "conditions": [
-                        {
-                          "condition": "state",
-                          "entity": "media_player.mass_closet_aux2_speaker",
-                          "state_not": "off"
-                        }
-                      ],
-                      "card": {
-                        "type": "custom:mini-media-player",
-                        "entity": "media_player.mass_closet_aux2_speaker",
-                        "toggle_power": false,
-                        "group": false,
-                        "artwork": "material",
-                        "source": "full",
-                        "sound_mode": "full",
-                        "info": "short",
-                        "replace_mute": "play_stop",
-                        "volume_stateless": false,
-                        "scale": "1"
-                      }
+                      "condition": "state",
+                      "entity": "media_player.mass_closet_aux2_speaker",
+                      "state_not": "off"
                     }
-                  ]
+                  ],
+                  "card": {
+                    "type": "custom:mini-media-player",
+                    "entity": "media_player.mass_closet_aux2_speaker",
+                    "toggle_power": false,
+                    "group": false,
+                    "artwork": "material",
+                    "source": "full",
+                    "sound_mode": "full",
+                    "info": "short",
+                    "replace_mute": "play_stop",
+                    "volume_stateless": false,
+                    "scale": "1"
+                  }
                 },
                 {
                   "type": "horizontal-stack",
@@ -5818,7 +6464,11 @@
                       "type": "button",
                       "entity": "switch.plug_closet_fan",
                       "icon": "mdi:fan",
-                      "name": "Fan"
+                      "name": "Fan",
+                      "icon_height": "55px",
+                      "card_mod": {
+                        "style": "{# fit the page to the screen: the buttons take what's left above the covers row (the closet speaker adds its mini player; since 2026-10-25 the light block keeps the same height in kink/acid, so the mode no longer matters) #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set player = not is_state('media_player.mass_closet_aux2_speaker', 'off') %}\nha-card {\n  height: {{ 43 if player else 168 }}px !important;\n  {% if player %}padding: 4px 0 !important;{% endif %}\n}\n{% if player %}\nha-state-icon {\n  display: none;\n}\n{% endif %}"
+                      }
                     },
                     {
                       "show_name": true,
@@ -5831,7 +6481,10 @@
                       "icon": "mdi:sleep",
                       "name": "Sleep",
                       "show_state": false,
-                      "icon_height": "55px"
+                      "icon_height": "55px",
+                      "card_mod": {
+                        "style": "{# fit the page to the screen: the buttons take what's left above the covers row (the closet speaker adds its mini player; since 2026-10-25 the light block keeps the same height in kink/acid, so the mode no longer matters) #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set player = not is_state('media_player.mass_closet_aux2_speaker', 'off') %}\nha-card {\n  height: {{ 43 if player else 168 }}px !important;\n  {% if player %}padding: 4px 0 !important;{% endif %}\n}\n{% if player %}\nha-state-icon {\n  display: none;\n}\n{% endif %}"
+                      }
                     }
                   ]
                 },
@@ -6047,78 +6700,154 @@
                     }
                   ],
                   "card": {
-                    "type": "custom:layout-card",
-                    "layout_type": "custom:grid-layout",
-                    "layout": {
-                      "grid-template-columns": "85% auto",
-                      "grid-template-rows": "auto",
-                      "grid-template-areas": "\"clock temperature\"\n"
-                    },
-                    "cards": [
-                      {
-                        "type": "clock",
-                        "clock_style": "digital",
-                        "clock_size": "small",
-                        "show_seconds": true,
-                        "no_background": false,
-                        "view_layout": {
-                          "grid-area": "clock"
-                        },
-                        "date_format": [
-                          "weekday-long",
-                          "day-2-digit",
-                          "month-long",
-                          "year-numeric"
-                        ]
-                      },
-                      {
-                        "type": "markdown",
-                        "content": "<center>    {{states(\"sensor.outside_temperature_with_fallback\")+\"°\" }} </center>",
-                        "card_mod": {
-                          "style": "ha-card {\n  font-size: 24px;\n}\n"
+                    "type": "custom:mod-card",
+                    "card_mod": {
+                      "style": {
+                        "layout-card$": {
+                          "grid-layout$": "#root {\n  padding: 0px !important;\n  margin: 0px !important;\n  column-gap: 8px !important;\n}\n#root > * {\n  margin: 0px !important;\n}\n"
                         }
                       }
-                    ]
+                    },
+                    "card": {
+                      "type": "custom:layout-card",
+                      "layout_type": "custom:grid-layout",
+                      "layout": {
+                        "grid-template-columns": "75% auto",
+                        "grid-template-rows": "auto",
+                        "grid-template-areas": "\"clock temperature\"\n"
+                      },
+                      "cards": [
+                        {
+                          "type": "clock",
+                          "clock_style": "digital",
+                          "clock_size": "small",
+                          "show_seconds": true,
+                          "no_background": false,
+                          "view_layout": {
+                            "grid-area": "clock"
+                          },
+                          "date_format": [
+                            "weekday-long",
+                            "day-2-digit",
+                            "month-long",
+                            "year-numeric"
+                          ],
+                          "card_mod": {
+                            "style": "/* the flush row drops 24px of grid margins; the taller clock gives them back so the cards below don't move */\nha-card {\n  height: 88px !important;\n  --ha-clock-card-digital-font-size-small: 54px;\n  --ha-font-size-xs: 16px;\n  --ha-font-size-s: 19px;\n}"
+                          }
+                        },
+                        {
+                          "type": "markdown",
+                          "content": "<center>    {{states(\"sensor.outside_temperature_with_fallback\")+\"°\" }} </center>",
+                          "card_mod": {
+                            "style": "ha-card {\n  font-size: 24px;\n  height: 88px !important;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n"
+                          }
+                        }
+                      ]
+                    }
                   }
                 },
                 {
-                  "type": "custom:mushroom-light-card",
-                  "entity": "light.group_workshop_lights",
-                  "fill_container": true,
-                  "primary_info": "none",
-                  "use_light_color": true,
-                  "show_brightness_control": true,
-                  "show_color_control": false,
-                  "icon_type": "none",
-                  "layout": "horizontal",
-                  "secondary_info": "none",
-                  "show_color_temp_control": true,
-                  "collapsible_controls": false,
-                  "hold_action": {
-                    "action": "toggle"
-                  },
-                  "double_tap_action": {
-                    "action": "toggle"
-                  },
+                  "type": "custom:vertical-stack-in-card",
+                  "cards": [
+                    {
+                      "type": "custom:mushroom-light-card",
+                      "entity": "light.group_workshop_lights",
+                      "fill_container": true,
+                      "primary_info": "none",
+                      "secondary_info": "none",
+                      "icon_type": "none",
+                      "layout": "horizontal",
+                      "use_light_color": true,
+                      "collapsible_controls": false,
+                      "show_brightness_control": true,
+                      "show_color_temp_control": true,
+                      "show_color_control": false,
+                      "tap_action": {
+                        "action": "toggle"
+                      },
+                      "hold_action": {
+                        "action": "toggle"
+                      },
+                      "double_tap_action": {
+                        "action": "toggle"
+                      },
+                      "card_mod": {
+                        "style": {
+                          ".": "/* Maxi 2026-10-25: standard light block on every tablet: brightness + colour temperature row, 40.75px bars */\nha-card {\n  --mush-icon-size: 40.75px;\n  --icon-size: 40.75px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n"
+                        }
+                      }
+                    },
+                    {
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "light.group_workshop_lights",
+                          "state": "on"
+                        }
+                      ],
+                      "card": {
+                        "type": "custom:mushroom-light-card",
+                        "entity": "light.group_workshop_lights",
+                        "fill_container": true,
+                        "primary_info": "none",
+                        "secondary_info": "none",
+                        "icon_type": "none",
+                        "layout": "horizontal",
+                        "use_light_color": true,
+                        "collapsible_controls": false,
+                        "show_brightness_control": false,
+                        "show_color_temp_control": false,
+                        "show_color_control": true,
+                        "tap_action": {
+                          "action": "toggle"
+                        },
+                        "hold_action": {
+                          "action": "toggle"
+                        },
+                        "double_tap_action": {
+                          "action": "toggle"
+                        },
+                        "card_mod": {
+                          "style": {
+                            ".": "/* Maxi 2026-10-25: standard light block on every tablet: hue row (shown while the room is on), 40.75px bar */\nha-card {\n  --mush-icon-size: 40.75px;\n  --icon-size: 40.75px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "light.group_workshop_lights",
+                          "state_not": "on"
+                        }
+                      ],
+                      "card": {
+                        "type": "button",
+                        "entity": "light.group_workshop_lights",
+                        "show_name": false,
+                        "show_icon": false,
+                        "show_state": false,
+                        "tap_action": {
+                          "action": "toggle"
+                        },
+                        "hold_action": {
+                          "action": "toggle"
+                        },
+                        "double_tap_action": {
+                          "action": "toggle"
+                        },
+                        "card_mod": {
+                          "style": "/* Maxi 2026-10-25: standard light block on every tablet: hue row while the room is off. Mushroom can't draw its colour slider when the light is off at page load, so a dimmed rainbow (same size) stands in; tap turns the room on. */\nha-card {\n  height: 58.75px !important;\n  padding: 9px !important;\n  box-sizing: border-box;\n  display: block !important;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\nha-card::before {\n  content: \"\";\n  display: block;\n  height: 40.75px;\n  border-radius: var(--control-border-radius, 12px);\n  background: linear-gradient(to right, #ff0000, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000);\n  filter: saturate(0.45) brightness(0.5);\n}\n"
+                        }
+                      }
+                    }
+                  ],
                   "card_mod": {
-                    "style": "ha-card {\n  --control-height: 45px\n}\n"
-                  }
-                },
-                {
-                  "type": "custom:mushroom-light-card",
-                  "entity": "light.group_workshop_lights",
-                  "fill_container": true,
-                  "primary_info": "none",
-                  "use_light_color": false,
-                  "show_brightness_control": false,
-                  "show_color_control": true,
-                  "icon_type": "none",
-                  "layout": "horizontal",
-                  "secondary_info": "none",
-                  "collapsible_controls": false,
-                  "show_color_temp_control": false,
-                  "card_mod": {
-                    "style": "ha-card {\n  --control-height: 85px\n}\n"
+                    "style": "/* Maxi 2026-10-25: standard light block on every tablet: one box, 119.5px (keeps the space the old light cards used) */\nha-card {\n  height: 119.5px !important;\n  overflow: hidden;\n}\n"
                   }
                 },
                 {
@@ -6989,7 +7718,7 @@
                           "show_name": false,
                           "camera_view": "auto",
                           "entity": "media_player.workshop_chromecast",
-                          "aspect_ratio": "1",
+                          "aspect_ratio": "0.94",
                           "type": "picture-entity",
                           "image": "/local/visualcovers/walkingdude.png",
                           "tap_action": {
@@ -7013,7 +7742,7 @@
                         },
                         {
                           "entity": "media_player.workshop_chromecast",
-                          "aspect_ratio": "1",
+                          "aspect_ratio": "0.94",
                           "show_state": false,
                           "show_name": false,
                           "camera_view": "auto",
@@ -7039,7 +7768,7 @@
                         },
                         {
                           "entity": "media_player.workshop_chromecast",
-                          "aspect_ratio": "1",
+                          "aspect_ratio": "0.94",
                           "show_state": false,
                           "show_name": false,
                           "camera_view": "auto",
@@ -7065,7 +7794,7 @@
                         },
                         {
                           "entity": "media_player.workshop_chromecast",
-                          "aspect_ratio": "1",
+                          "aspect_ratio": "0.94",
                           "show_state": false,
                           "show_name": false,
                           "camera_view": "auto",
@@ -7091,7 +7820,7 @@
                         },
                         {
                           "entity": "media_player.workshop_chromecast",
-                          "aspect_ratio": "1",
+                          "aspect_ratio": "0.94",
                           "show_state": false,
                           "show_name": false,
                           "camera_view": "auto",
@@ -7117,7 +7846,7 @@
                         },
                         {
                           "entity": "media_player.workshop_chromecast",
-                          "aspect_ratio": "1",
+                          "aspect_ratio": "0.94",
                           "show_state": false,
                           "show_name": false,
                           "camera_view": "auto",
@@ -9037,67 +9766,143 @@
                       ]
                     },
                     {
-                      "type": "custom:layout-card",
-                      "layout_type": "custom:grid-layout",
+                      "type": "custom:vertical-stack-in-card",
                       "cards": [
                         {
-                          "type": "tile",
-                          "entity": "light.back_door_light",
-                          "features_position": "bottom",
-                          "vertical": false,
-                          "icon": "mdi:door",
-                          "tap_action": {
-                            "action": "toggle"
+                          "type": "custom:mod-card",
+                          "card_mod": {
+                            "style": {
+                              "layout-card$": {
+                                "grid-layout$": "#root {\n  padding: 0px !important;\n  margin: 0px !important;\n  column-gap: 0px !important;\n}\n#root > * {\n  margin: 0px !important;\n}\n"
+                              }
+                            }
                           },
-                          "icon_tap_action": {
-                            "action": "toggle"
-                          },
-                          "name": "Door Light"
+                          "card": {
+                            "type": "custom:layout-card",
+                            "layout_type": "custom:grid-layout",
+                            "layout": {
+                              "grid-template-columns": "15% 85%"
+                            },
+                            "cards": [
+                              {
+                                "type": "tile",
+                                "entity": "light.back_door_light",
+                                "features_position": "bottom",
+                                "vertical": false,
+                                "icon": "mdi:door",
+                                "tap_action": {
+                                  "action": "toggle"
+                                },
+                                "icon_tap_action": {
+                                  "action": "toggle"
+                                },
+                                "name": "Door Light"
+                              },
+                              {
+                                "type": "custom:mushroom-light-card",
+                                "entity": "light.group_kitchen_lights",
+                                "fill_container": true,
+                                "primary_info": "none",
+                                "secondary_info": "none",
+                                "icon_type": "none",
+                                "layout": "horizontal",
+                                "use_light_color": true,
+                                "collapsible_controls": false,
+                                "show_brightness_control": true,
+                                "show_color_temp_control": true,
+                                "show_color_control": false,
+                                "tap_action": {
+                                  "action": "toggle"
+                                },
+                                "hold_action": {
+                                  "action": "toggle"
+                                },
+                                "double_tap_action": {
+                                  "action": "toggle"
+                                },
+                                "card_mod": {
+                                  "style": {
+                                    ".": "/* Maxi 2026-10-25: standard light block on every tablet: brightness + colour temperature row, 48.75px bars */\nha-card {\n  --mush-icon-size: 48.75px;\n  --icon-size: 48.75px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n",
+                                    "mushroom-button:nth-child(2)$": ".button {\n  animation: ping 1.7s infinite;\n}\n@keyframes ping {\n  0% { box-shadow: 0 0 0 0 rgba(var(--rgb-white), 0.7); }\n  70% { box-shadow: 0 0 0 10px transparent; }\n  100% { box-shadow: 0 0 0 0 transparent; }\n}\n"
+                                  }
+                                }
+                              }
+                            ]
+                          }
                         },
                         {
-                          "type": "custom:mushroom-light-card",
-                          "entity": "light.group_kitchen_lights",
-                          "fill_container": true,
-                          "primary_info": "none",
-                          "use_light_color": true,
-                          "show_brightness_control": true,
-                          "show_color_control": false,
-                          "icon_type": "none",
-                          "secondary_info": "none",
-                          "collapsible_controls": false,
-                          "show_color_temp_control": true,
-                          "layout": "horizontal",
-                          "icon": "",
-                          "tap_action": {
-                            "action": "toggle"
-                          },
-                          "hold_action": {
-                            "action": "toggle"
+                          "type": "conditional",
+                          "conditions": [
+                            {
+                              "condition": "state",
+                              "entity": "light.group_kitchen_lights",
+                              "state": "on"
+                            }
+                          ],
+                          "card": {
+                            "type": "custom:mushroom-light-card",
+                            "entity": "light.group_kitchen_lights",
+                            "fill_container": true,
+                            "primary_info": "none",
+                            "secondary_info": "none",
+                            "icon_type": "none",
+                            "layout": "horizontal",
+                            "use_light_color": true,
+                            "collapsible_controls": false,
+                            "show_brightness_control": false,
+                            "show_color_temp_control": false,
+                            "show_color_control": true,
+                            "tap_action": {
+                              "action": "toggle"
+                            },
+                            "hold_action": {
+                              "action": "toggle"
+                            },
+                            "double_tap_action": {
+                              "action": "toggle"
+                            },
+                            "card_mod": {
+                              "style": {
+                                ".": "/* Maxi 2026-10-25: standard light block on every tablet: hue row (shown while the room is on), 48.75px bar */\nha-card {\n  --mush-icon-size: 48.75px;\n  --icon-size: 48.75px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n",
+                                "mushroom-light-color-control$": {
+                                  "mushroom-slider$": ".slider {\n  animation: ping 1.6s infinite;\n}\n@keyframes ping {\n  0% { box-shadow: 0 0 0 0 rgba(var(--rgb-white), 0.7); }\n  70% { box-shadow: 0 0 0 10px transparent; }\n  100% { box-shadow: 0 0 0 0 transparent; }\n}\n"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "type": "conditional",
+                          "conditions": [
+                            {
+                              "condition": "state",
+                              "entity": "light.group_kitchen_lights",
+                              "state_not": "on"
+                            }
+                          ],
+                          "card": {
+                            "type": "button",
+                            "entity": "light.group_kitchen_lights",
+                            "show_name": false,
+                            "show_icon": false,
+                            "show_state": false,
+                            "tap_action": {
+                              "action": "toggle"
+                            },
+                            "hold_action": {
+                              "action": "toggle"
+                            },
+                            "double_tap_action": {
+                              "action": "toggle"
+                            },
+                            "card_mod": {
+                              "style": "/* Maxi 2026-10-25: standard light block on every tablet: hue row while the room is off. Mushroom can't draw its colour slider when the light is off at page load, so a dimmed rainbow (same size) stands in; tap turns the room on. */\nha-card {\n  height: 66.75px !important;\n  padding: 9px !important;\n  box-sizing: border-box;\n  display: block !important;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\nha-card::before {\n  content: \"\";\n  display: block;\n  height: 48.75px;\n  border-radius: var(--control-border-radius, 12px);\n  background: linear-gradient(to right, #ff0000, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000);\n  filter: saturate(0.45) brightness(0.5);\n  animation: ping 1.6s infinite;\n}\n@keyframes ping {\n  0% { box-shadow: 0 0 0 0 rgba(var(--rgb-white), 0.7); }\n  70% { box-shadow: 0 0 0 10px transparent; }\n  100% { box-shadow: 0 0 0 0 transparent; }\n}\n"
+                            }
                           }
                         }
                       ],
-                      "layout": {
-                        "grid-template-columns": "15% 85%"
-                      },
-                      "view_layout": {
-                        "column": 2
-                      }
-                    },
-                    {
-                      "type": "custom:mushroom-light-card",
-                      "entity": "light.group_kitchen_lights",
-                      "fill_container": true,
-                      "primary_info": "none",
-                      "use_light_color": true,
-                      "show_brightness_control": false,
-                      "show_color_control": true,
-                      "icon_type": "none",
-                      "layout": "horizontal",
-                      "secondary_info": "none",
-                      "collapsible_controls": false,
-                      "show_color_temp_control": false,
                       "card_mod": {
-                        "style": "ha-card {\n  --control-height: 30px;\n  min-height: 55.5px;\n}\n"
+                        "style": "/* Maxi 2026-10-25: standard light block on every tablet: one box, 135.5px (keeps the space the old light cards used) */\nha-card {\n  height: 135.5px !important;\n  overflow: hidden;\n}\n"
                       }
                     },
                     {
@@ -9129,6 +9934,36 @@
                           "condition": "state",
                           "entity": "media_player.group_mass_home_group_speakers",
                           "state_not": "off"
+                        },
+                        {
+                          "condition": "not",
+                          "conditions": [
+                            {
+                              "condition": "and",
+                              "conditions": [
+                                {
+                                  "condition": "state",
+                                  "entity": "media_player.universal_kitchen_chromecast",
+                                  "state_not": [
+                                    "off",
+                                    "unavailable"
+                                  ]
+                                },
+                                {
+                                  "condition": "state",
+                                  "entity": "media_player.mass_kitchen_wiim_speaker",
+                                  "attribute": "is_volume_muted",
+                                  "state": "true"
+                                },
+                                {
+                                  "condition": "state",
+                                  "entity": "media_player.universal_kitchen_chromecast",
+                                  "attribute": "is_volume_muted",
+                                  "state_not": "true"
+                                }
+                              ]
+                            }
+                          ]
                         }
                       ],
                       "card": {
@@ -9140,7 +9975,7 @@
                             "aspect_ratio": "85%",
                             "hide_background": false,
                             "card_mod": {
-                              "style": "{# fill the screen down to the controls: kink/acid hide the clock row (+96px) #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n#root {\n  padding-top: {{ 85.84 if clock_shown else 97.88 }}% !important;\n}"
+                              "style": "{# fill the screen down to the controls: kink/acid hide the clock row (+96px); TV shown under it: size the iframe so this card (iframe + ~111px of controls) takes its share: TV muted -> the space minus the TV strip, music muted (TV not) -> this block hides and the WiiM YAMP is the speaker's strip (Maxi 2026-10-25: a muted speaker's strip is a small YAMP with its title, not the MA block's untitled control rows), both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set tv_m = is_state_attr('media_player.universal_kitchen_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_kitchen_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = (787 if clock_shown else 883) %}\n{% if states('media_player.universal_kitchen_chromecast') not in ['off', 'unavailable'] %}\n#root {\n  padding-top: 0 !important;\n  height: {{ (pair - 145 - 111) if tv_m and not mu_m else pair / 2 - 111 }}px !important;\n}\n{% else %}\n#root {\n  padding-top: {{ 85.84 if clock_shown else 97.88 }}% !important;\n}\n{% endif %}"
                             }
                           },
                           {
@@ -9190,19 +10025,95 @@
                       "type": "conditional",
                       "conditions": [
                         {
-                          "condition": "state",
-                          "entity": "media_player.mass_kitchen_wiim_speaker",
-                          "state_not": "off"
-                        },
-                        {
-                          "condition": "state",
-                          "entity": "media_player.mass_kitchen_wiim_speaker",
-                          "state_not": "idle"
-                        },
-                        {
-                          "condition": "state",
-                          "entity": "media_player.group_mass_home_group_speakers",
-                          "state": "off"
+                          "condition": "or",
+                          "conditions": [
+                            {
+                              "condition": "and",
+                              "conditions": [
+                                {
+                                  "condition": "state",
+                                  "entity": "media_player.group_mass_home_group_speakers",
+                                  "state": "off"
+                                },
+                                {
+                                  "condition": "or",
+                                  "conditions": [
+                                    {
+                                      "condition": "state",
+                                      "entity": "media_player.mass_kitchen_wiim_speaker",
+                                      "state_not": [
+                                        "off",
+                                        "idle"
+                                      ]
+                                    },
+                                    {
+                                      "condition": "and",
+                                      "conditions": [
+                                        {
+                                          "condition": "state",
+                                          "entity": "media_player.universal_kitchen_chromecast",
+                                          "state": [
+                                            "off",
+                                            "unavailable"
+                                          ]
+                                        },
+                                        {
+                                          "condition": "or",
+                                          "conditions": [
+                                            {
+                                              "condition": "state",
+                                              "entity": "input_boolean.party_mode",
+                                              "state": "on"
+                                            },
+                                            {
+                                              "condition": "state",
+                                              "entity": "input_boolean.kink_party",
+                                              "state": "on"
+                                            },
+                                            {
+                                              "condition": "state",
+                                              "entity": "input_boolean.acid_time",
+                                              "state": "on"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "condition": "and",
+                              "conditions": [
+                                {
+                                  "condition": "state",
+                                  "entity": "media_player.group_mass_home_group_speakers",
+                                  "state_not": "off"
+                                },
+                                {
+                                  "condition": "state",
+                                  "entity": "media_player.universal_kitchen_chromecast",
+                                  "state_not": [
+                                    "off",
+                                    "unavailable"
+                                  ]
+                                },
+                                {
+                                  "condition": "state",
+                                  "entity": "media_player.mass_kitchen_wiim_speaker",
+                                  "attribute": "is_volume_muted",
+                                  "state": "true"
+                                },
+                                {
+                                  "condition": "state",
+                                  "entity": "media_player.universal_kitchen_chromecast",
+                                  "attribute": "is_volume_muted",
+                                  "state_not": "true"
+                                }
+                              ]
+                            }
+                          ]
                         }
                       ],
                       "card": {
@@ -9226,16 +10137,66 @@
                         "hide_active_entity_label": false,
                         "adaptive_text_targets": [],
                         "details_alignment": "left",
-                        "volume_mode": "stepper",
+                        "volume_mode": "slider",
                         "volume_step": 0.02,
                         "collapse_on_idle": false,
                         "hide_menu_player": false,
                         "extend_artwork": false,
-                        "card_height": "{# fill the screen down to the controls: kink/acid hide the clock row (+96px) #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{{ 795 if clock_shown else 891 }}",
+                        "card_height": "{# kitchen WiiM, above the TV card (while the MA group plays it is also the speaker's strip: WiiM muted under a shown, unmuted TV; Maxi 2026-10-25: a muted speaker's strip is a small YAMP with its title, not the MA block's untitled control rows): alone 795/891 (kink/acid hide the clock row); with the TV shown: TV muted -> the space minus the TV strip, WiiM muted -> 145 strip, both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set tv_m = is_state_attr('media_player.universal_kitchen_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_kitchen_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = (787 if clock_shown else 883) %}\n{% if states('media_player.universal_kitchen_chromecast') not in ['off', 'unavailable'] %}\n{{ ((pair - 145) if tv_m and not mu_m else (145 if mu_m and not tv_m else pair / 2)) }}\n{% else %}\n{{ (795 if clock_shown else 891) }}\n{% endif %}",
                         "always_show_lyrics": true,
                         "lyrics_mode": "default",
                         "lyrics_pre_roll": 0,
-                        "search_results_sort": "play_count_desc"
+                        "search_results_sort": "play_count_desc",
+                        "idle_timeout_ms": 0,
+                        "card_mod": {
+                          "style": "{# Speaker mute button (Maxi 2026-10-25: a muted speaker's strip is a small YAMP with its title, not the MA block's untitled control rows; the block's control rows had one). Below 320 px YAMP hides the volume row's mute button with an inline style; show it again (not while the options sheet is open).\nIn the strip (speaker muted, TV not) the volume row sits below the visible card, so lift the button into the play/skip row, left edge, styled like those buttons (same as the TV card's). #}\n{% set tv_m = is_state_attr('media_player.universal_kitchen_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_kitchen_wiim_speaker', 'is_volume_muted', true) %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  visibility: visible !important;\n  opacity: 1 !important;\n  pointer-events: auto !important;\n}\n{% if mu_m and not tv_m %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  transform: translate(-44px, -50px);\n}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] .volume-icon-btn {\n  width: 38px;\n  height: 38px;\n  min-width: 38px;\n  min-height: 38px;\n  background: rgba(255, 255, 255, 0.15);\n  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);\n}\n{% endif %}\n"
+                        }
+                      }
+                    },
+                    {
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "media_player.universal_kitchen_chromecast",
+                          "state_not": "off"
+                        },
+                        {
+                          "condition": "state",
+                          "entity": "media_player.universal_kitchen_chromecast",
+                          "state_not": "unavailable"
+                        }
+                      ],
+                      "card": {
+                        "type": "custom:yet-another-media-player",
+                        "entities": [
+                          {
+                            "entity_id": "media_player.universal_kitchen_chromecast"
+                          }
+                        ],
+                        "card_type": "default",
+                        "dim_chips_on_idle": true,
+                        "appearance": "dark",
+                        "alternate_progress_bar": false,
+                        "match_theme": false,
+                        "display_timestamps": true,
+                        "search_view": "card_minimal",
+                        "control_layout": "modern",
+                        "swap_pause_for_stop": false,
+                        "adaptive_controls": false,
+                        "hide_active_entity_label": false,
+                        "adaptive_text_targets": [],
+                        "details_alignment": "left",
+                        "volume_mode": "slider",
+                        "volume_step": 0.02,
+                        "collapse_on_idle": false,
+                        "hide_menu_player": false,
+                        "extend_artwork": false,
+                        "card_height": "{# kitchen TV, under the music card. Alone 795/891; with the music card shown the pair fills the space below the timer: TV muted -> 145 strip, music muted -> the music card is a 145 YAMP strip (with the MA group playing the WiiM YAMP stands in for the block; Maxi 2026-10-25: a muted speaker's strip is a small YAMP with its title, not the MA block's untitled control rows), both or neither muted -> half each (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set k = states('media_player.mass_kitchen_wiim_speaker') %}\n{% set g = states('media_player.group_mass_home_group_speakers') %}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set tv_m = is_state_attr('media_player.universal_kitchen_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_kitchen_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = (787 if clock_shown else 883) %}\n{% if g != 'off' or k not in ['off', 'idle'] %}\n{{ (145 if tv_m and not mu_m else ((pair - 145) if mu_m and not tv_m else pair / 2)) }}\n{% else %}\n{{ (795 if clock_shown else 891) }}\n{% endif %}",
+                        "idle_timeout_ms": 0,
+                        "card_mod": {
+                          "style": "{# TV mute button (Maxi 2026-10-25: a way to unmute the muted TV). Below 320 px YAMP hides the volume row's mute button with an inline style; show it again (not while the options sheet is open).\nIn the strip (TV muted, music not) the volume row sits below the visible card, so lift the button into the play/skip row, left edge, styled like those buttons. #}\n{% set tv_m = is_state_attr('media_player.universal_kitchen_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_kitchen_wiim_speaker', 'is_volume_muted', true) %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  visibility: visible !important;\n  opacity: 1 !important;\n  pointer-events: auto !important;\n}\n{% if tv_m and not mu_m %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  transform: translate(-44px, -50px);\n}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] .volume-icon-btn {\n  width: 38px;\n  height: 38px;\n  min-width: 38px;\n  min-height: 38px;\n  background: rgba(255, 255, 255, 0.15);\n  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);\n}\n{% endif %}\n"
+                        }
                       }
                     },
                     {
@@ -9258,7 +10219,7 @@
                         }
                       ],
                       "card": {
-                        "cardHeight": "470px",
+                        "cardHeight": "487px",
                         "enableModeChange": true,
                         "defaultMode": "Calendar",
                         "firstDayOfWeek": 0,
@@ -9562,85 +10523,106 @@
                   }
                 },
                 {
-                  "type": "custom:mushroom-light-card",
-                  "entity": "light.group_bedroom_lights",
-                  "fill_container": true,
-                  "primary_info": "none",
-                  "use_light_color": true,
-                  "show_brightness_control": true,
-                  "show_color_control": false,
-                  "icon_type": "none",
-                  "layout": "horizontal",
-                  "secondary_info": "none",
-                  "show_color_temp_control": true,
-                  "collapsible_controls": false,
-                  "hold_action": {
-                    "action": "toggle"
-                  },
-                  "double_tap_action": {
-                    "action": "toggle"
-                  },
-                  "card_mod": {
-                    "style": "ha-card {\n  --control-height: 45px\n}\n"
-                  }
-                },
-                {
-                  "type": "custom:mushroom-light-card",
-                  "entity": "light.group_bedroom_lights",
-                  "fill_container": true,
-                  "primary_info": "none",
-                  "use_light_color": false,
-                  "show_brightness_control": false,
-                  "show_color_control": true,
-                  "icon_type": "none",
-                  "layout": "horizontal",
-                  "secondary_info": "none",
-                  "collapsible_controls": false,
-                  "show_color_temp_control": false,
-                  "card_mod": {
-                    "style": "ha-card {\n  --control-height: 85px;\n  min-height: 55.5px;\n}\n"
-                  }
-                },
-                {
-                  "type": "conditional",
-                  "conditions": [
+                  "type": "custom:vertical-stack-in-card",
+                  "cards": [
                     {
-                      "condition": "state",
-                      "entity": "media_player.universal_bedroom_chromecast",
-                      "state_not": "off"
+                      "type": "custom:mushroom-light-card",
+                      "entity": "light.group_bedroom_lights",
+                      "fill_container": true,
+                      "primary_info": "none",
+                      "secondary_info": "none",
+                      "icon_type": "none",
+                      "layout": "horizontal",
+                      "use_light_color": true,
+                      "collapsible_controls": false,
+                      "show_brightness_control": true,
+                      "show_color_temp_control": true,
+                      "show_color_control": false,
+                      "tap_action": {
+                        "action": "toggle"
+                      },
+                      "hold_action": {
+                        "action": "toggle"
+                      },
+                      "double_tap_action": {
+                        "action": "toggle"
+                      },
+                      "card_mod": {
+                        "style": {
+                          ".": "/* Maxi 2026-10-25: standard light block on every tablet: brightness + colour temperature row, 41px bars */\nha-card {\n  --mush-icon-size: 41px;\n  --icon-size: 41px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n"
+                        }
+                      }
                     },
                     {
-                      "condition": "state",
-                      "entity": "media_player.universal_bedroom_chromecast",
-                      "state_not": "unavailable"
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "light.group_bedroom_lights",
+                          "state": "on"
+                        }
+                      ],
+                      "card": {
+                        "type": "custom:mushroom-light-card",
+                        "entity": "light.group_bedroom_lights",
+                        "fill_container": true,
+                        "primary_info": "none",
+                        "secondary_info": "none",
+                        "icon_type": "none",
+                        "layout": "horizontal",
+                        "use_light_color": true,
+                        "collapsible_controls": false,
+                        "show_brightness_control": false,
+                        "show_color_temp_control": false,
+                        "show_color_control": true,
+                        "tap_action": {
+                          "action": "toggle"
+                        },
+                        "hold_action": {
+                          "action": "toggle"
+                        },
+                        "double_tap_action": {
+                          "action": "toggle"
+                        },
+                        "card_mod": {
+                          "style": {
+                            ".": "/* Maxi 2026-10-25: standard light block on every tablet: hue row (shown while the room is on), 41px bar */\nha-card {\n  --mush-icon-size: 41px;\n  --icon-size: 41px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "light.group_bedroom_lights",
+                          "state_not": "on"
+                        }
+                      ],
+                      "card": {
+                        "type": "button",
+                        "entity": "light.group_bedroom_lights",
+                        "show_name": false,
+                        "show_icon": false,
+                        "show_state": false,
+                        "tap_action": {
+                          "action": "toggle"
+                        },
+                        "hold_action": {
+                          "action": "toggle"
+                        },
+                        "double_tap_action": {
+                          "action": "toggle"
+                        },
+                        "card_mod": {
+                          "style": "/* Maxi 2026-10-25: standard light block on every tablet: hue row while the room is off. Mushroom can't draw its colour slider when the light is off at page load, so a dimmed rainbow (same size) stands in; tap turns the room on. */\nha-card {\n  height: 59px !important;\n  padding: 9px !important;\n  box-sizing: border-box;\n  display: block !important;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\nha-card::before {\n  content: \"\";\n  display: block;\n  height: 41px;\n  border-radius: var(--control-border-radius, 12px);\n  background: linear-gradient(to right, #ff0000, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000);\n  filter: saturate(0.45) brightness(0.5);\n}\n"
+                        }
+                      }
                     }
                   ],
-                  "card": {
-                    "type": "custom:yet-another-media-player",
-                    "entities": [
-                      {
-                        "entity_id": "media_player.universal_bedroom_chromecast"
-                      }
-                    ],
-                    "card_type": "default",
-                    "dim_chips_on_idle": true,
-                    "appearance": "dark",
-                    "alternate_progress_bar": false,
-                    "match_theme": false,
-                    "display_timestamps": true,
-                    "search_view": "card_minimal",
-                    "control_layout": "modern",
-                    "swap_pause_for_stop": false,
-                    "adaptive_controls": false,
-                    "hide_active_entity_label": false,
-                    "adaptive_text_targets": [],
-                    "details_alignment": "left",
-                    "volume_mode": "slider",
-                    "volume_step": 0.02,
-                    "collapse_on_idle": false,
-                    "hide_menu_player": false,
-                    "extend_artwork": false,
-                    "card_height": "{# bedroom TV + speaker cards fill the screen below the light sliders; speaker shown too: TV gets ~35% #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set speaker_shown = states('media_player.mass_bedroom_vpe_speaker') not in ['off', 'idle', 'unavailable'] %}\n{{ (217 if clock_shown else 251) if speaker_shown else (628 if clock_shown else 724) }}"
+                  "card_mod": {
+                    "style": "/* Maxi 2026-10-25: standard light block on every tablet: one box, 120px (keeps the space the old light cards used) */\nha-card {\n  height: 120px !important;\n  overflow: hidden;\n}\n"
                   }
                 },
                 {
@@ -9687,12 +10669,59 @@
                     "collapse_on_idle": false,
                     "hide_menu_player": false,
                     "extend_artwork": false,
-                    "card_height": "{# bedroom TV + speaker cards fill the screen below the light sliders; TV shown too: speaker gets the other ~65% #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set tv_shown = states('media_player.universal_bedroom_chromecast') not in ['off', 'unavailable'] %}\n{{ (403 if clock_shown else 465) if tv_shown else (628 if clock_shown else 724) }}",
+                    "card_height": "{# bedroom speaker, above the TV card. Alone 628/724; with the TV shown: TV muted -> the rest, speaker muted -> 145 strip, both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set tv_m = is_state_attr('media_player.universal_bedroom_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_bedroom_vpe_speaker', 'is_volume_muted', true) %}\n{% set pair = (620 if clock_shown else 716) %}\n{% if states('media_player.universal_bedroom_chromecast') not in ['off', 'unavailable'] %}\n{{ ((pair - 145) if tv_m and not mu_m else (145 if mu_m and not tv_m else pair / 2)) }}\n{% else %}\n{{ (628 if clock_shown else 724) }}\n{% endif %}",
                     "always_show_lyrics": true,
                     "lyrics_mode": "default",
                     "lyrics_pre_roll": 17,
                     "lyrics_source": "lrclib",
-                    "search_results_sort": "play_count_desc"
+                    "search_results_sort": "play_count_desc",
+                    "idle_timeout_ms": 0
+                  }
+                },
+                {
+                  "type": "conditional",
+                  "conditions": [
+                    {
+                      "condition": "state",
+                      "entity": "media_player.universal_bedroom_chromecast",
+                      "state_not": "off"
+                    },
+                    {
+                      "condition": "state",
+                      "entity": "media_player.universal_bedroom_chromecast",
+                      "state_not": "unavailable"
+                    }
+                  ],
+                  "card": {
+                    "type": "custom:yet-another-media-player",
+                    "entities": [
+                      {
+                        "entity_id": "media_player.universal_bedroom_chromecast"
+                      }
+                    ],
+                    "card_type": "default",
+                    "dim_chips_on_idle": true,
+                    "appearance": "dark",
+                    "alternate_progress_bar": false,
+                    "match_theme": false,
+                    "display_timestamps": true,
+                    "search_view": "card_minimal",
+                    "control_layout": "modern",
+                    "swap_pause_for_stop": false,
+                    "adaptive_controls": false,
+                    "hide_active_entity_label": false,
+                    "adaptive_text_targets": [],
+                    "details_alignment": "left",
+                    "volume_mode": "slider",
+                    "volume_step": 0.02,
+                    "collapse_on_idle": false,
+                    "hide_menu_player": false,
+                    "extend_artwork": false,
+                    "card_height": "{# bedroom TV, under the speaker card; the two fill the screen below the light sliders. Alone 628/724; with the speaker shown: TV muted -> 145 strip, speaker muted -> the rest, both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set tv_m = is_state_attr('media_player.universal_bedroom_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_bedroom_vpe_speaker', 'is_volume_muted', true) %}\n{% set pair = (620 if clock_shown else 716) %}\n{% if states('media_player.mass_bedroom_vpe_speaker') not in ['off', 'idle', 'unavailable'] %}\n{{ (145 if tv_m and not mu_m else ((pair - 145) if mu_m and not tv_m else pair / 2)) }}\n{% else %}\n{{ (628 if clock_shown else 724) }}\n{% endif %}",
+                    "idle_timeout_ms": 0,
+                    "card_mod": {
+                      "style": "{# TV mute button (Maxi 2026-10-25: a way to unmute the muted TV). Below 320 px YAMP hides the volume row's mute button with an inline style; show it again (not while the options sheet is open).\nIn the strip (TV muted, music not) the volume row sits below the visible card, so lift the button into the play/skip row, left edge, styled like those buttons. #}\n{% set tv_m = is_state_attr('media_player.universal_bedroom_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_bedroom_vpe_speaker', 'is_volume_muted', true) %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  visibility: visible !important;\n  opacity: 1 !important;\n  pointer-events: auto !important;\n}\n{% if tv_m and not mu_m %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  transform: translate(-44px, -50px);\n}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] .volume-icon-btn {\n  width: 38px;\n  height: 38px;\n  min-width: 38px;\n  min-height: 38px;\n  background: rgba(255, 255, 255, 0.15);\n  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);\n}\n{% endif %}\n"
+                    }
                   }
                 },
                 {
@@ -10570,7 +11599,7 @@
                           "show_name": false,
                           "camera_view": "auto",
                           "entity": "media_player.bedroom_chromecast",
-                          "aspect_ratio": "1",
+                          "aspect_ratio": "0.94",
                           "type": "picture-entity",
                           "image": "/local/visualcovers/walkingdude.png",
                           "tap_action": {
@@ -10594,7 +11623,7 @@
                         },
                         {
                           "entity": "media_player.bedroom_chromecast",
-                          "aspect_ratio": "1",
+                          "aspect_ratio": "0.94",
                           "show_state": false,
                           "show_name": false,
                           "camera_view": "auto",
@@ -10620,7 +11649,7 @@
                         },
                         {
                           "entity": "media_player.bedroom_chromecast",
-                          "aspect_ratio": "1",
+                          "aspect_ratio": "0.94",
                           "show_state": false,
                           "show_name": false,
                           "camera_view": "auto",
@@ -10646,7 +11675,7 @@
                         },
                         {
                           "entity": "media_player.bedroom_chromecast",
-                          "aspect_ratio": "1",
+                          "aspect_ratio": "0.94",
                           "show_state": false,
                           "show_name": false,
                           "camera_view": "auto",
@@ -10672,7 +11701,7 @@
                         },
                         {
                           "entity": "media_player.bedroom_chromecast",
-                          "aspect_ratio": "1",
+                          "aspect_ratio": "0.94",
                           "show_state": false,
                           "show_name": false,
                           "camera_view": "auto",
@@ -10698,7 +11727,7 @@
                         },
                         {
                           "entity": "media_player.bedroom_chromecast",
-                          "aspect_ratio": "1",
+                          "aspect_ratio": "0.94",
                           "show_state": false,
                           "show_name": false,
                           "camera_view": "auto",
@@ -10823,65 +11852,107 @@
             {
               "cards": [
                 {
+                  "type": "custom:vertical-stack-in-card",
                   "cards": [
                     {
                       "type": "custom:mushroom-light-card",
                       "entity": "light.group_hotbox_lights",
                       "fill_container": true,
                       "primary_info": "none",
-                      "use_light_color": true,
-                      "show_brightness_control": true,
-                      "show_color_control": false,
+                      "secondary_info": "none",
                       "icon_type": "none",
                       "layout": "horizontal",
-                      "secondary_info": "none",
+                      "use_light_color": true,
                       "collapsible_controls": false,
+                      "show_brightness_control": true,
                       "show_color_temp_control": true,
+                      "show_color_control": false,
+                      "tap_action": {
+                        "action": "toggle"
+                      },
+                      "hold_action": {
+                        "action": "toggle"
+                      },
+                      "double_tap_action": {
+                        "action": "toggle"
+                      },
                       "card_mod": {
                         "style": {
-                          "mushroom-light-brightness-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          "mushroom-light-color-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          "mushroom-light-color-temp-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          ".": "mushroom-light-brightness-control {\n  height: 20px;\n}\nmushroom-light-color-control {\n  height: 20px;\n}\nmushroom-light-color-temp-control {\n  height: 20px;\n}\n"
+                          ".": "/* Maxi 2026-10-25: standard light block on every tablet: brightness + colour temperature row, 28px bars */\nha-card {\n  --mush-icon-size: 28px;\n  --icon-size: 28px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n"
                         }
                       }
                     },
                     {
-                      "type": "custom:mushroom-light-card",
-                      "entity": "light.group_hotbox_lights",
-                      "fill_container": true,
-                      "primary_info": "none",
-                      "use_light_color": true,
-                      "show_brightness_control": false,
-                      "show_color_control": true,
-                      "icon_type": "none",
-                      "layout": "horizontal",
-                      "secondary_info": "none",
-                      "collapsible_controls": false,
-                      "show_color_temp_control": false,
-                      "card_mod": {
-                        "style": {
-                          "mushroom-light-brightness-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          "mushroom-light-color-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          "mushroom-light-color-temp-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          ".": "mushroom-light-brightness-control {\n  height: 20px;\n}\nmushroom-light-color-control {\n  height: 20px;\n}\nmushroom-light-color-temp-control {\n  height: 20px;\n}\n"
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "light.group_hotbox_lights",
+                          "state": "on"
+                        }
+                      ],
+                      "card": {
+                        "type": "custom:mushroom-light-card",
+                        "entity": "light.group_hotbox_lights",
+                        "fill_container": true,
+                        "primary_info": "none",
+                        "secondary_info": "none",
+                        "icon_type": "none",
+                        "layout": "horizontal",
+                        "use_light_color": true,
+                        "collapsible_controls": false,
+                        "show_brightness_control": false,
+                        "show_color_temp_control": false,
+                        "show_color_control": true,
+                        "tap_action": {
+                          "action": "toggle"
+                        },
+                        "hold_action": {
+                          "action": "toggle"
+                        },
+                        "double_tap_action": {
+                          "action": "toggle"
+                        },
+                        "card_mod": {
+                          "style": {
+                            ".": "/* Maxi 2026-10-25: standard light block on every tablet: hue row (shown while the room is on), 28px bar */\nha-card {\n  --mush-icon-size: 28px;\n  --icon-size: 28px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "light.group_hotbox_lights",
+                          "state_not": "on"
+                        }
+                      ],
+                      "card": {
+                        "type": "button",
+                        "entity": "light.group_hotbox_lights",
+                        "show_name": false,
+                        "show_icon": false,
+                        "show_state": false,
+                        "tap_action": {
+                          "action": "toggle"
+                        },
+                        "hold_action": {
+                          "action": "toggle"
+                        },
+                        "double_tap_action": {
+                          "action": "toggle"
+                        },
+                        "card_mod": {
+                          "style": "/* Maxi 2026-10-25: standard light block on every tablet: hue row while the room is off. Mushroom can't draw its colour slider when the light is off at page load, so a dimmed rainbow (same size) stands in; tap turns the room on. */\nha-card {\n  height: 46px !important;\n  padding: 9px !important;\n  box-sizing: border-box;\n  display: block !important;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\nha-card::before {\n  content: \"\";\n  display: block;\n  height: 28px;\n  border-radius: var(--control-border-radius, 12px);\n  background: linear-gradient(to right, #ff0000, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000);\n  filter: saturate(0.45) brightness(0.5);\n}\n"
                         }
                       }
                     }
                   ],
-                  "type": "custom:vertical-stack-in-card"
+                  "card_mod": {
+                    "style": "/* Maxi 2026-10-25: standard light block on every tablet: one box, 94px (keeps the space the old light cards used) */\nha-card {\n  height: 94px !important;\n  overflow: hidden;\n}\n"
+                  }
                 },
                 {
                   "type": "vertical-stack",
@@ -10925,11 +11996,59 @@
                         "collapse_on_idle": false,
                         "hide_menu_player": false,
                         "extend_artwork": false,
-                        "card_height": 485,
+                        "card_height": "{# hotbox WiiM, above the TV card. Alone 485; with the TV shown: TV muted -> the rest, WiiM muted -> 110 strip, both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set tv_m = is_state_attr('media_player.universal_hotbox_top_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_hotbox_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = 477 %}\n{% if states('media_player.universal_hotbox_top_chromecast') not in ['off', 'unavailable'] %}\n{{ ((pair - 140) if tv_m and not mu_m else (110 if mu_m and not tv_m else pair / 2)) }}\n{% else %}\n{{ 485 }}\n{% endif %}",
                         "always_show_lyrics": true,
                         "lyrics_mode": "default",
-                        "yrics_pre_roll": 0,
-                        "queue_controls_style": "drag_handle"
+                        "lyrics_pre_roll": 0,
+                        "queue_controls_style": "drag_handle",
+                        "idle_timeout_ms": 0,
+                        "card_mod": {
+                          "style": "{# ☰ room (follow-up to Maxi's 2026-10-25 mute split): below 320 px this classic-layout YAMP drops its volume row and floats ☰ at the bottom right of the play row, where it covered the power button. While compact, keep room for it.\nThe block below is a copy of this card's card_height; keep the two in sync. #}\n{% set h %}{# hotbox WiiM, above the TV card. Alone 485; with the TV shown: TV muted -> the rest, WiiM muted -> 110 strip, both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set tv_m = is_state_attr('media_player.universal_hotbox_top_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_hotbox_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = 477 %}\n{% if states('media_player.universal_hotbox_top_chromecast') not in ['off', 'unavailable'] %}\n{{ ((pair - 140) if tv_m and not mu_m else (110 if mu_m and not tv_m else pair / 2)) }}\n{% else %}\n{{ 485 }}\n{% endif %}{% endset %}\n{% if (h | trim | float(999)) < 320 %}\n.controls-row.adaptive {\n  padding-right: 52px !important;\n  --yamp-control-gap: 4px !important;\n  --yamp-control-min-width: 36px !important;\n}\n{% endif %}\n"
+                        }
+                      }
+                    },
+                    {
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "media_player.universal_hotbox_top_chromecast",
+                          "state_not": [
+                            "off",
+                            "unavailable"
+                          ]
+                        }
+                      ],
+                      "card": {
+                        "type": "custom:yet-another-media-player",
+                        "entities": [
+                          {
+                            "entity_id": "media_player.universal_hotbox_top_chromecast"
+                          }
+                        ],
+                        "card_type": "default",
+                        "dim_chips_on_idle": true,
+                        "appearance": "dark",
+                        "alternate_progress_bar": false,
+                        "match_theme": false,
+                        "display_timestamps": true,
+                        "search_view": "card_minimal",
+                        "control_layout": "modern",
+                        "swap_pause_for_stop": false,
+                        "adaptive_controls": false,
+                        "hide_active_entity_label": false,
+                        "adaptive_text_targets": [],
+                        "details_alignment": "left",
+                        "volume_mode": "slider",
+                        "volume_step": 0.02,
+                        "collapse_on_idle": false,
+                        "hide_menu_player": false,
+                        "extend_artwork": false,
+                        "card_height": "{# hotbox TV, under the WiiM card. Alone 485; with the WiiM card shown the pair fills the column to the bottom edge: TV muted -> 140 strip, WiiM muted -> the rest, both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set tv_m = is_state_attr('media_player.universal_hotbox_top_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_hotbox_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = 477 %}\n{% if states('media_player.mass_hotbox_wiim_speaker') not in ['off', 'idle'] %}\n{{ (140 if tv_m and not mu_m else ((pair - 110) if mu_m and not tv_m else pair / 2)) }}\n{% else %}\n{{ 485 }}\n{% endif %}",
+                        "idle_timeout_ms": 0,
+                        "card_mod": {
+                          "style": "{# TV mute button (Maxi 2026-10-25: a way to unmute the muted TV). Below 320 px YAMP hides the volume row's mute button with an inline style; show it again (not while the options sheet is open).\nIn the strip (TV muted, music not) the volume row sits below the visible card, so lift the button into the play/skip row, left edge, styled like those buttons. #}\n{% set tv_m = is_state_attr('media_player.universal_hotbox_top_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_hotbox_wiim_speaker', 'is_volume_muted', true) %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  visibility: visible !important;\n  opacity: 1 !important;\n  pointer-events: auto !important;\n}\n{% if tv_m and not mu_m %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  transform: translate(-44px, -50px);\n}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] .volume-icon-btn {\n  width: 38px;\n  height: 38px;\n  min-width: 38px;\n  min-height: 38px;\n  background: rgba(255, 255, 255, 0.15);\n  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);\n}\n{% endif %}\n"
+                        }
                       }
                     }
                   ]
@@ -10941,6 +12060,14 @@
                       "condition": "state",
                       "entity": "media_player.mass_hotbox_wiim_speaker",
                       "state_not": "playing"
+                    },
+                    {
+                      "condition": "state",
+                      "entity": "media_player.universal_hotbox_top_chromecast",
+                      "state": [
+                        "off",
+                        "unavailable"
+                      ]
                     }
                   ],
                   "card": {
@@ -11454,7 +12581,7 @@
                   "go2rtc_stream": "front_door_camera_sub",
                   "live_view_aspect_ratio": "4/3",
                   "card_mod": {
-                    "style": "{# kink/acid hide the clock: stretch the live view so the column still reaches the bottom edge (stock while the cooking timer bar is shown) #}\n{% if not (is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off')) and not is_state('timer.cooking', 'active') %}\n.live-view-container {\n  aspect-ratio: 417 / 422 !important;\n}\n.live-view-video {\n  object-fit: cover !important;\n}\n{% endif %}"
+                    "style": "{# kink/acid hide the clock and the cooking timer adds its bar under a stock-size clock: resize the live view so the column still ends at the bottom edge (y=794) #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set timer = is_state('timer.cooking', 'active') %}\n{% if timer or not clock_shown %}\n.live-view-container {\n  aspect-ratio: 417 / {{ (264 if clock_shown else 351) if timer else 422 }} !important;\n}\n.live-view-video {\n  object-fit: cover !important;\n}\n{% endif %}"
                   }
                 },
                 {
@@ -11472,65 +12599,107 @@
             {
               "cards": [
                 {
+                  "type": "custom:vertical-stack-in-card",
                   "cards": [
                     {
                       "type": "custom:mushroom-light-card",
                       "entity": "light.group_hallway_lights",
                       "fill_container": true,
                       "primary_info": "none",
-                      "use_light_color": true,
-                      "show_brightness_control": true,
-                      "show_color_control": false,
+                      "secondary_info": "none",
                       "icon_type": "none",
                       "layout": "horizontal",
-                      "secondary_info": "none",
+                      "use_light_color": true,
                       "collapsible_controls": false,
+                      "show_brightness_control": true,
                       "show_color_temp_control": true,
+                      "show_color_control": false,
+                      "tap_action": {
+                        "action": "toggle"
+                      },
+                      "hold_action": {
+                        "action": "toggle"
+                      },
+                      "double_tap_action": {
+                        "action": "toggle"
+                      },
                       "card_mod": {
                         "style": {
-                          "mushroom-light-brightness-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          "mushroom-light-color-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          "mushroom-light-color-temp-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          ".": "mushroom-light-brightness-control {\n  height: 20px;\n}\nmushroom-light-color-control {\n  height: 20px;\n}\nmushroom-light-color-temp-control {\n  height: 20px;\n}\n"
+                          ".": "/* Maxi 2026-10-25: standard light block on every tablet: brightness + colour temperature row, 33px bars */\nha-card {\n  --mush-icon-size: 33px;\n  --icon-size: 33px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n"
                         }
                       }
                     },
                     {
-                      "type": "custom:mushroom-light-card",
-                      "entity": "light.group_hallway_lights",
-                      "fill_container": true,
-                      "primary_info": "none",
-                      "use_light_color": true,
-                      "show_brightness_control": false,
-                      "show_color_control": true,
-                      "icon_type": "none",
-                      "layout": "horizontal",
-                      "secondary_info": "none",
-                      "collapsible_controls": false,
-                      "show_color_temp_control": false,
-                      "card_mod": {
-                        "style": {
-                          "mushroom-light-brightness-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          "mushroom-light-color-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          "mushroom-light-color-temp-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          ".": "mushroom-light-brightness-control {\n  height: 20px;\n}\nmushroom-light-color-control {\n  height: 20px;\n}\nmushroom-light-color-temp-control {\n  height: 20px;\n}\n"
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "light.group_hallway_lights",
+                          "state": "on"
+                        }
+                      ],
+                      "card": {
+                        "type": "custom:mushroom-light-card",
+                        "entity": "light.group_hallway_lights",
+                        "fill_container": true,
+                        "primary_info": "none",
+                        "secondary_info": "none",
+                        "icon_type": "none",
+                        "layout": "horizontal",
+                        "use_light_color": true,
+                        "collapsible_controls": false,
+                        "show_brightness_control": false,
+                        "show_color_temp_control": false,
+                        "show_color_control": true,
+                        "tap_action": {
+                          "action": "toggle"
+                        },
+                        "hold_action": {
+                          "action": "toggle"
+                        },
+                        "double_tap_action": {
+                          "action": "toggle"
+                        },
+                        "card_mod": {
+                          "style": {
+                            ".": "/* Maxi 2026-10-25: standard light block on every tablet: hue row (shown while the room is on), 33px bar */\nha-card {\n  --mush-icon-size: 33px;\n  --icon-size: 33px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "light.group_hallway_lights",
+                          "state_not": "on"
+                        }
+                      ],
+                      "card": {
+                        "type": "button",
+                        "entity": "light.group_hallway_lights",
+                        "show_name": false,
+                        "show_icon": false,
+                        "show_state": false,
+                        "tap_action": {
+                          "action": "toggle"
+                        },
+                        "hold_action": {
+                          "action": "toggle"
+                        },
+                        "double_tap_action": {
+                          "action": "toggle"
+                        },
+                        "card_mod": {
+                          "style": "/* Maxi 2026-10-25: standard light block on every tablet: hue row while the room is off. Mushroom can't draw its colour slider when the light is off at page load, so a dimmed rainbow (same size) stands in; tap turns the room on. */\nha-card {\n  height: 51px !important;\n  padding: 9px !important;\n  box-sizing: border-box;\n  display: block !important;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\nha-card::before {\n  content: \"\";\n  display: block;\n  height: 33px;\n  border-radius: var(--control-border-radius, 12px);\n  background: linear-gradient(to right, #ff0000, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000);\n  filter: saturate(0.45) brightness(0.5);\n}\n"
                         }
                       }
                     }
                   ],
-                  "type": "vertical-stack"
+                  "card_mod": {
+                    "style": "/* Maxi 2026-10-25: standard light block on every tablet: one box, 104px (keeps the space the old light cards used) */\nha-card {\n  height: 104px !important;\n  overflow: hidden;\n}\n"
+                  }
                 },
                 {
                   "type": "conditional",
@@ -11572,7 +12741,10 @@
                         "hourly_forecast": true,
                         "show_decimal": true
                       }
-                    ]
+                    ],
+                    "card_mod": {
+                      "style": "{# speaker switched off: no player below, so the weather card takes the 11px the column would leave empty #}\n{% if is_state('media_player.mass_hallway_wiim_speaker', 'off') %}\nha-card {\n  min-height: 177.33px !important;\n}\n{% endif %}\n"
+                    }
                   }
                 },
                 {
@@ -11612,12 +12784,13 @@
                         "collapse_on_idle": false,
                         "hide_menu_player": false,
                         "extend_artwork": false,
-                        "card_height": 415,
+                        "card_height": "{# middle column ends level with the left one (y=794): 410 alone; 232 under the weather card, which shows whenever the WiiM is not playing #}\n{{ 410 if is_state('media_player.mass_hallway_wiim_speaker', 'playing') else 232 }}",
                         "always_show_lyrics": true,
                         "lyrics_mode": "default",
                         "lyrics_pre_roll": 0,
                         "queue_controls_style": "drag_handle",
-                        "lyrics_source": "mass_lrclib"
+                        "lyrics_source": "mass_lrclib",
+                        "idle_timeout_ms": 0
                       }
                     }
                   ]
@@ -12121,65 +13294,107 @@
             {
               "cards": [
                 {
+                  "type": "custom:vertical-stack-in-card",
                   "cards": [
                     {
                       "type": "custom:mushroom-light-card",
                       "entity": "light.group_hotbox_lights",
                       "fill_container": true,
                       "primary_info": "none",
-                      "use_light_color": true,
-                      "show_brightness_control": true,
-                      "show_color_control": false,
+                      "secondary_info": "none",
                       "icon_type": "none",
                       "layout": "horizontal",
-                      "secondary_info": "none",
+                      "use_light_color": true,
                       "collapsible_controls": false,
+                      "show_brightness_control": true,
                       "show_color_temp_control": true,
+                      "show_color_control": false,
+                      "tap_action": {
+                        "action": "toggle"
+                      },
+                      "hold_action": {
+                        "action": "toggle"
+                      },
+                      "double_tap_action": {
+                        "action": "toggle"
+                      },
                       "card_mod": {
                         "style": {
-                          "mushroom-light-brightness-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          "mushroom-light-color-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          "mushroom-light-color-temp-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          ".": "mushroom-light-brightness-control {\n  height: 20px;\n}\nmushroom-light-color-control {\n  height: 20px;\n}\nmushroom-light-color-temp-control {\n  height: 20px;\n}\n"
+                          ".": "/* Maxi 2026-10-25: standard light block on every tablet: brightness + colour temperature row, 33px bars */\nha-card {\n  --mush-icon-size: 33px;\n  --icon-size: 33px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n"
                         }
                       }
                     },
                     {
-                      "type": "custom:mushroom-light-card",
-                      "entity": "light.group_hotbox_lights",
-                      "fill_container": true,
-                      "primary_info": "none",
-                      "use_light_color": true,
-                      "show_brightness_control": false,
-                      "show_color_control": true,
-                      "icon_type": "none",
-                      "layout": "horizontal",
-                      "secondary_info": "none",
-                      "collapsible_controls": false,
-                      "show_color_temp_control": false,
-                      "card_mod": {
-                        "style": {
-                          "mushroom-light-brightness-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          "mushroom-light-color-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          "mushroom-light-color-temp-control$": {
-                            "mushroom-slider$": ".slider {\n  height: 20px !important;\n}\n"
-                          },
-                          ".": "mushroom-light-brightness-control {\n  height: 20px;\n}\nmushroom-light-color-control {\n  height: 20px;\n}\nmushroom-light-color-temp-control {\n  height: 20px;\n}\n"
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "light.group_hotbox_lights",
+                          "state": "on"
+                        }
+                      ],
+                      "card": {
+                        "type": "custom:mushroom-light-card",
+                        "entity": "light.group_hotbox_lights",
+                        "fill_container": true,
+                        "primary_info": "none",
+                        "secondary_info": "none",
+                        "icon_type": "none",
+                        "layout": "horizontal",
+                        "use_light_color": true,
+                        "collapsible_controls": false,
+                        "show_brightness_control": false,
+                        "show_color_temp_control": false,
+                        "show_color_control": true,
+                        "tap_action": {
+                          "action": "toggle"
+                        },
+                        "hold_action": {
+                          "action": "toggle"
+                        },
+                        "double_tap_action": {
+                          "action": "toggle"
+                        },
+                        "card_mod": {
+                          "style": {
+                            ".": "/* Maxi 2026-10-25: standard light block on every tablet: hue row (shown while the room is on), 33px bar */\nha-card {\n  --mush-icon-size: 33px;\n  --icon-size: 33px;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\n"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "light.group_hotbox_lights",
+                          "state_not": "on"
+                        }
+                      ],
+                      "card": {
+                        "type": "button",
+                        "entity": "light.group_hotbox_lights",
+                        "show_name": false,
+                        "show_icon": false,
+                        "show_state": false,
+                        "tap_action": {
+                          "action": "toggle"
+                        },
+                        "hold_action": {
+                          "action": "toggle"
+                        },
+                        "double_tap_action": {
+                          "action": "toggle"
+                        },
+                        "card_mod": {
+                          "style": "/* Maxi 2026-10-25: standard light block on every tablet: hue row while the room is off. Mushroom can't draw its colour slider when the light is off at page load, so a dimmed rainbow (same size) stands in; tap turns the room on. */\nha-card {\n  height: 51px !important;\n  padding: 9px !important;\n  box-sizing: border-box;\n  display: block !important;\n  box-shadow: none !important;\n  border: none !important;\n  border-radius: 0 !important;\n  background: none !important;\n}\nha-card::before {\n  content: \"\";\n  display: block;\n  height: 33px;\n  border-radius: var(--control-border-radius, 12px);\n  background: linear-gradient(to right, #ff0000, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000);\n  filter: saturate(0.45) brightness(0.5);\n}\n"
                         }
                       }
                     }
                   ],
-                  "type": "vertical-stack"
+                  "card_mod": {
+                    "style": "/* Maxi 2026-10-25: standard light block on every tablet: one box, 104px (keeps the space the old light cards used) */\nha-card {\n  height: 104px !important;\n  overflow: hidden;\n}\n"
+                  }
                 },
                 {
                   "type": "vertical-stack",
@@ -12227,8 +13442,56 @@
                         "lyrics_mode": "default",
                         "lyrics_pre_roll": 0,
                         "queue_controls_style": "drag_handle",
-                        "card_height": 335,
-                        "lyrics_source": "mass_lrclib"
+                        "card_height": "{# hotbox WiiM, above the TV card. Alone 335; with the TV shown: TV muted -> the rest, WiiM muted -> 110 strip, both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set tv_m = is_state_attr('media_player.universal_hotbox_top_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_hotbox_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = 469 %}\n{% if states('media_player.universal_hotbox_top_chromecast') not in ['off', 'unavailable'] %}\n{{ ((pair - 140) if tv_m and not mu_m else (110 if mu_m and not tv_m else pair / 2)) }}\n{% else %}\n{{ 335 }}\n{% endif %}",
+                        "lyrics_source": "mass_lrclib",
+                        "idle_timeout_ms": 0,
+                        "card_mod": {
+                          "style": "{# ☰ room (follow-up to Maxi's 2026-10-25 mute split): below 320 px this classic-layout YAMP drops its volume row and floats ☰ at the bottom right of the play row, where it covered the power button. While compact, keep room for it.\nThe block below is a copy of this card's card_height; keep the two in sync. #}\n{% set h %}{# hotbox WiiM, above the TV card. Alone 335; with the TV shown: TV muted -> the rest, WiiM muted -> 110 strip, both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set tv_m = is_state_attr('media_player.universal_hotbox_top_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_hotbox_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = 469 %}\n{% if states('media_player.universal_hotbox_top_chromecast') not in ['off', 'unavailable'] %}\n{{ ((pair - 140) if tv_m and not mu_m else (110 if mu_m and not tv_m else pair / 2)) }}\n{% else %}\n{{ 335 }}\n{% endif %}{% endset %}\n{% if (h | trim | float(999)) < 320 %}\n.controls-row.adaptive {\n  padding-right: 52px !important;\n  --yamp-control-gap: 4px !important;\n  --yamp-control-min-width: 36px !important;\n}\n{% endif %}\n"
+                        }
+                      }
+                    },
+                    {
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
+                          "entity": "media_player.universal_hotbox_top_chromecast",
+                          "state_not": [
+                            "off",
+                            "unavailable"
+                          ]
+                        }
+                      ],
+                      "card": {
+                        "type": "custom:yet-another-media-player",
+                        "entities": [
+                          {
+                            "entity_id": "media_player.universal_hotbox_top_chromecast"
+                          }
+                        ],
+                        "card_type": "default",
+                        "dim_chips_on_idle": true,
+                        "appearance": "dark",
+                        "alternate_progress_bar": false,
+                        "match_theme": false,
+                        "display_timestamps": true,
+                        "search_view": "card_minimal",
+                        "control_layout": "modern",
+                        "swap_pause_for_stop": false,
+                        "adaptive_controls": false,
+                        "hide_active_entity_label": false,
+                        "adaptive_text_targets": [],
+                        "details_alignment": "left",
+                        "volume_mode": "slider",
+                        "volume_step": 0.02,
+                        "collapse_on_idle": false,
+                        "hide_menu_player": false,
+                        "extend_artwork": false,
+                        "card_height": "{# hotbox TV, under the WiiM card. Alone 335; with the WiiM card shown the pair fills the column to the bottom edge: TV muted -> 140 strip, WiiM muted -> the rest, both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set tv_m = is_state_attr('media_player.universal_hotbox_top_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_hotbox_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = 469 %}\n{% if states('media_player.mass_hotbox_wiim_speaker') not in ['off', 'idle'] %}\n{{ (140 if tv_m and not mu_m else ((pair - 110) if mu_m and not tv_m else pair / 2)) }}\n{% else %}\n{{ 335 }}\n{% endif %}",
+                        "idle_timeout_ms": 0,
+                        "card_mod": {
+                          "style": "{# TV mute button (Maxi 2026-10-25: a way to unmute the muted TV). Below 320 px YAMP hides the volume row's mute button with an inline style; show it again (not while the options sheet is open).\nIn the strip (TV muted, music not) the volume row sits below the visible card, so lift the button into the play/skip row, left edge, styled like those buttons. #}\n{% set tv_m = is_state_attr('media_player.universal_hotbox_top_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_hotbox_wiim_speaker', 'is_volume_muted', true) %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  visibility: visible !important;\n  opacity: 1 !important;\n  pointer-events: auto !important;\n}\n{% if tv_m and not mu_m %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  transform: translate(-44px, -50px);\n}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] .volume-icon-btn {\n  width: 38px;\n  height: 38px;\n  min-width: 38px;\n  min-height: 38px;\n  background: rgba(255, 255, 255, 0.15);\n  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);\n}\n{% endif %}\n"
+                        }
                       }
                     }
                   ]
@@ -12468,7 +13731,8 @@
                           "camera_image": "",
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         },
                         {
                           "entity": "media_player.hotbox_top_chromecast",
@@ -12493,7 +13757,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         },
                         {
                           "entity": "media_player.hotbox_top_chromecast",
@@ -12518,7 +13783,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         },
                         {
                           "entity": "media_player.hotbox_top_chromecast",
@@ -12543,7 +13809,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         },
                         {
                           "entity": "media_player.hotbox_top_chromecast",
@@ -12568,7 +13835,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         },
                         {
                           "entity": "media_player.hotbox_top_chromecast",
@@ -12593,7 +13861,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         }
                       ]
                     },
@@ -12623,7 +13892,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         },
                         {
                           "show_state": false,
@@ -12648,7 +13918,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         },
                         {
                           "show_state": false,
@@ -12673,7 +13944,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         },
                         {
                           "show_state": false,
@@ -12698,7 +13970,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         },
                         {
                           "show_state": false,
@@ -12723,7 +13996,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         },
                         {
                           "show_state": false,
@@ -12748,7 +14022,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         }
                       ]
                     },
@@ -12778,7 +14053,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         },
                         {
                           "show_state": false,
@@ -12803,7 +14079,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         },
                         {
                           "show_state": false,
@@ -12828,7 +14105,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         },
                         {
                           "show_state": false,
@@ -12853,7 +14131,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         },
                         {
                           "show_state": false,
@@ -12878,7 +14157,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         },
                         {
                           "show_state": false,
@@ -12903,7 +14183,8 @@
                           },
                           "state_filter": {
                             "off": "saturate(1)"
-                          }
+                          },
+                          "aspect_ratio": "1"
                         }
                       ]
                     }
