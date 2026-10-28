@@ -529,9 +529,12 @@
   # Shared logic: custom_templates/universal_tv.jinja (see its header).
   #   state     tv_state: 'off' when the TV is off; else the cast session's state,
   #             else a native TV app's playback, else 'idle' while a cast app is
-  #             open but stopped, else 'on' (screen on, nothing playing). A Home
-  #             Assistant dashboard on a screen counts as 'on', except on the
-  #             kitchen hub where it is the resting screen and counts as 'off'.
+  #             open but stopped. With the screen on and nothing playing it never
+  #             reads 'on' for an idle or missing cast (Maxi, 2026-10-27): 'off'
+  #             while the cast is off, 'unavailable' while it is unavailable or
+  #             unknown. A Home Assistant dashboard on a screen counts as 'on',
+  #             except on the kitchen hub where it is the resting screen and
+  #             counts as 'off'.
   #   child     tv_child: the Plex entity playing the cast's Plex ratingKey, so the
   #             Plex artwork and metadata show (and media_library_title, which the
   #             light automations read through active_child); else the native TV
@@ -546,6 +549,10 @@
   # media_seek can't be overridden in a universal: it always goes to the active
   # child, so there is no seeking while a Plex Cast session is the child (Plex
   # Cast clients refuse remote control; pause/play/stop go to the cast instead).
+  # child_attributes copies media_library_title ("Movies", "TV Shows", "Visuals")
+  # from the active Plex child onto the TV itself. Core universal only exposes
+  # standard media attributes, so this key needs custom_components/universal, a
+  # thin subclass of core's player; without it core silently ignores the key.
 
   ########################## Universal bedroom Chromecast  ##########################
   # Plain Chromecast and no TV integration: the cast is the only power witness
@@ -557,6 +564,8 @@
     children:
       - media_player.bedroom_chromecast
     browse_media_entity: media_player.bedroom_chromecast
+    child_attributes:
+      - media_library_title
     active_child_template: >-
       {%- from 'universal_tv.jinja' import tv_child -%}
       {{- tv_child('media_player.bedroom_chromecast') -}}
@@ -646,7 +655,8 @@
   # below) and the volume level.
   # This TV reads 'off' whenever nobody is using it, even with the screen on, so
   # the Speaker/Chromecast mutual mute automation leaves the room's music alone:
-  # - screen on with nothing playing (home screen, screensaver): the macro's 'on'
+  # - screen on with nothing playing (home screen, screensaver): the macro reads
+  #   that off itself while the cast is off ('unavailable' while the cast is)
   # - Jellyfin on its menus. Android TV Remote only says which app is in front, so
   #   while that is Jellyfin its own client (media_player.salon_sony_tv, polled
   #   every 10 s) decides: playing/paused/buffering as reported, anything else
@@ -671,6 +681,8 @@
       - media_player.salon_chromecast
       - media_player.bravia_4k_ae2
     browse_media_entity: media_player.salon_chromecast
+    child_attributes:
+      - media_library_title
     active_child_template: >-
       {%- from 'universal_tv.jinja' import tv_child -%}
       {%- set child = tv_child('media_player.salon_chromecast', 'media_player.bravia_4k_ae2', '', 'media_player.bravia_4k_ae2') -%}
@@ -804,6 +816,8 @@
     children:
       - media_player.kitchen_google_hub
     browse_media_entity: media_player.kitchen_google_hub
+    child_attributes:
+      - media_library_title
     active_child_template: >-
       {%- from 'universal_tv.jinja' import tv_child -%}
       {{- tv_child('media_player.kitchen_google_hub') -}}
@@ -886,6 +900,8 @@
   # The volume level and mute stay on the cast: Roku has no volume level and its
   # mute is a blind toggle. Volume up/down step the TV speaker (Roku) while the TV
   # is on, so the dial works whatever the cast volume is.
+  # The Roku sits on the Chromecast input showing the cast's backdrop most of the
+  # day: 'on' for 170 of the 240 h before 2026-10-27, 'off' since (see state above).
   - platform: universal
     unique_id: universal_hotbox_top_chromecast
     name: Universal hotbox top chromecast
@@ -894,6 +910,8 @@
       - media_player.hotbox_top_chromecast
       - media_player.hotbox_roku_tv
     browse_media_entity: media_player.hotbox_top_chromecast
+    child_attributes:
+      - media_library_title
     active_child_template: >-
       {%- from 'universal_tv.jinja' import tv_child -%}
       {{- tv_child('media_player.hotbox_top_chromecast', 'media_player.hotbox_roku_tv', 'tvinput.hdmi1', 'media_player.hotbox_roku_tv') -}}
@@ -1007,6 +1025,8 @@
     children:
       - media_player.patio_chromecast
     browse_media_entity: media_player.patio_chromecast
+    child_attributes:
+      - media_library_title
     active_child_template: >-
       {%- from 'universal_tv.jinja' import tv_child -%}
       {{- tv_child('media_player.patio_chromecast') -}}
@@ -1097,6 +1117,8 @@
       - media_player.workshop_google_tv
       - media_player.lg_workshop_tv
     browse_media_entity: media_player.workshop_chromecast
+    child_attributes:
+      - media_library_title
     active_child_template: >-
       {%- from 'universal_tv.jinja' import tv_child -%}
       {{- tv_child('media_player.workshop_chromecast', 'media_player.lg_workshop_tv', 'com.webos.app.hdmi1', 'media_player.workshop_google_tv') -}}
@@ -1204,6 +1226,9 @@
   - platform: universal
     name: Universal following media
     unique_id: universal_following_media
+    # Passes on the library the TV universals carry (see child_attributes above).
+    child_attributes:
+      - media_library_title
     children:
       - media_player.group_mass_home_group_speakers
       - media_player.mass_bedroom_vpe_speaker
