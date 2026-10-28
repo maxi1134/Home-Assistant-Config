@@ -876,6 +876,15 @@
     trigger: state
     from:
     - paused
+  - alias: TV turns off from paused
+    entity_id:
+    - media_player.universal_salon_chromecast
+    - media_player.universal_workshop_chromecast
+    to:
+    - 'off'
+    trigger: state
+    from:
+    - paused
   - alias: TV turns off from playing
     entity_id:
     - media_player.universal_salon_chromecast
@@ -884,7 +893,7 @@
     - 'off'
     trigger: state
     from:
-    - playing
+    - 'on'
   conditions:
   - alias: Last media was from the Movies library
     condition: template
@@ -2501,6 +2510,9 @@
         data:
           message: A package has been delivered! Go pick it up!
           color: Blue
+          phone_data:
+            title: A Package is at the door!
+            message: Go pick it up.
         action: script.broadcast_alert_in_the_house
         alias: Announce that there is a package at the door
       - alias: Wait 5 minutes
@@ -7220,6 +7232,12 @@
       entity_id: binary_sensor.maxi_is_talking
       state:
       - 'off'
+    - condition: not
+      conditions:
+      - condition: state
+        entity_id: media_player.group_mass_home_group_speakers
+        state:
+        - playing
     then:
     - alias: Restart Maxi's playlist on home speakers
       action: script.start_a_random_maxi_playlist
@@ -7292,6 +7310,18 @@
       minutes: 3
       seconds: 0
     trigger: state
+  - trigger: event
+    event_type: zha_event
+    event_data:
+      device_ieee: 90:fd:9f:ff:fe:64:47:36
+      command: operation_event_notification
+      args:
+        operation: Unlock
+        code_slot: 3
+    id: keypad
+    alias: Maxi's code (slot 3)
+    variables:
+      who: Maxi
   conditions:
   - alias: Maxi is home
     condition: state
@@ -7306,13 +7336,11 @@
     entity_id: binary_sensor.maxi_alone
     state: 'on'
   actions:
-  - alias: Play All favorited tracks on home speakers
+  - action: script.start_a_random_maxi_playlist
+    metadata: {}
     data:
-      media_id: All favorited tracks
-      enqueue: replace
-    action: music_assistant.play_media
-    target:
-      entity_id: media_player.group_mass_home_group_speakers
+      player_entity:
+        entity_id: media_player.group_mass_home_group_speakers
   mode: single
 - id: '1742862883906'
   alias: Turn on parking light on any parking/balcony activity
@@ -11151,25 +11179,49 @@
       action_rotate_left:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.salon_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.salon_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not off or showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV off
+                condition: state
+                entity_id: media_player.universal_salon_chromecast
+                state: 'off'
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_salon_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_salon_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_salon_wiim_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_salon_wiim_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_down
             metadata: {}
@@ -11211,25 +11263,49 @@
       action_rotate_right:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.salon_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.salon_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not off or showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV off
+                condition: state
+                entity_id: media_player.universal_salon_chromecast
+                state: 'off'
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_salon_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_salon_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_salon_wiim_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_salon_wiim_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_up
             metadata: {}
@@ -11266,23 +11342,49 @@
       helper_debounce_delay: 0
       action_click_triple:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
-
-            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
-
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
-            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.salon_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_salon_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_salon_chromecast
+              attribute: media_library_title
+              state: Visuals
+          - alias: TV not muted, or the speaker is silent too
+            condition: or
+            conditions:
+            - alias: TV not muted
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.universal_salon_chromecast
+                attribute: is_volume_muted
+                state: true
+            - alias: Speaker muted, paused or idle
+              condition: or
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_salon_wiim_speaker
+                state:
+                - paused
+                - idle
+              - condition: state
+                entity_id: media_player.mass_salon_wiim_speaker
+                attribute: is_volume_muted
+                state: true
         then:
         - action: media_player.turn_off
           metadata: {}
@@ -11297,23 +11399,49 @@
             entity_id: media_player.mass_salon_wiim_speaker
       action_click_double:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
-
-            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
-
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
-            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.salon_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_salon_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_salon_chromecast
+              attribute: media_library_title
+              state: Visuals
+          - alias: TV not muted, or the speaker is silent too
+            condition: or
+            conditions:
+            - alias: TV not muted
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.universal_salon_chromecast
+                attribute: is_volume_muted
+                state: true
+            - alias: Speaker muted, paused or idle
+              condition: or
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_salon_wiim_speaker
+                state:
+                - paused
+                - idle
+              - condition: state
+                entity_id: media_player.mass_salon_wiim_speaker
+                attribute: is_volume_muted
+                state: true
         then:
         - action: media_player.media_next_track
           metadata: {}
@@ -11328,23 +11456,49 @@
             entity_id: media_player.mass_salon_wiim_speaker
       action_click_short:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.salon_chromecast'' %}
-
-            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
-
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
-            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.salon_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_salon_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_salon_chromecast
+              attribute: media_library_title
+              state: Visuals
+          - alias: TV not muted, or the speaker is silent too
+            condition: or
+            conditions:
+            - alias: TV not muted
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.universal_salon_chromecast
+                attribute: is_volume_muted
+                state: true
+            - alias: Speaker muted, paused or idle
+              condition: or
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_salon_wiim_speaker
+                state:
+                - paused
+                - idle
+              - condition: state
+                entity_id: media_player.mass_salon_wiim_speaker
+                attribute: is_volume_muted
+                state: true
         then:
         - action: media_player.media_play_pause
           metadata: {}
@@ -11371,25 +11525,49 @@
       action_rotate_left:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_workshop_wiim_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.workshop_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not off or showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV off
+                condition: state
+                entity_id: media_player.universal_workshop_chromecast
+                state: 'off'
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_workshop_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_workshop_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_workshop_wiim_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_workshop_wiim_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_down
             metadata: {}
@@ -11431,25 +11609,49 @@
       action_rotate_right:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_workshop_wiim_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.workshop_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not off or showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV off
+                condition: state
+                entity_id: media_player.universal_workshop_chromecast
+                state: 'off'
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_workshop_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_workshop_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_workshop_wiim_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_workshop_wiim_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_up
             metadata: {}
@@ -11486,21 +11688,27 @@
       helper_debounce_delay: 0
       action_click_triple:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.workshop_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              attribute: media_library_title
+              state: Visuals
         then:
         - action: media_player.turn_off
           metadata: {}
@@ -11515,21 +11723,27 @@
             entity_id: media_player.mass_workshop_wiim_speaker
       action_click_double:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.workshop_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              attribute: media_library_title
+              state: Visuals
         then:
         - action: media_player.media_next_track
           metadata: {}
@@ -11544,21 +11758,27 @@
             entity_id: media_player.mass_workshop_wiim_speaker
       action_click_short:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.workshop_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              attribute: media_library_title
+              state: Visuals
         then:
         - action: media_player.media_play_pause
           metadata: {}
@@ -11587,25 +11807,49 @@
       action_rotate_left:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_workshop_wiim_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.workshop_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not off or showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV off
+                condition: state
+                entity_id: media_player.universal_workshop_chromecast
+                state: 'off'
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_workshop_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_workshop_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_workshop_wiim_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_workshop_wiim_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_down
             metadata: {}
@@ -11647,25 +11891,49 @@
       action_rotate_right:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_workshop_wiim_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.workshop_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not off or showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV off
+                condition: state
+                entity_id: media_player.universal_workshop_chromecast
+                state: 'off'
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_workshop_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_workshop_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_workshop_wiim_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_workshop_wiim_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_up
             metadata: {}
@@ -11704,21 +11972,27 @@
       helper_debounce_delay: 0
       action_click_triple:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.workshop_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              attribute: media_library_title
+              state: Visuals
         then:
         - action: media_player.turn_off
           metadata: {}
@@ -11733,21 +12007,27 @@
             entity_id: media_player.mass_workshop_wiim_speaker
       action_click_double:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.workshop_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              attribute: media_library_title
+              state: Visuals
         then:
         - action: media_player.media_next_track
           metadata: {}
@@ -11762,21 +12042,27 @@
             entity_id: media_player.mass_workshop_wiim_speaker
       action_click_short:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.workshop_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              attribute: media_library_title
+              state: Visuals
         then:
         - action: media_player.media_play_pause
           metadata: {}
@@ -11803,25 +12089,45 @@
       action_rotate_left:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.universal_salon_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.universal_salon_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_salon_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_salon_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_salon_wiim_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_salon_wiim_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_down
             metadata: {}
@@ -11863,25 +12169,45 @@
       action_rotate_right:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.universal_salon_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.universal_salon_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_salon_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_salon_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_salon_wiim_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_salon_wiim_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_up
             metadata: {}
@@ -11918,24 +12244,45 @@
       helper_debounce_delay: 0
       action_click_triple:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.universal_salon_chromecast''
-            %}
-
-            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
-
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
-            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.universal_salon_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_salon_chromecast
+              attribute: media_library_title
+              state: Visuals
+          - alias: TV not muted, or the speaker is silent too
+            condition: or
+            conditions:
+            - alias: TV not muted
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.universal_salon_chromecast
+                attribute: is_volume_muted
+                state: true
+            - alias: Speaker muted, paused or idle
+              condition: or
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_salon_wiim_speaker
+                state:
+                - paused
+                - idle
+              - condition: state
+                entity_id: media_player.mass_salon_wiim_speaker
+                attribute: is_volume_muted
+                state: true
         then:
         - action: media_player.turn_off
           metadata: {}
@@ -11950,24 +12297,45 @@
             entity_id: media_player.mass_salon_wiim_speaker
       action_click_double:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.universal_salon_chromecast''
-            %}
-
-            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
-
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
-            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.universal_salon_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_salon_chromecast
+              attribute: media_library_title
+              state: Visuals
+          - alias: TV not muted, or the speaker is silent too
+            condition: or
+            conditions:
+            - alias: TV not muted
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.universal_salon_chromecast
+                attribute: is_volume_muted
+                state: true
+            - alias: Speaker muted, paused or idle
+              condition: or
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_salon_wiim_speaker
+                state:
+                - paused
+                - idle
+              - condition: state
+                entity_id: media_player.mass_salon_wiim_speaker
+                attribute: is_volume_muted
+                state: true
         then:
         - action: media_player.media_next_track
           metadata: {}
@@ -11982,24 +12350,45 @@
             entity_id: media_player.mass_salon_wiim_speaker
       action_click_short:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.universal_salon_chromecast''
-            %}
-
-            {% set speaker = ''media_player.mass_salon_wiim_speaker'' %}
-
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
-            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.universal_salon_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_salon_chromecast
+              attribute: media_library_title
+              state: Visuals
+          - alias: TV not muted, or the speaker is silent too
+            condition: or
+            conditions:
+            - alias: TV not muted
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.universal_salon_chromecast
+                attribute: is_volume_muted
+                state: true
+            - alias: Speaker muted, paused or idle
+              condition: or
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_salon_wiim_speaker
+                state:
+                - paused
+                - idle
+              - condition: state
+                entity_id: media_player.mass_salon_wiim_speaker
+                attribute: is_volume_muted
+                state: true
         then:
         - action: media_player.media_play_pause
           metadata: {}
@@ -12026,25 +12415,45 @@
       action_rotate_left:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_kitchen_wiim_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.universal_kitchen_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_kitchen_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_kitchen_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_kitchen_wiim_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_kitchen_wiim_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_down
             metadata: {}
@@ -12086,25 +12495,45 @@
       action_rotate_right:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_kitchen_wiim_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.universal_kitchen_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_kitchen_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_kitchen_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_kitchen_wiim_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_kitchen_wiim_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_up
             metadata: {}
@@ -12141,26 +12570,28 @@
       helper_debounce_delay: 0
       action_click_triple:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-            %}
-
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused''))
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') and not
-            is_state_attr(chromecast,''app_id'', ''A078F6B0'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}
-
-
-            '
-          enabled: true
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.universal_kitchen_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not showing Plex Visuals or showing a Home Assistant dashboard
+            condition: not
+            conditions:
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_kitchen_chromecast
+              attribute: media_library_title
+              state: Visuals
+            - alias: TV showing a Home Assistant dashboard
+              condition: state
+              entity_id: media_player.universal_kitchen_chromecast
+              attribute: app_id
+              state: A078F6B0
         then:
         - action: media_player.turn_off
           metadata: {}
@@ -12176,26 +12607,28 @@
             entity_id: media_player.mass_kitchen_wiim_speaker
       action_click_double:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-            %}
-
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused''))
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') and not
-            is_state_attr(chromecast,''app_id'', ''A078F6B0'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}
-
-
-            '
-          enabled: true
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.universal_kitchen_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not showing Plex Visuals or showing a Home Assistant dashboard
+            condition: not
+            conditions:
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_kitchen_chromecast
+              attribute: media_library_title
+              state: Visuals
+            - alias: TV showing a Home Assistant dashboard
+              condition: state
+              entity_id: media_player.universal_kitchen_chromecast
+              attribute: app_id
+              state: A078F6B0
         then:
         - action: media_player.media_next_track
           metadata: {}
@@ -12211,26 +12644,28 @@
             entity_id: media_player.mass_kitchen_wiim_speaker
       action_click_short:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-            %}
-
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused''))
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') and not
-            is_state_attr(chromecast,''app_id'', ''A078F6B0'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}
-
-
-            '
-          enabled: true
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.universal_kitchen_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not showing Plex Visuals or showing a Home Assistant dashboard
+            condition: not
+            conditions:
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_kitchen_chromecast
+              attribute: media_library_title
+              state: Visuals
+            - alias: TV showing a Home Assistant dashboard
+              condition: state
+              entity_id: media_player.universal_kitchen_chromecast
+              attribute: app_id
+              state: A078F6B0
         then:
         - action: media_player.media_play_pause
           metadata: {}
@@ -12347,9 +12782,10 @@
     - media_player.universal_bedroom_chromecast
     - media_player.universal_workshop_chromecast
     - media_player.universal_salon_chromecast
-    to: movie
+    to:
+    - Movies
     trigger: state
-    attribute: media_content_type
+    attribute: media_library_title
     for:
       hours: 0
       minutes: 0
@@ -13700,25 +14136,49 @@
       action_rotate_left:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_bedroom_vpe_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.bedroom_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not off or showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV off
+                condition: state
+                entity_id: media_player.universal_bedroom_chromecast
+                state: 'off'
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_bedroom_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_bedroom_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_bedroom_vpe_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_bedroom_vpe_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_down
             metadata: {}
@@ -13760,25 +14220,45 @@
       action_rotate_right:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.universal_bedroom_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_bedroom_vpe_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.universal_bedroom_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_bedroom_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_bedroom_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_bedroom_vpe_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_bedroom_vpe_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_up
             metadata: {}
@@ -13815,24 +14295,49 @@
       helper_debounce_delay: 0
       action_click_triple:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
-            %}
-
-            {% set speaker = ''media_player.mass_bedroom_vpe_speaker'' %}
-
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
-            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.bedroom_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_bedroom_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_bedroom_chromecast
+              attribute: media_library_title
+              state: Visuals
+          - alias: TV not muted, or the speaker is silent too
+            condition: or
+            conditions:
+            - alias: TV not muted
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.universal_bedroom_chromecast
+                attribute: is_volume_muted
+                state: true
+            - alias: Speaker muted, paused or idle
+              condition: or
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_bedroom_vpe_speaker
+                state:
+                - paused
+                - idle
+              - condition: state
+                entity_id: media_player.mass_bedroom_vpe_speaker
+                attribute: is_volume_muted
+                state: true
         then:
         - action: media_player.turn_off
           metadata: {}
@@ -13847,24 +14352,49 @@
             entity_id: media_player.mass_bedroom_vpe_speaker
       action_click_double:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
-            %}
-
-            {% set speaker = ''media_player.mass_bedroom_vpe_speaker'' %}
-
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
-            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.bedroom_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_bedroom_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_bedroom_chromecast
+              attribute: media_library_title
+              state: Visuals
+          - alias: TV not muted, or the speaker is silent too
+            condition: or
+            conditions:
+            - alias: TV not muted
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.universal_bedroom_chromecast
+                attribute: is_volume_muted
+                state: true
+            - alias: Speaker muted, paused or idle
+              condition: or
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_bedroom_vpe_speaker
+                state:
+                - paused
+                - idle
+              - condition: state
+                entity_id: media_player.mass_bedroom_vpe_speaker
+                attribute: is_volume_muted
+                state: true
         then:
         - action: media_player.media_next_track
           metadata: {}
@@ -13879,24 +14409,49 @@
             entity_id: media_player.mass_bedroom_vpe_speaker
       action_click_short:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.bedroom_chromecast''
-            %}
-
-            {% set speaker = ''media_player.mass_bedroom_vpe_speaker'' %}
-
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and ((is_state_attr(chromecast,''is_volume_muted'',
-            false) or is_state_attr(chromecast,''is_volume_muted'', null)) )%}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.bedroom_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_bedroom_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_bedroom_chromecast
+              attribute: media_library_title
+              state: Visuals
+          - alias: TV not muted, or the speaker is silent too
+            condition: or
+            conditions:
+            - alias: TV not muted
+              condition: not
+              conditions:
+              - condition: state
+                entity_id: media_player.universal_bedroom_chromecast
+                attribute: is_volume_muted
+                state: true
+            - alias: Speaker muted, paused or idle
+              condition: or
+              conditions:
+              - condition: state
+                entity_id: media_player.mass_bedroom_vpe_speaker
+                state:
+                - paused
+                - idle
+              - condition: state
+                entity_id: media_player.mass_bedroom_vpe_speaker
+                attribute: is_volume_muted
+                state: true
         then:
         - action: media_player.media_play_pause
           metadata: {}
@@ -16395,25 +16950,49 @@
       action_rotate_left:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_workshop_wiim_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.workshop_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not off or showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV off
+                condition: state
+                entity_id: media_player.universal_workshop_chromecast
+                state: 'off'
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_workshop_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_workshop_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_workshop_wiim_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_workshop_wiim_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_down
             metadata: {}
@@ -16455,25 +17034,45 @@
       action_rotate_right:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.universal_workshop_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_workshop_wiim_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_workshop_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_workshop_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_workshop_wiim_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_workshop_wiim_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_up
             metadata: {}
@@ -16510,21 +17109,27 @@
       helper_debounce_delay: 0
       action_click_triple:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.workshop_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              attribute: media_library_title
+              state: Visuals
         then:
         - action: media_player.turn_off
           metadata: {}
@@ -16539,21 +17144,27 @@
             entity_id: media_player.mass_workshop_wiim_speaker
       action_click_double:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.workshop_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              attribute: media_library_title
+              state: Visuals
         then:
         - action: media_player.media_next_track
           metadata: {}
@@ -16568,21 +17179,27 @@
             entity_id: media_player.mass_workshop_wiim_speaker
       action_click_short:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.workshop_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.workshop_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_workshop_chromecast
+              attribute: media_library_title
+              state: Visuals
         then:
         - action: media_player.media_play_pause
           metadata: {}
@@ -17758,25 +18375,45 @@
       action_rotate_left:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_kitchen_wiim_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.universal_kitchen_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_kitchen_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_kitchen_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_kitchen_wiim_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_kitchen_wiim_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_down
             metadata: {}
@@ -17818,25 +18455,45 @@
       action_rotate_right:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_kitchen_wiim_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.universal_kitchen_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_kitchen_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_kitchen_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_kitchen_wiim_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_kitchen_wiim_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_up
             metadata: {}
@@ -17873,26 +18530,28 @@
       helper_debounce_delay: 0
       action_click_triple:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-            %}
-
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused''))
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') and not
-            is_state_attr(chromecast,''app_id'', ''A078F6B0'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}
-
-
-            '
-          enabled: true
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.universal_kitchen_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not showing Plex Visuals or showing a Home Assistant dashboard
+            condition: not
+            conditions:
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_kitchen_chromecast
+              attribute: media_library_title
+              state: Visuals
+            - alias: TV showing a Home Assistant dashboard
+              condition: state
+              entity_id: media_player.universal_kitchen_chromecast
+              attribute: app_id
+              state: A078F6B0
         then:
         - action: media_player.turn_off
           metadata: {}
@@ -17908,26 +18567,28 @@
             entity_id: media_player.mass_kitchen_wiim_speaker
       action_click_double:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-            %}
-
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused''))
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') and not
-            is_state_attr(chromecast,''app_id'', ''A078F6B0'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}
-
-
-            '
-          enabled: true
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.universal_kitchen_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not showing Plex Visuals or showing a Home Assistant dashboard
+            condition: not
+            conditions:
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_kitchen_chromecast
+              attribute: media_library_title
+              state: Visuals
+            - alias: TV showing a Home Assistant dashboard
+              condition: state
+              entity_id: media_player.universal_kitchen_chromecast
+              attribute: app_id
+              state: A078F6B0
         then:
         - action: media_player.media_next_track
           metadata: {}
@@ -17943,26 +18604,28 @@
             entity_id: media_player.mass_kitchen_wiim_speaker
       action_click_short:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.universal_kitchen_chromecast''
-            %}
-
-            {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused''))
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') and not
-            is_state_attr(chromecast,''app_id'', ''A078F6B0'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}
-
-
-            '
-          enabled: true
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.universal_kitchen_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not showing Plex Visuals or showing a Home Assistant dashboard
+            condition: not
+            conditions:
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_kitchen_chromecast
+              attribute: media_library_title
+              state: Visuals
+            - alias: TV showing a Home Assistant dashboard
+              condition: state
+              entity_id: media_player.universal_kitchen_chromecast
+              attribute: app_id
+              state: A078F6B0
         then:
         - action: media_player.media_play_pause
           metadata: {}
@@ -19482,25 +20145,49 @@
       action_rotate_left:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.hotbox_top_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_hotbox_wiim_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.hotbox_top_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not off or showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV off
+                condition: state
+                entity_id: media_player.universal_hotbox_top_chromecast
+                state: 'off'
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_hotbox_top_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_hotbox_top_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_hotbox_wiim_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_hotbox_wiim_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_down
             metadata: {}
@@ -19542,25 +20229,45 @@
       action_rotate_right:
       - sequence:
         - if:
-          - alias: 'If a chromecast is present '
-            condition: template
-            value_template: '{% set chromecast = ''media_player.universal_hotbox_top_chromecast''
-              %}
-
-              {% set speaker = ''media_player.mass_hotbox_wiim_speaker'' %}
-
-              {% if (is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-              and not is_state_attr(chromecast,''library_name'', ''Visuals'')) and
-              ((is_state_attr(chromecast,''is_volume_muted'', false) or is_state_attr(chromecast,''is_volume_muted'',
-              null)) )%}
-
-              {{ ''true''  | bool }}
-
-              {% else %}
-
-              {{ ''false'' | bool }}
-
-              {% endif %}'
+          - alias: If the TV is in use
+            condition: and
+            conditions:
+            - alias: Playing or paused
+              condition: state
+              entity_id: media_player.universal_hotbox_top_chromecast
+              state:
+              - playing
+              - paused
+            - alias: TV not showing Plex Visuals
+              condition: not
+              conditions:
+              - alias: TV showing Plex Visuals
+                condition: state
+                entity_id: media_player.universal_hotbox_top_chromecast
+                attribute: media_library_title
+                state: Visuals
+            - alias: TV not muted, or the speaker is silent too
+              condition: or
+              conditions:
+              - alias: TV not muted
+                condition: not
+                conditions:
+                - condition: state
+                  entity_id: media_player.universal_hotbox_top_chromecast
+                  attribute: is_volume_muted
+                  state: true
+              - alias: Speaker muted, paused or idle
+                condition: or
+                conditions:
+                - condition: state
+                  entity_id: media_player.mass_hotbox_wiim_speaker
+                  state:
+                  - paused
+                  - idle
+                - condition: state
+                  entity_id: media_player.mass_hotbox_wiim_speaker
+                  attribute: is_volume_muted
+                  state: true
           then:
           - action: media_player.volume_up
             metadata: {}
@@ -19597,21 +20304,27 @@
       helper_debounce_delay: 0
       action_click_triple:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.hotbox_top_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.hotbox_top_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_hotbox_top_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_hotbox_top_chromecast
+              attribute: media_library_title
+              state: Visuals
         then:
         - action: media_player.turn_off
           metadata: {}
@@ -19626,21 +20339,27 @@
             entity_id: media_player.mass_hotbox_wiim_speaker
       action_click_double:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.hotbox_top_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.hotbox_top_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_hotbox_top_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_hotbox_top_chromecast
+              attribute: media_library_title
+              state: Visuals
         then:
         - action: media_player.media_next_track
           metadata: {}
@@ -19655,21 +20374,27 @@
             entity_id: media_player.mass_hotbox_wiim_speaker
       action_click_short:
       - if:
-        - alias: 'If a chromecast is present '
-          condition: template
-          value_template: '{% set chromecast = ''media_player.hotbox_top_chromecast''
-            %}
-
-            {% if is_state(chromecast,''playing'') or is_state(chromecast,''paused'')
-            and not is_state_attr(chromecast,''library_name'', ''Visuals'') %}
-
-            {{ ''true''  | bool }}
-
-            {% else %}
-
-            {{ ''false'' | bool }}
-
-            {% endif %}'
+        - alias: If the TV is in use
+          condition: and
+          conditions:
+          - alias: Playing or paused
+            condition: state
+            entity_id: media_player.hotbox_top_chromecast
+            state:
+            - playing
+            - paused
+          - alias: TV not off or showing Plex Visuals
+            condition: not
+            conditions:
+            - alias: TV off
+              condition: state
+              entity_id: media_player.universal_hotbox_top_chromecast
+              state: 'off'
+            - alias: TV showing Plex Visuals
+              condition: state
+              entity_id: media_player.universal_hotbox_top_chromecast
+              attribute: media_library_title
+              state: Visuals
         then:
         - action: media_player.media_play_pause
           metadata: {}
