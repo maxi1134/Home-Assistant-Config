@@ -64,9 +64,16 @@
 {#- One evaluation of the TV's facts, rendered as `what`:
       'state'   universal state: 'off' when the TV is off; otherwise the cast
                 session's state, else a native app's playback, else 'idle'
-                while a cast app is open but stopped, else 'on' (screen on,
-                nothing playing). A Home Assistant dashboard cast to a screen
-                is furniture, not media: it reads dashboard_state.
+                while a cast app is open but stopped. With the screen on and
+                nothing playing it follows the cast, never 'on' for an idle or
+                missing cast (Maxi, 2026-10-27): 'off' while the cast is off,
+                'unavailable' while it is unavailable or unknown. Unavailable
+                rather than off because the Speaker/Chromecast mutual mute
+                ignores changes to unavailable, so a cast dropout mid-show
+                leaves the speaker alone. 'on' is left only for a screen on
+                another input while the cast keeps a session. A Home Assistant
+                dashboard cast to a screen is furniture, not media: it reads
+                dashboard_state.
       'child'   active child: the Plex entity playing the cast's item (Plex
                 artwork and metadata, incl. media_library_title that the light
                 automations read through active_child), else the TV's native
@@ -123,9 +130,12 @@
       {%- if cast_live and cast_state != 'idle' -%}{{ cast_state }}
       {%- elif native_play -%}{{ native_play }}
       {%- elif cast_live -%}idle
+      {%- elif cast_state == 'off' -%}off
+      {%- elif cast_state in UNKNOWN -%}unavailable
       {%- else -%}on
       {%- endif -%}
     {%- elif power and cast_state in UNKNOWN -%}off
+    {%- elif cast_state in UNKNOWN -%}unavailable
     {%- else -%}{{ cast_state }}
     {%- endif -%}
   {%- elif what == 'child' -%}
