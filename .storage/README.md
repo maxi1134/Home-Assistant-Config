@@ -33,6 +33,23 @@ Its code is under ".storage/lovelace.tablet_workshop_dashboard"
   <img src="/assets/Tablet_A8/workshop_tour.gif" width="45%" />
 </p>
 
+The media area follows what is playing: Chromecast on with the speaker off, both on (half each), and the Chromecast muted with the speaker on (the muted player shrinks to a strip).
+
+<p align="middle">
+  <img src="/assets/Tablet_A8/scenario_tv_only.gif" width="30%" />
+  <img src="/assets/Tablet_A8/scenario_tv_and_speaker.gif" width="30%" />
+  <img src="/assets/Tablet_A8/scenario_tv_muted_speaker.gif" width="30%" />
+</p>
+
+## Workshop TV tablet
+A second tablet next to the workshop TV picks what plays: a playlist starts on the speakers, a show starts on the workshop TV, and the bottom row casts visuals (lava lamp, Electric Sheep...).
+Its code is under ".storage/lovelace.lovelace_hub"
+
+<p align="middle">
+  <img src="/assets/Tablet_WorkshopTV/media_selection.gif" width="30%" />
+  <img src="/assets/Tablet_WorkshopTV/media_selection.png" width="30%" />
+</p>
+
 ## lounge hub
 This is the default interface for the lounge Samsung A7 Lite tablet.
 It offers a view of the front door which is located beside the lounge, a selection of TV-shows and music to be started on the nearby media devices.
