@@ -30,7 +30,7 @@ Its code is under ".storage/lovelace.tablet_workshop_dashboard"
 
 <p align="middle">
   <img src="/assets/Tablet_A8/musicdemo.gif" width="45%" />
-  <img src="/assets/Tablet_A8/drhousedemo.gif" width="45%" />
+  <img src="/assets/Tablet_A8/workshop_tour.gif" width="45%" />
 </p>
 
 ## lounge hub
@@ -42,14 +42,13 @@ Its code is under ".storage/lovelace.lovelace_hub"
 
 
 <p align="middle">
-  <img src="/assets/Hub_lounge/framed_show_start_preview.gif" width="95%" />
+  <img src="/assets/Hub_Office/framed_show_start_preview.gif" width="95%" />
 </p>
 
 
-## Hotbox Top hub
-This is the default interface for the hotbox top Google Nest.
-It offers preselected shows, lights control and current media playback control.
-It also has a quick-access to set the TV's input on the Xbox one.
+## Hotbox desk tablet
+This is the default interface for the hotbox desk tablet (a Samsung Galaxy Tab E).
+It shows the front door camera with the latest Frigate detections, lights control, current media playback control and a floor plan of the motion sensors.
 
 Its code is under ".storage/lovelace.lovelace_hub"
 
@@ -58,16 +57,16 @@ Its code is under ".storage/lovelace.lovelace_hub"
   <img src="/assets/Hub_HotboxTop/animated_show_play.gif" width="95%" />
 </p>
 
-## Kitchen Hub
-This is the default interface for the kitchen Hub
-It offers preselected music, lights control and current media playback control.
+## Kitchen tablet
+This is the default interface for the kitchen tablet (a Samsung Galaxy Tab S6 Lite, in portrait).
+It offers lights control and current media playback control with lyrics, or preselected music when nothing plays.
 You can also find a timer that triggers all the speakers across the house.
 
 Its code is under ".storage/lovelace.lovelace_hub"
 
 
 <p align="middle">
-  <img src="/assets/Hub_Kitchen/framed_demo.gif" width="95%" />
+  <img src="/assets/Hub_Kitchen/framed_demo.gif" width="45%" />
 </p>
 
 
