@@ -55,8 +55,8 @@ No more Zigbee drops, no more Z-Wave issues — just smooth, unified device mana
 
 <h5 align="center">Wall Displays</h5>
 <p align="center">
-  <img src="/assets/Tablet_A8/musicdemo.gif" width="43%" />
-  <img src="/assets/Tablet_S7FE/framed_light_panel_lowres.gif" width="38%" />
+  <img src="/assets/Tablet_A8/musicdemo.gif" width="40%" />
+  <img src="/assets/Tablet_S7FE/framed_light_panel_lowres.gif" width="40%" />
 </p>
 
 
@@ -80,7 +80,7 @@ I love to connect with others working on home automation. Feel free to fork, ope
 
 
 <p align="center">
-  <strong>Last Updated:</strong> January 2026<br>
+  <strong>Last Updated:</strong> October 2026<br>
   <strong>Status:</strong> Active & Evolving<br>
   <a href="https://github.com/maxi1134/Home-Assistant-Config">View on GitHub</a> • 
   <a href="https://www.buymeacoffee.com/maxi1134">Buy Me A Coffee</a>
