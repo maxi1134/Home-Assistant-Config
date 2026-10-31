@@ -5649,10 +5649,12 @@
   mode: single
 - id: '1733597890338'
   alias: kitchen google display automation
-  description: When the kitchen Google Hub has switched app for a minute, or been
+  description: 'When the kitchen Google Hub has switched app for a minute, or been
     paused for 10 minutes, and it is not in one of two excluded apps or playing in
-    a third, turns it off, casts the kitchen hub dashboard view to it and sets its
-    volume to 0.
+    a third, turns it off, sets its volume to 0 and then casts the kitchen hub dashboard
+    view to it. The cast is the last step because cast.show_lovelace_view returns
+    before the cast is sent: with the volume change after it, both hit the hub Cast
+    connection at once, which crashed Core (segfault, 2026-10-28 01:58).'
   triggers:
   - alias: Kitchen hub app changed for 1 min
     trigger: state
@@ -5711,6 +5713,13 @@
     action: media_player.turn_off
     target:
       entity_id: media_player.kitchen_google_hub
+  - alias: Set kitchen hub volume to 0
+    action: media_player.volume_set
+    metadata: {}
+    data:
+      volume_level: 0
+    target:
+      entity_id: media_player.kitchen_google_hub
   - alias: Cast the kitchen hub dashboard view
     action: cast.show_lovelace_view
     metadata: {}
@@ -5719,6 +5728,9 @@
       dashboard_path: lovelace-hub
       view_path: kitchen-google-hub
     enabled: true
+    note: Keep this the last enabled step. show_lovelace_view returns before the cast
+      is sent, so a command sent to the hub right after it writes to the same Cast
+      connection at the same moment. That race segfaulted Core on 2026-10-28 at 01:58.
   - alias: Load the hub dashboard via DashCast
     action: dash_cast.load_url
     metadata: {}
@@ -5727,13 +5739,6 @@
       url: http://192.168.0.15:8099/lovelace-hub/kitchen-google-hub?kiosk
       force: false
     enabled: false
-  - alias: Set kitchen hub volume to 0
-    action: media_player.volume_set
-    metadata: {}
-    data:
-      volume_level: 0
-    target:
-      entity_id: media_player.kitchen_google_hub
   mode: single
 - id: '1733789430500'
   alias: Turn on the front door light in relation to the sun position
@@ -7212,8 +7217,8 @@
       - idle
       for:
         hours: 0
-        minutes: 2
-        seconds: 0
+        minutes: 0
+        seconds: 15
     continue_on_timeout: false
     timeout:
       hours: 0
@@ -18879,14 +18884,22 @@
     to:
     - 'on'
   conditions:
-  - alias: Salon Chromecast is not playing
-    condition: not
+  - condition: or
     conditions:
-    - alias: Salon Chromecast is playing
+    - alias: Salon Chromecast is not playing
+      condition: not
+      conditions:
+      - alias: Salon Chromecast is playing
+        condition: state
+        entity_id: media_player.universal_salon_chromecast
+        state:
+        - playing
+    - alias: Salon Chromecast is on visuals
       condition: state
       entity_id: media_player.universal_salon_chromecast
       state:
-      - playing
+      - Visuals
+      attribute: media_library_title
   actions:
   - alias: Start a retro gaming session
     action: script.start_retro_gaming_session
@@ -22306,6 +22319,43 @@
     data: {}
     target:
       entity_id: input_boolean.sleeper_in_bedroom
+  mode: single
+- id: '1793202047564'
+  alias: Play maxi Playlist when Alone at Home
+  description: Plays all favorited tracks on home speakers when Maxi becomes alone
+    and home.
+  triggers:
+  - alias: Maxi alone for 1 minute
+    entity_id:
+    - binary_sensor.maxi_alone
+    from:
+    - 'off'
+    to:
+    - 'on'
+    for:
+      hours: 0
+      minutes: 1
+      seconds: 0
+    trigger: state
+  conditions:
+  - alias: Maxi is home
+    condition: state
+    entity_id: person.maximiliano
+    state: home
+  - alias: Home speakers are off
+    condition: state
+    entity_id: media_player.group_mass_home_group_speakers
+    state: 'off'
+  - alias: Maxi is alone
+    condition: state
+    entity_id: binary_sensor.maxi_alone
+    state: 'on'
+  actions:
+  - action: script.start_a_random_maxi_playlist
+    metadata: {}
+    data:
+      player_entity:
+        entity_id: media_player.group_mass_home_group_speakers
   mode: single
 - id: '1793468298618'
   alias: Show the party QR code only during party mode
