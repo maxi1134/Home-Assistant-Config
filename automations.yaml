@@ -22307,3 +22307,72 @@
     target:
       entity_id: input_boolean.sleeper_in_bedroom
   mode: single
+- id: '1793468298618'
+  alias: Show the party QR code only during party mode
+  description: Turns Music Assistant's Party guest access, and with it the join QR
+    code on the MA party page in the hallway, kitchen and workshop tablets' MA block,
+    on while party mode is on and no live concert is playing, and off otherwise. Turning
+    it off signs every guest out; turning it back on makes a new QR code, valid 16
+    hours. Resyncs 2 minutes after Home Assistant starts, and posts a notification
+    if Music Assistant refuses the change (HTTP 401 means the 'party mode enabler'
+    MA token, valid until 2027-10-31, has expired).
+  triggers:
+  - alias: Party mode turns on or off
+    trigger: state
+    entity_id:
+    - input_boolean.party_mode
+    to:
+    - 'on'
+    - 'off'
+  - alias: Live concert starts or ends
+    trigger: state
+    entity_id:
+    - input_boolean.live_concert
+    to:
+    - 'on'
+    - 'off'
+  - alias: Home Assistant starts
+    trigger: homeassistant
+    event: start
+    id: ha_start
+  conditions: []
+  actions:
+  - alias: After a restart, give Music Assistant 2 minutes to come up
+    if:
+    - alias: Started by the Home Assistant start
+      condition: trigger
+      id: ha_start
+    then:
+    - alias: Wait 2 minutes
+      delay:
+        minutes: 2
+  - alias: Guest access on only in party mode without a live concert
+    action: rest_command.music_assistant_party_guest_access
+    data:
+      enabled: '{{ is_state(''input_boolean.party_mode'', ''on'') and is_state(''input_boolean.live_concert'',
+        ''off'') }}'
+    response_variable: ma_reply
+    continue_on_error: true
+  - alias: Warn if Music Assistant refused, clear the warning once it accepts
+    if:
+    - alias: No reply or not HTTP 200
+      condition: template
+      value_template: '{{ ma_reply is not defined or ma_reply.status != 200 }}'
+    then:
+    - alias: Post a persistent notification
+      action: persistent_notification.create
+      data:
+        notification_id: ma_party_guest_access
+        title: Party QR code not updated
+        message: 'Music Assistant didn''t accept the party guest-access change ({{
+          ''HTTP '' ~ ma_reply.status if ma_reply is defined else ''no reply'' }}),
+          so the QR code on the party page may be in the wrong state. HTTP 401 means
+          the MA token music_assistant_api_bearer in secrets.yaml (''party mode enabler'',
+          valid until 2027-10-31) has expired: make a new one in Music Assistant →
+          Settings → Profile.'
+    else:
+    - alias: Dismiss an old warning
+      action: persistent_notification.dismiss
+      data:
+        notification_id: ma_party_guest_access
+  mode: restart
