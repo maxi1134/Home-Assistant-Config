@@ -55,7 +55,7 @@ No more Zigbee drops, no more Z-Wave issues — just smooth, unified device mana
 
 <h5 align="center">Wall Displays</h5>
 <p align="center">
-  <img src="/assets/Tablet_A8/musicdemo.gif" width="40%" />
+  <img src="/assets/Tablet_S7FE/musicdemo.gif" width="40%" />
   <img src="/assets/Tablet_S7FE/framed_light_panel_lowres.gif" width="40%" />
 </p>
 
