@@ -5008,7 +5008,11 @@
     trigger: numeric_state
     entity_id:
     - sensor.patio_camera_sound_level
-    above: -20
+    above: -10
+    for:
+      hours: 0
+      minutes: 0
+      seconds: 15
   conditions:
   - alias: Someone is on the patio
     condition: state
@@ -22426,3 +22430,61 @@
       data:
         notification_id: ma_party_guest_access
   mode: restart
+- id: party_speaker_bass_cut
+  alias: Party - speaker bass cut
+  description: 'Between 01:00 and 08:00 while party mode is on, apply the ''Party
+    Night - Bass Cut'' Music Assistant DSP preset to every WiiM speaker; clear it
+    back to MA''s default as soon as either stops being true. The window and the party
+    flag are combined into binary_sensor.party_night_bass_cut (template helper over
+    binary_sensor.bass_cut_hours, a Times of Day helper) so this automation fires
+    on one clean edge instead of re-writing DSP on every clock boundary. Music Assistant
+    has no Home Assistant action for DSP presets, hence the music_assistant_dsp_*
+    rest_commands. DSP in MA is per-player, never on the group player: all seven WiiMs
+    are covered in one pass so any grouping of them stays uniform - members with differing
+    DSP get split into separate output encodes and drift out of sync (MA support #4422).'
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.party_night_bass_cut
+    to: 'on'
+    note: 'to: only, no from: - a change that passes through unavailable still fires.'
+  - trigger: state
+    entity_id: binary_sensor.party_night_bass_cut
+    to: 'off'
+  actions:
+  - if:
+    - condition: state
+      entity_id: binary_sensor.party_night_bass_cut
+      state: 'on'
+    then:
+    - repeat:
+        for_each: '{{ speakers }}'
+        sequence:
+        - action: rest_command.music_assistant_dsp_apply_preset
+          data:
+            player_id: '{{ repeat.item }}'
+            preset_id: '{{ bass_cut_preset_id }}'
+      note: 'Preset ''Party Night - Bass Cut'': 60 Hz high-pass, -15 dB low shelf
+        at 120 Hz, safety limiter.'
+    else:
+    - repeat:
+        for_each: '{{ speakers }}'
+        sequence:
+        - action: rest_command.music_assistant_dsp_reset
+          data:
+            player_id: '{{ repeat.item }}'
+    note: The sensor is read once, outside the loop, so every speaker ends the run
+      on the same DSP. Branching on its current state rather than which trigger fired
+      means any re-run converges, including after a restart; both rest_commands are
+      idempotent.
+  mode: queued
+  max: 3
+  variables:
+    bass_cut_preset_id: rnwoczsz
+    speakers:
+    - wiim_uuid:FF98F09C-5A18-AC88-56B0-A081FF98F09C
+    - wiim_uuid:FF98F09C-4CA0-1AAE-BD2E-647EFF98F09C
+    - wiim_uuid:FF98F09C-47C0-B536-7035-80E0FF98F09C
+    - wiim_uuid:FF98F09C-E6F5-5A4E-2C25-C2A6FF98F09C
+    - wiim_uuid:FF98F09C-CB5B-67D0-4531-D6F5FF98F09C
+    - wiim_uuid:FF98F09C-1A03-C419-A8D0-D032FF98F09C
+    - wiim_uuid:FF98F09C-301A-C812-7C39-69F8FF98F09C
