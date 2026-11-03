@@ -58,10 +58,13 @@
 {%- set partners = states('sensor.amount_partners_home') | int(0) -%}
 {%- set party    = is_state('input_boolean.party_mode','on') -%}
 {%- set kink     = is_state('input_boolean.kink_party','on') -%}
-{#- Guest WiFi. This is the ground truth for "people are over": sensor
-    .amount_friends_home only counts device_trackers named phone_* and then
-    subtracts partners and crashers, so it can read 0 while the flat is full.
-    The raw client count cannot. -#}
+{#- Guest WiFi. This is the ground truth for "people are over": guests have no
+    device_tracker entity at all (the UniFi client_source allowlist), so nothing
+    per-person can see them. sensor.amount_friends_home used to enumerate
+    device_trackers named phone_* and read 0 while the flat was full; since
+    2026-11-01 it is derived from this same client count minus known household
+    devices, so the two agree and the hotspot check below is now a belt-and-braces
+    fallback rather than the only working signal. -#}
 {%- set hotspot  = states('sensor.chilling_hotspot_client_count') | int(0) -%}
 {%- set company  = 'party' if party
                    else ('hosting' if (friends > 0 or hotspot > 0)
