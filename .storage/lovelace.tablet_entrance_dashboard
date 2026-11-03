@@ -55,26 +55,74 @@
                           "layout": {
                             "grid-template-columns": "100%",
                             "grid-template-rows": "auto",
-                            "grid-template-areas": "\"clock temperature\"\n"
+                            "grid-template-areas": "\"clock\"\n"
                           },
                           "cards": [
                             {
-                              "type": "clock",
-                              "clock_style": "digital",
-                              "clock_size": "small",
-                              "show_seconds": true,
-                              "no_background": false,
+                              "type": "custom:mod-card",
                               "view_layout": {
                                 "grid-area": "clock"
                               },
-                              "date_format": [
-                                "weekday-long",
-                                "day-2-digit",
-                                "month-long",
-                                "year-numeric"
-                              ],
                               "card_mod": {
-                                "style": "ha-card {\n  font-size: 10px;\n  padding: 0px !important;\n  margin: 0px !important;\n  background: transparent !important;\n\n  box-shadow: none !important;\n  border: none !important;\n}\n"
+                                "style": {
+                                  ".": "/* Maxi 2026-10-28: standard header: one box, drawn like a card */\nha-card {\n  box-sizing: border-box;\n  overflow: hidden;\n  background: var(--ha-card-background, var(--card-background-color, #fff)) !important;\n  border-radius: var(--ha-card-border-radius, 12px) !important;\n  border: none !important;\n  outline: var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--divider-color, #e0e0e0));\n  outline-offset: calc(-1 * var(--ha-card-border-width, 1px));\n  box-shadow: var(--ha-card-box-shadow, none) !important;\n}\n",
+                                  "layout-card$": {
+                                    "grid-layout$": "#root {\n  padding: 0px 14px !important;\n  margin: 0px !important;\n  column-gap: 16px !important;\n}\n#root > * {\n  margin: 0px !important;\n}\n"
+                                  }
+                                }
+                              },
+                              "card": {
+                                "type": "custom:layout-card",
+                                "layout_type": "custom:grid-layout",
+                                "layout": {
+                                  "grid-template-columns": "1fr auto 1fr",
+                                  "grid-template-rows": "auto",
+                                  "grid-template-areas": "\"time date temp\"\n"
+                                },
+                                "cards": [
+                                  {
+                                    "type": "clock",
+                                    "clock_style": "digital",
+                                    "clock_size": "small",
+                                    "show_seconds": true,
+                                    "no_background": false,
+                                    "date_format": [
+                                      "weekday-long",
+                                      "day-2-digit",
+                                      "month-long",
+                                      "year-numeric"
+                                    ],
+                                    "view_layout": {
+                                      "grid-area": "time"
+                                    },
+                                    "card_mod": {
+                                      "style": {
+                                        ".": "/* Maxi 2026-10-28: standard header: the time, left (its date is the middle card); digits 36px; this card sets the box height (41.6px) */\nha-card {\n  height: 41.6px !important;\n  background: none !important;\n  border: none !important;\n  box-shadow: none !important;\n  border-radius: 0 !important;\n  --ha-clock-card-digital-font-size-small: 36px;\n  --ha-font-size-s: 12.5px;\n  --ha-font-size-xs: 11.5px;\n}\n.time-wrapper {\n  height: 100% !important;\n  box-sizing: border-box;\n  padding: 0px !important;\n  align-items: flex-start !important;\n}\n",
+                                        "hui-clock-card-digital$": ".clock-container {\n  justify-content: flex-start !important;\n}\n.date-container {\n  display: none !important;\n}\n"
+                                      }
+                                    }
+                                  },
+                                  {
+                                    "type": "markdown",
+                                    "content": "<center>{{ now().strftime('%A') }}<br>{{ now().strftime('%d %B %Y') }}</center>",
+                                    "view_layout": {
+                                      "grid-area": "date"
+                                    },
+                                    "card_mod": {
+                                      "style": "/* Maxi 2026-10-28: standard header: the date, middle */\nha-card {\n  height: 100%;\n  box-sizing: border-box;\n  background: none !important;\n  border: none !important;\n  box-shadow: none !important;\n  border-radius: 0 !important;\n  padding: 0px !important;\n  display: flex;\n  flex-direction: column;\n  justify-content: center;\n  align-items: center;\n  font-size: 12.5px;\n  line-height: 1.2;\n  overflow: visible !important;\n  pointer-events: none;\n}\nha-markdown {\n  padding: 0px !important;\n  overflow: visible !important;\n}\n"
+                                    }
+                                  },
+                                  {
+                                    "type": "markdown",
+                                    "content": "<center>{% set t = states(\"sensor.outside_temperature_with_fallback\") %}{{ (t | float | round(1)) if is_number(t) else t }}°</center>",
+                                    "view_layout": {
+                                      "grid-area": "temp"
+                                    },
+                                    "card_mod": {
+                                      "style": "/* Maxi 2026-10-28: standard header: the temperature, right; same size as the time digits */\nha-card {\n  height: 100%;\n  box-sizing: border-box;\n  background: none !important;\n  border: none !important;\n  box-shadow: none !important;\n  border-radius: 0 !important;\n  padding: 0px !important;\n  display: flex;\n  flex-direction: column;\n  justify-content: center;\n  align-items: flex-end;\n  font-size: 36px;\n  line-height: 1;\n  overflow: visible !important;\n  pointer-events: none;\n}\nha-markdown {\n  padding: 0px !important;\n  overflow: visible !important;\n}\n"
+                                    }
+                                  }
+                                ]
                               }
                             }
                           ]
@@ -149,13 +197,6 @@
                                   "type": "glance",
                                   "entities": [
                                     {
-                                      "entity": "sensor.bathroom_usage",
-                                      "name": "Bathroom",
-                                      "tap_action": {
-                                        "action": "none"
-                                      }
-                                    },
-                                    {
                                       "entity": "weather.weather_montreal_forecast",
                                       "name": "Weather",
                                       "tap_action": {
@@ -194,9 +235,9 @@
                                   },
                                   "date_format": null,
                                   "state_color": true,
-                                  "columns": 5,
+                                  "columns": 4,
                                   "card_mod": {
-                                    "style": "ha-card {\n  --mdc-icon-size: 100%;\n}\n"
+                                    "style": "/* Maxi 2026-10-28: menu entries drawn as buttons (flat keys): icon above the label, a key per entry (the tray colour, 30% darker), pressed = brighter and slightly smaller */\nha-card {\n  --mdc-icon-size: 100%;\n  --menu-key-color: rgba(0, 0, 0, 0.3);\n  --menu-key-pressed-color: rgba(0, 0, 0, 0.45);\n}\n.entities {\n  padding: 10px 8px !important;\n  column-gap: 6px;\n}\n.entity,\n.entity:focus {\n  flex: 1 1 0 !important;\n  width: auto !important;\n  min-width: 0 !important;\n  margin: 0px !important;\n  flex-direction: column-reverse !important;\n  justify-content: center !important;\n  outline: none !important;\n  -webkit-tap-highlight-color: transparent;\n  transition: transform 80ms ease-out, background 80ms ease-out, box-shadow 80ms ease-out, filter 80ms ease-out;\n  padding: 4px 0px 8px !important;\n  border-radius: 10px !important;\n  background: var(--menu-key-color) !important;\n}\n.entity:active {\n  background: var(--menu-key-pressed-color) !important;\n  transform: scale(0.95);\n}\n"
                                   }
                                 }
                               ]
@@ -216,7 +257,7 @@
                             "show_icon": true,
                             "show_state": false,
                             "type": "glance",
-                            "columns": 8,
+                            "columns": 7,
                             "entities": [
                               {
                                 "entity": "sensor.security_all_clear",
@@ -224,13 +265,6 @@
                                 "tap_action": {
                                   "action": "navigate",
                                   "navigation_path": "/tablets-subviews/subview_security/?kiosk"
-                                }
-                              },
-                              {
-                                "entity": "sensor.bathroom_usage",
-                                "name": "Bathroom",
-                                "tap_action": {
-                                  "action": "none"
                                 }
                               },
                               {
@@ -296,7 +330,7 @@
                             ],
                             "state_color": true,
                             "card_mod": {
-                              "style": "ha-card {\n  --mdc-icon-size: 85%;\n  height: 70px;\n}\n"
+                              "style": "/* Maxi 2026-10-28: menu entries drawn as buttons (flat keys): icon above the label, a key per entry (the tray colour, 30% darker), pressed = brighter and slightly smaller */\nha-card {\n  --mdc-icon-size: 85%;\n  --menu-key-color: rgba(0, 0, 0, 0.3);\n  --menu-key-pressed-color: rgba(0, 0, 0, 0.45);\n}\n.entities {\n  padding: 10px 8px !important;\n  column-gap: 6px;\n}\n.entity,\n.entity:focus {\n  flex: 1 1 0 !important;\n  width: auto !important;\n  min-width: 0 !important;\n  margin: 0px !important;\n  flex-direction: column-reverse !important;\n  justify-content: center !important;\n  outline: none !important;\n  -webkit-tap-highlight-color: transparent;\n  transition: transform 80ms ease-out, background 80ms ease-out, box-shadow 80ms ease-out, filter 80ms ease-out;\n  padding: 4px 0px 8px !important;\n  border-radius: 10px !important;\n  background: var(--menu-key-color) !important;\n}\n.entity:active {\n  background: var(--menu-key-pressed-color) !important;\n  transform: scale(0.95);\n}\n"
                             }
                           }
                         }
@@ -345,31 +379,31 @@
                                     "id": "1",
                                     "icon": {
                                       "name": "mdi:broom",
-                                      "x": 33750,
-                                      "y": 22425
+                                      "x": 33050,
+                                      "y": 22225
                                     },
                                     "label": {
                                       "text": "Salon",
-                                      "x": 33750,
-                                      "y": 22425,
+                                      "x": 33050,
+                                      "y": 22225,
                                       "offset_y": 35
                                     },
                                     "outline": [
                                       [
-                                        31800,
-                                        20550
+                                        31300,
+                                        20450
                                       ],
                                       [
-                                        35700,
-                                        20550
+                                        34800,
+                                        20450
                                       ],
                                       [
-                                        35700,
-                                        24300
+                                        34800,
+                                        24000
                                       ],
                                       [
-                                        31800,
-                                        24300
+                                        31300,
+                                        24000
                                       ]
                                     ]
                                   },
@@ -377,31 +411,31 @@
                                     "id": "2",
                                     "icon": {
                                       "name": "mdi:broom",
-                                      "x": 30675,
-                                      "y": 22950
+                                      "x": 30450,
+                                      "y": 22500
                                     },
                                     "label": {
                                       "text": "Lounge",
-                                      "x": 30675,
-                                      "y": 22950,
+                                      "x": 30450,
+                                      "y": 22500,
                                       "offset_y": 35
                                     },
                                     "outline": [
                                       [
-                                        29550,
-                                        21500
+                                        29000,
+                                        20750
                                       ],
                                       [
-                                        31800,
-                                        21500
+                                        31900,
+                                        20750
                                       ],
                                       [
-                                        31800,
-                                        24400
+                                        31900,
+                                        24250
                                       ],
                                       [
-                                        29550,
-                                        24400
+                                        29000,
+                                        24250
                                       ]
                                     ]
                                   },
@@ -409,31 +443,31 @@
                                     "id": "3",
                                     "icon": {
                                       "name": "mdi:broom",
-                                      "x": 20625,
-                                      "y": 24625
+                                      "x": 14775,
+                                      "y": 25750
                                     },
                                     "label": {
-                                      "text": "Kitchen",
-                                      "x": 20625,
-                                      "y": 24625,
+                                      "text": "Server Room",
+                                      "x": 14775,
+                                      "y": 25750,
                                       "offset_y": 35
                                     },
                                     "outline": [
                                       [
-                                        17400,
-                                        22900
+                                        12350,
+                                        24950
                                       ],
                                       [
-                                        23850,
-                                        22900
+                                        17200,
+                                        24950
                                       ],
                                       [
-                                        23850,
-                                        26350
+                                        17200,
+                                        26550
                                       ],
                                       [
-                                        17400,
-                                        26350
+                                        12350,
+                                        26550
                                       ]
                                     ]
                                   },
@@ -441,31 +475,31 @@
                                     "id": "4",
                                     "icon": {
                                       "name": "mdi:broom",
-                                      "x": 17025,
-                                      "y": 24250
+                                      "x": 25900,
+                                      "y": 24700
                                     },
                                     "label": {
-                                      "text": "Lylou",
-                                      "x": 17025,
-                                      "y": 24250,
+                                      "text": "Workshop",
+                                      "x": 25900,
+                                      "y": 24700,
                                       "offset_y": 35
                                     },
                                     "outline": [
                                       [
-                                        15700,
-                                        22950
+                                        23400,
+                                        23150
                                       ],
                                       [
-                                        18350,
-                                        22950
+                                        28400,
+                                        23150
                                       ],
                                       [
-                                        18350,
-                                        25550
+                                        28400,
+                                        26250
                                       ],
                                       [
-                                        15700,
-                                        25550
+                                        23400,
+                                        26250
                                       ]
                                     ]
                                   },
@@ -473,31 +507,31 @@
                                     "id": "5",
                                     "icon": {
                                       "name": "mdi:broom",
-                                      "x": 26075,
-                                      "y": 24675
+                                      "x": 32575,
+                                      "y": 24150
                                     },
                                     "label": {
-                                      "text": "Workshop",
-                                      "x": 26075,
-                                      "y": 24675,
+                                      "text": "Entrance",
+                                      "x": 32575,
+                                      "y": 24150,
                                       "offset_y": 35
                                     },
                                     "outline": [
                                       [
-                                        23850,
+                                        31100,
                                         23100
                                       ],
                                       [
-                                        28300,
+                                        34050,
                                         23100
                                       ],
                                       [
-                                        28300,
-                                        26250
+                                        34050,
+                                        25200
                                       ],
                                       [
-                                        23850,
-                                        26250
+                                        31100,
+                                        25200
                                       ]
                                     ]
                                   },
@@ -505,31 +539,31 @@
                                     "id": "6",
                                     "icon": {
                                       "name": "mdi:broom",
-                                      "x": 33475,
-                                      "y": 24825
+                                      "x": 29850,
+                                      "y": 25225
                                     },
                                     "label": {
-                                      "text": "Entrance",
-                                      "x": 33475,
-                                      "y": 24825,
+                                      "text": "Hallway",
+                                      "x": 29850,
+                                      "y": 25225,
                                       "offset_y": 35
                                     },
                                     "outline": [
                                       [
-                                        32300,
-                                        24350
+                                        28400,
+                                        24250
                                       ],
                                       [
-                                        34650,
-                                        24350
+                                        31300,
+                                        24250
                                       ],
                                       [
-                                        34650,
-                                        25300
+                                        31300,
+                                        26200
                                       ],
                                       [
-                                        32300,
-                                        25300
+                                        28400,
+                                        26200
                                       ]
                                     ]
                                   },
@@ -537,31 +571,63 @@
                                     "id": "7",
                                     "icon": {
                                       "name": "mdi:broom",
-                                      "x": 30025,
-                                      "y": 25400
+                                      "x": 26100,
+                                      "y": 22300
                                     },
                                     "label": {
-                                      "text": "Hallway",
-                                      "x": 30025,
-                                      "y": 25400,
+                                      "text": "Bedroom",
+                                      "x": 26100,
+                                      "y": 22300,
                                       "offset_y": 35
                                     },
                                     "outline": [
                                       [
-                                        28300,
-                                        24400
+                                        24400,
+                                        20700
                                       ],
                                       [
-                                        31750,
-                                        24400
+                                        27800,
+                                        20700
                                       ],
                                       [
-                                        31750,
-                                        26400
+                                        27800,
+                                        23900
                                       ],
                                       [
-                                        28300,
-                                        26400
+                                        24400,
+                                        23900
+                                      ]
+                                    ]
+                                  },
+                                  {
+                                    "id": "8",
+                                    "icon": {
+                                      "name": "mdi:broom",
+                                      "x": 22950,
+                                      "y": 24525
+                                    },
+                                    "label": {
+                                      "text": "Bathroom",
+                                      "x": 22950,
+                                      "y": 24525,
+                                      "offset_y": 35
+                                    },
+                                    "outline": [
+                                      [
+                                        22600,
+                                        23600
+                                      ],
+                                      [
+                                        23300,
+                                        23600
+                                      ],
+                                      [
+                                        23300,
+                                        25450
+                                      ],
+                                      [
+                                        22600,
+                                        25450
                                       ]
                                     ]
                                   },
@@ -569,1528 +635,63 @@
                                     "id": "9",
                                     "icon": {
                                       "name": "mdi:broom",
-                                      "x": 16400,
-                                      "y": 25650
-                                    },
-                                    "label": {
-                                      "text": "Server Room",
-                                      "x": 16400,
-                                      "y": 25650,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        15300,
-                                        24900
-                                      ],
-                                      [
-                                        17500,
-                                        24900
-                                      ],
-                                      [
-                                        17500,
-                                        26400
-                                      ],
-                                      [
-                                        15300,
-                                        26400
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "11",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 23325,
+                                      "x": 20275,
                                       "y": 24675
-                                    },
-                                    "label": {
-                                      "text": "Bathroom",
-                                      "x": 23325,
-                                      "y": 24675,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        23000,
-                                        23950
-                                      ],
-                                      [
-                                        23650,
-                                        23950
-                                      ],
-                                      [
-                                        23650,
-                                        25400
-                                      ],
-                                      [
-                                        23000,
-                                        25400
-                                      ]
-                                    ]
-                                  }
-                                ]
-                              },
-                              {
-                                "template": "vacuum_clean_segment",
-                                "predefined_selections": [
-                                  {
-                                    "id": "1",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 33750,
-                                      "y": 22425
-                                    },
-                                    "label": {
-                                      "text": "Salon",
-                                      "x": 33750,
-                                      "y": 22425,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        31800,
-                                        20550
-                                      ],
-                                      [
-                                        35700,
-                                        20550
-                                      ],
-                                      [
-                                        35700,
-                                        24300
-                                      ],
-                                      [
-                                        31800,
-                                        24300
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "2",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 30675,
-                                      "y": 22950
-                                    },
-                                    "label": {
-                                      "text": "Lounge",
-                                      "x": 30675,
-                                      "y": 22950,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        29550,
-                                        21500
-                                      ],
-                                      [
-                                        31800,
-                                        21500
-                                      ],
-                                      [
-                                        31800,
-                                        24400
-                                      ],
-                                      [
-                                        29550,
-                                        24400
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "3",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 20625,
-                                      "y": 24625
                                     },
                                     "label": {
                                       "text": "Kitchen",
-                                      "x": 20625,
-                                      "y": 24625,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        17400,
-                                        22900
-                                      ],
-                                      [
-                                        23850,
-                                        22900
-                                      ],
-                                      [
-                                        23850,
-                                        26350
-                                      ],
-                                      [
-                                        17400,
-                                        26350
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "4",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 17025,
-                                      "y": 24250
-                                    },
-                                    "label": {
-                                      "text": "Lylou",
-                                      "x": 17025,
-                                      "y": 24250,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        15700,
-                                        22950
-                                      ],
-                                      [
-                                        18350,
-                                        22950
-                                      ],
-                                      [
-                                        18350,
-                                        25550
-                                      ],
-                                      [
-                                        15700,
-                                        25550
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "5",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 26075,
-                                      "y": 24675
-                                    },
-                                    "label": {
-                                      "text": "Workshop",
-                                      "x": 26075,
+                                      "x": 20275,
                                       "y": 24675,
                                       "offset_y": 35
                                     },
                                     "outline": [
                                       [
-                                        23850,
-                                        23100
-                                      ],
-                                      [
-                                        28300,
-                                        23100
-                                      ],
-                                      [
-                                        28300,
-                                        26250
-                                      ],
-                                      [
-                                        23850,
-                                        26250
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "6",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 33475,
-                                      "y": 24825
-                                    },
-                                    "label": {
-                                      "text": "Entrance",
-                                      "x": 33475,
-                                      "y": 24825,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        32300,
-                                        24350
-                                      ],
-                                      [
-                                        34650,
-                                        24350
-                                      ],
-                                      [
-                                        34650,
-                                        25300
-                                      ],
-                                      [
-                                        32300,
-                                        25300
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "7",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 30025,
-                                      "y": 25400
-                                    },
-                                    "label": {
-                                      "text": "Hallway",
-                                      "x": 30025,
-                                      "y": 25400,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        28300,
-                                        24400
-                                      ],
-                                      [
-                                        31750,
-                                        24400
-                                      ],
-                                      [
-                                        31750,
-                                        26400
-                                      ],
-                                      [
-                                        28300,
-                                        26400
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "9",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 16400,
-                                      "y": 25650
-                                    },
-                                    "label": {
-                                      "text": "Server Room",
-                                      "x": 16400,
-                                      "y": 25650,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        15300,
-                                        24900
-                                      ],
-                                      [
-                                        17500,
-                                        24900
-                                      ],
-                                      [
-                                        17500,
-                                        26400
-                                      ],
-                                      [
-                                        15300,
-                                        26400
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "11",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 23325,
-                                      "y": 24675
-                                    },
-                                    "label": {
-                                      "text": "Bathroom",
-                                      "x": 23325,
-                                      "y": 24675,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        23000,
-                                        23950
-                                      ],
-                                      [
-                                        23650,
-                                        23950
-                                      ],
-                                      [
-                                        23650,
-                                        25400
-                                      ],
-                                      [
-                                        23000,
-                                        25400
-                                      ]
-                                    ]
-                                  }
-                                ]
-                              },
-                              {
-                                "template": "vacuum_clean_segment",
-                                "predefined_selections": [
-                                  {
-                                    "id": "1",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 33750,
-                                      "y": 22425
-                                    },
-                                    "label": {
-                                      "text": "Salon",
-                                      "x": 33750,
-                                      "y": 22425,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        31800,
-                                        20550
-                                      ],
-                                      [
-                                        35700,
-                                        20550
-                                      ],
-                                      [
-                                        35700,
-                                        24300
-                                      ],
-                                      [
-                                        31800,
-                                        24300
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "2",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 30675,
-                                      "y": 22950
-                                    },
-                                    "label": {
-                                      "text": "Lounge",
-                                      "x": 30675,
-                                      "y": 22950,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        29550,
-                                        21500
-                                      ],
-                                      [
-                                        31800,
-                                        21500
-                                      ],
-                                      [
-                                        31800,
-                                        24400
-                                      ],
-                                      [
-                                        29550,
-                                        24400
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "3",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 20625,
-                                      "y": 24625
-                                    },
-                                    "label": {
-                                      "text": "Kitchen",
-                                      "x": 20625,
-                                      "y": 24625,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        17400,
-                                        22900
-                                      ],
-                                      [
-                                        23850,
-                                        22900
-                                      ],
-                                      [
-                                        23850,
-                                        26350
-                                      ],
-                                      [
-                                        17400,
-                                        26350
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "4",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 17025,
-                                      "y": 24250
-                                    },
-                                    "label": {
-                                      "text": "Lylou",
-                                      "x": 17025,
-                                      "y": 24250,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        15700,
+                                        17100,
                                         22950
                                       ],
                                       [
-                                        18350,
+                                        23450,
                                         22950
                                       ],
                                       [
-                                        18350,
-                                        25550
-                                      ],
-                                      [
-                                        15700,
-                                        25550
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "5",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 26075,
-                                      "y": 24675
-                                    },
-                                    "label": {
-                                      "text": "Workshop",
-                                      "x": 26075,
-                                      "y": 24675,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        23850,
-                                        23100
-                                      ],
-                                      [
-                                        28300,
-                                        23100
-                                      ],
-                                      [
-                                        28300,
-                                        26250
-                                      ],
-                                      [
-                                        23850,
-                                        26250
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "6",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 33475,
-                                      "y": 24825
-                                    },
-                                    "label": {
-                                      "text": "Entrance",
-                                      "x": 33475,
-                                      "y": 24825,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        32300,
-                                        24350
-                                      ],
-                                      [
-                                        34650,
-                                        24350
-                                      ],
-                                      [
-                                        34650,
-                                        25300
-                                      ],
-                                      [
-                                        32300,
-                                        25300
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "7",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 30025,
-                                      "y": 25400
-                                    },
-                                    "label": {
-                                      "text": "Hallway",
-                                      "x": 30025,
-                                      "y": 25400,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        28300,
-                                        24400
-                                      ],
-                                      [
-                                        31750,
-                                        24400
-                                      ],
-                                      [
-                                        31750,
+                                        23450,
                                         26400
                                       ],
                                       [
-                                        28300,
+                                        17100,
                                         26400
                                       ]
                                     ]
                                   },
                                   {
-                                    "id": "9",
+                                    "id": "10",
                                     "icon": {
                                       "name": "mdi:broom",
-                                      "x": 16400,
-                                      "y": 25650
+                                      "x": 16800,
+                                      "y": 24350
                                     },
                                     "label": {
-                                      "text": "Server Room",
-                                      "x": 16400,
-                                      "y": 25650,
+                                      "text": "Hotbox",
+                                      "x": 16800,
+                                      "y": 24350,
                                       "offset_y": 35
                                     },
                                     "outline": [
                                       [
-                                        15300,
-                                        24900
+                                        15050,
+                                        23050
                                       ],
                                       [
-                                        17500,
-                                        24900
+                                        18550,
+                                        23050
                                       ],
                                       [
-                                        17500,
-                                        26400
+                                        18550,
+                                        25650
                                       ],
                                       [
-                                        15300,
-                                        26400
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "11",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 23325,
-                                      "y": 24675
-                                    },
-                                    "label": {
-                                      "text": "Bathroom",
-                                      "x": 23325,
-                                      "y": 24675,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        23000,
-                                        23950
-                                      ],
-                                      [
-                                        23650,
-                                        23950
-                                      ],
-                                      [
-                                        23650,
-                                        25400
-                                      ],
-                                      [
-                                        23000,
-                                        25400
-                                      ]
-                                    ]
-                                  }
-                                ]
-                              },
-                              {
-                                "template": "vacuum_clean_segment",
-                                "predefined_selections": [
-                                  {
-                                    "id": "1",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 33750,
-                                      "y": 22425
-                                    },
-                                    "label": {
-                                      "text": "Salon",
-                                      "x": 33750,
-                                      "y": 22425,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        31800,
-                                        20550
-                                      ],
-                                      [
-                                        35700,
-                                        20550
-                                      ],
-                                      [
-                                        35700,
-                                        24300
-                                      ],
-                                      [
-                                        31800,
-                                        24300
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "2",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 30675,
-                                      "y": 22950
-                                    },
-                                    "label": {
-                                      "text": "Lounge",
-                                      "x": 30675,
-                                      "y": 22950,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        29550,
-                                        21500
-                                      ],
-                                      [
-                                        31800,
-                                        21500
-                                      ],
-                                      [
-                                        31800,
-                                        24400
-                                      ],
-                                      [
-                                        29550,
-                                        24400
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "3",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 20625,
-                                      "y": 24625
-                                    },
-                                    "label": {
-                                      "text": "Kitchen",
-                                      "x": 20625,
-                                      "y": 24625,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        17400,
-                                        22900
-                                      ],
-                                      [
-                                        23850,
-                                        22900
-                                      ],
-                                      [
-                                        23850,
-                                        26350
-                                      ],
-                                      [
-                                        17400,
-                                        26350
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "4",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 17025,
-                                      "y": 24250
-                                    },
-                                    "label": {
-                                      "text": "Lylou",
-                                      "x": 17025,
-                                      "y": 24250,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        15700,
-                                        22950
-                                      ],
-                                      [
-                                        18350,
-                                        22950
-                                      ],
-                                      [
-                                        18350,
-                                        25550
-                                      ],
-                                      [
-                                        15700,
-                                        25550
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "5",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 26075,
-                                      "y": 24675
-                                    },
-                                    "label": {
-                                      "text": "Workshop",
-                                      "x": 26075,
-                                      "y": 24675,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        23850,
-                                        23100
-                                      ],
-                                      [
-                                        28300,
-                                        23100
-                                      ],
-                                      [
-                                        28300,
-                                        26250
-                                      ],
-                                      [
-                                        23850,
-                                        26250
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "6",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 33475,
-                                      "y": 24825
-                                    },
-                                    "label": {
-                                      "text": "Entrance",
-                                      "x": 33475,
-                                      "y": 24825,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        32300,
-                                        24350
-                                      ],
-                                      [
-                                        34650,
-                                        24350
-                                      ],
-                                      [
-                                        34650,
-                                        25300
-                                      ],
-                                      [
-                                        32300,
-                                        25300
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "7",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 30025,
-                                      "y": 25400
-                                    },
-                                    "label": {
-                                      "text": "Hallway",
-                                      "x": 30025,
-                                      "y": 25400,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        28300,
-                                        24400
-                                      ],
-                                      [
-                                        31750,
-                                        24400
-                                      ],
-                                      [
-                                        31750,
-                                        26400
-                                      ],
-                                      [
-                                        28300,
-                                        26400
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "9",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 16400,
-                                      "y": 25650
-                                    },
-                                    "label": {
-                                      "text": "Server Room",
-                                      "x": 16400,
-                                      "y": 25650,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        15300,
-                                        24900
-                                      ],
-                                      [
-                                        17500,
-                                        24900
-                                      ],
-                                      [
-                                        17500,
-                                        26400
-                                      ],
-                                      [
-                                        15300,
-                                        26400
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "11",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 23325,
-                                      "y": 24675
-                                    },
-                                    "label": {
-                                      "text": "Bathroom",
-                                      "x": 23325,
-                                      "y": 24675,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        23000,
-                                        23950
-                                      ],
-                                      [
-                                        23650,
-                                        23950
-                                      ],
-                                      [
-                                        23650,
-                                        25400
-                                      ],
-                                      [
-                                        23000,
-                                        25400
-                                      ]
-                                    ]
-                                  }
-                                ]
-                              },
-                              {
-                                "template": "vacuum_clean_segment",
-                                "predefined_selections": [
-                                  {
-                                    "id": "1",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 33750,
-                                      "y": 22425
-                                    },
-                                    "label": {
-                                      "text": "Salon",
-                                      "x": 33750,
-                                      "y": 22425,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        31800,
-                                        20550
-                                      ],
-                                      [
-                                        35700,
-                                        20550
-                                      ],
-                                      [
-                                        35700,
-                                        24300
-                                      ],
-                                      [
-                                        31800,
-                                        24300
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "2",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 30675,
-                                      "y": 22950
-                                    },
-                                    "label": {
-                                      "text": "Lounge",
-                                      "x": 30675,
-                                      "y": 22950,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        29550,
-                                        21500
-                                      ],
-                                      [
-                                        31800,
-                                        21500
-                                      ],
-                                      [
-                                        31800,
-                                        24400
-                                      ],
-                                      [
-                                        29550,
-                                        24400
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "3",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 20625,
-                                      "y": 24625
-                                    },
-                                    "label": {
-                                      "text": "Kitchen",
-                                      "x": 20625,
-                                      "y": 24625,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        17400,
-                                        22900
-                                      ],
-                                      [
-                                        23850,
-                                        22900
-                                      ],
-                                      [
-                                        23850,
-                                        26350
-                                      ],
-                                      [
-                                        17400,
-                                        26350
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "4",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 17025,
-                                      "y": 24250
-                                    },
-                                    "label": {
-                                      "text": "Lylou",
-                                      "x": 17025,
-                                      "y": 24250,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        15700,
-                                        22950
-                                      ],
-                                      [
-                                        18350,
-                                        22950
-                                      ],
-                                      [
-                                        18350,
-                                        25550
-                                      ],
-                                      [
-                                        15700,
-                                        25550
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "5",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 26075,
-                                      "y": 24675
-                                    },
-                                    "label": {
-                                      "text": "Workshop",
-                                      "x": 26075,
-                                      "y": 24675,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        23850,
-                                        23100
-                                      ],
-                                      [
-                                        28300,
-                                        23100
-                                      ],
-                                      [
-                                        28300,
-                                        26250
-                                      ],
-                                      [
-                                        23850,
-                                        26250
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "6",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 33475,
-                                      "y": 24825
-                                    },
-                                    "label": {
-                                      "text": "Entrance",
-                                      "x": 33475,
-                                      "y": 24825,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        32300,
-                                        24350
-                                      ],
-                                      [
-                                        34650,
-                                        24350
-                                      ],
-                                      [
-                                        34650,
-                                        25300
-                                      ],
-                                      [
-                                        32300,
-                                        25300
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "7",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 30025,
-                                      "y": 25400
-                                    },
-                                    "label": {
-                                      "text": "Hallway",
-                                      "x": 30025,
-                                      "y": 25400,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        28300,
-                                        24400
-                                      ],
-                                      [
-                                        31750,
-                                        24400
-                                      ],
-                                      [
-                                        31750,
-                                        26400
-                                      ],
-                                      [
-                                        28300,
-                                        26400
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "9",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 16400,
-                                      "y": 25650
-                                    },
-                                    "label": {
-                                      "text": "Server Room",
-                                      "x": 16400,
-                                      "y": 25650,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        15300,
-                                        24900
-                                      ],
-                                      [
-                                        17500,
-                                        24900
-                                      ],
-                                      [
-                                        17500,
-                                        26400
-                                      ],
-                                      [
-                                        15300,
-                                        26400
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "11",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 23325,
-                                      "y": 24675
-                                    },
-                                    "label": {
-                                      "text": "Bathroom",
-                                      "x": 23325,
-                                      "y": 24675,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        23000,
-                                        23950
-                                      ],
-                                      [
-                                        23650,
-                                        23950
-                                      ],
-                                      [
-                                        23650,
-                                        25400
-                                      ],
-                                      [
-                                        23000,
-                                        25400
-                                      ]
-                                    ]
-                                  }
-                                ]
-                              },
-                              {
-                                "template": "vacuum_clean_segment",
-                                "predefined_selections": [
-                                  {
-                                    "id": "1",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 33750,
-                                      "y": 22425
-                                    },
-                                    "label": {
-                                      "text": "Salon",
-                                      "x": 33750,
-                                      "y": 22425,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        31800,
-                                        20550
-                                      ],
-                                      [
-                                        35700,
-                                        20550
-                                      ],
-                                      [
-                                        35700,
-                                        24300
-                                      ],
-                                      [
-                                        31800,
-                                        24300
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "2",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 30675,
-                                      "y": 22950
-                                    },
-                                    "label": {
-                                      "text": "Lounge",
-                                      "x": 30675,
-                                      "y": 22950,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        29550,
-                                        21500
-                                      ],
-                                      [
-                                        31800,
-                                        21500
-                                      ],
-                                      [
-                                        31800,
-                                        24400
-                                      ],
-                                      [
-                                        29550,
-                                        24400
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "3",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 20625,
-                                      "y": 24625
-                                    },
-                                    "label": {
-                                      "text": "Kitchen",
-                                      "x": 20625,
-                                      "y": 24625,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        17400,
-                                        22900
-                                      ],
-                                      [
-                                        23850,
-                                        22900
-                                      ],
-                                      [
-                                        23850,
-                                        26350
-                                      ],
-                                      [
-                                        17400,
-                                        26350
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "4",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 17025,
-                                      "y": 24250
-                                    },
-                                    "label": {
-                                      "text": "Lylou",
-                                      "x": 17025,
-                                      "y": 24250,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        15700,
-                                        22950
-                                      ],
-                                      [
-                                        18350,
-                                        22950
-                                      ],
-                                      [
-                                        18350,
-                                        25550
-                                      ],
-                                      [
-                                        15700,
-                                        25550
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "5",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 26075,
-                                      "y": 24675
-                                    },
-                                    "label": {
-                                      "text": "Workshop",
-                                      "x": 26075,
-                                      "y": 24675,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        23850,
-                                        23100
-                                      ],
-                                      [
-                                        28300,
-                                        23100
-                                      ],
-                                      [
-                                        28300,
-                                        26250
-                                      ],
-                                      [
-                                        23850,
-                                        26250
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "6",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 33475,
-                                      "y": 24825
-                                    },
-                                    "label": {
-                                      "text": "Entrance",
-                                      "x": 33475,
-                                      "y": 24825,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        32300,
-                                        24350
-                                      ],
-                                      [
-                                        34650,
-                                        24350
-                                      ],
-                                      [
-                                        34650,
-                                        25300
-                                      ],
-                                      [
-                                        32300,
-                                        25300
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "7",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 30025,
-                                      "y": 25400
-                                    },
-                                    "label": {
-                                      "text": "Hallway",
-                                      "x": 30025,
-                                      "y": 25400,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        28300,
-                                        24400
-                                      ],
-                                      [
-                                        31750,
-                                        24400
-                                      ],
-                                      [
-                                        31750,
-                                        26400
-                                      ],
-                                      [
-                                        28300,
-                                        26400
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "9",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 16400,
-                                      "y": 25650
-                                    },
-                                    "label": {
-                                      "text": "Server Room",
-                                      "x": 16400,
-                                      "y": 25650,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        15300,
-                                        24900
-                                      ],
-                                      [
-                                        17500,
-                                        24900
-                                      ],
-                                      [
-                                        17500,
-                                        26400
-                                      ],
-                                      [
-                                        15300,
-                                        26400
-                                      ]
-                                    ]
-                                  },
-                                  {
-                                    "id": "11",
-                                    "icon": {
-                                      "name": "mdi:broom",
-                                      "x": 23325,
-                                      "y": 24675
-                                    },
-                                    "label": {
-                                      "text": "Bathroom",
-                                      "x": 23325,
-                                      "y": 24675,
-                                      "offset_y": 35
-                                    },
-                                    "outline": [
-                                      [
-                                        23000,
-                                        23950
-                                      ],
-                                      [
-                                        23650,
-                                        23950
-                                      ],
-                                      [
-                                        23650,
-                                        25400
-                                      ],
-                                      [
-                                        23000,
-                                        25400
+                                        15050,
+                                        25650
                                       ]
                                     ]
                                   }
@@ -2235,48 +836,144 @@
                             "url": "http://192.168.0.15:8095/#/party?frameless=true",
                             "aspect_ratio": "110%",
                             "card_mod": {
-                              "style": "{# fill the screen down to the controls: card ends at y~2550 on the live page (the frozen test copy renders the controls ~8 px taller); block starts at y~585 (clock + normal menu), 636 (party QR row), 468 (kink/acid hide the clock), 520 (both). Kiosk Assistant values; under Fully: 108.89/106.01/116.98/114.09 #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set party = is_state('input_boolean.party_mode', 'on') %}\n#root {\n  padding-top: {{ (107.03 if party else 110.56) if clock_shown else (114.37 if party else 117.54) }}% !important;\n}"
+                              "style": "{# fill the screen down to the controls: card ends at y~2550 on the live page (the frozen test copy renders the controls ~8 px taller); block starts at y~585 (clock + normal menu), 636 (party QR row), 468 (kink/acid hide the clock), 520 (both). Kiosk Assistant values; under Fully: 108.89/106.01/116.98/114.09 #}\n{# Party mode (Maxi 2026-11-02): the playback row under the iframe hides, so the iframe takes its height. #}\n{% set party_rows = 54 if is_state('input_boolean.party_mode', 'on') else 0 %}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set party = is_state('input_boolean.party_mode', 'on') %}\n#root {\n  padding-top: calc({{ (107.03 if party else 110.56) if clock_shown else (114.37 if party else 117.54) }}% + {{ party_rows }}px) !important;\n}"
                             }
                           },
                           {
-                            "type": "custom:mushroom-media-player-card",
-                            "entity": "media_player.mass_hallway_wiim_speaker",
-                            "volume_controls": [
-                              "volume_buttons",
-                              "volume_set",
-                              "volume_mute"
+                            "type": "conditional",
+                            "conditions": [
+                              {
+                                "condition": "state",
+                                "entity": "input_boolean.party_mode",
+                                "state_not": "on"
+                              }
                             ],
-                            "fill_container": false,
-                            "show_volume_level": false,
-                            "use_media_info": false,
-                            "media_controls": [],
-                            "collapsible_controls": false,
-                            "layout": "vertical",
-                            "icon": "none",
-                            "icon_type": "none",
-                            "primary_info": "none",
-                            "secondary_info": "none"
+                            "card": {
+                              "type": "custom:mushroom-media-player-card",
+                              "entity": "media_player.mass_hallway_wiim_speaker",
+                              "volume_controls": [
+                                "volume_buttons",
+                                "volume_set",
+                                "volume_mute"
+                              ],
+                              "fill_container": false,
+                              "show_volume_level": false,
+                              "use_media_info": false,
+                              "media_controls": [],
+                              "collapsible_controls": false,
+                              "layout": "vertical",
+                              "icon": "none",
+                              "icon_type": "none",
+                              "primary_info": "none",
+                              "secondary_info": "none",
+                              "card_mod": {
+                                "style": "ha-card {\n  border: none !important;\n  border-radius: 0px !important;\n  box-shadow: none !important;\n}\n"
+                              }
+                            }
                           },
                           {
-                            "type": "custom:mushroom-media-player-card",
-                            "entity": "media_player.mass_hallway_wiim_speaker",
-                            "volume_controls": [],
-                            "fill_container": false,
-                            "show_volume_level": true,
-                            "use_media_info": false,
-                            "media_controls": [
-                              "previous",
-                              "play_pause_stop",
-                              "next",
-                              "repeat",
-                              "on_off",
-                              "shuffle"
+                            "type": "conditional",
+                            "conditions": [
+                              {
+                                "condition": "state",
+                                "entity": "input_boolean.party_mode",
+                                "state": "on"
+                              }
                             ],
-                            "collapsible_controls": false,
-                            "layout": "vertical",
-                            "secondary_info": "none",
-                            "primary_info": "none",
-                            "icon_type": "none"
+                            "card": {
+                              "type": "custom:mushroom-media-player-card",
+                              "entity": "media_player.mass_hallway_wiim_speaker",
+                              "volume_controls": [
+                                "volume_buttons",
+                                "volume_set"
+                              ],
+                              "fill_container": false,
+                              "show_volume_level": false,
+                              "use_media_info": false,
+                              "media_controls": [],
+                              "collapsible_controls": false,
+                              "layout": "vertical",
+                              "icon": "none",
+                              "icon_type": "none",
+                              "primary_info": "none",
+                              "secondary_info": "none",
+                              "card_mod": {
+                                "style": "ha-card {\n  border: none !important;\n  border-radius: 0px !important;\n  box-shadow: none !important;\n}\n"
+                              },
+                              "tap_action": {
+                                "action": "none"
+                              },
+                              "hold_action": {
+                                "action": "none"
+                              },
+                              "double_tap_action": {
+                                "action": "none"
+                              }
+                            }
+                          },
+                          {
+                            "type": "conditional",
+                            "conditions": [
+                              {
+                                "condition": "state",
+                                "entity": "input_boolean.party_mode",
+                                "state_not": "on"
+                              }
+                            ],
+                            "card": {
+                              "type": "horizontal-stack",
+                              "cards": [
+                                {
+                                  "type": "custom:mushroom-media-player-card",
+                                  "entity": "media_player.mass_hallway_wiim_speaker",
+                                  "volume_controls": [],
+                                  "fill_container": false,
+                                  "show_volume_level": true,
+                                  "use_media_info": false,
+                                  "media_controls": [
+                                    "previous",
+                                    "play_pause_stop",
+                                    "next",
+                                    "repeat",
+                                    "on_off",
+                                    "shuffle"
+                                  ],
+                                  "collapsible_controls": false,
+                                  "layout": "vertical",
+                                  "secondary_info": "none",
+                                  "primary_info": "none",
+                                  "icon_type": "none",
+                                  "card_mod": {
+                                    "style": "ha-card {\n  border: none !important;\n  border-radius: 0px !important;\n  box-shadow: none !important;\n}\n"
+                                  }
+                                },
+                                {
+                                  "type": "button",
+                                  "name": "Favorite",
+                                  "icon": "mdi:heart-outline",
+                                  "show_name": false,
+                                  "show_state": false,
+                                  "show_icon": true,
+                                  "icon_height": "18px",
+                                  "tap_action": {
+                                    "action": "perform-action",
+                                    "perform_action": "script.turn_on",
+                                    "target": {
+                                      "entity_id": "script.favorite_currently_playing_song"
+                                    }
+                                  },
+                                  "hold_action": {
+                                    "action": "none"
+                                  },
+                                  "double_tap_action": {
+                                    "action": "none"
+                                  },
+                                  "card_mod": {
+                                    "style": "{# heart = a 7th Mushroom button; filled in the theme colour once favorited during this song #}\n{% set pressed = states('button.group_mass_home_speakers_favorite_current_song') %}\n{% set at = state_attr('media_player.group_mass_home_group_speakers', 'media_position_updated_at') %}\n{% set pos = state_attr('media_player.group_mass_home_group_speakers', 'media_position') %}\n{% set fav = pressed not in ['unknown', 'unavailable', ''] and at is not none and pos is not none\n  and as_datetime(pressed) > as_datetime(at) - timedelta(seconds=pos | float(0)) %}\n:host {\n  flex: 0 0 calc((100% - 78px) / 7 + 10px) !important;\n  margin-left: calc(-1 * var(--horizontal-stack-card-gap, var(--stack-card-gap, 8px))) !important;\n}\nha-card {\n  height: 100% !important;\n  padding: 0px !important;\n  border: none !important;\n  border-radius: 0px !important;\n  box-shadow: none !important;\n  --card-mod-icon: {{ 'mdi:heart' if fav else 'mdi:heart-outline' }};\n}\nha-card::before {\n  content: \"\";\n  position: absolute;\n  inset: 9px 9px 9px 1px;\n  border-radius: 12px;\n  background: rgba(var(--rgb-primary-text-color), 0.05);\n  pointer-events: none;\n}\nha-state-icon {\n  width: 18px !important;\n  height: 18px !important;\n  --mdc-icon-size: 18px;\n  transform: translateX(-4px);\n  color: {{ 'var(--primary-color)' if fav else 'var(--primary-text-color)' }} !important;\n}\n"
+                                  }
+                                }
+                              ]
+                            }
                           }
                         ]
                       }
@@ -2339,7 +1036,8 @@
                         "type": "custom:yet-another-media-player",
                         "entities": [
                           {
-                            "entity_id": "media_player.mass_hallway_wiim_speaker"
+                            "entity_id": "media_player.mass_hallway_wiim_speaker",
+                            "hidden_controls": "{{ ['previous', 'play_pause', 'stop', 'next', 'shuffle', 'repeat', 'favorite', 'power'] if is_state('input_boolean.party_mode', 'on') else [] }}"
                           }
                         ],
                         "card_type": "default",
@@ -2366,7 +1064,10 @@
                         "lyrics_pre_roll": 0,
                         "queue_controls_style": "drag_handle",
                         "lyrics_source": "lrclib_mass",
-                        "idle_timeout_ms": 0
+                        "idle_timeout_ms": 0,
+                        "card_mod": {
+                          "style": "{# Party mode (Maxi 2026-11-02: guests use the Music Assistant party page and the tablets cannot stop the music). YAMP drops its playback buttons itself (hidden_controls); here the rest of the card stops reacting (track options, artist and album links, lyrics swipes, seek bar), the menu and the Search button go, and mute only shows while muted. The volume slider stays. #}\n{% if is_state('input_boolean.party_mode', 'on') %}\nha-card, ha-card * {\n  pointer-events: none !important;\n}\n.volume-row .vol-slider {\n  pointer-events: auto !important;\n}\n.more-info-menu, .volume-row .favorite-volume-btn {\n  display: none !important;\n}\n{% if is_state_attr('media_player.mass_hallway_wiim_speaker', 'is_volume_muted', true) %}\n.volume-row .volume-left button.volume-icon-btn {\n  pointer-events: auto !important;\n}\n{% else %}\n.volume-row .volume-left > div:last-child {\n  display: none !important;\n}\n{% endif %}\n{% endif %}\n"
+                        }
                       }
                     },
                     {
