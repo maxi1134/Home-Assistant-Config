@@ -44,32 +44,76 @@
                         "type": "custom:layout-card",
                         "layout_type": "custom:grid-layout",
                         "layout": {
-                          "grid-template-columns": "85% auto",
+                          "grid-template-columns": "100%",
                           "grid-template-rows": "auto",
-                          "grid-template-areas": "\"clock temperature\"\n"
+                          "grid-template-areas": "\"clock\"\n"
                         },
                         "cards": [
                           {
-                            "type": "clock",
-                            "clock_style": "digital",
-                            "clock_size": "small",
-                            "show_seconds": true,
-                            "no_background": false,
+                            "type": "custom:mod-card",
                             "view_layout": {
                               "grid-area": "clock"
                             },
-                            "date_format": [
-                              "weekday-long",
-                              "day-2-digit",
-                              "month-long",
-                              "year-numeric"
-                            ]
-                          },
-                          {
-                            "type": "markdown",
-                            "content": "<center>    {{states(\"sensor.outside_temperature_with_fallback\")+\"°\" }} </center>",
                             "card_mod": {
-                              "style": "ha-card {\n  font-size: 24px;\n}\n"
+                              "style": {
+                                ".": "/* Maxi 2026-10-28: standard header: one box, drawn like a card */\nha-card {\n  box-sizing: border-box;\n  overflow: hidden;\n  background: var(--ha-card-background, var(--card-background-color, #fff)) !important;\n  border-radius: var(--ha-card-border-radius, 12px) !important;\n  border: none !important;\n  outline: var(--ha-card-border-width, 1px) solid var(--ha-card-border-color, var(--divider-color, #e0e0e0));\n  outline-offset: calc(-1 * var(--ha-card-border-width, 1px));\n  box-shadow: var(--ha-card-box-shadow, none) !important;\n}\n",
+                                "layout-card$": {
+                                  "grid-layout$": "#root {\n  padding: 0px 14px !important;\n  margin: 0px !important;\n  column-gap: 16px !important;\n}\n#root > * {\n  margin: 0px !important;\n}\n"
+                                }
+                              }
+                            },
+                            "card": {
+                              "type": "custom:layout-card",
+                              "layout_type": "custom:grid-layout",
+                              "layout": {
+                                "grid-template-columns": "1fr auto 1fr",
+                                "grid-template-rows": "auto",
+                                "grid-template-areas": "\"time date temp\"\n"
+                              },
+                              "cards": [
+                                {
+                                  "type": "clock",
+                                  "clock_style": "digital",
+                                  "clock_size": "small",
+                                  "show_seconds": true,
+                                  "no_background": false,
+                                  "date_format": [
+                                    "weekday-long",
+                                    "day-2-digit",
+                                    "month-long",
+                                    "year-numeric"
+                                  ],
+                                  "view_layout": {
+                                    "grid-area": "time"
+                                  },
+                                  "card_mod": {
+                                    "style": {
+                                      ".": "/* Maxi 2026-10-28: standard header: the time, left (its date is the middle card); digits 56px; this card sets the box height (64.4px) */\nha-card {\n  height: 64.4px !important;\n  background: none !important;\n  border: none !important;\n  box-shadow: none !important;\n  border-radius: 0 !important;\n  --ha-clock-card-digital-font-size-small: 56px;\n  --ha-font-size-s: 20px;\n  --ha-font-size-xs: 17.5px;\n}\n.time-wrapper {\n  height: 100% !important;\n  box-sizing: border-box;\n  padding: 0px !important;\n  align-items: flex-start !important;\n}\n",
+                                      "hui-clock-card-digital$": ".clock-container {\n  justify-content: flex-start !important;\n}\n.date-container {\n  display: none !important;\n}\n"
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "markdown",
+                                  "content": "<center>{{ now().strftime('%A') }}<br>{{ now().strftime('%d %B %Y') }}</center>",
+                                  "view_layout": {
+                                    "grid-area": "date"
+                                  },
+                                  "card_mod": {
+                                    "style": "/* Maxi 2026-10-28: standard header: the date, middle */\nha-card {\n  height: 100%;\n  box-sizing: border-box;\n  background: none !important;\n  border: none !important;\n  box-shadow: none !important;\n  border-radius: 0 !important;\n  padding: 0px !important;\n  display: flex;\n  flex-direction: column;\n  justify-content: center;\n  align-items: center;\n  font-size: 20px;\n  line-height: 1.2;\n  overflow: visible !important;\n  pointer-events: none;\n}\nha-markdown {\n  padding: 0px !important;\n  overflow: visible !important;\n}\n"
+                                  }
+                                },
+                                {
+                                  "type": "markdown",
+                                  "content": "<center>{% set t = states(\"sensor.outside_temperature_with_fallback\") %}{{ (t | float | round(1)) if is_number(t) else t }}°</center>",
+                                  "view_layout": {
+                                    "grid-area": "temp"
+                                  },
+                                  "card_mod": {
+                                    "style": "/* Maxi 2026-10-28: standard header: the temperature, right; same size as the time digits */\nha-card {\n  height: 100%;\n  box-sizing: border-box;\n  background: none !important;\n  border: none !important;\n  box-shadow: none !important;\n  border-radius: 0 !important;\n  padding: 0px !important;\n  display: flex;\n  flex-direction: column;\n  justify-content: center;\n  align-items: flex-end;\n  font-size: 56px;\n  line-height: 1;\n  overflow: visible !important;\n  pointer-events: none;\n}\nha-markdown {\n  padding: 0px !important;\n  overflow: visible !important;\n}\n"
+                                  }
+                                }
+                              ]
                             }
                           }
                         ]
@@ -95,13 +139,6 @@
                                 "show_state": false,
                                 "type": "glance",
                                 "entities": [
-                                  {
-                                    "entity": "sensor.bathroom_usage",
-                                    "name": "Bathroom",
-                                    "tap_action": {
-                                      "action": "none"
-                                    }
-                                  },
                                   {
                                     "entity": "weather.weather_montreal_forecast",
                                     "name": "Weather",
@@ -152,9 +189,9 @@
                                   }
                                 ],
                                 "state_color": true,
-                                "columns": 6,
+                                "columns": 5,
                                 "card_mod": {
-                                  "style": "ha-card {\n  --mdc-icon-size: 120%;\n}\n"
+                                  "style": "/* Maxi 2026-10-28: menu entries drawn as buttons (flat keys): icon above the label, a key per entry (the tray colour, 30% darker), pressed = brighter and slightly smaller */\nha-card {\n  --mdc-icon-size: 120%;\n  --menu-key-color: rgba(0, 0, 0, 0.3);\n  --menu-key-pressed-color: rgba(0, 0, 0, 0.45);\n}\n.entities {\n  padding: 10px 8px !important;\n  column-gap: 6px;\n}\n.entity,\n.entity:focus {\n  flex: 1 1 0 !important;\n  width: auto !important;\n  min-width: 0 !important;\n  margin: 0px !important;\n  flex-direction: column-reverse !important;\n  justify-content: center !important;\n  outline: none !important;\n  -webkit-tap-highlight-color: transparent;\n  transition: transform 80ms ease-out, background 80ms ease-out, box-shadow 80ms ease-out, filter 80ms ease-out;\n  padding: 4px 0px 8px !important;\n  border-radius: 10px !important;\n  background: var(--menu-key-color) !important;\n}\n.entity:active {\n  background: var(--menu-key-pressed-color) !important;\n  transform: scale(0.95);\n}\n"
                                 }
                               }
                             ]
@@ -173,7 +210,7 @@
                             "show_icon": true,
                             "show_state": false,
                             "type": "glance",
-                            "columns": 8,
+                            "columns": 7,
                             "entities": [
                               {
                                 "entity": "sensor.security_all_clear",
@@ -181,13 +218,6 @@
                                 "tap_action": {
                                   "action": "navigate",
                                   "navigation_path": "/tablets-subviews/subview_security/?kiosk"
-                                }
-                              },
-                              {
-                                "entity": "sensor.bathroom_usage",
-                                "name": "Bathroom",
-                                "tap_action": {
-                                  "action": "none"
                                 }
                               },
                               {
@@ -253,7 +283,7 @@
                             ],
                             "state_color": true,
                             "card_mod": {
-                              "style": "ha-card {\n  --mdc-icon-size: 120%;\n}\n"
+                              "style": "/* Maxi 2026-10-28: menu entries drawn as buttons (flat keys): icon above the label, a key per entry (the tray colour, 30% darker), pressed = brighter and slightly smaller */\nha-card {\n  --mdc-icon-size: 120%;\n  --menu-key-color: rgba(0, 0, 0, 0.3);\n  --menu-key-pressed-color: rgba(0, 0, 0, 0.45);\n}\n.entities {\n  padding: 10px 8px !important;\n  column-gap: 6px;\n}\n.entity,\n.entity:focus {\n  flex: 1 1 0 !important;\n  width: auto !important;\n  min-width: 0 !important;\n  margin: 0px !important;\n  flex-direction: column-reverse !important;\n  justify-content: center !important;\n  outline: none !important;\n  -webkit-tap-highlight-color: transparent;\n  transition: transform 80ms ease-out, background 80ms ease-out, box-shadow 80ms ease-out, filter 80ms ease-out;\n  padding: 4px 0px 8px !important;\n  border-radius: 10px !important;\n  background: var(--menu-key-color) !important;\n}\n.entity:active {\n  background: var(--menu-key-pressed-color) !important;\n  transform: scale(0.95);\n}\n"
                             }
                           }
                         }
@@ -568,7 +598,8 @@
                             "type": "custom:yet-another-media-player",
                             "entities": [
                               {
-                                "entity_id": "media_player.mass_workshop_wiim_speaker"
+                                "entity_id": "media_player.mass_workshop_wiim_speaker",
+                                "hidden_controls": "{{ ['previous', 'play_pause', 'stop', 'next', 'shuffle', 'repeat', 'favorite', 'power'] if is_state('input_boolean.party_mode', 'on') else [] }}"
                               }
                             ],
                             "card_type": "default",
@@ -597,7 +628,7 @@
                             "search_results_sort": "play_count_desc",
                             "idle_timeout_ms": 0,
                             "card_mod": {
-                              "style": "{# Speaker mute button (Maxi 2026-10-25: a muted speaker's strip is a small YAMP with its title, not the MA block's untitled control rows; the block's control rows had one). Below 320 px YAMP hides the volume row's mute button with an inline style; show it again (not while the options sheet is open).\nIn the strip (speaker muted, TV not) the volume row sits below the visible card, so lift the button into the play/skip row, left edge, styled like those buttons (same as the TV card's). #}\n{% set tv_m = is_state_attr('media_player.universal_workshop_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_workshop_wiim_speaker', 'is_volume_muted', true) %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  visibility: visible !important;\n  opacity: 1 !important;\n  pointer-events: auto !important;\n}\n{% if mu_m and not tv_m %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  transform: translate(-44px, -50px);\n}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] .volume-icon-btn {\n  width: 38px;\n  height: 38px;\n  min-width: 38px;\n  min-height: 38px;\n  background: rgba(255, 255, 255, 0.15);\n  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);\n}\n{% endif %}\n"
+                              "style": "{# Speaker mute button (Maxi 2026-10-25: a muted speaker's strip is a small YAMP with its title, not the MA block's untitled control rows; the block's control rows had one). Below 320 px YAMP hides the volume row's mute button with an inline style; show it again (not while the options sheet is open).\nIn the strip (speaker muted, TV not) the volume row sits below the visible card, so lift the button into the play/skip row, left edge, styled like those buttons (same as the TV card's). #}\n{% set tv_m = is_state_attr('media_player.universal_workshop_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_workshop_wiim_speaker', 'is_volume_muted', true) %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  visibility: visible !important;\n  opacity: 1 !important;\n  pointer-events: auto !important;\n}\n{% if mu_m and not tv_m %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  transform: translate(-44px, -50px);\n}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] .volume-icon-btn {\n  width: 38px;\n  height: 38px;\n  min-width: 38px;\n  min-height: 38px;\n  background: rgba(255, 255, 255, 0.15);\n  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);\n}\n{% endif %}\n{# Party mode (Maxi 2026-11-02: guests use the Music Assistant party page and the tablets cannot stop the music). YAMP drops its playback buttons itself (hidden_controls); here the rest of the card stops reacting (track options, artist and album links, lyrics swipes, seek bar), the menu and the Search button go, and mute only shows while muted. The volume slider stays. #}\n{% if is_state('input_boolean.party_mode', 'on') %}\nha-card, ha-card * {\n  pointer-events: none !important;\n}\n.volume-row .vol-slider {\n  pointer-events: auto !important;\n}\n.more-info-menu, .volume-row .favorite-volume-btn {\n  display: none !important;\n}\n{% if is_state_attr('media_player.mass_workshop_wiim_speaker', 'is_volume_muted', true) %}\n.volume-row .volume-left button.volume-icon-btn {\n  pointer-events: auto !important;\n}\n{% else %}\n.volume-row .volume-left > div:last-child {\n  display: none !important;\n}\n{% endif %}\n{% endif %}\n"
                             }
                           }
                         },
@@ -660,48 +691,144 @@
                                 "url": "http://192.168.0.15:8095/#/party?frameless=true",
                                 "aspect_ratio": "106.5%",
                                 "card_mod": {
-                                  "style": "{# size the iframe so this card (iframe + ~111px of controls) fills its share: alone 1078/1167; with the TV card under it: TV muted -> the slot minus the TV strip, music muted (TV not) -> this block hides and the saver YAMP is the speaker's strip (Maxi 2026-10-25: a muted speaker's strip is a small YAMP with its title, not the MA block's untitled control rows), both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set tv_m = is_state_attr('media_player.universal_workshop_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_workshop_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = (1072 if clock_shown else 1161) %}\n{% set tv = not is_state('media_player.universal_workshop_chromecast', 'off') %}\n{% set h = (((pair - 145 - 111) if tv_m and not mu_m else pair / 2 - 111) if tv else (967 if clock_shown else 1056)) %}\n#root {\n  padding-top: 0 !important;\n  height: {{ h }}px !important;\n}\n"
+                                  "style": "{# size the iframe so this card (iframe + ~111px of controls) fills its share: alone 1078/1167; with the TV card under it: TV muted -> the slot minus the TV strip, music muted (TV not) -> this block hides and the saver YAMP is the speaker's strip (Maxi 2026-10-25: a muted speaker's strip is a small YAMP with its title, not the MA block's untitled control rows), both or neither muted -> half (Maxi 2026-10-25: music card on top, TV under it; a muted player shrinks to a strip, both or neither muted -> half each) #}\n{# Party mode (Maxi 2026-11-02): the playback row under the iframe hides, so the iframe takes its height. #}\n{% set party_rows = 54 if is_state('input_boolean.party_mode', 'on') else 0 %}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set tv_m = is_state_attr('media_player.universal_workshop_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_workshop_wiim_speaker', 'is_volume_muted', true) %}\n{% set pair = (1072 if clock_shown else 1161) %}\n{% set tv = not is_state('media_player.universal_workshop_chromecast', 'off') %}\n{% set h = (((pair - 145 - 111) if tv_m and not mu_m else pair / 2 - 111) if tv else (967 if clock_shown else 1056)) %}\n#root {\n  padding-top: 0 !important;\n  height: {{ h + party_rows }}px !important;\n}\n"
                                 }
                               },
                               {
-                                "type": "custom:mushroom-media-player-card",
-                                "entity": "media_player.mass_workshop_wiim_speaker",
-                                "volume_controls": [
-                                  "volume_set",
-                                  "volume_mute",
-                                  "volume_buttons"
+                                "type": "conditional",
+                                "conditions": [
+                                  {
+                                    "condition": "state",
+                                    "entity": "input_boolean.party_mode",
+                                    "state_not": "on"
+                                  }
                                 ],
-                                "fill_container": false,
-                                "show_volume_level": false,
-                                "use_media_info": false,
-                                "media_controls": [],
-                                "collapsible_controls": false,
-                                "layout": "vertical",
-                                "icon": "none",
-                                "icon_type": "none",
-                                "primary_info": "none",
-                                "secondary_info": "none"
+                                "card": {
+                                  "type": "custom:mushroom-media-player-card",
+                                  "entity": "media_player.mass_workshop_wiim_speaker",
+                                  "volume_controls": [
+                                    "volume_set",
+                                    "volume_mute",
+                                    "volume_buttons"
+                                  ],
+                                  "fill_container": false,
+                                  "show_volume_level": false,
+                                  "use_media_info": false,
+                                  "media_controls": [],
+                                  "collapsible_controls": false,
+                                  "layout": "vertical",
+                                  "icon": "none",
+                                  "icon_type": "none",
+                                  "primary_info": "none",
+                                  "secondary_info": "none",
+                                  "card_mod": {
+                                    "style": "ha-card {\n  border: none !important;\n  border-radius: 0px !important;\n  box-shadow: none !important;\n}\n"
+                                  }
+                                }
                               },
                               {
-                                "type": "custom:mushroom-media-player-card",
-                                "entity": "media_player.mass_workshop_wiim_speaker",
-                                "volume_controls": [],
-                                "fill_container": false,
-                                "show_volume_level": true,
-                                "use_media_info": false,
-                                "media_controls": [
-                                  "previous",
-                                  "play_pause_stop",
-                                  "next",
-                                  "repeat",
-                                  "on_off",
-                                  "shuffle"
+                                "type": "conditional",
+                                "conditions": [
+                                  {
+                                    "condition": "state",
+                                    "entity": "input_boolean.party_mode",
+                                    "state": "on"
+                                  }
                                 ],
-                                "collapsible_controls": false,
-                                "layout": "vertical",
-                                "secondary_info": "none",
-                                "primary_info": "none",
-                                "icon_type": "none"
+                                "card": {
+                                  "type": "custom:mushroom-media-player-card",
+                                  "entity": "media_player.mass_workshop_wiim_speaker",
+                                  "volume_controls": [
+                                    "volume_set",
+                                    "volume_buttons"
+                                  ],
+                                  "fill_container": false,
+                                  "show_volume_level": false,
+                                  "use_media_info": false,
+                                  "media_controls": [],
+                                  "collapsible_controls": false,
+                                  "layout": "vertical",
+                                  "icon": "none",
+                                  "icon_type": "none",
+                                  "primary_info": "none",
+                                  "secondary_info": "none",
+                                  "card_mod": {
+                                    "style": "ha-card {\n  border: none !important;\n  border-radius: 0px !important;\n  box-shadow: none !important;\n}\n"
+                                  },
+                                  "tap_action": {
+                                    "action": "none"
+                                  },
+                                  "hold_action": {
+                                    "action": "none"
+                                  },
+                                  "double_tap_action": {
+                                    "action": "none"
+                                  }
+                                }
+                              },
+                              {
+                                "type": "conditional",
+                                "conditions": [
+                                  {
+                                    "condition": "state",
+                                    "entity": "input_boolean.party_mode",
+                                    "state_not": "on"
+                                  }
+                                ],
+                                "card": {
+                                  "type": "horizontal-stack",
+                                  "cards": [
+                                    {
+                                      "type": "custom:mushroom-media-player-card",
+                                      "entity": "media_player.mass_workshop_wiim_speaker",
+                                      "volume_controls": [],
+                                      "fill_container": false,
+                                      "show_volume_level": true,
+                                      "use_media_info": false,
+                                      "media_controls": [
+                                        "previous",
+                                        "play_pause_stop",
+                                        "next",
+                                        "repeat",
+                                        "on_off",
+                                        "shuffle"
+                                      ],
+                                      "collapsible_controls": false,
+                                      "layout": "vertical",
+                                      "secondary_info": "none",
+                                      "primary_info": "none",
+                                      "icon_type": "none",
+                                      "card_mod": {
+                                        "style": "ha-card {\n  border: none !important;\n  border-radius: 0px !important;\n  box-shadow: none !important;\n}\n"
+                                      }
+                                    },
+                                    {
+                                      "type": "button",
+                                      "name": "Favorite",
+                                      "icon": "mdi:heart-outline",
+                                      "show_name": false,
+                                      "show_state": false,
+                                      "show_icon": true,
+                                      "icon_height": "18px",
+                                      "tap_action": {
+                                        "action": "perform-action",
+                                        "perform_action": "script.turn_on",
+                                        "target": {
+                                          "entity_id": "script.favorite_currently_playing_song"
+                                        }
+                                      },
+                                      "hold_action": {
+                                        "action": "none"
+                                      },
+                                      "double_tap_action": {
+                                        "action": "none"
+                                      },
+                                      "card_mod": {
+                                        "style": "{# heart = a 7th Mushroom button; filled in the theme colour once favorited during this song #}\n{% set pressed = states('button.group_mass_home_speakers_favorite_current_song') %}\n{% set at = state_attr('media_player.group_mass_home_group_speakers', 'media_position_updated_at') %}\n{% set pos = state_attr('media_player.group_mass_home_group_speakers', 'media_position') %}\n{% set fav = pressed not in ['unknown', 'unavailable', ''] and at is not none and pos is not none\n  and as_datetime(pressed) > as_datetime(at) - timedelta(seconds=pos | float(0)) %}\n:host {\n  flex: 0 0 calc((100% - 78px) / 7 + 10px) !important;\n  margin-left: calc(-1 * var(--horizontal-stack-card-gap, var(--stack-card-gap, 8px))) !important;\n}\nha-card {\n  height: 100% !important;\n  padding: 0px !important;\n  border: none !important;\n  border-radius: 0px !important;\n  box-shadow: none !important;\n  --card-mod-icon: {{ 'mdi:heart' if fav else 'mdi:heart-outline' }};\n}\nha-card::before {\n  content: \"\";\n  position: absolute;\n  inset: 9px 9px 9px 1px;\n  border-radius: 12px;\n  background: rgba(var(--rgb-primary-text-color), 0.05);\n  pointer-events: none;\n}\nha-state-icon {\n  width: 18px !important;\n  height: 18px !important;\n  --mdc-icon-size: 18px;\n  transform: translateX(-4px);\n  color: {{ 'var(--primary-color)' if fav else 'var(--primary-text-color)' }} !important;\n}\n"
+                                      }
+                                    }
+                                  ]
+                                }
                               }
                             ]
                           }
@@ -756,7 +883,8 @@
                             "type": "custom:yet-another-media-player",
                             "entities": [
                               {
-                                "entity_id": "media_player.mass_workshop_wiim_speaker"
+                                "entity_id": "media_player.mass_workshop_wiim_speaker",
+                                "hidden_controls": "{{ ['previous', 'play_pause', 'stop', 'next', 'shuffle', 'repeat', 'favorite', 'power'] if is_state('input_boolean.party_mode', 'on') else [] }}"
                               }
                             ],
                             "card_type": "default",
@@ -785,7 +913,7 @@
                             "search_results_sort": "play_count_desc",
                             "idle_timeout_ms": 0,
                             "card_mod": {
-                              "style": "{# Speaker mute button (Maxi 2026-10-25: a muted speaker's strip is a small YAMP with its title, not the MA block's untitled control rows; the block's control rows had one). Below 320 px YAMP hides the volume row's mute button with an inline style; show it again (not while the options sheet is open).\nIn the strip (speaker muted, TV not) the volume row sits below the visible card, so lift the button into the play/skip row, left edge, styled like those buttons (same as the TV card's). #}\n{% set tv_m = is_state_attr('media_player.universal_workshop_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_workshop_wiim_speaker', 'is_volume_muted', true) %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  visibility: visible !important;\n  opacity: 1 !important;\n  pointer-events: auto !important;\n}\n{% if mu_m and not tv_m %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  transform: translate(-44px, -50px);\n}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] .volume-icon-btn {\n  width: 38px;\n  height: 38px;\n  min-width: 38px;\n  min-height: 38px;\n  background: rgba(255, 255, 255, 0.15);\n  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);\n}\n{% endif %}\n"
+                              "style": "{# Speaker mute button (Maxi 2026-10-25: a muted speaker's strip is a small YAMP with its title, not the MA block's untitled control rows; the block's control rows had one). Below 320 px YAMP hides the volume row's mute button with an inline style; show it again (not while the options sheet is open).\nIn the strip (speaker muted, TV not) the volume row sits below the visible card, so lift the button into the play/skip row, left edge, styled like those buttons (same as the TV card's). #}\n{% set tv_m = is_state_attr('media_player.universal_workshop_chromecast', 'is_volume_muted', true) %}\n{% set mu_m = is_state_attr('media_player.mass_workshop_wiim_speaker', 'is_volume_muted', true) %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  visibility: visible !important;\n  opacity: 1 !important;\n  pointer-events: auto !important;\n}\n{% if mu_m and not tv_m %}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] {\n  transform: translate(-44px, -50px);\n}\ndiv:not([style*=\"visibility:hidden\"]) + .volume-row .volume-left > div:last-child[style*=\"visibility:hidden\"] .volume-icon-btn {\n  width: 38px;\n  height: 38px;\n  min-width: 38px;\n  min-height: 38px;\n  background: rgba(255, 255, 255, 0.15);\n  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);\n}\n{% endif %}\n{# Party mode (Maxi 2026-11-02: guests use the Music Assistant party page and the tablets cannot stop the music). YAMP drops its playback buttons itself (hidden_controls); here the rest of the card stops reacting (track options, artist and album links, lyrics swipes, seek bar), the menu and the Search button go, and mute only shows while muted. The volume slider stays. #}\n{% if is_state('input_boolean.party_mode', 'on') %}\nha-card, ha-card * {\n  pointer-events: none !important;\n}\n.volume-row .vol-slider {\n  pointer-events: auto !important;\n}\n.more-info-menu, .volume-row .favorite-volume-btn {\n  display: none !important;\n}\n{% if is_state_attr('media_player.mass_workshop_wiim_speaker', 'is_volume_muted', true) %}\n.volume-row .volume-left button.volume-icon-btn {\n  pointer-events: auto !important;\n}\n{% else %}\n.volume-row .volume-left > div:last-child {\n  display: none !important;\n}\n{% endif %}\n{% endif %}\n"
                             }
                           }
                         },
