@@ -142,3 +142,33 @@ music_assistant_party_guest_access:
     {"message_id": "ha_party_qr", "command": "config/providers/save",
      "args": {"provider_domain": "party", "instance_id": "party",
               "values": {"enable_guest_access": {{ enabled | bool | to_json }}}}}
+
+# ─── Music Assistant DSP ───
+# Apply a saved DSP preset to one MA player, or clear that player's DSP back to the
+# default (disabled, no filters, unity gain). Driven by the party bass-cut automation.
+# DSP is per-player in MA, so group members are each targeted individually. Token: MA
+# long-lived token "party mode enabler" (maxi1134, admin), valid until 2027-10-31.
+music_assistant_dsp_apply_preset:
+  url: http://192.168.0.15:8095/api
+  method: POST
+  content_type: application/json
+  timeout: 20
+  headers:
+    authorization: !secret music_assistant_api_bearer
+  payload: >
+    {"message_id": "ha_dsp_apply", "command": "config/players/dsp/apply_preset",
+     "args": {"player_id": {{ player_id | to_json }},
+              "preset_id": {{ preset_id | to_json }}}}
+
+music_assistant_dsp_reset:
+  url: http://192.168.0.15:8095/api
+  method: POST
+  content_type: application/json
+  timeout: 20
+  headers:
+    authorization: !secret music_assistant_api_bearer
+  payload: >
+    {"message_id": "ha_dsp_reset", "command": "config/players/dsp/save",
+     "args": {"player_id": {{ player_id | to_json }},
+              "config": {"enabled": false, "filters": [], "input_gain": 0.0,
+                         "output_gain": 0.0, "preset_id": null}}}
