@@ -900,36 +900,86 @@
   #############################################################################
 
   # ─── Friends & Hotspot Tracking ───
-  # Counts guests by checking which phones are connected to the "Chilling Hotspot" WiFi.
-  # Subtracts known partners and crashers to get the friend count.
+  # Counts guests from the "Chilling Hotspot" guest-WLAN client count.
+  #
+  # This used to enumerate device_trackers named phone_* whose "essid" attribute was
+  # "Chilling Hotspot". It read 0 through an entire 10-client night (2026-10-31), and
+  # 0 for all but two blips of the 10-day history, for two independent reasons:
+  #   * The phone_* trackers that exist (phone_maxi / phone_lylou / phone_myriam_gps)
+  #     come from mobile_app and are source_type: gps - they never carry an essid.
+  #     Only UniFi trackers do, and UniFi names those after the client hostname
+  #     (msi_2, galaxy_s20_fe_5g_3), so they never matched the phone_ filter either.
+  #     The one tracker that did match, phone_gab, is a UniFi client renamed by hand.
+  #   * The UniFi config entry pins client_source to a 6-MAC allowlist, so a guest's
+  #     phone never becomes a device_tracker at all: 126 of 230 UniFi trackers sit at
+  #     disabled_by: integration and none has been created since 2026-10-18. On the
+  #     10-client night exactly one of those clients had an entity.
+  # The raw WLAN client count is the only signal that sees guests with no HA entity.
+  # Its daily min has been 0 across the whole statistics window, so the guest SSID
+  # does empty out when nobody is over and needs no baseline offset.
+  #
+  # Caveat: this counts DEVICES, not people - a guest carrying a phone and a laptop
+  # counts twice. Still far closer than the 0 it reported before.
   - trigger:
       - trigger: state
         entity_id:
           - sensor.chilling_hotspot_client_count
+          # household Wi-Fi SSID sensors - these drive the subtraction below
+          - sensor.phone_maxi_wi_fi_connection
+          - sensor.phone_myriam_s26_wi_fi_connection
+          - sensor.tablet_lylou_wi_fi_connection
+          - sensor.tablet_samsung_tabe_wifi_connection
           - device_tracker.phone_maxi
           - device_tracker.phone_lylou
           - device_tracker.phone_myriam_gps
       - trigger: time_pattern
         minutes: "/5"
+      - trigger: homeassistant
+        event: start
     sensor:
       - name: "amount friends home"
         unique_id: "amount_friends_home"
         state: >-
-            {% set ns = namespace(friends=0) %}
-            {% for device_tracker in states.device_tracker | selectattr('state','eq','home') | selectattr('entity_id','search',"phone_") %}
-              {% if state_attr(device_tracker.entity_id, "essid") == "Chilling Hotspot" and 'phone' in device_tracker.entity_id %}
-                {% set ns.friends = ns.friends + 1 %}
+            {# Household devices do sometimes sit on the guest SSID - Myriam's S26 joins
+               either "Chilling Family" or "Chilling Hotspot" when she is here (see
+               binary_sensor.myriam_at_maxis). Those people are already counted by
+               amount_partners_home / amount_residents_home, so take their devices back
+               out. This replaces the old blanket "- partners - crashers", which
+               subtracted people who were never in the hotspot count to begin with. #}
+            {% set household_ssid_sensors = [
+                 'sensor.phone_maxi_wi_fi_connection',
+                 'sensor.phone_myriam_s26_wi_fi_connection',
+                 'sensor.tablet_lylou_wi_fi_connection',
+                 'sensor.tablet_samsung_tabe_wifi_connection' ] %}
+            {% set ns = namespace(household=0) %}
+            {% for ssid_sensor in household_ssid_sensors %}
+              {% if states(ssid_sensor) == 'Chilling Hotspot' %}
+                {% set ns.household = ns.household + 1 %}
               {% endif %}
             {% endfor %}
-            {% set friendshome = [ns.friends | int(0) - states('sensor.amount_partners_home') | int(0) - states('sensor.amount_crashing_home') | int(0), 0] | max %}
-            {{ friendshome }}
+            {% set raw = states('sensor.chilling_hotspot_client_count') | int(0) %}
+            {{ [ raw - ns.household, 0 ] | max }}
         unit_of_measurement: "friends"
         attributes:
+          # Best-effort names only. Most guests have no device_tracker at all (see the
+          # header), so this list is routinely shorter than the state - it is not the
+          # count, and sensor.which_friends_home inherits that caveat.
           friends: >
+            {% set household_trackers = [
+                 'device_tracker.pc_maxi',
+                 'device_tracker.msi',
+                 'device_tracker.desktop_maxi',
+                 'device_tracker.computer_lylou',
+                 'device_tracker.maxi_laptop',
+                 'device_tracker.s24_fe_de_josiane',
+                 'device_tracker.s24_fe_de_josiane_2' ] %}
             {% set ns = namespace(friends=[]) %}
-            {% for device_tracker in states.device_tracker | selectattr('state','eq','home') | selectattr('entity_id','search',"phone_") %}
-              {% if state_attr(device_tracker.entity_id, "essid") == "Chilling Hotspot" and 'phone' in device_tracker.entity_id %}
-                {% set name = device_tracker.entity_id | replace('device_tracker.phone_','') | replace('_',' ') | capitalize %}
+            {% for device_tracker in states.device_tracker | selectattr('state','eq','home') %}
+              {% if state_attr(device_tracker.entity_id, "essid") == "Chilling Hotspot"
+                    and device_tracker.entity_id not in household_trackers %}
+                {% set name = device_tracker.entity_id | replace('device_tracker.phone_','')
+                                                       | replace('device_tracker.','')
+                                                       | replace('_',' ') | capitalize %}
                 {% set ns.friends = ns.friends + [name] %}
               {% endif %}
             {% endfor %}
@@ -1017,6 +1067,8 @@
   # Fuses BLE data from watch, bracelet, and phone with GPS and motion sensors.
   # Uses a voting system: each device reports a room, and the room with the most
   # votes wins. Filters out devices that are charging or not on the body.
+  # It only moves to a room whose motion group is on; otherwise it holds its
+  # current room (see the occupancy gate in the state template).
   - trigger:
       - trigger: state
         entity_id:
@@ -1036,6 +1088,21 @@
           # occupied/allowed_rooms and the active_rooms attribute both read this,
           # so without it here they are snapshots from the last BLE change.
           - sensor.active_motion_rooms
+          # read by the occupancy gate (group_<room>_motion_occupancy for
+          # every room this sensor can output): re-render the moment a held-back
+          # room's motion turns on instead of waiting for the next BLE update.
+          - binary_sensor.group_bathroom_motion_occupancy
+          - binary_sensor.group_bedroom_motion_occupancy
+          - binary_sensor.group_closet_motion_occupancy
+          - binary_sensor.group_entrance_motion_occupancy
+          - binary_sensor.group_hallway_motion_occupancy
+          - binary_sensor.group_hotbox_motion_occupancy
+          - binary_sensor.group_kitchen_motion_occupancy
+          - binary_sensor.group_lounge_motion_occupancy
+          - binary_sensor.group_patio_motion_occupancy
+          - binary_sensor.group_salon_motion_occupancy
+          - binary_sensor.group_server_motion_occupancy
+          - binary_sensor.group_workshop_motion_occupancy
       # Without this the sensor sits at 'unknown' after a restart until the next
       # BLE update arrives, which starves every downstream room-based sensor.
       - trigger: homeassistant
@@ -1057,7 +1124,7 @@
               {% set current_room = raw_current_room if raw_current_room not in invalid and not raw_current_room.startswith('at ') else '' %}
               {% set phone_bps_value = states('sensor.bermuda_maxi_phone_bps_zone') | lower %}
               {% set phone_bps_home = phone_bps_value not in invalid %}
-              {% set ns = namespace(votes=[], results=[]) %}
+              {% set ns = namespace(votes=[], results=[], eligible=[]) %}
               {% for name, room_entity, zone_entity in info if (name == 'watch' and is_state('binary_sensor.maxi_watch_on_body_sensor', 'on') and is_state('sensor.maxi_watch_charger_type', 'none')) or
                                                               (name == 'phone' and is_state('sensor.phone_maxi_charger_type', 'none') and is_state('binary_sensor.phone_maxi_interactive', 'on')) or
                                                               (name == 'bracelet')
@@ -1116,18 +1183,49 @@
                 {% set ns.results = ns.results + [(room, total + bonus, latest)] %}
               {% endfor %}
               {% if is_state('device_tracker.phone_maxi', 'home') or phone_bps_home %}
-                {% set allowed_rooms = occupied %}
-                {% if current_room != '' and current_room not in allowed_rooms %}
-                  {% set allowed_rooms = allowed_rooms + [current_room] %}
-                {% endif %}
-                {% set candidates = ns.results | selectattr('0', 'in', allowed_rooms) | list %}
-                {# Motion is already weighted as the +1 bonus above, so this filter must
-                   never veto a strictly better-scored room: a device that agrees with
-                   itself (score 3) beats a room that merely has motion. Short-circuit
-                   on the length test keeps `| max` off an empty ns.results. #}
-                {% if candidates | length == 0 or (candidates | map(attribute='1') | max)
-                                                  < (ns.results | map(attribute='1') | max) %}
-                  {% set candidates = ns.results %}
+                {% if current_room != '' %}
+                  {# Occupancy gate: only move to a room whose binary_sensor.group_<room>
+                     _motion_occupancy is on. A room without motion can't be where Maxi
+                     is, whether or not anyone else is home, so a BLE fix pointing there
+                     is noise - the bracelet/phone BPS zones bounce through walls
+                     (workshop <-> bathroom, bedroom -> lounge at night). The current room
+                     may always stay, even once its motion clears (sitting still); a room
+                     whose group is unavailable/unknown is not vetoed, so a dead sensor
+                     can't strand the location. No eligible room -> the state holds until
+                     one shows up.
+                     Applied with company too since 2026-10-29 (Maxi's call): the worst
+                     workshop<->bathroom run that day (14:21) happened while maxi_alone
+                     was off because of a single Chilling Hotspot client.
+                     Backtest 2026-10-25 -> 10-29, replayed in Python (replica matched the
+                     recorded sensor 100% of the time): -48% location changes, -72%
+                     workshop<->bathroom flips, -62% sub-minute bounces; 95% of the time it
+                     disagreed with the old rule it held an occupied room while the old
+                     one had jumped to an empty one, and it was never in an empty room
+                     while the old one had found an occupied one (5 s in 4 days). Pacing
+                     windows (>=7 rooms in 5 min): 4.1% -> 3.3%. #}
+                  {% for r in ns.results %}
+                    {% if r[0] == current_room
+                          or not is_state('binary_sensor.group_' ~ r[0] ~ '_motion_occupancy', 'off') %}
+                      {% set ns.eligible = ns.eligible + [r] %}
+                    {% endif %}
+                  {% endfor %}
+                  {% set candidates = ns.eligible %}
+                {% else %}
+                  {% set allowed_rooms = occupied %}
+                  {% if current_room != '' and current_room not in allowed_rooms %}
+                    {% set allowed_rooms = allowed_rooms + [current_room] %}
+                  {% endif %}
+                  {% set candidates = ns.results | selectattr('0', 'in', allowed_rooms) | list %}
+                  {# No valid current room (just got home, or after a restart): there is
+                     nothing to hold, so the pre-gate rule applies - motion is only weighted
+                     as the +1 bonus above and this filter must never veto a strictly
+                     better-scored room: a device that agrees with itself (score 3) beats
+                     a room that merely has motion. Short-circuit on the length test keeps
+                     `| max` off an empty ns.results. #}
+                  {% if candidates | length == 0 or (candidates | map(attribute='1') | max)
+                                                    < (ns.results | map(attribute='1') | max) %}
+                    {% set candidates = ns.results %}
+                  {% endif %}
                 {% endif %}
                 {% if candidates | length > 0 %}
                   {% set max_score = candidates | map(attribute='1') | max %}
