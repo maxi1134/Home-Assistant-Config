@@ -1,0 +1,73 @@
+{#-
+  ─── Party volume cap ──────────────────────────────────────────────────────
+  While party mode is on, automation.party_speaker_volume_cap sets Music
+  Assistant's "Maximum volume" on the speakers in party_speakers() to
+  input_number.party_speaker_max_volume.
+
+  Why: MA *scales* instead of clamping. The 0-100 volume slider is mapped onto
+  0..max on the device, and Home Assistant's volume_level is the slider value,
+  so with a 50 cap a volume_set of 0.3 lands at 15% on the device. These
+  macros scale fixed levels back up, so automations keep their usual device
+  volume during a party and the cap only works as a ceiling.
+
+  Compensation applies only while party mode is on AND the cap automation is
+  enabled (a disabled cap must never leave the doubling running), and only
+  when every target is a capped speaker or an MA group made only of them.
+  Anything else - the bathroom VPE, an unknown entity, an empty group - gets
+  its level unchanged. Results are clamped to 1.0: nothing goes past the cap.
+
+  party_speakers()                 JSON {entity_id: MA player_id} of the
+                                   capped speakers. The cap automation takes
+                                   its MA ids from here.
+  party_volume(level, entities)    volume_level for a volume_set on entities
+                                   (one entity_id or a list).
+  party_volume_device(percent)     a reading of
+                                   sensor.template_average_unmuted_speakers_volume
+                                   (slider %) converted back to device %, for
+                                   a numeric_state value_template.
+  party_volume_factor(entities[, party_on, cap_enabled, cap])
+                                   the multiplier (1 when not compensating);
+                                   the optional overrides are for testing.
+
+  Use:  {% from 'party_volume.jinja' import party_volume %}
+        {{ party_volume(0.3, speaker_id) }}
+
+  After editing:  Developer Tools -> Actions -> "Reload custom Jinja2 templates"
+-#}
+
+{%- macro party_speakers() -%}
+{{- {
+  'media_player.mass_hallway_wiim_speaker': 'wiim_uuid:FF98F09C-5A18-AC88-56B0-A081FF98F09C',
+  'media_player.mass_hotbox_wiim_speaker': 'wiim_uuid:FF98F09C-4CA0-1AAE-BD2E-647EFF98F09C',
+  'media_player.mass_kitchen_wiim_speaker': 'wiim_uuid:FF98F09C-47C0-B536-7035-80E0FF98F09C',
+  'media_player.mass_lounge_wiim_speaker': 'wiim_uuid:FF98F09C-E6F5-5A4E-2C25-C2A6FF98F09C',
+  'media_player.mass_patio_wiim_speaker': 'wiim_uuid:FF98F09C-CB5B-67D0-4531-D6F5FF98F09C',
+  'media_player.mass_salon_wiim_speaker': 'wiim_uuid:FF98F09C-1A03-C419-A8D0-D032FF98F09C',
+  'media_player.mass_workshop_wiim_speaker': 'wiim_uuid:FF98F09C-301A-C812-7C39-69F8FF98F09C'
+} | to_json -}}
+{%- endmacro -%}
+
+{%- macro party_volume_factor(entities, party_on=none, cap_enabled=none, cap=none) -%}
+{%- set party_on = is_state('input_boolean.party_mode', 'on') if party_on is none else party_on -%}
+{%- set cap_enabled = is_state('automation.party_speaker_volume_cap', 'on') if cap_enabled is none else cap_enabled -%}
+{%- set cap = (states('input_number.party_speaker_max_volume') if cap is none else cap) | float(0) -%}
+{%- set capped = party_speakers() | from_json -%}
+{%- set ns = namespace(ok=true, n=0) -%}
+{%- for e in ([entities] if entities is string else entities | list) -%}
+  {#- An MA group's volume moves all its members; a single player moves only itself. -#}
+  {%- set targets = (state_attr(e, 'group_members') or []) if state_attr(e, 'mass_player_type') == 'group' else [e] -%}
+  {%- for t in targets -%}
+    {%- set ns.n = ns.n + 1 -%}
+    {%- if t not in capped -%}{%- set ns.ok = false -%}{%- endif -%}
+  {%- endfor -%}
+{%- endfor -%}
+{{- (100 / cap) if (party_on and cap_enabled and ns.ok and ns.n > 0 and 0 < cap < 100) else 1 -}}
+{%- endmacro -%}
+
+{%- macro party_volume(level, entities) -%}
+{{- [(level | float(0)) * (party_volume_factor(entities) | float(1)), 1.0] | min | round(2) -}}
+{%- endmacro -%}
+
+{%- macro party_volume_device(percent) -%}
+{{- ((percent | float(0)) / (party_volume_factor(party_speakers() | from_json | list) | float(1))) | round(1) -}}
+{%- endmacro -%}
