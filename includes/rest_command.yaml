@@ -172,3 +172,21 @@ music_assistant_dsp_reset:
      "args": {"player_id": {{ player_id | to_json }},
               "config": {"enabled": false, "filters": [], "input_gain": 0.0,
                          "output_gain": 0.0, "preset_id": null}}}
+
+# ─── Music Assistant player max volume ───
+# Sets one MA player's "Maximum volume" (player config, 0-100). MA *scales* the 0-100 volume
+# slider onto 0..max_volume on the device rather than clamping it: at 50 the slider still reads
+# 100 when the device is at 50%. Changing the cap never pushes a volume to the device; a device
+# already above a lowered cap gets clamped down by MA. Used by the party volume cap. A missing
+# max_volume fails the render instead of writing 0.
+music_assistant_player_max_volume:
+  url: http://192.168.0.15:8095/api
+  method: POST
+  content_type: application/json
+  timeout: 20
+  headers:
+    authorization: !secret music_assistant_api_bearer
+  payload: >
+    {"message_id": "ha_max_volume", "command": "config/players/save",
+     "args": {"player_id": {{ player_id | to_json }},
+              "values": {"max_volume": {{ max_volume | int }}}}}
