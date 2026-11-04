@@ -5498,9 +5498,10 @@
 - id: '1732406375683'
   alias: Lower volume if police is detected in the front during a party
   description: During a party, when the front door camera sees a person and the average
-    speaker volume is above 0.4, asks LLM Vision whether a police officer or security
+    speaker volume is above 40%, asks LLM Vision whether a police officer or security
     guard is in the picture. If yes, notifies Maxi and lowers five house speakers
-    to 30% and the home speaker group to 28%.
+    to 30% and the home speaker group to 28%. Both levels go through party_volume()
+    so the party volume cap does not halve them on the device.
   triggers:
   - alias: Person seen by the front door camera
     trigger: numeric_state
@@ -5512,10 +5513,17 @@
     condition: state
     entity_id: input_boolean.party_mode
     state: 'on'
-  - alias: Average speaker volume above 0.4
+  - alias: Average speaker volume above 40 percent
     condition: numeric_state
     entity_id: sensor.template_average_unmuted_speakers_volume
-    above: 0.4
+    above: 40
+    note: 'The sensor is in percent (0-100) and averages volume sliders. This automation
+      only runs during a party, when Music Assistant caps the WiiMs and scales their
+      sliders, so party_volume_device() turns the reading back into device percent:
+      40 means 40% on the speakers. Was above 0.4 (0.4%) until 2026-11-03, which passed
+      whenever anything played.'
+    value_template: '{% from ''party_volume.jinja'' import party_volume_device %}{{
+      party_volume_device(state.state) }}'
   actions:
   - action: llmvision.image_analyzer
     metadata: {}
@@ -5556,7 +5564,10 @@
       action: media_player.volume_set
       metadata: {}
       data:
-        volume_level: 0.3
+        volume_level: '{% from ''party_volume.jinja'' import party_volume %}{{ party_volume(0.3,
+          [''media_player.mass_hallway_wiim_speaker'', ''media_player.mass_workshop_wiim_speaker'',
+          ''media_player.mass_kitchen_wiim_speaker'', ''media_player.mass_salon_wiim_speaker'',
+          ''media_player.mass_lounge_wiim_speaker'']) }}'
       target:
         entity_id:
         - media_player.mass_hallway_wiim_speaker
@@ -5568,7 +5579,8 @@
       action: media_player.volume_set
       metadata: {}
       data:
-        volume_level: 0.28
+        volume_level: '{% from ''party_volume.jinja'' import party_volume %}{{ party_volume(0.28,
+          ''media_player.group_mass_home_group_speakers'') }}'
       target:
         entity_id: media_player.group_mass_home_group_speakers
   mode: single
@@ -5593,9 +5605,11 @@
 - id: '1732990123635'
   alias: Assist Equalize volume in the house
   description: 'When someone tells Assist to equalize or normalize the volume, sets
-    speakers to the current average unmuted-speaker volume: the five main WiiM speakers
-    when music following is off, or each unmuted room''s universal speaker player
-    when it is on.'
+    speakers to the current average volume of the playing, unmuted Music Assistant
+    speakers: the five main WiiM speakers when music following is off, or every playing,
+    unmuted speaker when it is on. Says so and changes nothing when no speaker is
+    playing. Averages and sets in device terms through custom_templates/party_volume.jinja,
+    so the party volume cap on the WiiMs does not skew it.'
   triggers:
   - alias: 'Voice command: equalize the volume'
     trigger: conversation
@@ -5604,10 +5618,30 @@
     - normalize the volume
   conditions: []
   actions:
-  - alias: Get average volume and unmuted rooms
+  - alias: Find the playing, unmuted speakers and their average device volume
     variables:
-      average_volume: '{{ states(''sensor.template_average_unmuted_speakers_volume'')}}'
-      unmuted_speakers: '{{ state_attr(''sensor.active_speakers_rooms'',''unmuted_rooms'')}}'
+      playing: '{{ states.media_player | selectattr(''entity_id'', ''search'', ''speaker'')
+        | selectattr(''entity_id'', ''search'', ''mass'') | rejectattr(''entity_id'',
+        ''search'', ''following|home|group'') | selectattr(''attributes.volume_level'',
+        ''number'') | rejectattr(''attributes.is_volume_muted'', ''eq'', true) | selectattr(''state'',
+        ''eq'', ''playing'') | map(attribute=''entity_id'') | list }}'
+      average_volume: '{% from ''party_volume.jinja'' import party_volume_factor %}{%
+        set ns = namespace(v=[]) %}{% for e in playing %}{% set ns.v = ns.v + [(state_attr(e,
+        ''volume_level'') | float(0)) / (party_volume_factor(e) | float(1))] %}{%
+        endfor %}{{ (ns.v | average) | round(3) if ns.v else none }}'
+    note: 'Same speakers as sensor.template_average_unmuted_speakers_volume, but averaged
+      here in device terms (0-1): each reading is divided by that speaker''s party_volume_factor(),
+      so the party volume cap on the WiiMs cannot skew the average.'
+  - alias: Stop if nothing is playing
+    if:
+    - alias: No speaker is playing unmuted
+      condition: template
+      value_template: '{{ playing | count == 0 }}'
+    then:
+    - set_conversation_response: Nothing is playing, so there is no volume to equalize.
+    - stop: Nothing is playing
+    note: With nothing playing there is no average; without this the five WiiMs would
+      be set to 0.
   - alias: Choose by music-following mode
     choose:
     - alias: Following off → set five speakers
@@ -5618,38 +5652,37 @@
         state: 'off'
       sequence:
       - alias: Set five WiiM speakers to the average
-        action: media_player.volume_set
-        metadata: {}
-        data:
-          volume_level: '{{average_volume}}'
-        target:
-          entity_id:
+        repeat:
+          for_each:
           - media_player.mass_hallway_wiim_speaker
           - media_player.mass_kitchen_wiim_speaker
           - media_player.mass_salon_wiim_speaker
           - media_player.mass_lounge_wiim_speaker
           - media_player.mass_workshop_wiim_speaker
-    - alias: Following on → set each unmuted room
+          sequence:
+          - action: media_player.volume_set
+            target:
+              entity_id: '{{ repeat.item }}'
+            data:
+              volume_level: '{% from ''party_volume.jinja'' import party_volume %}{{
+                party_volume(average_volume, repeat.item) }}'
+    - alias: Following on → set every playing, unmuted speaker
       conditions:
       - alias: Music following is on
         condition: state
         entity_id: input_boolean.following_music
         state: 'on'
       sequence:
-      - alias: For each unmuted room
+      - alias: Set each playing, unmuted speaker to the average
         repeat:
+          for_each: '{{ playing }}'
           sequence:
-          - alias: Set the room's universal speaker to the average
-            action: media_player.volume_set
-            metadata: {}
-            data:
-              volume_level: '{{average_volume}}'
+          - action: media_player.volume_set
             target:
-              entity_id: '{{ "media_player.universal_" + unmuted_speakers[repeat.index
-                - 1] + "_speakers" }}
-
-                '
-          for_each: '{{ unmuted_speakers }}'
+              entity_id: '{{ repeat.item }}'
+            data:
+              volume_level: '{% from ''party_volume.jinja'' import party_volume %}{{
+                party_volume(average_volume, repeat.item) }}'
   mode: single
 - id: '1733597890338'
   alias: kitchen google display automation
@@ -10455,9 +10488,12 @@
       action: media_player.volume_set
       metadata: {}
       data:
-        volume_level: 0.46
+        volume_level: '{% from ''party_volume.jinja'' import party_volume %}{{ party_volume(0.46,
+          ''media_player.mass_salon_wiim_speaker'') }}'
       target:
         entity_id: media_player.mass_salon_wiim_speaker
+      note: party_volume() scales the level back up while the party volume cap is
+        on, so the thunderstorm still plays at 46% if party mode was left on.
     - alias: Unmute the salon speaker
       metadata: {}
       data:
@@ -21980,6 +22016,11 @@
     condition: numeric_state
     entity_id: sensor.template_average_unmuted_speakers_volume
     above: 25
+    value_template: '{% from ''party_volume.jinja'' import party_volume_device %}{{
+      party_volume_device(state.state) }}'
+    note: 'The sensor averages volume sliders. During a party Music Assistant caps
+      the WiiMs and scales their sliders, so party_volume_device() turns the reading
+      back into device percent: 25 still means 25% on the speakers.'
   actions:
   - alias: 'Notify Maxi: group of person at the door'
     metadata: {}
@@ -21996,7 +22037,11 @@
     action: media_player.volume_set
     metadata: {}
     data:
-      volume_level: 0.25
+      volume_level: '{% from ''party_volume.jinja'' import party_volume %}{{ party_volume(0.25,
+        [''media_player.mass_hallway_wiim_speaker'', ''media_player.mass_workshop_wiim_speaker'',
+        ''media_player.mass_kitchen_wiim_speaker'', ''media_player.mass_salon_wiim_speaker'',
+        ''media_player.mass_lounge_wiim_speaker'', ''media_player.mass_hotbox_wiim_speaker'',
+        ''media_player.mass_patio_wiim_speaker'']) }}'
     target:
       entity_id:
       - media_player.mass_hallway_wiim_speaker
@@ -22006,6 +22051,8 @@
       - media_player.mass_lounge_wiim_speaker
       - media_player.mass_hotbox_wiim_speaker
       - media_player.mass_patio_wiim_speaker
+    note: party_volume() scales the level back up while the party volume cap is on,
+      so the speakers still land at 25%.
   - delay:
       hours: 0
       minutes: 0
@@ -22488,3 +22535,185 @@
     - wiim_uuid:FF98F09C-CB5B-67D0-4531-D6F5FF98F09C
     - wiim_uuid:FF98F09C-1A03-C419-A8D0-D032FF98F09C
     - wiim_uuid:FF98F09C-301A-C812-7C39-69F8FF98F09C
+- id: '1793757841787'
+  alias: Refresh the STM bus arrivals while they are on screen
+  description: 'The STM GTFS Realtime entry has polling turned off (each refresh downloads
+    STM''s ~1 MB trip-updates feed and its vehicle positions), so its arrival sensors
+    (sensor.stm_<stop>_arrival_1..3) only refresh here: when party mode turns on or
+    a wall tablet (workshop, hallway, kitchen) opens a bus page, and every minute
+    while party mode is on or a tablet still shows one. Bus pages are tablets-subviews/subview-buses
+    (the top menu''s Bus key) and the subview-bus-<stop> maps. They also feed the
+    hallway''s party-mode "buses to the metro" card. The static schedule comes from
+    the trimmed /config/www/gtfs/stm_trimmed.zip (built by /config/gtfs/stm_trim.py).'
+  triggers:
+  - alias: Party mode turns on
+    trigger: state
+    entity_id:
+    - input_boolean.party_mode
+    to: 'on'
+  - alias: A wall tablet changes page
+    trigger: state
+    entity_id:
+    - sensor.kiosk_workshop_wall_tablet_current_page
+    - sensor.kiosk_hallway_wall_tablet_current_page
+    - sensor.kiosk_kitchen_tablet_current_page
+    to:
+    id: page
+  - alias: Every minute
+    trigger: time_pattern
+    minutes: /1
+  conditions:
+  - alias: Party mode is on or a tablet shows a bus page (a page change counts only
+      when it opens one)
+    condition: template
+    value_template: "{%- set bus = '/tablets-subviews/subview-bus' -%}\n{%- if trigger.id
+      == 'page' -%}\n  {{ bus in (trigger.to_state.state if trigger.to_state else
+      '') }}\n{%- else -%}\n  {{ is_state('input_boolean.party_mode', 'on')\n     or
+      ['sensor.kiosk_workshop_wall_tablet_current_page', 'sensor.kiosk_hallway_wall_tablet_current_page',\n
+      \        'sensor.kiosk_kitchen_tablet_current_page'] | map('states') | select('search',
+      bus) | list | count > 0 }}\n{%- endif -%}"
+  actions:
+  - alias: Refresh the STM feed (one sensor refreshes the whole entry)
+    action: homeassistant.update_entity
+    target:
+      entity_id: sensor.stm_52457_arrival_1
+    continue_on_error: true
+  mode: single
+  max_exceeded: silent
+- id: '1793760876617'
+  alias: Return the wall tablets from the bus pages
+  description: The bus pages (tablets-subviews/subview-buses from the top menu's Bus
+    key, and the subview-bus-<stop> maps that it and the hallway's party-mode bus
+    card link to) hide the tablet's own dashboard and keep the STM feed refreshing
+    every minute. So a wall tablet (workshop, hallway, kitchen) left on one goes back
+    to its dashboard 2 minutes after its last touch, or after 10 minutes on the bus
+    pages regardless. Trigger ids are the tablets' Kiosk names.
+  triggers:
+  - alias: Workshop tablet untouched for 2 minutes
+    trigger: state
+    entity_id:
+    - sensor.kiosk_workshop_wall_tablet_last_interaction
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 0
+    id: workshop_wall_tablet
+  - alias: Hallway tablet untouched for 2 minutes
+    trigger: state
+    entity_id:
+    - sensor.kiosk_hallway_wall_tablet_last_interaction
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 0
+    id: hallway_wall_tablet
+  - alias: Kitchen tablet untouched for 2 minutes
+    trigger: state
+    entity_id:
+    - sensor.kiosk_kitchen_tablet_last_interaction
+    for:
+      hours: 0
+      minutes: 2
+      seconds: 0
+    id: kitchen_tablet
+  - alias: Workshop tablet on the bus pages for 10 minutes
+    trigger: template
+    value_template: '{{ ''/tablets-subviews/subview-bus'' in states(''sensor.kiosk_workshop_wall_tablet_current_page'')
+      }}'
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+    id: workshop_wall_tablet
+  - alias: Hallway tablet on the bus pages for 10 minutes
+    trigger: template
+    value_template: '{{ ''/tablets-subviews/subview-bus'' in states(''sensor.kiosk_hallway_wall_tablet_current_page'')
+      }}'
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+    id: hallway_wall_tablet
+  - alias: Kitchen tablet on the bus pages for 10 minutes
+    trigger: template
+    value_template: '{{ ''/tablets-subviews/subview-bus'' in states(''sensor.kiosk_kitchen_tablet_current_page'')
+      }}'
+    for:
+      hours: 0
+      minutes: 10
+      seconds: 0
+    id: kitchen_tablet
+  conditions:
+  - alias: That tablet shows a bus page
+    condition: template
+    value_template: '{{ ''/tablets-subviews/subview-bus'' in states(''sensor.kiosk_''
+      ~ trigger.id ~ ''_current_page'') }}'
+  actions:
+  - alias: Back to that tablet's dashboard
+    action: button.press
+    metadata: {}
+    data: {}
+    target:
+      entity_id: button.kiosk_{{ trigger.id }}_go_to_dashboard
+  mode: parallel
+  max: 5
+- id: party_speaker_volume_cap
+  alias: Party - speaker volume cap
+  description: 'While party mode is on, cap Music Assistant''s ''Maximum volume''
+    on every capped speaker at input_number.party_speaker_max_volume; set it back
+    to 100 (MA''s default, which all seven WiiMs were on when this was written) when
+    party mode goes off. Changing the helper mid-party re-applies the cap. The speaker
+    list (HA entity -> MA player id) lives in custom_templates/party_volume.jinja,
+    which also holds the party_volume() macro that fixed-level automations use to
+    scale their levels back up: MA scales the 0-100 slider onto 0..max_volume rather
+    than clamping, so without it a volume_set of 0.3 would land at 15% on the device.
+    A speaker already above the cap is pulled down to it by MA; lifting the cap raises
+    nothing back up. The Home Group has no max volume of its own, its members carry
+    it.'
+  triggers:
+  - trigger: state
+    entity_id: input_boolean.party_mode
+    to: 'on'
+    note: 'to: only, no from: - a change that passes through unavailable still fires.'
+  - trigger: state
+    entity_id: input_boolean.party_mode
+    to: 'off'
+  - trigger: state
+    entity_id: input_number.party_speaker_max_volume
+    not_to:
+    - unavailable
+    - unknown
+    note: A new cap mid-party is applied at once; with party mode off this rewrites
+      100, which is harmless.
+  actions:
+  - if:
+    - condition: state
+      entity_id: input_boolean.party_mode
+      state: 'on'
+    then:
+    - repeat:
+        for_each: '{{ speakers }}'
+        sequence:
+        - action: rest_command.music_assistant_player_max_volume
+          data:
+            player_id: '{{ repeat.item }}'
+            max_volume: '{{ party_max_volume }}'
+    else:
+    - repeat:
+        for_each: '{{ speakers }}'
+        sequence:
+        - action: rest_command.music_assistant_player_max_volume
+          data:
+            player_id: '{{ repeat.item }}'
+            max_volume: '{{ normal_max_volume }}'
+    note: Party mode is read once, outside the loop, so every speaker ends the run
+      on the same cap. Branching on its current state rather than on which trigger
+      fired means any re-run converges; writing the same max volume twice is harmless.
+  mode: queued
+  max: 3
+  variables:
+    party_max_volume: '{{ states(''input_number.party_speaker_max_volume'') | int(50)
+      }}'
+    normal_max_volume: 100
+    speakers: '{% from ''party_volume.jinja'' import party_speakers %}{{ (party_speakers()
+      | from_json).values() | list }}'
