@@ -5687,11 +5687,13 @@
 - id: '1733597890338'
   alias: kitchen google display automation
   description: 'When the kitchen Google Hub has switched app for a minute, or been
-    paused for 10 minutes, and it is not in one of two excluded apps or playing in
-    a third, turns it off, sets its volume to 0 and then casts the kitchen hub dashboard
-    view to it. The cast is the last step because cast.show_lovelace_view returns
-    before the cast is sent: with the volume change after it, both hit the hub Cast
-    connection at once, which crashed Core (segfault, 2026-10-28 01:58).'
+    paused for 10 minutes, and it is not in one of two excluded apps, playing Plex,
+    or playing a Jellyfin stream (the tablet TV-show buttons cast those through the
+    Default Media Receiver since 2026-11-04), turns it off, sets its volume to 0 and
+    then casts the kitchen hub dashboard view to it. The cast is the last step because
+    cast.show_lovelace_view returns before the cast is sent: with the volume change
+    after it, both hit the hub Cast connection at once, which crashed Core (segfault,
+    2026-10-28 01:58).'
   triggers:
   - alias: Kitchen hub app changed for 1 min
     trigger: state
@@ -5743,6 +5745,27 @@
         entity_id: media_player.kitchen_google_hub
         state: playing
         enabled: true
+  - alias: Hub is not playing a Jellyfin stream
+    condition: not
+    conditions:
+    - alias: Default Media Receiver playing a Jellyfin stream
+      condition: and
+      conditions:
+      - alias: App is CC1AD845 (Default Media Receiver)
+        condition: state
+        entity_id: media_player.kitchen_google_hub
+        attribute: app_id
+        state: CC1AD845
+      - alias: Kitchen hub is playing or buffering
+        condition: state
+        entity_id: media_player.kitchen_google_hub
+        state:
+        - playing
+        - buffering
+      - alias: The stream comes from Jellyfin
+        condition: template
+        value_template: '{{ ''192.168.0.20:8096/'' in (state_attr(''media_player.kitchen_google_hub'',
+          ''media_content_id'') or '''') }}'
   actions:
   - alias: Turn off the kitchen hub
     metadata: {}
