@@ -257,7 +257,7 @@
                             "show_icon": true,
                             "show_state": false,
                             "type": "glance",
-                            "columns": 7,
+                            "columns": 8,
                             "entities": [
                               {
                                 "entity": "sensor.security_all_clear",
@@ -273,6 +273,15 @@
                                 "tap_action": {
                                   "action": "navigate",
                                   "navigation_path": "/tablets-subviews/subview-weather?kiosk"
+                                }
+                              },
+                              {
+                                "entity": "sensor.stm_stop_52457",
+                                "name": "Bus",
+                                "icon": "mdi:bus",
+                                "tap_action": {
+                                  "action": "navigate",
+                                  "navigation_path": "/tablets-subviews/subview-buses?kiosk"
                                 }
                               },
                               {
@@ -814,6 +823,26 @@
                       "conditions": [
                         {
                           "condition": "state",
+                          "entity": "input_boolean.party_mode",
+                          "state": "on"
+                        }
+                      ],
+                      "card": {
+                        "type": "markdown",
+                        "content": "{#- Maxi 2026-11-03: STM buses near home that reach a metro station (GTFS Realtime entry \"STM\",\n    sensor.stm_<stop>_arrival_1..3, refreshed every minute while party mode is on). One entry per stop/direction:\n    stop, usual route, metro station it reaches, metro line colour, walk in minutes (street grid, 80 m/min), corner,\n    the stop's arrival sensors.\n    Buses that leave before you can walk there are skipped; the next two are shown. Each entry links to\n    tablets-subviews/subview-bus-<stop>: a map with the stop, home and the buses that have a GPS position. -#}\n{%- set dirs = [\n  ['52457', '10', 'Papineau', '00B300', 1, 'De Lorimier/Marie-Anne',\n   ['sensor.stm_52457_arrival_1', 'sensor.stm_52457_arrival_2', 'sensor.stm_52457_arrival_3']],\n  ['52381', '97', 'Mont-Royal', 'D95700', 3, 'Mont-Royal/De Lorimier',\n   ['sensor.stm_52381_arrival_1', 'sensor.stm_52381_arrival_2', 'sensor.stm_52381_arrival_3']],\n  ['52389', '45', 'Papineau', '00B300', 5, 'Papineau/Marie-Anne',\n   ['sensor.stm_52389_arrival_1', 'sensor.stm_52389_arrival_2', 'sensor.stm_52389_arrival_3']],\n  ['52388', '45', 'Fabre', '0095E6', 5, 'Papineau/Marie-Anne',\n   ['sensor.stm_52388_arrival_1', 'sensor.stm_52388_arrival_2', 'sensor.stm_52388_arrival_3']],\n  ['52564', '29', 'Préfontaine', '00B300', 5, 'Rachel/De Lorimier',\n   ['sensor.stm_52564_arrival_1', 'sensor.stm_52564_arrival_2', 'sensor.stm_52564_arrival_3']],\n  ['52383', '97', 'Pie-IX', '00B300', 3, 'Mont-Royal/De Lorimier',\n   ['sensor.stm_52383_arrival_1', 'sensor.stm_52383_arrival_2', 'sensor.stm_52383_arrival_3']],\n] -%}\n{%- set route_colors = {'10': '009EE0', '29': '009EE0', '45': '781B7D', '97': '781B7D'} -%}\n{%- set ns = namespace(cells=[], asof=none) -%}\n{%- for stop, route, metro, line, walk, corner, sensors in dirs -%}\n  {%- set d = namespace(list=[]) -%}\n  {%- for e in sensors -%}\n    {%- set m = states(e) | float(-1) -%}\n    {%- if m >= 0 and (ns.asof is none or states[e].last_updated > ns.asof) -%}\n      {%- set ns.asof = states[e].last_updated -%}\n    {%- endif -%}\n    {%- if m >= walk -%}\n      {%- set d.list = d.list + [[m | int, state_attr(e, 'route_id') | string, state_attr(e, 'route_color') or '009EE0']] -%}\n    {%- endif -%}\n  {%- endfor -%}\n  {%- set first = d.list[0] if d.list else [none, route, route_colors.get(route, '009EE0')] -%}\n  {%- set station = 'Frontenac' if stop == '52383' and first[1] == '368' else metro -%}\n  {%- set times = namespace(t='') -%}\n  {%- for x in d.list[:2] -%}\n    {%- set times.t = times.t ~ (' · ' if loop.index > 1 else '') ~ ('<small>' ~ x[1] ~ '</small> ' if x[1] != first[1] else '')\n      ~ ('<b>' ~ x[0] ~ '</b>' if loop.first else x[0] | string) -%}\n  {%- endfor -%}\n  {%- set a = '<a href=\"/tablets-subviews/subview-bus-' ~ stop ~ '?kiosk\">' -%}\n  {%- set cell = '<td>' ~ a ~ '<font color=\"#' ~ first[2] ~ '\"><b>' ~ first[1] ~ '</b></font></a></td>'\n    ~ '<td>' ~ a ~ '<font color=\"#' ~ line ~ '\">●</font> ' ~ station ~ '<small><ha-icon icon=\"mdi:walk\"></ha-icon>' ~ walk ~ ' min · ' ~ corner ~ '</small></a></td>'\n    ~ '<td>' ~ a ~ (times.t ~ ' <small>min</small>' if d.list else '<small>—</small>') ~ '</a></td>' -%}\n  {%- set ns.cells = ns.cells + [cell] -%}\n{%- endfor -%}\n<table>\n<tr><th colspan=\"3\"><ha-icon icon=\"mdi:bus\"></ha-icon> Buses to the metro</th><th colspan=\"3\" align=\"right\"><small><ha-icon icon=\"mdi:gesture-tap\"></ha-icon>tap a bus for its map{{ (' · as of ' ~ as_local(ns.asof).strftime('%H:%M')) if ns.asof else '' }}</small></th></tr>\n{%- for i in [0, 2, 4] %}\n<tr>{{ ns.cells[i] }}{{ ns.cells[i + 1] }}</tr>\n{%- endfor %}\n</table>",
+                        "card_mod": {
+                          "style": {
+                            ".": "/* Maxi 2026-11-03: party-mode bus departures under the light block; pinned to 168px so the media block below can give back exactly its height + the 8px stack gap */\nha-card {\n  height: 168px !important;\n  box-sizing: border-box;\n  overflow: hidden;\n  padding: 8px 12px !important;\n}\nha-markdown {\n  padding: 0 !important;\n}\n",
+                            "ha-markdown$": "/* sizes allow for the hallway Kiosk text zoom (~0.8): line boxes are px so the rows keep their height */\ntable {\n  width: 100%;\n  border-collapse: collapse;\n}\nth, td {\n  border: none !important;\n  padding: 1px 3px !important;\n  vertical-align: middle;\n  white-space: nowrap;\n}\nth {\n  font-size: 18px;\n  line-height: 22px;\n  font-weight: 500;\n  text-align: left;\n  padding: 0 3px 5px !important;\n}\na {\n  display: block;\n  color: inherit !important;\n  text-decoration: none !important;\n  -webkit-tap-highlight-color: transparent;\n}\nth[align=\"right\"] {\n  text-align: right;\n  font-weight: 400;\n  opacity: 0.6;\n}\ntd {\n  font-size: 20px;\n  line-height: 21px;\n}\ntd:nth-child(3n + 1) {\n  width: 1%;\n  padding-right: 8px !important;\n}\ntd:nth-child(3n + 3) {\n  text-align: right;\n  padding-right: 10px !important;\n}\ntd:nth-child(3) {\n  border-right: 1px solid var(--divider-color) !important;\n}\ntd:nth-child(4) {\n  padding-left: 10px !important;\n}\ntd small {\n  font-size: 14px;\n  opacity: 0.7;\n}\ntd:nth-child(3n + 2) small {\n  display: block;\n  line-height: 15px;\n}\ntd:nth-child(3n + 3) b {\n  font-size: 26px;\n}\ntd:nth-child(3n + 1) font {\n  display: inline-block;\n  min-width: 38px;\n  padding: 3px 5px;\n  border-radius: 7px;\n  background: currentColor;\n  text-align: center;\n  font-size: 19px;\n  line-height: 22px;\n}\ntd:nth-child(3n + 1) font > b {\n  color: #fff;\n}\nha-icon {\n  --mdc-icon-size: 14px;\n  display: inline-block;\n  height: 14px;\n  line-height: 14px;\n  vertical-align: -2px;\n  margin-right: 1px;\n}\nth ha-icon {\n  --mdc-icon-size: 20px;\n  height: 20px;\n  line-height: 20px;\n  margin-right: 6px;\n  vertical-align: -4px;\n}\n"
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "conditional",
+                      "conditions": [
+                        {
+                          "condition": "state",
                           "entity": "media_player.group_mass_home_group_speakers",
                           "state_not": "off"
                         },
@@ -836,7 +865,7 @@
                             "url": "http://192.168.0.15:8095/#/party?frameless=true",
                             "aspect_ratio": "110%",
                             "card_mod": {
-                              "style": "{# fill the screen down to the controls: card ends at y~2550 on the live page (the frozen test copy renders the controls ~8 px taller); block starts at y~585 (clock + normal menu), 636 (party QR row), 468 (kink/acid hide the clock), 520 (both). Kiosk Assistant values; under Fully: 108.89/106.01/116.98/114.09 #}\n{# Party mode (Maxi 2026-11-02): the playback row under the iframe hides, so the iframe takes its height. #}\n{% set party_rows = 54 if is_state('input_boolean.party_mode', 'on') else 0 %}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set party = is_state('input_boolean.party_mode', 'on') %}\n#root {\n  padding-top: calc({{ (107.03 if party else 110.56) if clock_shown else (114.37 if party else 117.54) }}% + {{ party_rows }}px) !important;\n}"
+                              "style": "{# fill the screen down to the controls: card ends at y~2550 on the live page (the frozen test copy renders the controls ~8 px taller); block starts at y~585 (clock + normal menu), 636 (party QR row), 468 (kink/acid hide the clock), 520 (both). Kiosk Assistant values; under Fully: 108.89/106.01/116.98/114.09 #}\n{# Party mode (Maxi 2026-11-02): the playback row under the iframe hides, so the iframe takes its height. #}\n{% set party_rows = 54 if is_state('input_boolean.party_mode', 'on') else 0 %}\n{# Party mode STM bus card above the block (Maxi 2026-11-03): give back its 168px + the 8px stack gap. #}\n{% set bus_rows = 176 if is_state('input_boolean.party_mode', 'on') else 0 %}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set party = is_state('input_boolean.party_mode', 'on') %}\n#root {\n  padding-top: calc({{ (107.03 if party else 110.56) if clock_shown else (114.37 if party else 117.54) }}% + {{ party_rows - bus_rows }}px) !important;\n}"
                             }
                           },
                           {
@@ -1058,7 +1087,7 @@
                         "collapse_on_idle": false,
                         "hide_menu_player": false,
                         "extend_artwork": false,
-                        "card_height": "{# battery saver, and the idle player during party/kink/acid with the group off: fills the screen down to the bottom edge (y~2552) like the MA party block; kink/acid hide the clock, party's QR row is taller. Kiosk Assistant values; under Fully: 1041.6/1017.1/1110.4/1085.9 #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set party = is_state('input_boolean.party_mode', 'on') %}\n{{ (1021 if party else 1048.7) if clock_shown else (1082.7 if party else 1110.4) }}",
+                        "card_height": "{# battery saver, and the idle player during party/kink/acid with the group off: fills the screen down to the bottom edge (y~2552) like the MA party block; kink/acid hide the clock, party's QR row is taller. Kiosk Assistant values; under Fully: 1041.6/1017.1/1110.4/1085.9 #}\n{% set clock_shown = is_state('input_boolean.kink_party', 'off') and is_state('input_boolean.acid_time', 'off') %}\n{% set party = is_state('input_boolean.party_mode', 'on') %}\n{# party: minus the STM bus card above (168px + 8px gap; was 1021 / 1082.7) #}\n{{ (845 if party else 1048.7) if clock_shown else (906.7 if party else 1110.4) }}",
                         "always_show_lyrics": true,
                         "lyrics_mode": "default",
                         "lyrics_pre_roll": 0,
