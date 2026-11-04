@@ -98,6 +98,90 @@ willow_notify:
 jellyfin_search:
   url: "http://192.168.0.20:8096/Items?api_key={{user_API_KEY}}&searchTerm={{ search_string }}&Recursive=true&IncludeMedia=true&IncludeItemTypes={{ type }}"
 
+# ─── Jellyfin TV shortcuts ───
+# The calls behind the Jellyfin TV scripts. script.jellyfin_play_random_episode_on_a_tv (the
+# tablet and phone TV-show buttons) finds a series by name and picks one random episode that
+# has a file; the LLM TV script (script.llm_script_to_start_tv_shows_and_movies_on_tvs_duplicate)
+# searches shows and movies by title; script.jellyfin_play_item_on_a_tv reads the movie or
+# episode and asks Jellyfin how to stream it to a Google Cast TV. Auth: the Jellyfin API key
+# "HomeAssistant Search" as a full Authorization header (secrets.yaml jellyfin_authorization);
+# its DeviceId home-assistant-tv-shortcuts is what Jellyfin's dashboard shows on the transcodes.
+jellyfin_find_series:
+  url: >-
+    http://192.168.0.20:8096/Items?IncludeItemTypes=Series&Recursive=true&Limit=20&EnableImages=false&EnableUserData=false&SearchTerm={{ show | urlencode }}
+  method: GET
+  timeout: 15
+  headers:
+    authorization: !secret jellyfin_authorization
+
+jellyfin_random_episode:
+  url: >-
+    http://192.168.0.20:8096/Items?ParentId={{ series_id | urlencode }}&IncludeItemTypes=Episode&Recursive=true&IsMissing=false&SortBy=Random&Limit=1&Fields=MediaSources,PremiereDate&EnableUserData=false
+  method: GET
+  timeout: 15
+  headers:
+    authorization: !secret jellyfin_authorization
+
+# Shows and movies matching a title, best match first (the Meilisearch plugin ranks them; with
+# nothing close it still returns loose matches, so the LLM script checks the names). Path gives
+# the folder name, which matches titles Jellyfin lists under another name: the French How It's
+# Made is called "How It's Made" too, in /data/tvshows/Comment cest fait.
+jellyfin_search_titles:
+  url: >-
+    http://192.168.0.20:8096/Items?IncludeItemTypes=Series,Movie&Recursive=true&Limit=20&EnableImages=false&EnableUserData=false&Fields=Path,ProductionYear&SearchTerm={{ title | urlencode }}
+  method: GET
+  timeout: 15
+  headers:
+    authorization: !secret jellyfin_authorization
+
+# One movie or episode, with its media sources (their audio tracks give the English one).
+jellyfin_item:
+  url: >-
+    http://192.168.0.20:8096/Items?Ids={{ item_id | urlencode }}&Fields=MediaSources,PremiereDate&EnableUserData=false
+  method: GET
+  timeout: 15
+  headers:
+    authorization: !secret jellyfin_authorization
+
+# PlaybackInfo with a device profile that every Google Cast receiver plays: no direct play;
+# HLS with MPEG-TS segments, H.264 (8-bit, level <= 4.1, <= 1080p, SDR) and stereo AAC at up
+# to 12 Mbps. Jellyfin remuxes what already fits and transcodes the rest on the GPU (NVENC).
+# The answer's TranscodingUrl carries the API key, so the script never handles it. Subtitles
+# follow maxi1134's Jellyfin settings (Always, English): sidecar text subtitles come back as
+# a WebVTT DeliveryUrl, embedded ones are burned in. Optional: audio_stream_index, and
+# max_width / max_height / max_bitrate (default 1920 x 1080 at 12 Mbps; the script sends
+# 1280 x 720 at 4 Mbps to the 1st-gen Nest Hub, which refuses any 1080p stream).
+jellyfin_playback_info:
+  url: >-
+    http://192.168.0.20:8096/Items/{{ item_id | urlencode }}/PlaybackInfo?UserId=f3a71871d0e949b38a4be3fe7644501c&MediaSourceId={{ media_source_id | urlencode }}&IsPlayback=true&AutoOpenLiveStream=true{{ '&AudioStreamIndex=' ~ (audio_stream_index | int) if audio_stream_index | default('') | string | length > 0 else '' }}
+  method: POST
+  content_type: application/json
+  timeout: 15
+  headers:
+    authorization: !secret jellyfin_authorization
+  payload: >
+    { "DeviceProfile": { "Name": "Home Assistant Chromecast",
+      "MaxStreamingBitrate": {{ max_bitrate | default(12000000, true) | int }},
+      "MaxStaticBitrate": {{ max_bitrate | default(12000000, true) | int }},
+      "MusicStreamingTranscodingBitrate": 192000,
+      "DirectPlayProfiles": [ ],
+      "TranscodingProfiles": [ { "Container": "ts", "Type": "Video", "VideoCodec": "h264",
+        "AudioCodec": "aac", "Context": "Streaming", "Protocol": "hls",
+        "MaxAudioChannels": "2", "MinSegments": 1, "BreakOnNonKeyFrames": true } ],
+      "ContainerProfiles": [ ],
+      "CodecProfiles": [
+        { "Type": "Video", "Codec": "h264", "Conditions": [
+          { "Condition": "EqualsAny", "Property": "VideoProfile", "Value": "high|main|baseline|constrained baseline" },
+          { "Condition": "LessThanEqual", "Property": "VideoLevel", "Value": "41" },
+          { "Condition": "LessThanEqual", "Property": "VideoBitDepth", "Value": "8" },
+          { "Condition": "EqualsAny", "Property": "VideoRangeType", "Value": "SDR" },
+          { "Condition": "NotEquals", "Property": "IsInterlaced", "Value": "true" },
+          { "Condition": "LessThanEqual", "Property": "Width", "Value": "{{ max_width | default(1920, true) | int }}" },
+          { "Condition": "LessThanEqual", "Property": "Height", "Value": "{{ max_height | default(1080, true) | int }}" } ] },
+        { "Type": "VideoAudio", "Codec": "aac", "Conditions": [
+          { "Condition": "LessThanEqual", "Property": "AudioChannels", "Value": "2" } ] } ],
+      "SubtitleProfiles": [ { "Format": "vtt", "Method": "External" } ] } }
+
 # ─── MusicBrainz Artist Lookup ───
 # Queries the MusicBrainz API to find an artist's foreign ID for Lidarr import
 music_brainz_artist_query:
