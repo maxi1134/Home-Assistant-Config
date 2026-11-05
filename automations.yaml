@@ -9837,9 +9837,10 @@
 - id: '1748703259809'
   alias: Reload Hallway tablet start URL when occupancy of hallway goes to off for
     5  minutes
-  description: Reloads the hallway tablet to its default dashboard URL after 5 minutes
+  description: 'Reloads the hallway tablet to its default dashboard URL after 5 minutes
     of no hallway occupancy, unless Maxi is in the hallway or the tablet is already
-    on the correct page or party mode.
+    on the correct page or party mode. Maxi 2026-11-04: not from the transit trip
+    page either, which goes back by itself after 10 minutes.'
   triggers:
   - alias: Hallway empty for 5 min
     trigger: state
@@ -9859,7 +9860,7 @@
       condition: state
       entity_id: sensor.maxi_location_by_petro_v2
       state: hallway
-  - alias: Tablet not on main or party page
+  - alias: Tablet not on main, party or transit trip page
     condition: not
     conditions:
     - alias: Tablet on the entrance main view
@@ -9872,6 +9873,10 @@
       state:
       - http://192.168.0.15:8095/#/party
       - http://192.168.0.15:8095/#/party?frameless=true
+    - alias: Tablet on the transit trip page (it goes back by itself after 10 minutes)
+      condition: state
+      entity_id: sensor.kiosk_hallway_wall_tablet_current_page
+      state: http://127.0.0.1:2325/tablets-subviews/subview-trip
   actions:
   - alias: Reload the hallway tablet start page
     action: button.press
@@ -22567,7 +22572,10 @@
     while party mode is on or a tablet still shows one. Bus pages are tablets-subviews/subview-buses
     (the top menu''s Bus key) and the subview-bus-<stop> maps. They also feed the
     hallway''s party-mode "buses to the metro" card. The static schedule comes from
-    the trimmed /config/www/gtfs/stm_trimmed.zip (built by /config/gtfs/stm_trim.py).'
+    the trimmed /config/www/gtfs/stm_trimmed.zip (built by /config/gtfs/stm_trim.py).
+    Maxi 2026-11-04: also while a tablet (workshop, hallway, kitchen, salon, bedroom)
+    shows the trip page (tablets-subviews/subview-trip, from script.directions), whose
+    buses from the watched stops show their live arrival.'
   triggers:
   - alias: Party mode turns on
     trigger: state
@@ -22580,21 +22588,24 @@
     - sensor.kiosk_workshop_wall_tablet_current_page
     - sensor.kiosk_hallway_wall_tablet_current_page
     - sensor.kiosk_kitchen_tablet_current_page
+    - sensor.kiosk_salon_tablet_current_page
+    - sensor.kiosk_bedroom_tablet_current_page
     to:
     id: page
   - alias: Every minute
     trigger: time_pattern
     minutes: /1
   conditions:
-  - alias: Party mode is on or a tablet shows a bus page (a page change counts only
-      when it opens one)
+  - alias: Party mode is on or a tablet shows a bus page or the trip page (a page
+      change counts only when it opens one)
     condition: template
-    value_template: "{%- set bus = '/tablets-subviews/subview-bus' -%}\n{%- if trigger.id
-      == 'page' -%}\n  {{ bus in (trigger.to_state.state if trigger.to_state else
-      '') }}\n{%- else -%}\n  {{ is_state('input_boolean.party_mode', 'on')\n     or
-      ['sensor.kiosk_workshop_wall_tablet_current_page', 'sensor.kiosk_hallway_wall_tablet_current_page',\n
-      \        'sensor.kiosk_kitchen_tablet_current_page'] | map('states') | select('search',
-      bus) | list | count > 0 }}\n{%- endif -%}"
+    value_template: "{%- set pages = '/tablets-subviews/subview-(bus|trip)' -%}\n{%-
+      if trigger.id == 'page' -%}\n  {{ (trigger.to_state.state if trigger.to_state
+      else '') is search(pages) }}\n{%- else -%}\n  {{ is_state('input_boolean.party_mode',
+      'on')\n     or ['sensor.kiosk_workshop_wall_tablet_current_page', 'sensor.kiosk_hallway_wall_tablet_current_page',\n
+      \        'sensor.kiosk_kitchen_tablet_current_page', 'sensor.kiosk_salon_tablet_current_page',\n
+      \        'sensor.kiosk_bedroom_tablet_current_page'] | map('states') | select('search',
+      pages) | list | count > 0 }}\n{%- endif -%}"
   actions:
   - alias: Refresh the STM feed (one sensor refreshes the whole entry)
     action: homeassistant.update_entity
@@ -22740,3 +22751,129 @@
     normal_max_volume: 100
     speakers: '{% from ''party_volume.jinja'' import party_speakers %}{{ (party_speakers()
       | from_json).values() | list }}'
+- id: '1793831581992'
+  alias: Remind me when it is time to leave for the planned transit trip
+  description: 'Maxi 2026-11-04: a trip (by public transit, car or on foot) planned
+    ahead by voice (script.directions with "if I leave in 20 minutes", "leaving at
+    5:30" or "to be there by 9") sets sensor.transit_trip_reminder to 5 minutes before
+    leaving home. Then the voice device that was asked announces it (the phone gets
+    a notification when it was asked from the phone; the hallway tablet speaks when
+    neither is known) and the hallway tablet shows the trip page again, with live
+    times for buses from the watched STM stops. script.transit_trip_cancel_reminder
+    cancels it. See packages/transit_trip.yaml.'
+  triggers:
+  - alias: Five minutes before leaving home
+    trigger: time
+    at: sensor.transit_trip_reminder
+  actions:
+  - alias: Fresh STM arrivals for the live bus time
+    action: homeassistant.update_entity
+    target:
+      entity_id: sensor.stm_52457_arrival_1
+    continue_on_error: true
+  - alias: Who to tell, and what
+    variables:
+      phone: '{{ state_attr(''sensor.transit_trip'', ''phone'') }}'
+      announce_on: '{{ state_attr(''sensor.transit_trip'', ''asked_from'') or (none
+        if state_attr(''sensor.transit_trip'', ''phone'') else ''assist_satellite.kiosk_hallway_wall_tablet_assist_satellite'')
+        }}'
+      message: '{%- from ''transit_trip.jinja'' import hm, stm_live, spoken_minutes
+        -%}{%- set mode = state_attr(''sensor.transit_trip'', ''mode'') or ''transit''
+        -%}{%- set legs = state_attr(''sensor.transit_trip'', ''legs'') or [] -%}{%-
+        set rides = legs | selectattr(''mode'', ''eq'', ''transit'') | list -%}{%-
+        set r = rides[0] if rides else none -%}{%- set live = stm_live(r.stm_stop,
+        r.line, r.depart) if r and r.stm_stop else '''' -%}{%- set walk0 = legs[0].minutes
+        if legs and legs[0].mode == ''walk'' else 0 -%}{%- set leave = (as_datetime(live)
+        - timedelta(minutes=walk0)).isoformat() if live else states(''sensor.transit_trip'')
+        -%}Time to get ready for {{ state_attr(''sensor.transit_trip'', ''destination'')
+        }}: leave by {{ hm(leave) }}{{ ('', the '' ~ r.line ~ ('' comes at '' ~ hm(live)
+        ~ '', live'' if live else '' leaves '' ~ r[''from''] ~ '' at '' ~ hm(r.depart)))
+        if r else (('', '' ~ spoken_minutes(state_attr(''sensor.transit_trip'', ''minutes''))
+        ~ ('' by car'' if mode == ''car'' else '' on foot'')) if mode in [''car'',
+        ''walk''] else '''') }}.'
+  - alias: The reminder is used up (sensor.transit_trip_reminder goes unknown)
+    event: transit_trip_reminder_done
+    event_data:
+      reason: reminded
+  - alias: Tell the voice device that was asked (or the phone), and show the trip
+      on the hallway tablet
+    parallel:
+    - if:
+      - condition: template
+        value_template: '{{ announce_on is not none }}'
+      then:
+      - action: assist_satellite.announce
+        target:
+          entity_id: '{{ announce_on }}'
+        data:
+          message: '{{ message }}'
+        continue_on_error: true
+    - if:
+      - condition: template
+        value_template: '{{ phone is not none }}'
+      then:
+      - action: '{{ phone }}'
+        data:
+          title: Time to leave
+          message: '{{ message }}'
+          data:
+            tag: transit_trip
+            clickAction: '{{ state_attr(''sensor.transit_trip'', ''maps_url'') }}'
+        continue_on_error: true
+    - sequence:
+      - action: light.turn_on
+        target:
+          entity_id: light.kiosk_hallway_wall_tablet_screen
+        continue_on_error: true
+      - action: select.select_option
+        target:
+          entity_id: select.kiosk_hallway_wall_tablet_dashboard_view
+        data:
+          option: tablets-subviews/subview-trip
+        continue_on_error: true
+  mode: single
+- id: '1793831590436'
+  alias: Return the wall tablets from the trip page
+  description: 'Maxi 2026-11-04: the trip page (tablets-subviews/subview-trip, opened
+    by script.directions and by the trip reminder; by public transit, car or on foot)
+    stays 10 minutes, counted from when the tablet opened it or from the last trip
+    planned while it was open; then the tablet goes back to its dashboard. The bus
+    pages'' 2-minutes-untouched rule does not apply to it. Trigger ids are the tablets''
+    Kiosk names.'
+  triggers:
+  - alias: Hallway tablet on the trip page for 10 minutes
+    trigger: template
+    value_template: '{{ ''/tablets-subviews/subview-trip'' in states(''sensor.kiosk_hallway_wall_tablet_current_page'')
+      and now() - ([states.sensor.kiosk_hallway_wall_tablet_current_page.last_changed,
+      states.sensor.transit_trip.last_updated] | max) >= timedelta(minutes=10) }}'
+    id: hallway_wall_tablet
+  - alias: Kitchen tablet on the trip page for 10 minutes
+    trigger: template
+    value_template: '{{ ''/tablets-subviews/subview-trip'' in states(''sensor.kiosk_kitchen_tablet_current_page'')
+      and now() - ([states.sensor.kiosk_kitchen_tablet_current_page.last_changed,
+      states.sensor.transit_trip.last_updated] | max) >= timedelta(minutes=10) }}'
+    id: kitchen_tablet
+  - alias: Workshop tablet on the trip page for 10 minutes
+    trigger: template
+    value_template: '{{ ''/tablets-subviews/subview-trip'' in states(''sensor.kiosk_workshop_wall_tablet_current_page'')
+      and now() - ([states.sensor.kiosk_workshop_wall_tablet_current_page.last_changed,
+      states.sensor.transit_trip.last_updated] | max) >= timedelta(minutes=10) }}'
+    id: workshop_wall_tablet
+  - alias: Salon tablet on the trip page for 10 minutes
+    trigger: template
+    value_template: '{{ ''/tablets-subviews/subview-trip'' in states(''sensor.kiosk_salon_tablet_current_page'')
+      and now() - ([states.sensor.kiosk_salon_tablet_current_page.last_changed, states.sensor.transit_trip.last_updated]
+      | max) >= timedelta(minutes=10) }}'
+    id: salon_tablet
+  - alias: Bedroom tablet on the trip page for 10 minutes
+    trigger: template
+    value_template: '{{ ''/tablets-subviews/subview-trip'' in states(''sensor.kiosk_bedroom_tablet_current_page'')
+      and now() - ([states.sensor.kiosk_bedroom_tablet_current_page.last_changed,
+      states.sensor.transit_trip.last_updated] | max) >= timedelta(minutes=10) }}'
+    id: bedroom_tablet
+  actions:
+  - alias: Back to the tablet's dashboard
+    action: button.press
+    target:
+      entity_id: button.kiosk_{{ trigger.id }}_go_to_dashboard
+  mode: parallel
