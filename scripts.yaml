@@ -7026,3 +7026,532 @@ jellyfin_play_item_on_a_tv:
   - alias: Done
     stop: Cast
     response_variable: result
+transit_trip:
+  alias: Directions by public transit, by car or on foot (how to get somewhere, driving
+    or walking there)
+  description: 'Directions and itineraries from home by public transit, by car or
+    on foot, shown on the wall tablets. Use this tool, not get_route, for ANY question
+    about how to get somewhere, a route, directions, an itinerary, how long it takes
+    to get there, which bus or metro to take, driving there or walking there. travel_mode
+    is car when the user says by car, drive, driving or en voiture, walk when they
+    say on foot, walk, walking or à pied, else transit (by public transit it finds
+    the route that walks least and takes the metro before the bus: bus, metro, REM,
+    exo train). Returns speech: say exactly that, in the language of the user. Pass
+    the time the user gives, if any: leave in N minutes, leave at a time, or arrive
+    by a time. Maxi 2026-11-04: see packages/transit_trip.yaml.'
+  icon: mdi:transit-connection-variant
+  mode: queued
+  max: 3
+  fields:
+    destination:
+      name: Destination
+      description: 'Where to go, as the user said it: a place, a business, an address,
+        or a zone name such as Gatien or Richard.'
+      required: true
+      selector:
+        text: {}
+    travel_mode:
+      name: Travel mode
+      description: 'How the user travels: car when they say by car, drive, driving
+        or en voiture; walk when they say on foot, walk, walking or à pied; otherwise
+        transit (public transit).'
+      default: transit
+      selector:
+        select:
+          options:
+          - transit
+          - car
+          - walk
+    leave_in_minutes:
+      name: Leave in
+      description: 'Only when the user leaves later, in minutes: "if I leave in 20
+        minutes" gives 20.'
+      selector:
+        number:
+          min: 0
+          max: 720
+          unit_of_measurement: min
+          mode: box
+    leave_at:
+      name: Leave at
+      description: 'Only when the user gives a departure clock time, 24-hour HH:MM:
+        "leaving at 5:30 pm" gives 17:30.'
+      selector:
+        time: {}
+    arrive_at:
+      name: Arrive by
+      description: 'Only when the user gives an arrival time, 24-hour HH:MM: "to be
+        there by 9" gives 09:00.'
+      selector:
+        time: {}
+  sequence:
+  - alias: Who asked (the voice device that is processing, else the signed-in user's
+      phone) and the tablets that show the trip
+    variables:
+      tablet_by_area:
+        hallway: kiosk_hallway_wall_tablet
+        kitchen: kiosk_kitchen_tablet
+        workshop: kiosk_workshop_wall_tablet
+        salon: kiosk_salon_tablet
+        bedroom: kiosk_bedroom_tablet
+      phone_by_person:
+        person.maximiliano: notify.mobile_app_phone_maxi
+      user_id: '{{ context.user_id if context is defined and context else none }}'
+      satellite: '{{ states.assist_satellite | selectattr(''state'', ''eq'', ''processing'')
+        | sort(attribute=''last_changed'', reverse=true) | map(attribute=''entity_id'')
+        | first | default(none) }}'
+      person: '{{ (states.person | selectattr(''attributes.user_id'', ''defined'')
+        | selectattr(''attributes.user_id'', ''eq'', user_id) | map(attribute=''entity_id'')
+        | first | default(none)) if satellite is none and user_id else none }}'
+      phone: '{{ phone_by_person.get(person) if person else none }}'
+      asked_area: '{{ area_id(satellite) if satellite else none }}'
+      tablets: '{%- set ns = namespace(t=[]) -%}{%- for a in [''hallway'', asked_area]
+        if a in tablet_by_area and tablet_by_area[a] not in ns.t -%}{%- set ns.t =
+        ns.t + [tablet_by_area[a]] -%}{%- endfor -%}{{ ns.t }}'
+      mode: '{{ travel_mode if travel_mode is defined and travel_mode in [''car'',
+        ''walk''] else ''transit'' }}'
+  - alias: The destination as a zone, by its name (Gatien, Richard...); home and the
+      big passive zones are left out
+    variables:
+      wanted: '{%- set q = destination | lower | trim -%}{%- set q = q | regex_replace(''^(the|my|chez|le|la|les|to|at)
+        +'', '''') | regex_replace("^l[''’] *", '''') -%}{%- set q = q | regex_replace("[''’]s(
+        +(house|place|home|apartment|condo))?$", '''') -%}{{ q | regex_replace("^(house|place|home|maison)
+        +(of|de|d[''’]) *", '''') | trim }}'
+      zone: '{%- set ns = namespace(z=none) -%}{%- for z in states.zone if z.entity_id
+        != ''zone.home'' and not z.attributes.get(''passive'', false) -%}{%- if ns.z
+        is none and (z.name | lower | trim) == (wanted | string) -%}{%- set ns.z =
+        z.entity_id -%}{%- endif -%}{%- endfor -%}{{ ns.z }}'
+      place:
+      places_status:
+  - alias: Otherwise Google Places, near home
+    if:
+    - condition: template
+      value_template: '{{ zone is none }}'
+    then:
+    - action: rest_command.transit_trip_find_place
+      data:
+        query: '{{ destination }}'
+      response_variable: found
+      continue_on_error: true
+    - variables:
+        places_status: '{{ found.status if found is defined else ''no response'' }}'
+        place: '{{ (found.content.places | default([]) | first | default(none)) if
+          found is defined and found.status == 200 and found.content is mapping else
+          none }}'
+  - alias: Where the destination is
+    variables:
+      dest_name: '{{ state_attr(zone, ''friendly_name'') if zone else (place.displayName.text
+        if place and place.displayName is defined else none) }}'
+      dest_address: '{{ place.formattedAddress | default('''') if place else ''''
+        }}'
+      dest_lat: '{{ state_attr(zone, ''latitude'') if zone else (place.location.latitude
+        if place and place.location is defined else none) }}'
+      dest_lon: '{{ state_attr(zone, ''longitude'') if zone else (place.location.longitude
+        if place and place.location is defined else none) }}'
+  - alias: Nothing by that name
+    if:
+    - condition: template
+      value_template: '{{ dest_name is none or dest_lat is none }}'
+    then:
+    - variables:
+        result:
+          status: not_found
+          places_status: '{{ places_status }}'
+          speech: '{{ ''I could not search Google for places right now.'' if places_status
+            not in [none, 200] else ''I could not find '' ~ destination ~ ''.'' }}'
+    - stop: Destination not found
+      response_variable: result
+  - alias: 'When: leave now, in N minutes, at a time, or arrive by a time (the next
+      such time, so tomorrow once it has passed today)'
+    variables:
+      t_arrive: '{%- if arrive_at is defined and arrive_at and arrive_at is match(''[0-9]{1,2}:[0-9]{2}'')
+        -%}{%- set t = today_at(arrive_at) -%}{{ (t if t > now() else t + timedelta(days=1)).isoformat()
+        }}{%- else -%}{{ none }}{%- endif -%}'
+      t_leave: '{%- if t_arrive -%}{{ none }}{%- elif leave_at is defined and leave_at
+        and leave_at is match(''[0-9]{1,2}:[0-9]{2}'') -%}{%- set t = today_at(leave_at)
+        -%}{{ (t if t > now() else t + timedelta(days=1)).isoformat() }}{%- elif leave_in_minutes
+        is defined and leave_in_minutes | float(0) > 0 -%}{{ (now() + timedelta(minutes=leave_in_minutes
+        | float(0))).isoformat() }}{%- else -%}{{ none }}{%- endif -%}'
+      request: '{%- from ''transit_trip.jinja'' import hm -%}{{ ''arrive by '' ~ hm(t_arrive)
+        if t_arrive else (''leave at '' ~ hm(t_leave) if t_leave else ''leave now'')
+        }}'
+      body: '{%- set b = {''origin'': {''location'': {''latLng'': {''latitude'': state_attr(''zone.home'',
+        ''latitude''), ''longitude'': state_attr(''zone.home'', ''longitude'')}}},
+        ''destination'': ({''placeId'': place.id} if place else {''location'': {''latLng'':
+        {''latitude'': dest_lat, ''longitude'': dest_lon}}}), ''travelMode'': ''TRANSIT'',
+        ''computeAlternativeRoutes'': true, ''transitPreferences'': {''routingPreference'':
+        ''LESS_WALKING''}, ''languageCode'': ''en'', ''units'': ''METRIC''} -%}{%-
+        if t_arrive -%}{%- set b = dict(b, arrivalTime=(as_datetime(t_arrive) | as_timestamp
+        | timestamp_custom(''%Y-%m-%dT%H:%M:%SZ'', false))) -%}{%- elif t_leave -%}{%-
+        set b = dict(b, departureTime=(as_datetime(t_leave) | as_timestamp | timestamp_custom(''%Y-%m-%dT%H:%M:%SZ'',
+        false))) -%}{%- endif -%}{{ b }}'
+  - alias: 'The trip, worked out below: by car or on foot, else by public transit'
+    variables:
+      legs: []
+      lines: []
+      leave_by:
+      arrive:
+      minutes:
+      distance_m:
+      via: ''
+      remind_at:
+      maps_url: ''
+      speech: ''
+  - alias: 'By car or on foot: one Google route, turn by turn; else by public transit'
+    if:
+    - condition: template
+      value_template: '{{ mode in [''car'', ''walk''] }}'
+    then:
+    - alias: 'The request: by car with traffic (now, at the time given, or half an
+        hour before an arrival time), or on foot. A car route within 30 km gets the
+        detailed line; a walk gets the simplified one (the map draws a dotted line
+        solid where its points are as dense as in the detailed one), and so does a
+        long way (its detailed line is more than sensor.transit_trip can record)'
+      variables:
+        body_road: '{%- set b = {''origin'': {''location'': {''latLng'': {''latitude'':
+          state_attr(''zone.home'', ''latitude''), ''longitude'': state_attr(''zone.home'',
+          ''longitude'')}}}, ''destination'': ({''placeId'': place.id} if place else
+          {''location'': {''latLng'': {''latitude'': dest_lat, ''longitude'': dest_lon}}}),
+          ''travelMode'': ''DRIVE'' if mode == ''car'' else ''WALK'', ''polylineQuality'':
+          ''HIGH_QUALITY'' if mode == ''car'' and distance(dest_lat, dest_lon) | float(0)
+          < 30 else ''OVERVIEW'', ''languageCode'': ''en'', ''units'': ''METRIC''}
+          -%}{%- if mode == ''car'' -%}{%- set b = dict(b, routingPreference=''TRAFFIC_AWARE'')
+          -%}{%- set dep = as_datetime(t_leave) if t_leave else ((as_datetime(t_arrive)
+          - timedelta(minutes=30)) if t_arrive else none) -%}{%- if dep and dep >
+          now() + timedelta(minutes=1) -%}{%- set b = dict(b, departureTime=(dep |
+          as_timestamp | timestamp_custom(''%Y-%m-%dT%H:%M:%SZ'', false))) -%}{%-
+          endif -%}{%- endif -%}{{ b }}'
+    - alias: Google route by car or on foot
+      action: rest_command.transit_trip_compute_car_walk_route
+      data:
+        body: '{{ body_road }}'
+      response_variable: road
+      continue_on_error: true
+    - alias: The route
+      variables:
+        road_status: '{{ road.status if road is defined else ''no response'' }}'
+        route: '{{ (road.content.routes | default([]) | first | default(none)) if
+          road is defined and road.status == 200 and road.content is mapping else
+          none }}'
+    - alias: No route by car or on foot
+      if:
+      - condition: template
+        value_template: '{{ route is none or route.duration is not defined }}'
+      then:
+      - variables:
+          result:
+            status: '{{ ''no_route'' if road_status == 200 else ''error'' }}'
+            routes_status: '{{ road_status }}'
+            speech: '{{ (''Google found no '' ~ (''driving'' if mode == ''car'' else
+              ''walking'') ~ '' route to '' ~ dest_name ~ ''.'') if road_status ==
+              200 else ''I could not reach Google directions right now.'' }}'
+      - stop: No route
+        response_variable: result
+    - alias: 'The trip turn by turn, its line on the map, when to leave and arrive
+        (by an arrival time: its duration before it, or now when that has passed),
+        and what to say'
+      variables:
+        seconds: '{{ route.duration | replace(''s'', '''') | int(0) }}'
+        distance_m: '{{ route.distanceMeters | default(0) | int(0) }}'
+        via: '{{ route.description | default('''') }}'
+        legs: '{%- set icons = {''DEPART'': ''mdi:arrow-up'', ''STRAIGHT'': ''mdi:arrow-up'',
+          ''NAME_CHANGE'': ''mdi:arrow-up'', ''TURN_LEFT'': ''mdi:arrow-left-top'',
+          ''TURN_RIGHT'': ''mdi:arrow-right-top'', ''TURN_SLIGHT_LEFT'': ''mdi:arrow-top-left'',
+          ''TURN_SLIGHT_RIGHT'': ''mdi:arrow-top-right'', ''TURN_SHARP_LEFT'': ''mdi:arrow-bottom-left'',
+          ''TURN_SHARP_RIGHT'': ''mdi:arrow-bottom-right'', ''UTURN_LEFT'': ''mdi:arrow-u-left-top'',
+          ''UTURN_RIGHT'': ''mdi:arrow-u-right-top'', ''RAMP_LEFT'': ''mdi:arrow-top-left'',
+          ''RAMP_RIGHT'': ''mdi:arrow-top-right'', ''FORK_LEFT'': ''mdi:call-split'',
+          ''FORK_RIGHT'': ''mdi:call-split'', ''MERGE'': ''mdi:call-merge'', ''ROUNDABOUT_LEFT'':
+          ''mdi:rotate-left'', ''ROUNDABOUT_RIGHT'': ''mdi:rotate-right'', ''FERRY'':
+          ''mdi:ferry'', ''FERRY_TRAIN'': ''mdi:ferry''} -%}{%- set ns = namespace(l=[])
+          -%}{%- for s in ((route.get(''legs'') or [{}])[0]).get(''steps'', []) -%}{%-
+          set n = s.get(''navigationInstruction'', {}) -%}{%- set parts = (n.get(''instructions'')
+          or '''').splitlines() -%}{%- set ns.l = ns.l + [{''mode'': ''step'', ''icon'':
+          icons.get(n.get(''maneuver''), ''mdi:arrow-up''), ''text'': parts[0] if
+          parts else ((n.get(''maneuver'') or ''continue'') | replace(''_'', '' '')
+          | capitalize), ''note'': parts[1:] | select(''match'', ''Destination'')
+          | join('' ''), ''meters'': s.get(''distanceMeters'', 0) | int(0)}] -%}{%-
+          endfor -%}{{ ns.l }}'
+        lines: '{%- set p = route.get(''polyline'', {}).get(''encodedPolyline'', '''')
+          -%}{{ ([{''encoded'': p, ''color'': ''var(--primary-color)'', ''width'':
+          7}] if mode == ''car'' else [{''encoded'': p, ''color'': ''var(--primary-color)'',
+          ''width'': 5, ''dash'': [0, 2]}]) if p else [] }}'
+        leave_by: '{%- if t_arrive -%}{{ ([as_datetime(t_arrive) - timedelta(seconds=seconds),
+          now()] | max).isoformat() }}{%- elif t_leave -%}{{ t_leave }}{%- else -%}{{
+          now().isoformat() }}{%- endif -%}'
+        arrive: '{{ (as_datetime(leave_by) + timedelta(seconds=seconds)).isoformat()
+          }}'
+        minutes: '{{ (seconds / 60) | round(0) | int }}'
+        remind_at: '{%- set r = as_datetime(leave_by) - timedelta(minutes=5) -%}{{
+          r.isoformat() if (t_leave or t_arrive) and r > now() + timedelta(minutes=1)
+          else none }}'
+        maps_url: https://www.google.com/maps/dir/?api=1&destination={{ ((dest_lat
+          ~ ',' ~ dest_lon) if zone else dest_name) | urlencode }}{{ ('&destination_place_id='
+          ~ place.id) if place else '' }}&travelmode={{ 'driving' if mode == 'car'
+          else 'walking' }}
+        speech: '{%- from ''transit_trip.jinja'' import hm, spoken_minutes, short_distance
+          -%}{%- set late = t_arrive and as_datetime(arrive) > as_datetime(t_arrive)
+          + timedelta(minutes=1) -%}{{ dest_name }} {{ ''by car'' if mode == ''car''
+          else ''on foot'' }}: {{ spoken_minutes(minutes) }}{{ '' with traffic'' if
+          mode == ''car'' else '''' }}, {{ short_distance(distance_m) }}.{%- if late
+          %} Leave now: you will be there at {{ hm(arrive) }}, after {{ hm(t_arrive)
+          }}.{%- elif t_arrive or t_leave %} Leave by {{ hm(leave_by) }}, arriving
+          at {{ hm(arrive) }}.{%- else %} Leave now and you will be there at {{ hm(arrive)
+          }}.{%- endif -%}{{ ('' I will remind you at '' ~ hm(remind_at) ~ ''.'')
+          if remind_at else '''' }}'
+    else:
+    - alias: Fresh STM arrivals for the live bus times (one sensor refreshes the whole
+        GTFS Realtime entry)
+      action: homeassistant.update_entity
+      target:
+        entity_id: sensor.stm_52457_arrival_1
+      continue_on_error: true
+    - alias: 'How routes are weighed (Maxi 2026-11-04: walking last, then the bus,
+        the metro first). A route costs its minutes door to door, with each walking
+        minute counting weight_walk minutes, each bus minute weight_bus, each metro
+        or train minute weight_rail, plus transfer_minutes per transfer. The second
+        request asks Google for metro and train routes, so they are among the candidates.'
+      variables:
+        weight_walk: 3
+        weight_bus: 1.5
+        weight_rail: 1
+        transfer_minutes: 3
+        body_rail: '{{ dict(body, transitPreferences={''routingPreference'': ''LESS_WALKING'',
+          ''allowedTravelModes'': [''SUBWAY'', ''TRAIN'', ''LIGHT_RAIL'', ''RAIL'']})
+          }}'
+    - alias: 'Google transit routes from home: less walking, with alternatives'
+      action: rest_command.transit_trip_compute_routes
+      data:
+        body: '{{ body }}'
+      response_variable: routed
+      continue_on_error: true
+    - alias: Google transit routes from home again, metro and train first
+      action: rest_command.transit_trip_compute_routes
+      data:
+        body: '{{ body_rail }}'
+      response_variable: routed_rail
+      continue_on_error: true
+    - alias: 'Keep the route that costs least: minutes door to door, walking and bus
+        minutes weighed up, and transfers'
+      variables:
+        routes_status: '{{ 200 if (routed is defined and routed.status == 200) or
+          (routed_rail is defined and routed_rail.status == 200) else (routed.status
+          if routed is defined else ''no response'') }}'
+        routes: '{{ ((routed.content.routes | default([])) if routed is defined and
+          routed.status == 200 and routed.content is mapping else []) + ((routed_rail.content.routes
+          | default([])) if routed_rail is defined and routed_rail.status == 200 and
+          routed_rail.content is mapping else []) }}'
+        steps: '{%- set rail = [''SUBWAY'', ''METRO_RAIL'', ''TRAIN'', ''RAIL'', ''HEAVY_RAIL'',
+          ''COMMUTER_TRAIN'', ''HIGH_SPEED_TRAIN'', ''LONG_DISTANCE_TRAIN'', ''LIGHT_RAIL'',
+          ''MONORAIL'', ''TRAM''] -%}{%- set ns = namespace(i=none, cost=none) -%}{%-
+          for r in routes -%}{%- set st = ((r.get(''legs'') or [{}])[0]).get(''steps'',
+          []) -%}{%- set m = namespace(walk=0, bus=0, rail=0, rides=0) -%}{%- for
+          s in st -%}{%- set sec = s.get(''staticDuration'', ''0s'') | replace(''s'',
+          '''') | int(0) -%}{%- if s.travelMode == ''TRANSIT'' -%}{%- set m.rides
+          = m.rides + 1 -%}{%- if s.get(''transitDetails'', {}).get(''transitLine'',
+          {}).get(''vehicle'', {}).get(''type'') in rail -%}{%- set m.rail = m.rail
+          + sec -%}{%- else -%}{%- set m.bus = m.bus + sec -%}{%- endif -%}{%- else
+          -%}{%- set m.walk = m.walk + sec -%}{%- endif -%}{%- endfor -%}{%- set cost
+          = (r.get(''duration'', ''0s'') | replace(''s'', '''') | int(0) + (weight_walk
+          - 1) * m.walk + (weight_bus - 1) * m.bus + (weight_rail - 1) * m.rail) /
+          60 + transfer_minutes * ([m.rides - 1, 0] | max) -%}{%- if st and (ns.cost
+          is none or cost < ns.cost) -%}{%- set ns.i = loop.index0 -%}{%- set ns.cost
+          = cost -%}{%- endif -%}{%- endfor -%}{{ ((routes[ns.i].get(''legs'') or
+          [{}])[0]).get(''steps'', []) if ns.i is not none else [] }}'
+    - alias: No route
+      if:
+      - condition: template
+        value_template: '{{ not steps }}'
+      then:
+      - variables:
+          result:
+            status: '{{ ''no_route'' if routes_status == 200 else ''error'' }}'
+            routes_status: '{{ routes_status }}'
+            speech: '{{ ''Google found no transit route to '' ~ dest_name ~ '' at
+              that time.'' if routes_status == 200 else ''I could not reach Google
+              transit directions right now.'' }}'
+      - stop: No route
+        response_variable: result
+    - alias: The trip leg by leg (walks merged), with live STM times for buses leaving
+        from the watched stops
+      variables:
+        legs: '{%- from ''transit_trip.jinja'' import stm_stop_near, stm_live -%}{%-
+          set ns = namespace(legs=[], ws=0, wm=0) -%}{%- for s in steps -%}{%- if
+          s.travelMode == ''TRANSIT'' and s.transitDetails is defined -%}{%- if ns.ws
+          -%}{%- set ns.legs = ns.legs + [{''mode'': ''walk'', ''minutes'': (ns.ws
+          / 60) | round(0, ''ceil'') | int, ''meters'': ns.wm}] -%}{%- set ns.ws =
+          0 -%}{%- set ns.wm = 0 -%}{%- endif -%}{%- set t = s.transitDetails -%}{%-
+          set ln = t.get(''transitLine'', {}) -%}{%- set sd = t.get(''stopDetails'',
+          {}) -%}{%- set dep = sd.get(''departureStop'', {}) -%}{%- set ll = dep.get(''location'',
+          {}).get(''latLng'', {}) -%}{%- set vehicle = ln.get(''vehicle'', {}).get(''type'',
+          ''BUS'') -%}{%- set line = ln.get(''nameShort'') or ln.get(''name'') or
+          ''?'' -%}{%- set code = stm_stop_near(ll.latitude, ll.longitude) if vehicle
+          == ''BUS'' and ll.latitude is defined else '''' -%}{%- set color = ln.get(''color'')
+          or ''#009EE0'' -%}{%- set ns.legs = ns.legs + [{''mode'': ''transit'', ''line'':
+          line | string, ''name'': ln.get(''name'', ''''), ''vehicle'': vehicle, ''color'':
+          color if color.startswith(''#'') else ''#'' ~ color, ''text_color'': ln.get(''textColor'')
+          or ''#FFFFFF'', ''agency'': (ln.get(''agencies'') or [{}])[0].get(''name'',
+          ''''), ''headsign'': t.get(''headsign'', ''''), ''from'': dep.get(''name'',
+          ''''), ''depart'': sd.get(''departureTime''), ''to'': sd.get(''arrivalStop'',
+          {}).get(''name'', ''''), ''arrive'': sd.get(''arrivalTime''), ''stops'':
+          t.get(''stopCount'', 0), ''stm_stop'': code | string, ''live'': stm_live(code,
+          line, sd.get(''departureTime'')) if code else ''''}] -%}{%- else -%}{%-
+          set ns.ws = ns.ws + (s.get(''staticDuration'', ''0s'') | replace(''s'',
+          '''') | int(0)) -%}{%- set ns.wm = ns.wm + (s.get(''distanceMeters'', 0)
+          | int(0)) -%}{%- endif -%}{%- endfor -%}{%- if ns.ws -%}{%- set ns.legs
+          = ns.legs + [{''mode'': ''walk'', ''minutes'': (ns.ws / 60) | round(0, ''ceil'')
+          | int, ''meters'': ns.wm}] -%}{%- endif -%}{{ ns.legs }}'
+        lines: '{%- set ns = namespace(l=[]) -%}{%- for s in steps if s.get(''polyline'',
+          {}).get(''encodedPolyline'') -%}{%- if s.travelMode == ''TRANSIT'' -%}{%-
+          set c = s.get(''transitDetails'', {}).get(''transitLine'', {}).get(''color'')
+          or ''#009EE0'' -%}{%- set ns.l = ns.l + [{''encoded'': s.polyline.encodedPolyline,
+          ''color'': c if c.startswith(''#'') else ''#'' ~ c, ''width'': 7}] -%}{%-
+          else -%}{%- set ns.l = ns.l + [{''encoded'': s.polyline.encodedPolyline,
+          ''color'': ''var(--primary-color)'', ''width'': 5, ''dash'': [0, 2]}] -%}{%-
+          endif -%}{%- endfor -%}{{ ns.l }}'
+        rides: '{{ legs | selectattr(''mode'', ''eq'', ''transit'') | list }}'
+        walk_first: '{{ legs[0].minutes if legs and legs[0].mode == ''walk'' else
+          0 }}'
+        walk_last: '{{ legs[-1].minutes if legs | count > 1 and legs[-1].mode == ''walk''
+          else 0 }}'
+        leave_by: '{%- if rides -%}{{ (as_datetime(rides[0].live or rides[0].depart)
+          - timedelta(minutes=walk_first)).isoformat() }}{%- elif t_arrive -%}{{ (as_datetime(t_arrive)
+          - timedelta(minutes=walk_first)).isoformat() }}{%- else -%}{{ (as_datetime(t_leave)
+          if t_leave else now()).isoformat() }}{%- endif -%}'
+        arrive: '{{ (as_datetime(rides[-1].arrive) + timedelta(minutes=walk_last)).isoformat()
+          if rides else (as_datetime(leave_by) + timedelta(minutes=walk_first)).isoformat()
+          }}'
+        minutes: '{{ ((as_datetime(arrive) - as_datetime(leave_by)).total_seconds()
+          / 60) | round(0) | int }}'
+        remind_at: '{%- set r = as_datetime(leave_by) - timedelta(minutes=5) -%}{{
+          r.isoformat() if (t_leave or t_arrive) and r > now() + timedelta(minutes=1)
+          else none }}'
+        maps_url: https://www.google.com/maps/dir/?api=1&destination={{ ((dest_lat
+          ~ ',' ~ dest_lon) if zone else dest_name) | urlencode }}{{ ('&destination_place_id='
+          ~ place.id) if place else '' }}&travelmode=transit
+        speech: '{%- from ''transit_trip.jinja'' import hm -%}{%- set ns = namespace(parts=[])
+          -%}{%- for r in rides -%}{%- set nm = (r.name or r.line) | string -%}{%-
+          set k = nm[6:] if nm.startswith(''Ligne '') else nm -%}{%- set c = {''Verte'':
+          ''Green'', ''Orange'': ''Orange'', ''Jaune'': ''Yellow'', ''Bleue'': ''Blue''}.get(k,
+          k if nm.startswith(''Ligne '') else '''') -%}{%- set what = (''the '' ~
+          r.line) if r.vehicle == ''BUS'' else ((''the '' ~ c ~ '' line'') if c else
+          (''the '' ~ nm ~ ('' line'' if r.vehicle in [''SUBWAY'', ''METRO_RAIL'']
+          and ''line'' not in (nm | lower) else ''''))) -%}{%- set ns.parts = ns.parts
+          + [(what ~ '' at '' ~ hm(r.live or r.depart) ~ ('' (live)'' if r.live else
+          '''')) if loop.first else (''then '' ~ what)] -%}{%- endfor -%}{%- if rides
+          -%}{{ dest_name }}: leave by {{ hm(leave_by) }}, {{ ns.parts | join('',
+          '') }}, arriving at {{ hm(arrive) }}.{%- else -%}{{ dest_name }} is a {{
+          walk_first }}-minute walk: leave by {{ hm(leave_by) }}.{%- endif -%}{{ (''
+          I will remind you at '' ~ hm(remind_at) ~ ''.'') if remind_at else ''''
+          }}'
+  - alias: Keep the trip (sensor.transit_trip, and sensor.transit_trip_reminder for
+      a trip planned ahead)
+    event: transit_trip_planned
+    event_data:
+      destination: '{{ dest_name }}'
+      address: '{{ dest_address }}'
+      latitude: '{{ dest_lat }}'
+      longitude: '{{ dest_lon }}'
+      request: '{{ request }}'
+      mode: '{{ mode }}'
+      distance: '{{ distance_m }}'
+      via: '{{ via }}'
+      leave_by: '{{ leave_by }}'
+      arrive: '{{ arrive }}'
+      minutes: '{{ minutes }}'
+      legs: '{{ legs }}'
+      lines: '{{ lines }}'
+      summary: '{{ speech }}'
+      maps_url: '{{ maps_url }}'
+      asked_from: '{{ satellite }}'
+      phone: '{{ phone }}'
+      remind_at: '{{ remind_at }}'
+      planned_at: '{{ now().isoformat() }}'
+  - alias: 'Show it on the hallway tablet and on the tablet of the room that asked:
+      screen on, trip page. A tablet already on the trip page (one of these or another)
+      reloads it instead, as its map keeps the previous trip''s route when the trip
+      changes under it'
+    repeat:
+      for_each: '{{ (tablets + (tablet_by_area.values() | list)) | unique | list }}'
+      sequence:
+      - variables:
+          on_trip_page: '{{ ''/tablets-subviews/subview-trip'' in states(''sensor.''
+            ~ repeat.item ~ ''_current_page'') }}'
+      - if:
+        - condition: template
+          value_template: '{{ repeat.item in tablets }}'
+        then:
+        - action: light.turn_on
+          target:
+            entity_id: light.{{ repeat.item }}_screen
+          continue_on_error: true
+      - choose:
+        - conditions:
+          - condition: template
+            value_template: '{{ on_trip_page }}'
+          sequence:
+          - action: button.press
+            target:
+              entity_id: button.{{ repeat.item }}_reload_page
+            continue_on_error: true
+        - conditions:
+          - condition: template
+            value_template: '{{ repeat.item in tablets }}'
+          sequence:
+          - action: select.select_option
+            target:
+              entity_id: select.{{ repeat.item }}_dashboard_view
+            data:
+              option: tablets-subviews/subview-trip
+            continue_on_error: true
+  - alias: 'Asked from the phone: the summary there too, with Google Maps for the
+      way'
+    if:
+    - condition: template
+      value_template: '{{ phone is not none }}'
+    then:
+    - action: '{{ phone }}'
+      data:
+        title: Trip to {{ dest_name }}
+        message: '{{ speech }}'
+        data:
+          tag: transit_trip
+          clickAction: '{{ maps_url }}'
+          actions:
+          - action: URI
+            title: Open in Google Maps
+            uri: '{{ maps_url }}'
+      continue_on_error: true
+  - alias: What the assistant says
+    variables:
+      result:
+        status: ok
+        speech: '{{ speech }}'
+        destination: '{{ dest_name }}'
+        shown_on: '{{ tablets }}'
+        mode: '{{ mode }}'
+  - stop: Trip planned
+    response_variable: result
+transit_trip_cancel_reminder:
+  alias: Cancel the trip reminder
+  description: 'Cancels the pending "time to leave" reminder of the last planned trip
+    (script.directions: by public transit, car or on foot). Use it when the user cancels
+    that trip or its reminder. Maxi 2026-11-04: see packages/transit_trip.yaml.'
+  icon: mdi:bell-cancel-outline
+  mode: single
+  sequence:
+  - alias: Was there a reminder to cancel
+    variables:
+      result:
+        status: '{{ ''cancelled'' if states(''sensor.transit_trip_reminder'') not
+          in [''unknown'', ''unavailable''] else ''none'' }}'
+        speech: '{{ ''The reminder for '' ~ state_attr(''sensor.transit_trip'', ''destination'')
+          ~ '' is cancelled.'' if states(''sensor.transit_trip_reminder'') not in
+          [''unknown'', ''unavailable''] else ''There is no trip reminder to cancel.''
+          }}'
+  - alias: No reminder any more (sensor.transit_trip_reminder goes unknown)
+    event: transit_trip_reminder_done
+    event_data:
+      reason: cancelled
+  - stop: Reminder cancelled
+    response_variable: result
