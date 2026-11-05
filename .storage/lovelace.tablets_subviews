@@ -9351,6 +9351,109 @@
               ]
             }
           ]
+        },
+        {
+          "title": "subview trip",
+          "path": "subview-trip",
+          "type": "panel",
+          "subview": true,
+          "cards": [
+            {
+              "type": "vertical-stack",
+              "cards": [
+                {
+                  "type": "markdown",
+                  "content": "{#- Maxi 2026-11-04: the planned trip (script.directions into sensor.transit_trip, packages/transit_trip.yaml).\n    Buses leaving from the watched STM stops show their live arrival, refreshed every minute while this page is on. By car or on foot: the turn-by-turn steps. -#}\n{%- from 'transit_trip.jinja' import hm, stm_live, short_distance -%}\n{%- set e = 'sensor.transit_trip' -%}\n{%- set legs = state_attr(e, 'legs') or [] -%}\n{%- set mode = state_attr(e, 'mode') or 'transit' -%}\n{%- if not legs -%}\n<table><tr><td><ha-icon icon=\"mdi:transit-connection-variant\"></ha-icon>No trip planned<small>Ask the assistant how to get somewhere</small></td></tr></table>\n{%- else -%}\n{%- set rides = legs | selectattr('mode', 'eq', 'transit') | list -%}\n{%- set walk0 = legs[0].minutes if legs[0].mode == 'walk' else 0 -%}\n{%- set live0 = stm_live(rides[0].stm_stop, rides[0].line, rides[0].depart) if rides and rides[0].stm_stop else '' -%}\n{%- set leave = (as_datetime(live0) - timedelta(minutes=walk0)) if live0 else as_datetime(states(e)) -%}\n{%- set mins = ((leave - now()).total_seconds() / 60) | round(0, 'floor') | int -%}\n{%- set reminder = states('sensor.transit_trip_reminder') -%}\n<table><tr><td><ha-icon icon=\"mdi:flag-checkered\"></ha-icon><b>{{ state_attr(e, 'destination') }}</b><small>{{ state_attr(e, 'address') or '' }}</small></td></tr></table>\n<table><tr>\n<td>Leave home<b>{{ hm(leave.isoformat()) }}</b><small>{{ ('in ' ~ mins ~ ' min') if mins > 0 else ('now' if mins > -2 else 'passed') }}{{ ' · live bus time' if live0 else '' }}</small></td>\n<td>Arrive<b>{{ hm(state_attr(e, 'arrive')) }}</b><small>{{ state_attr(e, 'minutes') }} min door to door · {{ state_attr(e, 'request') }}</small></td>\n</tr></table>\n{%- if mode in ['car', 'walk'] %}\n<table><tr><td><ha-icon icon=\"{{ 'mdi:car' if mode == 'car' else 'mdi:walk' }}\"></ha-icon></td><td>{{ 'By car' if mode == 'car' else 'On foot' }} · {{ short_distance(state_attr(e, 'distance')) }}<small>{{ ('via ' ~ state_attr(e, 'via')) if state_attr(e, 'via') else '' }}{{ ' · with traffic' if mode == 'car' else '' }}</small></td><td></td></tr></table>\n<ol>\n{%- set n = legs | count %}\n{%- for l in (legs if n <= 8 else legs[:6] + [{'more': n - 7}] + legs[-1:]) %}\n{%- if l.more is defined %}\n<li><ha-icon icon=\"mdi:dots-horizontal\"></ha-icon><span>{{ l.more }} more steps</span><small>{{ short_distance(legs[6:-1] | sum(attribute='meters')) }}</small></li>\n{%- else %}\n<li><ha-icon icon=\"{{ l.icon }}\"></ha-icon><span>{{ l.text }}{{ (' · ' ~ l.note) if l.note else '' }}</span><small>{{ short_distance(l.meters) }}</small></li>\n{%- endif %}\n{%- endfor %}\n</ol>\n{%- else %}\n<table>\n{%- for l in legs %}\n{%- if l.mode == 'walk' %}\n<tr><td><ha-icon icon=\"mdi:walk\"></ha-icon></td><td>Walk {{ l.minutes }} min<small>{{ l.meters }} m to {{ (legs[loop.index].get('from') if not loop.last else state_attr(e, 'destination')) or 'the stop' }}</small></td><td></td></tr>\n{%- else %}\n{%- set live = stm_live(l.stm_stop, l.line, l.depart) if l.stm_stop else '' %}\n<tr><td><font color=\"{{ l.color }}\"><font color=\"{{ l.text_color }}\"><b>{{ l.line }}</b></font></font></td><td>{{ l.get('from') }}<small><ha-icon icon=\"{{ 'mdi:subway-variant' if l.vehicle in ['SUBWAY', 'METRO_RAIL'] else ('mdi:train' if l.vehicle in ['RAIL', 'HEAVY_RAIL', 'COMMUTER_TRAIN', 'HIGH_SPEED_TRAIN', 'LONG_DISTANCE_TRAIN', 'LIGHT_RAIL', 'MONORAIL', 'TRAM'] else 'mdi:bus') }}\"></ha-icon>{{ l.headsign }} · {{ l.stops }} stops to {{ l.get('to') }}</small></td><td><b>{{ hm(live or l.depart) }}</b><small>{{ 'live' if live else 'scheduled' }} · off at {{ hm(l.arrive) }}</small></td></tr>\n{%- endif %}\n{%- endfor %}\n</table>\n{%- endif %}\n{%- if reminder not in ['unknown', 'unavailable'] %}\n<table><tr><td><ha-icon icon=\"mdi:bell-ring-outline\"></ha-icon>Reminder at {{ hm(reminder) }}</td></tr></table>\n{%- endif %}\n{%- endif -%}",
+                  "card_mod": {
+                    "style": {
+                      ".": "/* Maxi 2026-11-04: transit trip steps (same look as the bus headers) */\nha-card {\n  padding: 12px 16px !important;\n}\nha-markdown {\n  padding: 0 !important;\n}\n",
+                      "ha-markdown$": "table {\n  width: 100%;\n  border-collapse: collapse;\n  margin-bottom: 10px;\n}\ntd {\n  border: none !important;\n  padding: 5px 6px !important;\n  vertical-align: middle;\n  font-size: 22px;\n  line-height: 26px;\n}\ntd small {\n  display: block;\n  font-size: 15px;\n  line-height: 19px;\n  opacity: 0.7;\n}\ntable:nth-of-type(1) td {\n  font-size: 30px;\n  line-height: 34px;\n}\ntable:nth-of-type(2) td {\n  width: 50%;\n  font-size: 16px;\n}\ntable:nth-of-type(2) td b {\n  display: block;\n  font-size: 48px;\n  line-height: 52px;\n}\ntable:nth-of-type(3) td:nth-child(1) {\n  width: 1%;\n  padding-right: 12px !important;\n  text-align: center;\n}\ntable:nth-of-type(3) td:nth-child(3) {\n  text-align: right;\n  white-space: nowrap;\n}\ntable:nth-of-type(3) td:nth-child(3) b {\n  font-size: 28px;\n}\ntable:nth-of-type(3) td:nth-child(1) > font {\n  display: inline-block;\n  min-width: 48px;\n  padding: 4px 8px;\n  border-radius: 9px;\n  background: currentColor;\n  text-align: center;\n  font-size: 22px;\n  line-height: 28px;\n}\nha-icon {\n  --mdc-icon-size: 18px;\n  display: inline-block;\n  height: 18px;\n  line-height: 18px;\n  vertical-align: -2px;\n  margin-right: 4px;\n}\ntable:nth-of-type(1) ha-icon,\ntable:nth-of-type(3) td:nth-child(1) > ha-icon {\n  --mdc-icon-size: 30px;\n  height: 30px;\n  line-height: 30px;\n  vertical-align: -5px;\n  color: var(--primary-color);\n}\n/* car and on-foot steps, one line each: at most 8 (the first six, how many more, the last), so the map stays on screen */\nol {\n  margin: 0 0 10px;\n  padding: 0;\n  list-style: none;\n}\nol li {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  padding: 2px 6px;\n  font-size: 18px;\n  line-height: 22px;\n}\nol li span {\n  flex: 1;\n}\nol li small {\n  white-space: nowrap;\n  font-size: 15px;\n  opacity: 0.7;\n}\nol li ha-icon {\n  --mdc-icon-size: 22px;\n  height: 22px;\n  line-height: 22px;\n  margin: 0;\n  vertical-align: 0;\n  color: var(--primary-color);\n  flex: none;\n}\n"
+                    }
+                  }
+                },
+                {
+                  "type": "conditional",
+                  "conditions": [
+                    {
+                      "condition": "state",
+                      "entity": "sensor.transit_trip_reminder",
+                      "state_not": "unknown"
+                    },
+                    {
+                      "condition": "state",
+                      "entity": "sensor.transit_trip_reminder",
+                      "state_not": "unavailable"
+                    }
+                  ],
+                  "card": {
+                    "type": "button",
+                    "name": "Cancel the reminder",
+                    "icon": "mdi:bell-cancel-outline",
+                    "show_state": false,
+                    "icon_height": "40px",
+                    "tap_action": {
+                      "action": "perform-action",
+                      "perform_action": "script.transit_trip_cancel_reminder"
+                    }
+                  }
+                },
+                {
+                  "type": "map",
+                  "entities": [
+                    {
+                      "entity": "zone.home"
+                    },
+                    {
+                      "entity": "sensor.transit_trip",
+                      "label_mode": "icon",
+                      "color": "#ffffff"
+                    }
+                  ],
+                  "theme_mode": "dark",
+                  "auto_fit": true,
+                  "fit_zones": true,
+                  "default_zoom": 14,
+                  "cluster": false,
+                  "polylines_from": {
+                    "entity": "sensor.transit_trip",
+                    "attribute": "lines"
+                  },
+                  "card_mod": {
+                    "style": "/* Maxi 2026-11-04: the trip map takes the lower part of the page (the hallway tablet hangs in portrait) */\nha-card {\n  overflow: hidden;\n}\n#root {\n  height: 56vh !important;\n  padding-bottom: 0 !important;\n}\n"
+                  }
+                },
+                {
+                  "type": "custom:navbar-card",
+                  "haptic": {
+                    "url": false,
+                    "tap_action": true,
+                    "hold_action": true,
+                    "double_tap_action": true
+                  },
+                  "desktop": {
+                    "position": "bottom",
+                    "show_labels": true
+                  },
+                  "mobile": {
+                    "show_labels": false,
+                    "mode": "floating",
+                    "position": "top"
+                  },
+                  "routes": [
+                    {
+                      "url": false,
+                      "icon": "mdi:arrow-collapse-left",
+                      "label": "Home",
+                      "tap_action": {
+                        "action": "navigate-back"
+                      }
+                    }
+                  ],
+                  "styles": "/* 1. Anchor the parent wrapper at the bottom centre of the screen, 15px up (Maxi 2026-10-29) */\n.navbar {\n  position: fixed !important;\n  bottom: 15px !important;\n  right: auto !important;\n  left: 50% !important;\n  width: auto !important;\n  transform: translateX(-50%) !important;\n  overflow: visible !important;\n}\n\n/* 2. Format the navbar block shape. Maxi 2026-10-29: \"The home button is hard to read\": the theme's main colour\n   with a near-black, bold icon and label (4.8:1 to 6.3:1 contrast on synthwave, redwave and the app's pink) */\n.navbar-card {\n  position: relative !important;\n  overflow: visible !important;\n  background-color: var(--primary-color) !important;\n  border: 1px solid rgba(0, 0, 0, 0.35) !important;\n  border-radius: 12px !important;\n  padding: 4px !important;\n}\n.navbar-card .button {\n  color: #111 !important;\n  --icon-primary-color: #111;\n}\n.navbar-card ha-icon {\n  color: #111 !important;\n}\n.navbar-card .label {\n  color: #111 !important;\n  font-size: 13px !important;\n  font-weight: 700 !important;\n}\n\n/* 3. Glowing ping in the theme's main colour. Maxi 2026-10-26: compositor-only (transform + opacity on a halo behind the\n   button); the old animated box-shadow restyled and repainted the page every frame, forever (slow on the kitchen tablet) */\n.navbar-card::after {\n  content: \"\";\n  position: absolute;\n  inset: -1px;\n  border-radius: 12px;\n  background: var(--primary-color);\n  z-index: -1;\n  pointer-events: none;\n  will-change: transform, opacity;\n  animation: ping-halo 1.7s infinite;\n}\n@keyframes ping-halo {\n  0% {\n    transform: scale(1);\n    opacity: 0.6;\n  }\n  70% {\n    transform: scale(1.375, 1.43);\n    opacity: 0;\n  }\n  100% {\n    transform: scale(1.375, 1.43);\n    opacity: 0;\n  }\n}"
+                }
+              ]
+            }
+          ]
         }
       ]
     }
