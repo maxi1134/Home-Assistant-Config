@@ -1,0 +1,101 @@
+# ─── Transit trip planner: a Google transit route to a spoken destination, on the wall tablets ───
+#
+# Maxi 2026-11-04: "How do I get to <place>", optionally "if I leave in 20 minutes", "leaving at 5:30" or "to be
+# there by 9", and "by car" or "on foot". The Assist LLM calls script.directions (scripts.yaml key transit_trip; the
+# entity was renamed so a small LLM picks it over Tools for Assist's get_route for driving and walking questions too),
+# which finds the place (a zone by name, else Google Places Text Search near home). By public transit (the default) it asks the
+# Google Routes API for transit routes twice (less walking; metro and train first) and keeps the one that costs
+# least (minutes door to door, walking weighing most and the metro least: weight_walk, weight_bus, weight_rail and
+# transfer_minutes in the script). By car (with traffic) or on foot it asks for that one route, turn by turn.
+# Then it fires transit_trip_planned.
+# The entities below keep that trip for the tablets-subviews/subview-trip page (steps, and the map drawing
+# `lines` through map-polylines.js polylines_from) and for the "time to leave" reminder. Buses leaving from the
+# six watched STM stops show their live GTFS Realtime arrival (custom_templates/transit_trip.jinja).
+#
+# Google key: google_maps_platform_api_key in secrets.yaml; its Cloud project needs the Routes API and the
+# Places API (New) enabled.
+
+rest_command:
+  # Places Text Search (New): the best match for a spoken place, biased to 50 km around home
+  transit_trip_find_place:
+    url: https://places.googleapis.com/v1/places:searchText
+    method: POST
+    content_type: application/json
+    timeout: 15
+    headers:
+      X-Goog-Api-Key: !secret google_maps_platform_api_key
+      X-Goog-FieldMask: places.id,places.displayName,places.formattedAddress,places.location
+    payload: >-
+      {{ {'textQuery': query, 'pageSize': 1, 'languageCode': 'en', 'regionCode': 'CA',
+          'locationBias': {'circle': {'center': {'latitude': state_attr('zone.home', 'latitude'),
+                                                  'longitude': state_attr('zone.home', 'longitude')},
+                                      'radius': 50000.0}}} | to_json }}
+  # Routes API computeRoutes (TRANSIT): script.transit_trip builds the request body
+  transit_trip_compute_routes:
+    url: https://routes.googleapis.com/directions/v2:computeRoutes
+    method: POST
+    content_type: application/json
+    timeout: 20
+    headers:
+      X-Goog-Api-Key: !secret google_maps_platform_api_key
+      X-Goog-FieldMask: routes.duration,routes.legs.steps.travelMode,routes.legs.steps.staticDuration,routes.legs.steps.distanceMeters,routes.legs.steps.polyline.encodedPolyline,routes.legs.steps.transitDetails
+    payload: "{{ body | to_json }}"
+  # Routes API computeRoutes (DRIVE with traffic, or WALK): one route, its line and its turn-by-turn steps
+  transit_trip_compute_car_walk_route:
+    url: https://routes.googleapis.com/directions/v2:computeRoutes
+    method: POST
+    content_type: application/json
+    timeout: 20
+    headers:
+      X-Goog-Api-Key: !secret google_maps_platform_api_key
+      X-Goog-FieldMask: routes.duration,routes.staticDuration,routes.distanceMeters,routes.description,routes.polyline.encodedPolyline,routes.legs.steps.navigationInstruction,routes.legs.steps.distanceMeters
+    payload: "{{ body | to_json }}"
+
+template:
+  # The last planned trip. State: when to leave home.
+  - triggers:
+      - trigger: event
+        event_type: transit_trip_planned
+    sensor:
+      - name: Transit trip
+        unique_id: transit_trip
+        # also the destination's marker on the trip map
+        icon: mdi:flag-checkered
+        device_class: timestamp
+        state: "{{ trigger.event.data.leave_by }}"
+        attributes:
+          destination: "{{ trigger.event.data.destination }}"
+          address: "{{ trigger.event.data.address }}"
+          # the destination: its marker on the trip map, which fits zone.home and this
+          latitude: "{{ trigger.event.data.latitude }}"
+          longitude: "{{ trigger.event.data.longitude }}"
+          request: "{{ trigger.event.data.request }}"
+          # transit, car or walk; distance (meters) and via (the main road) for car and walk
+          mode: "{{ trigger.event.data.mode | default('transit') }}"
+          distance: "{{ trigger.event.data.distance | default(none) }}"
+          via: "{{ trigger.event.data.via | default('') }}"
+          arrive: "{{ trigger.event.data.arrive }}"
+          minutes: "{{ trigger.event.data.minutes }}"
+          # transit: walk and transit legs; car and walk: steps ({mode: step, icon, text, note, meters})
+          legs: "{{ trigger.event.data.legs }}"
+          lines: "{{ trigger.event.data.lines }}"
+          summary: "{{ trigger.event.data.summary }}"
+          maps_url: "{{ trigger.event.data.maps_url }}"
+          asked_from: "{{ trigger.event.data.asked_from }}"
+          phone: "{{ trigger.event.data.phone }}"
+          planned_at: "{{ trigger.event.data.planned_at }}"
+  # When the "time to leave" reminder of a trip planned ahead goes off (5 minutes before leaving). Unknown when
+  # there is none: the trip leaves now, the reminder went off, or script.transit_trip_cancel_reminder cancelled it.
+  - triggers:
+      - trigger: event
+        event_type: transit_trip_planned
+        id: planned
+      - trigger: event
+        event_type: transit_trip_reminder_done
+        id: done
+    sensor:
+      - name: Transit trip reminder
+        unique_id: transit_trip_reminder
+        icon: mdi:bell-ring-outline
+        device_class: timestamp
+        state: "{{ trigger.event.data.remind_at if trigger.id == 'planned' else none }}"
