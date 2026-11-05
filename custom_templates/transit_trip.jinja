@@ -1,0 +1,67 @@
+{#- Trip planner helpers (Maxi 2026-11-04), shared by script.directions (scripts.yaml key transit_trip), its reminder
+    automation and the trip page (tablets-subviews/subview-trip). See packages/transit_trip.yaml. -#}
+
+{#- 'HH:MM' local time of an ISO timestamp ('' when there is none). -#}
+{%- macro hm(iso) -%}
+  {{- as_local(as_datetime(iso)).strftime('%H:%M') if iso else '' -}}
+{%- endmacro -%}
+
+{#- A trip's minutes, to be spoken: '14 minutes', '1 hour', '1 hour 3 minutes'. -#}
+{%- macro spoken_minutes(minutes) -%}
+  {%- set m = minutes | int(0) -%}
+  {%- set h = m // 60 -%}
+  {%- set r = m % 60 -%}
+  {%- set hours = (h ~ ' hour' ~ ('s' if h > 1 else '')) if h else '' -%}
+  {%- set mins = (r ~ ' minute' ~ ('s' if r != 1 else '')) if r or not h else '' -%}
+  {{- [hours, mins] | select | join(' ') -}}
+{%- endmacro -%}
+
+{#- A distance in meters, short: '850 m', '5.1 km', '254 km' ('' when there is none). -#}
+{%- macro short_distance(meters) -%}
+  {%- set d = meters | int(-1) -%}
+  {{- '' if d < 0 else ((d ~ ' m') if d < 1000 else ((((d / 1000) | round(1)) ~ ' km') if d < 100000 else (((d / 1000) | round(0) | int) ~ ' km'))) -}}
+{%- endmacro -%}
+
+{#- The watched STM stop (sensor.stm_stop_<code>, packages/stm_bus.yaml) within 10 m of a position, as its
+    code; '' when none is there. Google's stop positions and these come from the same STM stops.txt (0.3 m
+    apart), while the stop across the street, for the other direction, is about 30 m away: a wider radius gave
+    the northbound 10 the live times of the southbound one. -#}
+{%- macro stm_stop_near(lat, lon) -%}
+  {%- set m = namespace(code='', d=10.0) -%}
+  {%- set k = cos(lat | float(0) * pi / 180) -%}
+  {%- for s in states.sensor | selectattr('entity_id', 'search', '^sensor\\.stm_stop_\\d+$') -%}
+    {%- set dy = (s.attributes.latitude | float(0) - lat | float(0)) * 111320 -%}
+    {%- set dx = (s.attributes.longitude | float(0) - lon | float(0)) * 111320 * k -%}
+    {%- set d = (dx * dx + dy * dy) ** 0.5 -%}
+    {%- if d < m.d -%}
+      {%- set m.d = d -%}
+      {%- set m.code = s.entity_id | replace('sensor.stm_stop_', '') -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {{- m.code -}}
+{%- endmacro -%}
+
+{#- The live GTFS Realtime arrival (ISO) of bus `route` at STM stop `code` that is nearest to the scheduled
+    time `scheduled` (ISO), within 20 minutes; '' when none. The arrival sensors hold minutes counted from
+    their last refresh (last_reported); a refresh older than 3 minutes is not live any more. The bus pages,
+    the trip page and the trip script keep them fresh. -#}
+{%- macro stm_live(code, route, scheduled) -%}
+  {%- set m = namespace(t='', diff=1200) -%}
+  {%- set sched = as_datetime(scheduled) if scheduled else none -%}
+  {%- if code and sched -%}
+    {%- for i in range(1, 4) -%}
+      {%- set e = 'sensor.stm_' ~ code ~ '_arrival_' ~ i -%}
+      {%- set mins = states(e) | float(-1) -%}
+      {%- if mins >= 0 and (state_attr(e, 'route_id') | string) == (route | string)
+             and now() - states[e].last_reported <= timedelta(minutes=3) -%}
+        {%- set eta = states[e].last_reported + timedelta(minutes=mins) -%}
+        {%- set diff = (eta - sched).total_seconds() | abs -%}
+        {%- if diff <= m.diff -%}
+          {%- set m.diff = diff -%}
+          {%- set m.t = eta.isoformat() -%}
+        {%- endif -%}
+      {%- endif -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {{- m.t -}}
+{%- endmacro -%}
