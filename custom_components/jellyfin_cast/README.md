@@ -55,6 +55,7 @@ response_variable: cast
 | `name` | one of these two | Name of a movie, show, episode or video (see *Playing by name*) |
 | `item_id` | one of these two | Jellyfin item id, with or without dashes (see *Finding the item_id*) |
 | `item_type` | no | With a name: only look for `Movie`, `Series` (shows), `Episode` or `Video`. With an item_id: its type, `Video` (default), `Episode` or `Movie` |
+| `library` | no | With a name: only look in this library, e.g. `Movies` or `TV Shows` |
 | `episode` | no | For a show found by name: `next_up` (default) or `random` |
 | `audio_stream_index` | no | Jellyfin stream index of the audio track |
 | `subtitle_stream_index` | no | Jellyfin stream index of the subtitles, `-1` for none |
@@ -72,7 +73,8 @@ The integration asks your server as the token's user, so it only finds what that
 - Case, accents and punctuation don't matter: `how its made` finds *How It's Made*.
 - An exact name wins. If there is none, it takes a title that contains the words you gave: `matrix reloaded` finds *The Matrix Reloaded*. Episodes only count for those looser matches if you set `item_type: Episode`, because their titles are everywhere.
 - A **show** plays one of its episodes: **Next Up** for the token's user (the next unwatched one, or the first episode once it was all watched), or a random one with `episode: random`. Since the receiver reports playback under that same user, Next Up moves along as you watch.
-- When two items share the name (*Fargo* the movie and *Fargo* the show), a movie or a show goes before a video, and those before an episode. After that it follows the server's order. The others are listed in the response so you can pick one with `item_type` or `item_id`.
+- When two items share the name (*Fargo* the movie and *Fargo* the show), a movie or a show goes before a video, and those before an episode. After that it follows the server's order. The others are listed in the response so you can pick one with `item_type`, `library` or `item_id`.
+- `library` keeps the search inside one of your libraries, named as in Jellyfin (case doesn't matter): `name: Fargo` with `library: TV Shows` plays the show, with `library: Movies` the film. It's handy when a library holds one kind of thing, like a library of background videos. An unknown library answers `ok: false` with your library names as `candidates`.
 
 The response also says what it found:
 
@@ -88,6 +90,7 @@ episode: 1
 series_id: 5e1e…
 episode_choice: next_up
 matched: exact                 # or partial
+# library: TV Shows            # when you gave one
 # other_matches: [{item_id, name, type, year}, …] when the name wasn't unique
 # ...plus state, play_method, play_session, content_id, seconds
 ```
