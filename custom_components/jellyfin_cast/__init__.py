@@ -82,6 +82,7 @@ PLAY_ITEM_SCHEMA = vol.All(
             vol.Optional("item_type"): cv.string,
             vol.Optional("episode", default="next_up"): vol.In(EPISODE_CHOICES),
             vol.Optional("library"): cv.string,
+            vol.Optional("shuffle", default=False): cv.boolean,
             vol.Optional("audio_stream_index"): vol.Coerce(int),
             vol.Optional("subtitle_stream_index"): vol.Coerce(int),
             vol.Optional("start_position_ticks"): vol.All(vol.Coerce(int), vol.Range(min=0)),
@@ -117,18 +118,22 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     lookup = JellyfinLookup(async_get_clientsession(hass), conf[CONF_URL], conf[CONF_USER_ID], conf[CONF_TOKEN])
 
-    async def find(name: str, item_type: str | None, episode: str, library: str | None) -> dict[str, Any]:
-        """The answer's item part for a name: what was found, or ok False and an error."""
+    async def resolve(data: dict[str, Any], item_type: str | None) -> tuple[dict[str, Any], list[str]]:
+        """What to play: the answer's item part and the queue's item ids, or ok False and an error."""
         try:
-            item, how = await lookup.find(name, item_type, episode, library)
+            if "name" in data:
+                queue, how = await lookup.find(data["name"], item_type, data["episode"], data.get("library"),
+                                               data["shuffle"])
+            else:  # an item_id, looked up only to shuffle it if it's a show
+                queue, how = await lookup.by_id(data["item_id"], data["shuffle"])
         except ItemNotFound as err:
-            return {"ok": False, "error": str(err), "candidates": err.candidates}
+            return {"ok": False, "error": str(err), "candidates": err.candidates}, []
         except aiohttp.ClientResponseError as err:
             hint = " (the token was refused)" if err.status in (401, 403) else ""
-            return {"ok": False, "error": f"Jellyfin lookup failed: HTTP {err.status}{hint}"}
+            return {"ok": False, "error": f"Jellyfin lookup failed: HTTP {err.status}{hint}"}, []
         except (aiohttp.ClientError, TimeoutError) as err:
-            return {"ok": False, "error": f"Jellyfin lookup failed: {err!r}"}
-        return describe(item) | how
+            return {"ok": False, "error": f"Jellyfin lookup failed: {err!r}"}, []
+        return describe(queue[0]) | how, [plain_id(item["Id"]) for item in queue]
 
     async def play_item(call: ServiceCall) -> ServiceResponse:
         entity_id = call.data[ATTR_ENTITY_ID][0]
@@ -147,15 +152,15 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         receiver = receiver_for(entity_id)
         answer: dict[str, Any] = {"entity_id": entity_id}
         answer |= {"query": call.data["name"]} if by_name else {"item_id": plain_id(call.data["item_id"])}
+        queue: list[str] = []
         if receiver is None:
             answer |= {"ok": False, "error": f"{entity_id} is not connected"}
-        elif by_name and (found := await find(call.data["name"], item_type, call.data["episode"],
-                                              call.data.get("library"))).get("ok") is False:
+        elif by_name or call.data["shuffle"]:
+            found, queue = await resolve(call.data, item_type)
             answer |= found
-        else:
-            if by_name:
-                answer |= found
-                item_type = found["type"]  # a show resolves to one of its episodes
+            if found.get("ok") is not False and (by_name or "series_id" in found or item_type is None):
+                item_type = found["type"]  # what was found (a show plays as an Episode)
+        if receiver is not None and answer.get("ok") is not False:
             item_id = answer["item_id"]
             state = hass.states.get(entity_id)
             name = call.data.get("receiver_name") or (
@@ -172,6 +177,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 subtitle_stream_index=call.data.get("subtitle_stream_index"),
                 start_position_ticks=call.data.get("start_position_ticks"),
                 max_bitrate=call.data.get("max_bitrate"),
+                queue=queue if len(queue) > 1 else None,
             )
             answer |= {"receiver_name": name}
             answer |= await hass.async_add_executor_job(
