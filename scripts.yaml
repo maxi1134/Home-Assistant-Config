@@ -6230,12 +6230,14 @@ universal_tv_skip:
   alias: Universal TV skip
   description: 'Next/previous for the universal TV players in includes/media_player.yaml.
     Uses the first thing this TV supports: the native TV app that is playing, the
-    cast receiver''s own queue, the official Jellyfin receiver''s queue (jellyfin_cast.next_track
-    / previous_track), a Plex client that accepts remote control, the Android TV media
-    key (kept only if the cast''s content then changes), and for Plex TV episodes
-    the neighbouring episode by season/episode number. Previous falls back to restarting
-    the current item. The universals start it with script.turn_on, so a slow fallback
-    never blocks the caller. Who is playing comes from custom_templates/universal_tv.jinja.'
+    cast receiver''s own queue, the Jellyfin auto-continue chain (Next starts another
+    random episode or visual through its watcher), the official Jellyfin receiver''s
+    queue (jellyfin_cast.next_track / previous_track), a Plex client that accepts
+    remote control, the Android TV media key (kept only if the cast''s content then
+    changes), and for Plex TV episodes the neighbouring episode by season/episode
+    number. Previous falls back to restarting the current item. The universals start
+    it with script.turn_on, so a slow fallback never blocks the caller. Who is playing
+    comes from custom_templates/universal_tv.jinja.'
   mode: parallel
   max: 10
   icon: mdi:skip-next
@@ -6317,6 +6319,37 @@ universal_tv_skip:
       target:
         entity_id: '{{ cast }}'
     - stop: Skipped by the cast receiver
+  - alias: Jellyfin auto-continue on this TV - Next asks its watcher for the next
+      one
+    if:
+    - '{{ direction == ''next'' and state_attr(''script.jellyfin_continue_random_episodes'',
+      ''current'') | int(0) > 0 }}'
+    then:
+    - variables:
+        chain_before: '{{ [state_attr(''script.jellyfin_play_random_episode_on_a_tv'',
+          ''last_triggered''), state_attr(''script.jellyfin_play_visual_on_a_tv'',
+          ''last_triggered'')] | map(''string'') | join('' '') }}'
+    - event: jellyfin_tv_skip
+      event_data:
+        player: '{{ cast }}'
+        direction: next
+    - alias: Did a watcher take it? (it starts the random episode or visual script)
+      wait_template: '{{ ([state_attr(''script.jellyfin_play_random_episode_on_a_tv'',
+        ''last_triggered''), state_attr(''script.jellyfin_play_visual_on_a_tv'', ''last_triggered'')]
+        | map(''string'') | join('' '')) != chain_before }}'
+      timeout: 00:00:03
+      continue_on_timeout: true
+    - if:
+      - '{{ wait.completed }}'
+      then:
+      - stop: Asked the Jellyfin auto-continue watcher for the next one
+    note: The Jellyfin TV buttons cast one random episode (or visual) at a time and
+      script.jellyfin_continue_random_episodes starts the next when it ends, so the
+      receiver has nothing queued and the step below would wait 15 s for nothing.
+      A watcher waiting on this TV takes the jellyfin_tv_skip event and starts the
+      next random episode or visual right away; the watcher knows the show and its
+      series id. Seen from here as the play script's last_triggered changing within
+      3 s; otherwise (no watcher on this TV) the steps below carry on.
   - alias: The official Jellyfin receiver - skip through its own queue
     if:
     - '{{ state_attr(cast, ''app_id'') == ''F007D354'' }}'
@@ -6782,11 +6815,13 @@ jellyfin_continue_random_episodes:
     for an episode, 25 h for a visual, some are 12 hours long). It recognises the
     stream by its Jellyfin PlaySessionId in the cast''s media_content_id, or, when
     there is none (the official Jellyfin receiver playing a file as it is, since 2026-11-09),
-    by the item id in the URL (cast_item_id). Only when the TV went idle at the end
-    of it (playing or buffering just before, at least 30 s after the start, within
-    the last minute or 10% of it) does it continue. Stop, another button or Jellyfin
-    cast to that TV (event jellyfin_tv_cast), other media or the TV turning off end
-    the chain; so does an HA restart or a save of this script, which kill the wait.'
+    by the item id in the URL (cast_item_id). Next on the universal TV (script.universal_tv_skip
+    fires jellyfin_tv_skip) continues right away, with a random visual even when one
+    visual was looping. Otherwise only when the TV went idle at the end of it (playing
+    or buffering just before, at least 30 s after the start, within the last minute
+    or 10% of it) does it continue. Stop, another button or Jellyfin cast to that
+    TV (event jellyfin_tv_cast), other media or the TV turning off end the chain;
+    so does an HA restart or a save of this script, which kill the wait.'
   mode: parallel
   max: 20
   icon: mdi:playlist-play
@@ -6872,7 +6907,8 @@ jellyfin_continue_random_episodes:
   - alias: Note when it started
     variables:
       started_at: '{{ now().timestamp() }}'
-  - alias: Wait until it leaves the TV (12 h at most for an episode, 25 h for a visual)
+  - alias: Wait until it leaves the TV or Next is pressed (12 h at most for an episode,
+      25 h for a visual)
     wait_for_trigger:
     - alias: The TV is no longer playing, pausing or buffering this stream
       trigger: template
@@ -6885,10 +6921,17 @@ jellyfin_continue_random_episodes:
       event_type: jellyfin_tv_cast
       event_data:
         player: '{{ player }}'
+    - alias: Next pressed on this TV (script.universal_tv_skip)
+      trigger: event
+      id: next_pressed
+      event_type: jellyfin_tv_skip
+      event_data:
+        player: '{{ player }}'
+        direction: next
     timeout: '{{ ''25:00:00'' if is_visual else ''12:00:00'' }}'
     continue_on_timeout: false
   - alias: Did it play to the end? (idle right after playing, at the last minute of
-      it)
+      it) Or was Next pressed?
     variables:
       finished: "{%- set trig = wait.trigger if wait.trigger else {} -%}\n{%- if trig.platform
         | default('') != 'template' -%}\n  false\n{%- else -%}\n  {%- set f = trig.from_state
@@ -6903,11 +6946,13 @@ jellyfin_continue_random_episodes:
         and f.state in ['playing', 'buffering'] and still_ours\n     and duration
         > 0 and ended_at >= duration - [60, duration * 0.1] | min\n     and as_timestamp(t.last_changed)
         - started_at | float(0) >= 30 }}\n{%- endif -%}"
-  - alias: Continue when it played to the end
+      skipped: '{{ wait.trigger is not none and wait.trigger.id | default('''') ==
+        ''next_pressed'' }}'
+  - alias: Continue when it played to the end, or right away when Next was pressed
     if:
-    - alias: Played to the end
+    - alias: Played to the end, or Next pressed
       condition: template
-      value_template: '{{ finished }}'
+      value_template: '{{ finished | bool(false) or skipped | bool(false) }}'
     then:
     - if:
       - alias: A visual
@@ -6915,16 +6960,18 @@ jellyfin_continue_random_episodes:
         value_template: '{{ is_visual }}'
       then:
       - alias: Run the visuals script again in the background (same visual, or another
-          random one)
+          random one; Next always draws a random one)
         action: script.turn_on
         target:
           entity_id: script.jellyfin_play_visual_on_a_tv
         data:
           variables:
-            item_id: '{{ item_id | default('''', true) }}'
+            item_id: '{{ '''' if skipped | bool(false) else item_id | default('''',
+              true) }}'
             playlist: '{{ playlist | default('''', true) }}'
             player: '{{ player }}'
-            title: '{{ title | default('''', true) }}'
+            title: '{{ '''' if skipped | bool(false) else title | default('''', true)
+              }}'
             loop: true
       else:
       - alias: Start the play script again in the background
