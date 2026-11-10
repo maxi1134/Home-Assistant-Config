@@ -18,7 +18,8 @@ configuration.yaml:
       token: !secret jellyfin_cast_token
 
 Action jellyfin_cast.play_item (response optional) launches the receiver when needed,
-sends PlayNow and waits until the TV plays the item. The item is an item_id, or a name
+sends PlayNow and waits until the TV plays the item. next_track / previous_track move through
+the receiver's own queue (the Cast integration offers no next/previous for this app). The item is an item_id, or a name
 that the server looks up as the token's user (a show gives its Next Up or a random
 episode; see lookup.py). The answer has ok, what was found, and either the play method,
 PlaySessionId and stream URL (token hidden) or an error, so a script can fall back to
@@ -50,7 +51,7 @@ from homeassistant.helpers.typing import ConfigType
 from homeassistant.util.yaml import load_yaml_dict
 
 from .lookup import EPISODE_CHOICES, SEARCH_TYPES, ItemNotFound, JellyfinLookup, describe
-from .receiver import DEFAULT_APP_ID, JellyfinReceiver, play_now_message, plain_id
+from .receiver import DEFAULT_APP_ID, JellyfinReceiver, command_message, play_now_message, plain_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -94,13 +95,28 @@ PLAY_ITEM_SCHEMA = vol.All(
     cv.has_at_least_one_key("item_id", "name"),
 )
 
+SKIP_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_ENTITY_ID): vol.All(cv.entity_ids, vol.Length(min=1, max=1)),
+        vol.Optional("timeout", default=15): vol.All(vol.Coerce(float), vol.Range(min=2, max=60)),
+    }
+)
+SKIPS = {"next_track": "NextTrack", "previous_track": "PreviousTrack"}
+
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Register jellyfin_cast.play_item."""
+    """Register jellyfin_cast.play_item, next_track and previous_track."""
     conf = config.get(DOMAIN)
     if conf is None:
         return True
     receivers: dict[str, JellyfinReceiver] = {}
+    # The receiver name each TV was last cast with: commands must send the same one, since the
+    # receiver takes it as the Jellyfin session's device name on every message.
+    receiver_names: dict[str, str] = {}
+
+    def default_name(entity_id: str) -> str:
+        state = hass.states.get(entity_id)
+        return f"{state.attributes.get(ATTR_FRIENDLY_NAME, entity_id) if state else entity_id} Jellyfin"
 
     def receiver_for(entity_id: str) -> JellyfinReceiver | None:
         component = hass.data.get(DATA_INSTANCES, {}).get("media_player")
@@ -162,10 +178,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 item_type = found["type"]  # what was found (a show plays as an Episode)
         if receiver is not None and answer.get("ok") is not False:
             item_id = answer["item_id"]
-            state = hass.states.get(entity_id)
-            name = call.data.get("receiver_name") or (
-                f"{state.attributes.get(ATTR_FRIENDLY_NAME, entity_id) if state else entity_id} Jellyfin"
-            )
+            name = receiver_names[entity_id] = call.data.get("receiver_name") or default_name(entity_id)
             message = play_now_message(
                 server_url=conf[CONF_URL],
                 user_id=conf[CONF_USER_ID],
@@ -198,39 +211,68 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         supports_response=SupportsResponse.OPTIONAL,
     )
 
+    async def skip(call: ServiceCall) -> ServiceResponse:
+        """next_track / previous_track: move through the receiver's own queue."""
+        entity_id = call.data[ATTR_ENTITY_ID][0]
+        receiver = receiver_for(entity_id)
+        answer: dict[str, Any] = {"entity_id": entity_id}
+        if receiver is None:
+            answer |= {"ok": False, "error": f"{entity_id} is not connected"}
+        else:
+            message = command_message(
+                command=SKIPS[call.service], server_url=conf[CONF_URL], user_id=conf[CONF_USER_ID],
+                token=conf[CONF_TOKEN], receiver_name=receiver_names.get(entity_id) or default_name(entity_id),
+            )
+            answer |= await hass.async_add_executor_job(receiver.skip, message, call.data["timeout"])
+            if answer.get("ok") and answer.get("item_id"):
+                try:  # what it skipped to, for a script or a voice answer; best effort
+                    found = await lookup.describe_id(answer["item_id"])
+                    answer |= {key: value for key, value in found.items() if key != "item_id"}
+                except Exception as err:  # noqa: BLE001 - the skip worked, the details are a bonus
+                    _LOGGER.debug("No details for %s: %r", answer["item_id"], err)
+        if not answer.get("ok"):
+            _LOGGER.warning("Jellyfin receiver %s on %s: %s", call.service, entity_id, answer.get("error"))
+        return answer if call.return_response else None
+
+    for service in SKIPS:
+        hass.services.async_register(DOMAIN, service, skip, schema=SKIP_SCHEMA,
+                                     supports_response=SupportsResponse.OPTIONAL)
+
     # The UI's TV picker: services.yaml can only filter on the cast integration, which also
     # brings speakers, speaker groups and cast-enabled receivers (device class speaker). The
     # description is published here with just the cast players that can show video, and
     # again whenever a media player is added, removed or changed.
-    def load_description() -> dict[str, Any]:
-        """play_item from services.yaml, its selectors normalized as Home Assistant does."""
-        play = load_yaml_dict(str(Path(__file__).parent / "services.yaml"))["play_item"]
-        for field in play["fields"].values():
-            if "selector" in field:
-                field["selector"] = validate_selector(field["selector"])
-        return play
+    def load_descriptions() -> dict[str, Any]:
+        """The services from services.yaml, their selectors normalized as Home Assistant does."""
+        services = load_yaml_dict(str(Path(__file__).parent / "services.yaml"))
+        for service in services.values():
+            for field in service["fields"].values():
+                if "selector" in field:
+                    field["selector"] = validate_selector(field["selector"])
+        return services
 
-    description = await hass.async_add_executor_job(load_description)
+    descriptions = await hass.async_add_executor_job(load_descriptions)
 
     @callback
-    def describe_play_item(_event: Event | None = None) -> None:
+    def describe_services(_event: Event | None = None) -> None:
         tvs = sorted(
             entry.entity_id
             for entry in er.async_get(hass).entities.values()
             if entry.domain == "media_player" and entry.platform == "cast" and not entry.disabled_by
             and (entry.device_class or entry.original_device_class) != "speaker"
         )
-        schema = copy.deepcopy(description)
-        if tvs:  # none yet: keep the plain cast filter rather than an empty list
-            picker = schema["fields"]["entity_id"]["selector"]
-            picker["entity"]["include_entities"] = tvs
-            schema["fields"]["entity_id"]["selector"] = validate_selector(picker)
-        async_set_service_schema(hass, DOMAIN, "play_item", schema)
+        for service, description in descriptions.items():
+            schema = copy.deepcopy(description)
+            if tvs:  # none yet: keep the plain cast filter rather than an empty list
+                picker = schema["fields"]["entity_id"]["selector"]
+                picker["entity"]["include_entities"] = tvs
+                schema["fields"]["entity_id"]["selector"] = validate_selector(picker)
+            async_set_service_schema(hass, DOMAIN, service, schema)
 
     @callback
     def media_player_changed(event_data: er.EventEntityRegistryUpdatedData) -> bool:
         return event_data["entity_id"].startswith("media_player.")
 
-    describe_play_item()
-    hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, describe_play_item, event_filter=media_player_changed)
+    describe_services()
+    hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, describe_services, event_filter=media_player_changed)
     return True
