@@ -51,7 +51,7 @@ response_variable: cast
 
 | Field | Required | Notes |
 |---|---|---|
-| `entity_id` | yes | The Google Cast media player (the cast entity itself, not a universal/group one) |
+| `entity_id` | yes | The Google Cast media player (the cast entity itself, not a universal/group one). In the UI, the picker only lists cast players that can show video |
 | `name` | one of these two | Name of a movie, show, episode or video (see *Playing by name*) |
 | `item_id` | one of these two | Jellyfin item id, with or without dashes (see *Finding the item_id*) |
 | `item_type` | no | With a name: only look for `Movie`, `Series` (shows), `Episode` or `Video`. With an item_id: its type, `Video` (default), `Episode` or `Movie` |
@@ -106,6 +106,8 @@ You only need one to pin an exact item, for example a dashboard button that shou
 - **With the API:** `GET /Items?searchTerm=<name>&includeItemTypes=Movie,Series&recursive=true` returns `Items` with their `Id`. My own scripts do that with `rest_command`s. See [`includes/rest_command.yaml`](../../includes/rest_command.yaml) and [`scripts.yaml`](../../scripts.yaml) in this repo, e.g. `jellyfin_play_random_episode_on_a_tv`, which also falls back to the Default Media Receiver when the receiver fails.
 
 ## Good to know
+
+- The TV picker in the action editor lists only the cast players that can show video: Chromecasts, Google TVs, TVs with Chromecast built in, Nest Hubs. Speakers, speaker groups and cast-enabled audio receivers are left out (the Cast integration gives those device class `speaker`; set another device class on one if you want it listed). The list follows new and removed cast devices. Scripts and automations can still target any cast player.
 
 - Each TV shows up in Jellyfin as a *Chromecast* session named "<TV name> Jellyfin", so the Jellyfin integration may add a media player for it.
 - Some older devices can't play what the receiver chooses. My 1st-gen Nest Hub failed on a 4K movie. I send those to the Default Media Receiver instead, and use the error answer for the rest.
