@@ -78,30 +78,43 @@ class JellyfinLookup:
     async def _items(self, **params: Any) -> list[dict[str, Any]]:
         return (await self._get("/Items", recursive="true", fields=FIELDS, **params)).get("Items") or []
 
-    async def find(self, name: str, item_type: str | None = None,
-                   episode: str = "next_up") -> tuple[dict[str, Any], dict[str, Any]]:
+    async def library(self, name: str) -> dict[str, Any]:
+        """The user's library with that name ("Movies", "tv shows"), compared like item names."""
+        views = (await self._get("/UserViews")).get("Items") or []
+        for view in views:
+            if compact(view.get("Name", "")) == compact(name):
+                return view
+        raise ItemNotFound(f"No library called {name!r}", [view.get("Name", "") for view in views])
+
+    async def find(self, name: str, item_type: str | None = None, episode: str = "next_up",
+                   library: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
         """The item to play for a name, and how it was found.
 
-        item_type limits the search (Movie, Series, Episode or Video). A show gives one of
-        its episodes: Next Up for the token's user (the first episode once it was all
-        watched), or a random one. Raises ItemNotFound, or aiohttp errors.
+        item_type limits the search (Movie, Series, Episode or Video), library to one of the
+        user's libraries, by name. A show gives one of its episodes: Next Up for the token's
+        user (the first episode once it was all watched), or a random one. Raises
+        ItemNotFound, or aiohttp errors.
         """
         wanted = compact(name)
         if not wanted:
             raise ItemNotFound(f"Nothing to look for in {name!r}", [])
-        types = ",".join([item_type] if item_type else SEARCH_TYPES)
-        found = await self._items(searchTerm=name.strip(), includeItemTypes=types, limit=25)
+        how: dict[str, Any] = {}
+        scope: dict[str, Any] = {"includeItemTypes": ",".join([item_type] if item_type else SEARCH_TYPES)}
+        if library:
+            view = await self.library(library)
+            scope["parentId"] = view["Id"]
+            how["library"] = view.get("Name")
+        found = await self._items(searchTerm=name.strip(), limit=25, **scope)
         exact = [item for item in found if compact(item.get("Name", "")) == wanted]
         if not exact:
             # The server's search (or a search plugin such as Meilisearch) can miss a new item
             # or rank it out of the first page; ask the database for names starting with it.
             start = LEADING_ARTICLE.sub("", name.strip())
-            more = await self._items(nameStartsWith=start, includeItemTypes=types, limit=25)
+            more = await self._items(nameStartsWith=start, limit=25, **scope)
             seen = {item["Id"] for item in found}
             found += [item for item in more if item["Id"] not in seen]
             exact = [item for item in found if compact(item.get("Name", "")) == wanted]
 
-        how: dict[str, Any] = {}
         if exact:
             exact.sort(key=lambda item: TYPE_RANK.get(item.get("Type"), 3))  # stable: server order next
             chosen, how["matched"] = exact[0], "exact"
@@ -117,7 +130,8 @@ class JellyfinLookup:
             partial = [item for item in found if phrase in f" {words(item.get('Name', ''))} "
                        and (item.get("Type") != "Episode" or item_type == "Episode")]
             if not partial:
-                raise ItemNotFound(f"Nothing in Jellyfin is called {name!r}",
+                where = how.get("library") or "Jellyfin"
+                raise ItemNotFound(f"Nothing in {where} is called {name!r}",
                                    [item.get("Name", "") for item in found[:5]])
             chosen, how["matched"] = partial[0], "partial"
 
