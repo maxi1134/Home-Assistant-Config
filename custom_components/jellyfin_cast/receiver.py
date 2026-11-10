@@ -149,20 +149,23 @@ def play_now_message(
     subtitle_stream_index: int | None = None,
     start_position_ticks: int | None = None,
     max_bitrate: int | None = None,
+    queue: list[str] | None = None,
 ) -> dict[str, Any]:
     """The PlayNow message jellyfin-web's Chromecast player sends (plugins/chromecastPlayer).
 
     The receiver reads the server, token and receiverName; it derives the user from the
     token. receiverName becomes the Jellyfin session's device name (and its device id),
-    so keep it stable per TV.
+    so keep it stable per TV. queue: item ids (of item_type) to play one after the other
+    instead of item_id alone; the receiver plays a list of several as it is, and only
+    loads each item when its turn comes.
     """
     options: dict[str, Any] = {
         "items": [{
-            "Id": plain_id(item_id),
+            "Id": plain_id(one),
             "Type": item_type,
             "MediaType": "Audio" if item_type == "Audio" else "Video",
             "IsFolder": False,
-        }],
+        } for one in (queue or [item_id])],
     }
     if start_position_ticks:
         options["startPositionTicks"] = start_position_ticks
