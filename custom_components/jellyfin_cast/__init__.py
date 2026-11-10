@@ -76,6 +76,7 @@ PLAY_ITEM_SCHEMA = vol.All(
             vol.Exclusive("name", "item"): cv.string,
             vol.Optional("item_type"): cv.string,
             vol.Optional("episode", default="next_up"): vol.In(EPISODE_CHOICES),
+            vol.Optional("library"): cv.string,
             vol.Optional("audio_stream_index"): vol.Coerce(int),
             vol.Optional("subtitle_stream_index"): vol.Coerce(int),
             vol.Optional("start_position_ticks"): vol.All(vol.Coerce(int), vol.Range(min=0)),
@@ -111,10 +112,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     lookup = JellyfinLookup(async_get_clientsession(hass), conf[CONF_URL], conf[CONF_USER_ID], conf[CONF_TOKEN])
 
-    async def find(name: str, item_type: str | None, episode: str) -> dict[str, Any]:
+    async def find(name: str, item_type: str | None, episode: str, library: str | None) -> dict[str, Any]:
         """The answer's item part for a name: what was found, or ok False and an error."""
         try:
-            item, how = await lookup.find(name, item_type, episode)
+            item, how = await lookup.find(name, item_type, episode, library)
         except ItemNotFound as err:
             return {"ok": False, "error": str(err), "candidates": err.candidates}
         except aiohttp.ClientResponseError as err:
@@ -128,6 +129,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         entity_id = call.data[ATTR_ENTITY_ID][0]
         by_name = "name" in call.data
         item_type = call.data.get("item_type")
+        if "library" in call.data and not by_name:
+            raise ServiceValidationError("library narrows a name lookup; it can't be used with item_id")
         if by_name and item_type is not None:
             # A search filter here, in any case ("movie"); only these four can be searched for.
             item_type = {kind.lower(): kind for kind in SEARCH_TYPES}.get(item_type.lower())
@@ -141,7 +144,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         answer |= {"query": call.data["name"]} if by_name else {"item_id": plain_id(call.data["item_id"])}
         if receiver is None:
             answer |= {"ok": False, "error": f"{entity_id} is not connected"}
-        elif by_name and (found := await find(call.data["name"], item_type, call.data["episode"])).get("ok") is False:
+        elif by_name and (found := await find(call.data["name"], item_type, call.data["episode"],
+                                              call.data.get("library"))).get("ok") is False:
             answer |= found
         else:
             if by_name:
