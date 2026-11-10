@@ -39,13 +39,23 @@ What I did:
 
 ## Action: `jellyfin_cast.play_item`
 
-Launches the receiver if needed, sends it the item, and waits until the TV actually plays it.
+Launches the receiver if needed, sends it the item, and waits until the TV actually plays it. The item is either a **name**, which the integration looks up on your server, or an **item_id**.
+
+```yaml
+action: jellyfin_cast.play_item
+data:
+  entity_id: media_player.living_room_tv
+  name: Futurama
+response_variable: cast
+```
 
 | Field | Required | Notes |
 |---|---|---|
 | `entity_id` | yes | The Google Cast media player (the cast entity itself, not a universal/group one) |
-| `item_id` | yes | Jellyfin item id (with or without dashes) |
-| `item_type` | no | `Video` (default), `Episode` or `Movie` |
+| `name` | one of these two | Name of a movie, show, episode or video (see *Playing by name*) |
+| `item_id` | one of these two | Jellyfin item id, with or without dashes (see *Finding the item_id*) |
+| `item_type` | no | With a name: only look for `Movie`, `Series` (shows), `Episode` or `Video`. With an item_id: its type, `Video` (default), `Episode` or `Movie` |
+| `episode` | no | For a show found by name: `next_up` (default) or `random` |
 | `audio_stream_index` | no | Jellyfin stream index of the audio track |
 | `subtitle_stream_index` | no | Jellyfin stream index of the subtitles, `-1` for none |
 | `start_position_ticks` | no | Start position (10,000,000 ticks per second) |
@@ -53,93 +63,44 @@ Launches the receiver if needed, sends it the item, and waits until the TV actua
 | `receiver_name` | no | Name of the Jellyfin session (default: the TV's name + " Jellyfin"); keep it stable per TV |
 | `timeout` | no | Seconds to wait for playback (default 45) |
 
-It can return a response:
+On success the response holds `ok: true`, `state`, `play_method` (DirectPlay, DirectStream or Transcode), `play_session`, `content_id` (the stream URL, with the token masked) and `seconds`. On failure it holds `ok: false` and an `error` (nothing by that name, the receiver's own error, the TV refusing the stream, or a timeout), so a script can fall back to another way of casting.
+
+### Playing by name
+
+The integration asks your server as the token's user, so it only finds what that user can see:
+
+- Case, accents and punctuation don't matter: `how its made` finds *How It's Made*.
+- An exact name wins. If there is none, it takes a title that contains the words you gave: `matrix reloaded` finds *The Matrix Reloaded*. Episodes only count for those looser matches if you set `item_type: Episode`, because their titles are everywhere.
+- A **show** plays one of its episodes: **Next Up** for the token's user (the next unwatched one, or the first episode once it was all watched), or a random one with `episode: random`. Since the receiver reports playback under that same user, Next Up moves along as you watch.
+- When two items share the name (*Fargo* the movie and *Fargo* the show), a movie or a show goes before a video, and those before an episode. After that it follows the server's order. The others are listed in the response so you can pick one with `item_type` or `item_id`.
+
+The response also says what it found:
 
 ```yaml
-action: jellyfin_cast.play_item
-data:
-  entity_id: media_player.living_room_tv
-  item_id: 1ffa07c043d35bab9a1c090831a41d13
-  item_type: Episode
-response_variable: cast
+ok: true
+query: Futurama
+item_id: 0d3f…                 # what was played
+name: Space Pilot 3000
+type: Episode
+series: Futurama
+season: 1
+episode: 1
+series_id: 5e1e…
+episode_choice: next_up
+matched: exact                 # or partial
+# other_matches: [{item_id, name, type, year}, …] when the name wasn't unique
+# ...plus state, play_method, play_session, content_id, seconds
 ```
 
-On success `cast` holds `ok: true`, `state`, `play_method` (DirectPlay, DirectStream or Transcode), `play_session`, `content_id` (the stream URL, with the token masked) and `seconds`. On failure it holds `ok: false` and an `error` (the receiver's own error, the TV refusing the stream, or a timeout), so a script can fall back to another way of casting.
+If nothing matches, `ok` is `false` and `candidates` lists what the server suggested instead, which is handy for a voice assistant to answer with.
 
 ## Finding the `item_id`
 
-Every movie, episode and video in Jellyfin has an id: 32 hexadecimal characters, with or without dashes (both work). Only playable items have one that works here. A show or a season has an id too, but you can't play it: pick one of its episodes.
+You only need one to pin an exact item, for example a dashboard button that should always start the same movie, or one of two shows with the same name.
 
-### By hand
-
-Open the movie or episode in the Jellyfin web app. The id is in the address bar:
-
-```
-http://jellyfin.local:8096/web/#/details?id=1ffa07c043d35bab9a1c090831a41d13&serverId=…
-```
-
-Good enough for a fixed button, e.g. a dashboard tile that always starts the same movie.
-
-### From Home Assistant
-
-To play things by name, ask Jellyfin's API with a `rest_command` and take the id from its answer. An API key works for these lookups (create one in the Jellyfin dashboard, on the API Keys page). It stays in Home Assistant, unlike the cast token, which goes to the TV.
-
-```yaml
-# configuration.yaml
-rest_command:
-  # Movies or shows whose name contains the title
-  jellyfin_search:
-    url: >-
-      http://jellyfin.local:8096/Items?IncludeItemTypes={{ types }}&Recursive=true&Limit=5&SearchTerm={{ title | urlencode }}
-    method: GET
-    headers:
-      authorization: !secret jellyfin_authorization   # MediaBrowser Token="<API key>"
-  # One random episode of a show that has a file
-  jellyfin_random_episode:
-    url: >-
-      http://jellyfin.local:8096/Items?ParentId={{ series_id }}&IncludeItemTypes=Episode&Recursive=true&IsMissing=false&SortBy=Random&Limit=1
-    method: GET
-    headers:
-      authorization: !secret jellyfin_authorization
-```
-
-The answer's `content.Items` is a list of items, each with its `Id`, `Name` and `Type`:
-
-```yaml
-# A movie by title
-- action: rest_command.jellyfin_search
-  data:
-    title: The Matrix
-    types: Movie
-  response_variable: found
-- action: jellyfin_cast.play_item
-  data:
-    entity_id: media_player.living_room_tv
-    item_id: "{{ found.content.Items[0].Id }}"
-    item_type: Movie
-
-# A random episode of a show
-- action: rest_command.jellyfin_search
-  data:
-    title: Futurama
-    types: Series
-  response_variable: found
-- action: rest_command.jellyfin_random_episode
-  data:
-    series_id: "{{ found.content.Items[0].Id }}"
-  response_variable: drawn
-- action: jellyfin_cast.play_item
-  data:
-    entity_id: media_player.living_room_tv
-    item_id: "{{ drawn.content.Items[0].Id }}"
-    item_type: Episode
-```
-
-The search matches parts of names, so when several items come back, check their `Name` before taking the first one.
-
-My full versions are in this repo:
-- [`includes/rest_command.yaml`](../../includes/rest_command.yaml): the `jellyfin_*` calls.
-- [`scripts.yaml`](../../scripts.yaml): `jellyfin_play_random_episode_on_a_tv` (exact-name match), `jellyfin_play_item_on_a_tv` (English audio track, falls back to the Default Media Receiver when the receiver fails) and the auto-continue that starts the next random episode.
+- **In the Jellyfin web app:** open the movie or episode. The id is in the address bar: `http://jellyfin.local:8096/web/#/details?id=1ffa07c043d35bab9a1c090831a41d13&serverId=…`. A show or a season has an id too, but those aren't playable. With an item_id, pick an episode, or play the show by name.
+- **From a name lookup:** play it once by name and take `item_id` (or `series_id`, or one of `other_matches`) from the response.
+- **With the API:** `GET /Items?searchTerm=<name>&includeItemTypes=Movie,Series&recursive=true` returns `Items` with their `Id`. My own scripts do that with `rest_command`s. See [`includes/rest_command.yaml`](../../includes/rest_command.yaml) and [`scripts.yaml`](../../scripts.yaml) in this repo, e.g. `jellyfin_play_random_episode_on_a_tv`, which also falls back to the Default Media Receiver when the receiver fails.
 
 ## Good to know
 
