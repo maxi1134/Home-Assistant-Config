@@ -22,6 +22,7 @@ NAMESPACE = "urn:x-cast:com.connectsdk"
 DEFAULT_APP_ID = "F007D354"  # "Jellyfin for Google Cast", the server's Stable receiver
 PLAYING = ("PLAYING", "PAUSED")
 TOKEN_IN_URL = re.compile(r"((?:api_key|ApiKey)=)[^&]+", re.IGNORECASE)
+ITEM_IN_URL = re.compile(r"/videos/([0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12})/", re.IGNORECASE)
 
 
 def plain_id(item_id: str) -> str:
@@ -32,6 +33,12 @@ def plain_id(item_id: str) -> str:
 def is_item(content_id: str | None, item_id: str) -> bool:
     """True when a stream URL is for this item (/videos/<id>/..., dashed or not)."""
     return f"/{plain_id(item_id)}/" in (content_id or "").replace("-", "").lower()
+
+
+def item_of(content_id: str | None) -> str | None:
+    """The Jellyfin item id in a receiver stream URL (/videos/<id>/...), without dashes."""
+    match = ITEM_IN_URL.search(content_id or "")
+    return plain_id(match.group(1)) if match else None
 
 
 def hide_token(url: str | None) -> str:
@@ -136,6 +143,75 @@ class JellyfinReceiver(BaseController):
                             "content_id": hide_token(status.content_id) if ours else None}
                 self._cond.wait(min(remaining, 1.0))
 
+    def skip(self, message: dict, timeout: float) -> dict[str, Any]:
+        """Send NextTrack or PreviousTrack and wait until the TV plays another item.
+
+        Blocking: run it in an executor. Only while the Jellyfin receiver is the app on the
+        TV; it is never launched for this. The receiver only moves when its queue has an
+        item that way (a shuffled show, a season it queued itself), so with nothing there
+        this answers with an error once the timeout is over.
+        """
+        if self.chromecast.app_id != self.supporting_app_id:
+            return {"ok": False, "error": "The Jellyfin receiver isn't playing on this TV"}
+        started = time.monotonic()
+        before = self.chromecast.media_controller.status
+        before_session = before.media_session_id if before else None
+        before_content = before.content_id if before else None
+        with self._cond:
+            self._error = None
+        sent = threading.Event()
+        outcome: dict[str, Any] = {}
+
+        def on_sent(ok: bool, _response: Any) -> None:
+            outcome["sent"] = ok
+            sent.set()
+
+        try:
+            self.send_message(message, callback_function=on_sent, no_add_request_id=True)
+        except Exception as err:  # noqa: BLE001 - NotConnected, ControllerNotRegistered, ...
+            return {"ok": False, "error": f"Could not reach the receiver: {err!r}"}
+        if not sent.wait(min(10.0, timeout)) or not outcome.get("sent"):
+            return {"ok": False, "error": "The Jellyfin receiver didn't take the command"}
+
+        deadline = started + timeout
+        with self._cond:
+            while True:
+                status = self.chromecast.media_controller.status
+                moved = status is not None and status.content_id and (
+                    status.media_session_id != before_session or status.content_id != before_content)
+                if moved and status.player_state in (*PLAYING, "BUFFERING"):
+                    return {
+                        "ok": True,
+                        "item_id": item_of(status.content_id),
+                        "state": status.player_state.lower(),
+                        "content_id": hide_token(status.content_id),
+                        "seconds": round(time.monotonic() - started, 1),
+                    }
+                if self._error:
+                    return {"ok": False, "error": f"Jellyfin receiver: {self._error}"}
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return {"ok": False, "error": f"Nothing to skip to: still on the same item after {timeout:g} s"}
+                self._cond.wait(min(remaining, 1.0))
+
+
+def command_message(*, command: str, server_url: str, user_id: str, token: str, receiver_name: str,
+                    options: dict[str, Any] | None = None) -> dict[str, Any]:
+    """A command for the receiver, as jellyfin-web's Chromecast player sends them.
+
+    The receiver needs the server and token on every message, and takes receiverName as
+    the Jellyfin session's device name each time, so send the name the session already has.
+    """
+    return {
+        "options": options or {},
+        "command": command,
+        "userId": user_id,
+        "deviceId": "home-assistant-jellyfin-cast",
+        "accessToken": token,
+        "serverAddress": server_url.rstrip("/"),
+        "receiverName": receiver_name,
+    }
+
 
 def play_now_message(
     *,
@@ -173,16 +249,9 @@ def play_now_message(
         options["audioStreamIndex"] = audio_stream_index
     if subtitle_stream_index is not None:
         options["subtitleStreamIndex"] = subtitle_stream_index
-    message: dict[str, Any] = {
-        "options": options,
-        "command": "PlayNow",
-        "userId": user_id,
-        "deviceId": "home-assistant-jellyfin-cast",
-        "accessToken": token,
-        "serverAddress": server_url.rstrip("/"),
-        "receiverName": receiver_name,
-        "subtitleBurnIn": "",
-    }
+    message = command_message(command="PlayNow", server_url=server_url, user_id=user_id, token=token,
+                              receiver_name=receiver_name, options=options)
+    message["subtitleBurnIn"] = ""
     if max_bitrate:
         message["maxBitrate"] = max_bitrate
     return message
