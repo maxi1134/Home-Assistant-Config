@@ -149,6 +149,11 @@ class JellyfinLookup:
             raise ItemNotFound(f"No item with id {item_id!r}", [])
         return await self.playable(items[0], {}, "next_up", shuffle)
 
+    async def describe_id(self, item_id: str) -> dict[str, Any]:
+        """describe() of an item by its id, or {} when the server doesn't know it."""
+        items = await self._items(ids=plain_id(item_id))
+        return describe(items[0]) if items else {}
+
     async def playable(self, chosen: dict[str, Any], how: dict[str, Any], episode: str,
                        shuffle: bool) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         """A show becomes one episode, or with shuffle a queue of them; anything else plays as is."""
