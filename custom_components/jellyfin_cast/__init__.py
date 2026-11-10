@@ -18,9 +18,11 @@ configuration.yaml:
       token: !secret jellyfin_cast_token
 
 Action jellyfin_cast.play_item (response optional) launches the receiver when needed,
-sends PlayNow and waits until the TV plays the item. The answer has ok, and either the
-play method, PlaySessionId and stream URL (token hidden) or an error, so a script can
-fall back to another way of casting.
+sends PlayNow and waits until the TV plays the item. The item is an item_id, or a name
+that the server looks up as the token's user (a show gives its Next Up or a random
+episode; see lookup.py). The answer has ok, what was found, and either the play method,
+PlaySessionId and stream URL (token hidden) or an error, so a script can fall back to
+another way of casting.
 
 Added 2026-11-09 for Maxi: the Default Media Receiver casts sometimes had the sound out of
 sync.
@@ -31,15 +33,18 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import aiohttp
 import voluptuous as vol
 
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_FRIENDLY_NAME, CONF_TOKEN, CONF_URL
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_component import DATA_INSTANCES
 from homeassistant.helpers.typing import ConfigType
 
+from .lookup import EPISODE_CHOICES, SEARCH_TYPES, ItemNotFound, JellyfinLookup, describe
 from .receiver import DEFAULT_APP_ID, JellyfinReceiver, play_now_message, plain_id
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,18 +67,24 @@ CONFIG_SCHEMA = vol.Schema(
     extra=vol.ALLOW_EXTRA,
 )
 
-PLAY_ITEM_SCHEMA = vol.Schema(
-    {
-        vol.Required(ATTR_ENTITY_ID): vol.All(cv.entity_ids, vol.Length(min=1, max=1)),
-        vol.Required("item_id"): cv.string,
-        vol.Optional("item_type", default="Video"): cv.string,
-        vol.Optional("audio_stream_index"): vol.Coerce(int),
-        vol.Optional("subtitle_stream_index"): vol.Coerce(int),
-        vol.Optional("start_position_ticks"): vol.All(vol.Coerce(int), vol.Range(min=0)),
-        vol.Optional("max_bitrate"): vol.All(vol.Coerce(int), vol.Range(min=100000)),
-        vol.Optional("receiver_name"): cv.string,
-        vol.Optional("timeout", default=45): vol.All(vol.Coerce(float), vol.Range(min=5, max=180)),
-    }
+PLAY_ITEM_SCHEMA = vol.All(
+    vol.Schema(
+        {
+            vol.Required(ATTR_ENTITY_ID): vol.All(cv.entity_ids, vol.Length(min=1, max=1)),
+            # The item: its Jellyfin id, or a name for the server to look up.
+            vol.Exclusive("item_id", "item"): cv.string,
+            vol.Exclusive("name", "item"): cv.string,
+            vol.Optional("item_type"): cv.string,
+            vol.Optional("episode", default="next_up"): vol.In(EPISODE_CHOICES),
+            vol.Optional("audio_stream_index"): vol.Coerce(int),
+            vol.Optional("subtitle_stream_index"): vol.Coerce(int),
+            vol.Optional("start_position_ticks"): vol.All(vol.Coerce(int), vol.Range(min=0)),
+            vol.Optional("max_bitrate"): vol.All(vol.Coerce(int), vol.Range(min=100000)),
+            vol.Optional("receiver_name"): cv.string,
+            vol.Optional("timeout", default=45): vol.All(vol.Coerce(float), vol.Range(min=5, max=180)),
+        }
+    ),
+    cv.has_at_least_one_key("item_id", "name"),
 )
 
 
@@ -98,14 +109,45 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             known = receivers[entity_id] = JellyfinReceiver(chromecast, conf[CONF_APP_ID])
         return known
 
+    lookup = JellyfinLookup(async_get_clientsession(hass), conf[CONF_URL], conf[CONF_USER_ID], conf[CONF_TOKEN])
+
+    async def find(name: str, item_type: str | None, episode: str) -> dict[str, Any]:
+        """The answer's item part for a name: what was found, or ok False and an error."""
+        try:
+            item, how = await lookup.find(name, item_type, episode)
+        except ItemNotFound as err:
+            return {"ok": False, "error": str(err), "candidates": err.candidates}
+        except aiohttp.ClientResponseError as err:
+            hint = " (the token was refused)" if err.status in (401, 403) else ""
+            return {"ok": False, "error": f"Jellyfin lookup failed: HTTP {err.status}{hint}"}
+        except (aiohttp.ClientError, TimeoutError) as err:
+            return {"ok": False, "error": f"Jellyfin lookup failed: {err!r}"}
+        return describe(item) | how
+
     async def play_item(call: ServiceCall) -> ServiceResponse:
         entity_id = call.data[ATTR_ENTITY_ID][0]
-        item_id = plain_id(call.data["item_id"])
+        by_name = "name" in call.data
+        item_type = call.data.get("item_type")
+        if by_name and item_type is not None:
+            # A search filter here, in any case ("movie"); only these four can be searched for.
+            item_type = {kind.lower(): kind for kind in SEARCH_TYPES}.get(item_type.lower())
+            if item_type is None:
+                raise ServiceValidationError(
+                    f"item_type {call.data['item_type']!r} can't be searched by name; "
+                    f"use one of {', '.join(SEARCH_TYPES)}"
+                )
         receiver = receiver_for(entity_id)
-        answer: dict[str, Any] = {"entity_id": entity_id, "item_id": item_id}
+        answer: dict[str, Any] = {"entity_id": entity_id}
+        answer |= {"query": call.data["name"]} if by_name else {"item_id": plain_id(call.data["item_id"])}
         if receiver is None:
             answer |= {"ok": False, "error": f"{entity_id} is not connected"}
+        elif by_name and (found := await find(call.data["name"], item_type, call.data["episode"])).get("ok") is False:
+            answer |= found
         else:
+            if by_name:
+                answer |= found
+                item_type = found["type"]  # a show resolves to one of its episodes
+            item_id = answer["item_id"]
             state = hass.states.get(entity_id)
             name = call.data.get("receiver_name") or (
                 f"{state.attributes.get(ATTR_FRIENDLY_NAME, entity_id) if state else entity_id} Jellyfin"
@@ -116,7 +158,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 token=conf[CONF_TOKEN],
                 receiver_name=name,
                 item_id=item_id,
-                item_type=call.data["item_type"],
+                item_type=item_type or "Video",
                 audio_stream_index=call.data.get("audio_stream_index"),
                 subtitle_stream_index=call.data.get("subtitle_stream_index"),
                 start_position_ticks=call.data.get("start_position_ticks"),
@@ -126,10 +168,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             answer |= await hass.async_add_executor_job(
                 receiver.play, message, item_id, call.data["timeout"]
             )
+        what = answer.get("item_id") or answer.get("query")
         if answer.get("ok"):
-            _LOGGER.debug("Jellyfin receiver plays %s on %s: %s", item_id, entity_id, answer)
+            _LOGGER.debug("Jellyfin receiver plays %s on %s: %s", what, entity_id, answer)
         else:
-            _LOGGER.warning("Jellyfin receiver could not play %s on %s: %s", item_id, entity_id, answer.get("error"))
+            _LOGGER.warning("Jellyfin receiver could not play %s on %s: %s", what, entity_id, answer.get("error"))
         return answer if call.return_response else None
 
     hass.services.async_register(
