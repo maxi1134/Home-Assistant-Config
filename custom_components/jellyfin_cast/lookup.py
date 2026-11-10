@@ -6,6 +6,7 @@ token's user, so it only finds what that user may see.
 
 from __future__ import annotations
 
+import random
 import re
 import unicodedata
 from typing import Any
@@ -22,6 +23,10 @@ TYPE_RANK = {"Movie": 0, "Series": 0, "Video": 1, "Episode": 2}
 # Jellyfin's sort names drop these, and nameStartsWith compares against the sort name.
 LEADING_ARTICLE = re.compile(r"^(the|a|an)\s+", re.IGNORECASE)
 FIELDS = "ProductionYear,SeriesName,ParentIndexNumber,IndexNumber"
+# A shuffled show is sent as one queue: its episodes in random order, reshuffled each time
+# they have all been queued. 200 is about 70 hours of 22-minute episodes, so it plays until
+# something stops it, and keeps the cast message well under its 64 kB limit.
+SHUFFLE_QUEUE = 200
 
 
 class ItemNotFound(Exception):
@@ -87,13 +92,13 @@ class JellyfinLookup:
         raise ItemNotFound(f"No library called {name!r}", [view.get("Name", "") for view in views])
 
     async def find(self, name: str, item_type: str | None = None, episode: str = "next_up",
-                   library: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
-        """The item to play for a name, and how it was found.
+                   library: str | None = None, shuffle: bool = False) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        """What to play for a name (a queue of one item, or a shuffled show), and how it was found.
 
         item_type limits the search (Movie, Series, Episode or Video), library to one of the
         user's libraries, by name. A show gives one of its episodes: Next Up for the token's
-        user (the first episode once it was all watched), or a random one. Raises
-        ItemNotFound, or aiohttp errors.
+        user (the first episode once it was all watched), a random one, or with shuffle all
+        of them in random order. Raises ItemNotFound, or aiohttp errors.
         """
         wanted = compact(name)
         if not wanted:
@@ -135,11 +140,40 @@ class JellyfinLookup:
                                    [item.get("Name", "") for item in found[:5]])
             chosen, how["matched"] = partial[0], "partial"
 
-        if chosen.get("Type") == "Series":
-            how["series_id"] = plain_id(chosen["Id"])
-            how["episode_choice"] = episode
-            chosen = await self.episode_of(chosen, episode)
-        return chosen, how
+        return await self.playable(chosen, how, episode, shuffle)
+
+    async def by_id(self, item_id: str, shuffle: bool = False) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        """What to play for an item id; only needed to shuffle a show given by its id."""
+        items = await self._items(ids=plain_id(item_id))
+        if not items:
+            raise ItemNotFound(f"No item with id {item_id!r}", [])
+        return await self.playable(items[0], {}, "next_up", shuffle)
+
+    async def playable(self, chosen: dict[str, Any], how: dict[str, Any], episode: str,
+                       shuffle: bool) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        """A show becomes one episode, or with shuffle a queue of them; anything else plays as is."""
+        if chosen.get("Type") != "Series":
+            return [chosen], how
+        how["series_id"] = plain_id(chosen["Id"])
+        if shuffle:
+            queue = await self.shuffled(chosen)
+            how |= {"episode_choice": "shuffle", "queue_length": len(queue)}
+            return queue, how
+        how["episode_choice"] = episode
+        return [await self.episode_of(chosen, episode)], how
+
+    async def shuffled(self, series: dict[str, Any]) -> list[dict[str, Any]]:
+        """Every episode of a show that has a file, in random order, again and again (SHUFFLE_QUEUE)."""
+        episodes = await self._items(parentId=series["Id"], includeItemTypes="Episode", isMissing="false")
+        if not episodes:
+            raise ItemNotFound(f"{series.get('Name')!r} has no episode to play", [])
+        queue: list[dict[str, Any]] = []
+        while len(queue) < SHUFFLE_QUEUE:
+            batch = random.sample(episodes, len(episodes))
+            if queue and len(batch) > 1 and batch[0]["Id"] == queue[-1]["Id"]:
+                batch[0], batch[-1] = batch[-1], batch[0]  # never the same episode twice in a row
+            queue += batch
+        return queue[:SHUFFLE_QUEUE]
 
     async def episode_of(self, series: dict[str, Any], episode: str) -> dict[str, Any]:
         """Next Up (or the first episode) or a random episode of a show."""
