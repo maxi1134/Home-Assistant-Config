@@ -897,7 +897,8 @@
   conditions:
   - alias: Last media was from the Movies library
     condition: template
-    value_template: '{{ state_attr(state_attr(trigger.entity_id,''active_child''),''media_library_title'')
+    value_template: '{{ (trigger.from_state.attributes.get(''media_library_title'')
+      or state_attr(state_attr(trigger.entity_id,''active_child''),''media_library_title''))
       == ''Movies''}}'
     enabled: false
   - alias: Last media was not a TV series
@@ -988,7 +989,8 @@
   conditions:
   - alias: Media is from the Movies library
     condition: template
-    value_template: '{{ state_attr(state_attr(trigger.entity_id,''active_child''),''media_library_title'')
+    value_template: '{{ (trigger.to_state.attributes.get(''media_library_title'')
+      or state_attr(state_attr(trigger.entity_id,''active_child''),''media_library_title''))
       == ''Movies''}}'
     enabled: true
   - alias: Media is not a TV series
@@ -1139,9 +1141,10 @@
   max: 10
 - id: '1713723493265'
   alias: Start visuals on all inactive TVs
-  description: When the Start Visuals button is pressed, starts the All Visuals Plex
-    playlist (shuffled and muted) on every Chromecast and Google Hub that is off,
-    skipping bedroom Chromecasts and rooms with sleepers.
+  description: When the Start Visuals button is pressed, starts random visuals from
+    the Jellyfin All Visuals playlist (muted, a new one each time one ends) on every
+    Chromecast and Google Hub, skipping bedroom Chromecasts and rooms with sleepers
+    (script.jellyfin_start_visuals_on_idle_tvs; it was the Plex playlist until 2026-11-06).
   triggers:
   - alias: Start Visuals button pressed
     trigger: state
@@ -1151,10 +1154,10 @@
   conditions: []
   actions:
   - alias: Start All Visuals on idle TVs
-    action: script.start_visual_playlist_on_plex
+    action: script.jellyfin_start_visuals_on_idle_tvs
     metadata: {}
     data:
-      requested_playlist: All Visuals
+      playlist: All Visuals
   mode: single
 - id: '1713813890992'
   alias: Reload tablets 4 minutes after HA restarts
@@ -1527,10 +1530,11 @@
       only_on: true
   mode: single
 - id: '1714150045572'
-  alias: Mute chromecasts when they play PLEX visuals
+  alias: Mute chromecasts when they play visuals
   description: Mutes a TV (workshop, hotbox top, patio, bedroom, salon or kitchen
-    Chromecast) whenever it plays something from the Plex Visuals library and is not
-    already muted. The salon TV is only muted while it is actually on.
+    Chromecast) whenever it plays something from the Visuals library (Plex, or Jellyfin
+    since 2026-11-06) and is not already muted. The salon TV is only muted while it
+    is actually on.
   triggers:
   - alias: TV starts playing
     entity_id:
@@ -1581,7 +1585,8 @@
   conditions:
   - alias: Playing from the Visuals library
     condition: template
-    value_template: '{{ state_attr(state_attr(trigger.entity_id,''active_child''),''media_library_title'')
+    value_template: '{{ (trigger.to_state.attributes.get(''media_library_title'')
+      or state_attr(state_attr(trigger.entity_id,''active_child''),''media_library_title''))
       == ''Visuals''}}'
   - alias: Check if the chromecast already muted
     condition: template
@@ -1612,7 +1617,11 @@
   alias: Turn off speakers after 1 minutes of pause
   description: When a Music Assistant speaker (lounge, hallway, workshop, salon, closet,
     bedroom, kitchen or patio) or the home speaker group has been paused or idle for
-    10 minutes, clears its queue and turns it off.
+    10 minutes, clears its queue and turns it off. While 'Pause Music and Alert maxi
+    in the room where he is when his phone rings' is running (it keeps the music paused
+    during a call and resumes it after), it first waits for that automation to finish
+    (max 2.5 h), then only goes ahead if the speaker is still paused or idle and has
+    been for 10 minutes, so a long call does not wipe the queue it is about to resume.
   triggers:
   - alias: Speaker paused or idle for 10 min
     entity_id:
@@ -1635,6 +1644,28 @@
     trigger: state
   conditions: []
   actions:
+  - alias: If a phone call is holding the music, wait for it first
+    if:
+    - alias: The phone-ring automation is running
+      condition: numeric_state
+      entity_id: automation.alert_maxi_in_the_room_where_he_is_when_his_phone_rings
+      attribute: current
+      above: 0
+    then:
+    - alias: Wait for the phone-ring automation to finish (max 2.5 h)
+      wait_template: '{{ state_attr(''automation.alert_maxi_in_the_room_where_he_is_when_his_phone_rings'',
+        ''current'') | int(0) == 0 }}'
+      timeout: 02:30:00
+    - alias: Stop if the speaker was resumed or changed meanwhile
+      if:
+      - '{{ not (states(trigger.entity_id) in [''paused'', ''idle''] and now() - states[trigger.entity_id].last_changed
+        >= timedelta(seconds=595)) }}'
+      then:
+      - stop: The speaker was resumed or changed during the call
+    note: The phone-ring automation pauses the music for the length of a call. Without
+      this wait, a call over about 10 minutes would clear the queue it resumes afterwards.
+      Its 'current' attribute counts its running runs; when it ends (or HA restarts),
+      the wait ends.
   - alias: Clear that speaker's queue
     action: media_player.clear_playlist
     target:
@@ -5688,12 +5719,12 @@
   alias: kitchen google display automation
   description: 'When the kitchen Google Hub has switched app for a minute, or been
     paused for 10 minutes, and it is not in one of two excluded apps, playing Plex,
-    or playing a Jellyfin stream (the tablet TV-show buttons cast those through the
-    Default Media Receiver since 2026-11-04), turns it off, sets its volume to 0 and
-    then casts the kitchen hub dashboard view to it. The cast is the last step because
-    cast.show_lovelace_view returns before the cast is sent: with the volume change
-    after it, both hit the hub Cast connection at once, which crashed Core (segfault,
-    2026-10-28 01:58).'
+    or playing Jellyfin (the tablet TV-show buttons cast those through the Default
+    Media Receiver since 2026-11-04; the official Jellyfin receiver app, F007D354,
+    is spared too since 2026-11-09), turns it off, sets its volume to 0 and then casts
+    the kitchen hub dashboard view to it. The cast is the last step because cast.show_lovelace_view
+    returns before the cast is sent: with the volume change after it, both hit the
+    hub Cast connection at once, which crashed Core (segfault, 2026-10-28 01:58).'
   triggers:
   - alias: Kitchen hub app changed for 1 min
     trigger: state
@@ -5766,6 +5797,20 @@
         condition: template
         value_template: '{{ ''192.168.0.20:8096/'' in (state_attr(''media_player.kitchen_google_hub'',
           ''media_content_id'') or '''') }}'
+    - alias: The official Jellyfin receiver playing
+      condition: and
+      conditions:
+      - alias: App is F007D354 (Jellyfin for Google Cast)
+        condition: state
+        entity_id: media_player.kitchen_google_hub
+        attribute: app_id
+        state: F007D354
+      - alias: Kitchen hub is playing or buffering
+        condition: state
+        entity_id: media_player.kitchen_google_hub
+        state:
+        - playing
+        - buffering
   actions:
   - alias: Turn off the kitchen hub
     metadata: {}
@@ -7217,112 +7262,301 @@
   mode: single
 - id: '1740953881544'
   alias: Pause Music and Alert maxi in the room where he is when his phone rings
-  description: When Maxi's phone rings, toggles play/pause on the home speaker group
-    and announces 'Phone ringing near the <phone's room>' on the speaker in Maxi's
-    room, then puts that speaker back in the group. Once the call ends (within 20
-    minutes), if Maxi is alone and not talking, restarts Maxi's playlist on the home
-    group and calls the volume script.
+  description: 'When Maxi''s phone rings while he is home and party mode is off (asleep
+    too, in the bedroom or anywhere else): pauses the Music Assistant music that is
+    playing (the Home Group, plus anything playing in his room, such as the bedroom
+    thunderstorm) and announces ''Phone ringing near the <phone''s room>'' on the
+    speaker in his room. That speaker leaves the Home Group for the announcement and
+    goes back only if it was in it. Each new ring during the call is announced again.
+    Once the call has been over for 15 seconds (phone idle and Maxi not talking; it
+    waits up to 2 hours), resumes the same queues where they stopped with media_play
+    (a scene restore would replay the track as a new queue): only what this run paused,
+    only if it is still paused or idle on the same track, and only while Maxi is home.
+    If a call starts while resuming, it pauses again and keeps waiting. With music
+    following on, it then unmutes the resumed speakers in Maxi''s room, which the
+    microphone mute automation mutes when the phone rings: in the same room it puts
+    back what was unmuted before the call (sleeper or not), in a new room it follows
+    the music following checks (no sleeper, unmuted TV or active microphone). Nothing
+    is started if nothing was playing. ''Turn off speakers after 1 minutes of pause''
+    waits for this automation, so a long call does not clear the paused queue.'
   triggers:
   - alias: Maxi's phone starts ringing
     trigger: state
-    entity_id:
-    - sensor.phone_maxi_phone_state
+    entity_id: sensor.phone_maxi_phone_state
     to: ringing
-  conditions: []
+  conditions:
+  - alias: Maxi is home
+    condition: state
+    entity_id: person.maximiliano
+    state: home
+  - alias: Party mode is off
+    condition: not
+    conditions:
+    - condition: state
+      entity_id: input_boolean.party_mode
+      state: 'on'
   actions:
-  - alias: Toggle play/pause on home speakers
-    action: media_player.media_play_pause
-    metadata: {}
-    target:
-      entity_id: media_player.group_mass_home_group_speakers
-    data: {}
-    continue_on_error: true
-  - variables:
-      speaker: "{{ integration_entities('music_assistant') \n | expand\n | selectattr('entity_id',
-        'search', states('sensor.maxi_location_by_petro_v2') )\n | selectattr('entity_id',
-        'search', 'speaker' )\n | map(attribute='entity_id') | list }} \n"
-    alias: Define Closest speaker to maxi
-  - alias: Unjoin the speaker in Maxi's room
-    action: media_player.unjoin
-    metadata: {}
-    data: {}
-    target:
-      entity_id: "{{ speaker }} \n"
-    continue_on_error: true
-  - alias: Announce where the ringing phone is
-    action: tts.speak
-    metadata: {}
-    data:
-      cache: true
-      media_player_entity_id: "{{ speaker }} \n"
-      message: Phone ringing near the {{states('sensor.bermuda_maxi_phone_bps_zone')}}
-    target:
-      entity_id:
-      - tts.piper_2
-  - alias: Rejoin that speaker to the home group
-    action: media_player.join
-    metadata: {}
-    data:
-      group_members: "{{ speaker }} \n"
-    target:
-      entity_id: media_player.group_mass_home_group_speakers
-    continue_on_error: true
-  - alias: Wait up to 20 min for the call to end
-    wait_for_trigger:
-    - alias: Phone back to idle
-      trigger: state
-      entity_id:
-      - sensor.phone_maxi_phone_state
-      to:
-      - idle
-      for:
-        hours: 0
-        minutes: 0
-        seconds: 15
-    continue_on_timeout: false
-    timeout:
-      hours: 0
-      minutes: 20
-      seconds: 0
-      milliseconds: 0
-  - alias: If Maxi is alone and not talking
+  - alias: Note what is playing and where Maxi is
+    variables:
+      home_group: media_player.group_mass_home_group_speakers
+      room_at_ring: '{% set r = states(''sensor.maxi_location_by_petro_v2'') %}{{
+        {''entrance'': ''hallway''}.get(r, r) }}'
+      muted_at_ring: "{{ integration_entities('music_assistant') | select('match',
+        'media_player[.]')\n   | select('is_state_attr', 'is_volume_muted', true)
+        | list }}"
+      sessions: "{% set room_ents = area_entities(room_at_ring) %} {% set ns = namespace(out=[],
+        queues=[]) %} {% set playing = integration_entities('music_assistant') | select('match',
+        'media_player[.]')\n   | select('is_state', 'playing') | select('is_state_attr',
+        'app_id', 'music_assistant') | list %}\n{% set ordered = (playing | select('is_state_attr',
+        'mass_player_type', 'group') | list)\n   + (playing | reject('is_state_attr',
+        'mass_player_type', 'group') | list) %}\n{% for p in ordered %}\n  {% set
+        is_group = is_state_attr(p, 'mass_player_type', 'group') %}\n  {% set gm =
+        state_attr(p, 'group_members') or [] %}\n  {% set members = gm if (is_group
+        or gm | count > 1) else [p] %}\n  {% set follower = not is_group and gm |
+        count > 1 and gm[0] != p %}\n  {% set queue = state_attr(p, 'active_queue')
+        or p %}\n  {% set here = members | select('in', room_ents) | list | count
+        > 0\n     or members | select('search', '_' ~ room_at_ring ~ '_') | list |
+        count > 0 %}\n  {% if not follower and queue not in ns.queues %}\n    {% set
+        ns.queues = ns.queues + [queue] %}\n    {% if p == home_group or here %}{%
+        set ns.out = ns.out + [p] %}{% endif %}\n  {% endif %}\n{% endfor %} {{ ns.out
+        }}"
+      deadline: '{{ (now() + timedelta(hours=2)).isoformat() }}'
+      held: []
+      to_resume: []
+      interrupted: false
+    note: One player per playing Music Assistant queue (the group, not its members),
+      only for MA queue playback (app_id), and only the Home Group or what plays in
+      Maxi's room. Mute states are read here, before the microphone mute automation
+      reacts.
+  - alias: Pause what is playing
     if:
-    - alias: Maxi is alone
-      condition: state
-      entity_id: binary_sensor.maxi_alone
-      state:
-      - 'on'
-    - alias: Maxi is not talking
-      condition: state
-      entity_id: binary_sensor.maxi_is_talking
-      state:
-      - 'off'
-    - condition: not
-      conditions:
-      - condition: state
-        entity_id: media_player.group_mass_home_group_speakers
-        state:
-        - playing
+    - '{{ sessions | count > 0 }}'
     then:
-    - alias: Restart Maxi's playlist on home speakers
-      action: script.start_a_random_maxi_playlist
-      metadata: {}
-      data:
-        player_entity:
-          entity_id: media_player.group_mass_home_group_speakers
-    - alias: Run the volume script on seven speakers
-      action: script.speaker_automatic_volume_adjustment_script
-      metadata: {}
-      data:
-        speaker_id:
-        - media_player.mass_hallway_wiim_speaker
-        - media_player.mass_salon_wiim_speaker
-        - media_player.mass_workshop_wiim_speaker
-        - media_player.mass_lounge_wiim_speaker
-        - media_player.mass_kitchen_wiim_speaker
-        - media_player.mass_hotbox_wiim_speaker
-        - media_player.mass_patio_wiim_speaker
+    - alias: Pause those players
+      action: media_player.media_pause
+      target:
+        entity_id: '{{ sessions }}'
+      continue_on_error: true
+    - alias: Wait for them to stop (max 5 s)
+      wait_template: '{{ sessions | select(''is_state'', ''playing'') | list | count
+        == 0 }}'
+      timeout: 5
+    - alias: Remember each paused player and its track
+      variables:
+        held: "{% set ns = namespace(out=[]) %} {% for p in sessions %}\n  {% set
+          ns.out = ns.out + [{'entity_id': p, 'media': state_attr(p, 'media_content_id')
+          or ''}] %}\n{% endfor %} {{ ns.out }}"
+  - alias: Announce each ring, hold the music until the call is over, then resume
+      it
+    repeat:
+      sequence:
+      - alias: Wait until the call has been over for 15 s, announcing each ring
+        repeat:
+          sequence:
+          - alias: Announce the ring on the speaker in Maxi's room
+            if:
+            - condition: state
+              entity_id: sensor.phone_maxi_phone_state
+              state: ringing
+            then:
+            - alias: Pick the speaker in Maxi's room
+              variables:
+                speaker: "{% set r = states('sensor.maxi_location_by_petro_v2') %}
+                  {% set r = {'entrance': 'hallway'}.get(r, r) %} {% set found = integration_entities('music_assistant')
+                  | select('match', 'media_player[.]')\n   | select('search', '_'
+                  ~ r ~ '_') | select('search', 'speaker')\n   | reject('is_state',
+                  ['unavailable', 'unknown']) | sort | list %}\n{% set members = state_attr(home_group,
+                  'group_members') or [] %} {% set found = (found | select('in', members)
+                  | list) + (found | reject('in', members) | list) %} {{ found | first
+                  if found | count > 0 else '' }}"
+                rejoin: "{{ speaker != ''\n   and speaker in (state_attr(home_group,
+                  'group_members') or [])\n   and state_attr(speaker, 'active_queue')
+                  == state_attr(home_group, 'active_queue')\n   and not is_state(home_group,
+                  ['off', 'unavailable', 'unknown']) }}"
+                zone: '{{ states(''sensor.bermuda_maxi_phone_bps_zone'') }}'
+              note: rejoin is true only when the speaker is currently synced in the
+                Home Group, so the join afterwards never adds a speaker that was not
+                in it.
+            - if:
+              - '{{ speaker != '''' }}'
+              then:
+              - if:
+                - '{{ rejoin }}'
+                then:
+                - alias: Take that speaker out of the Home Group
+                  action: media_player.unjoin
+                  target:
+                    entity_id: '{{ speaker }}'
+                  continue_on_error: true
+              - alias: Announce where the ringing phone is
+                action: tts.speak
+                target:
+                  entity_id: tts.piper_2
+                data:
+                  cache: true
+                  media_player_entity_id: '{{ speaker }}'
+                  message: '{% if zone | lower in [''unknown'', ''unavailable'', ''none'',
+                    ''''] %}Your phone is ringing{% else %}Phone ringing near the
+                    {{ zone }}{% endif %}'
+                continue_on_error: true
+              - if:
+                - '{{ rejoin }}'
+                then:
+                - alias: Put that speaker back in the Home Group
+                  action: media_player.join
+                  target:
+                    entity_id: '{{ home_group }}'
+                  data:
+                    group_members: '{{ speaker }}'
+                  continue_on_error: true
+                - alias: Check it is back (max 10 s)
+                  wait_template: '{{ speaker in (state_attr(home_group, ''group_members'')
+                    or []) }}'
+                  timeout: 10
+                - alias: Try once more if it is not
+                  if:
+                  - '{{ not wait.completed }}'
+                  then:
+                  - action: media_player.join
+                    target:
+                      entity_id: '{{ home_group }}'
+                    data:
+                      group_members: '{{ speaker }}'
+                    continue_on_error: true
+          - alias: Nothing was paused, so there is nothing to wait for
+            if:
+            - '{{ held | count == 0 }}'
+            then:
+            - stop: Nothing was playing; announced only
+          - alias: Wait for the call to be over (until the deadline)
+            wait_template: "{{ is_state('sensor.phone_maxi_phone_state', 'idle')\n
+              \  and not is_state('binary_sensor.maxi_is_talking', 'on') }}"
+            timeout: '{{ [(as_datetime(deadline) - now()).total_seconds() | int(0),
+              1] | max }}'
+            note: 'wait_template, not wait_for_trigger: the call often ends during
+              the announcement, and a state trigger would then wait for a change that
+              already happened (2026-11-07 17:57: music never came back).'
+          - alias: Make sure it stays over for 15 s
+            wait_template: "{{ not (is_state('sensor.phone_maxi_phone_state', 'idle')\n
+              \  and not is_state('binary_sensor.maxi_is_talking', 'on')) }}"
+            timeout: 15
+          until:
+          - '{{ not wait.completed or now() >= as_datetime(deadline) }}'
+      - alias: Give up if the call is still going at the deadline
+        if:
+        - condition: or
+          conditions:
+          - condition: not
+            conditions:
+            - condition: state
+              entity_id: sensor.phone_maxi_phone_state
+              state: idle
+          - condition: state
+            entity_id: binary_sensor.maxi_is_talking
+            state: 'on'
+        then:
+        - stop: Still on the phone at the deadline; leaving the music paused
+      - alias: Only resume while Maxi is home
+        if:
+        - condition: not
+          conditions:
+          - condition: state
+            entity_id: person.maximiliano
+            state: home
+        then:
+        - stop: Maxi left during the call; leaving the music paused
+      - alias: Keep only what is still paused or idle on the same track
+        variables:
+          to_resume: "{% set ns = namespace(out=[]) %} {% for s in held %}\n  {% if
+            states(s.entity_id) in ['paused', 'idle']\n     and (s.media == '' or
+            (state_attr(s.entity_id, 'media_content_id') or '') == s.media) %}\n    {%
+            set ns.out = ns.out + [s.entity_id] %}\n  {% endif %}\n{% endfor %} {{
+            ns.out }}"
+        note: Playing means someone already resumed or started something; off, another
+          track or a cleared queue means someone changed it. Those are left alone.
+      - alias: Stop if nothing is left to resume
+        if:
+        - '{{ to_resume | count == 0 }}'
+        then:
+        - stop: The music was changed or stopped during the call; nothing to resume
+      - alias: Resume the same queue where it stopped
+        action: media_player.media_play
+        target:
+          entity_id: '{{ to_resume }}'
+        continue_on_error: true
+      - alias: Wait for it to play (max 30 s) unless a new call starts
+        wait_template: "{{ to_resume | reject('is_state', 'playing') | list | count
+          == 0\n   or not (is_state('sensor.phone_maxi_phone_state', 'idle')\n           and
+          not is_state('binary_sensor.maxi_is_talking', 'on')) }}"
+        timeout: 30
+        note: Also keeps the speaker cleanup from clearing a queue that is still starting.
+      - alias: Did a call start while resuming?
+        variables:
+          interrupted: "{{ not (is_state('sensor.phone_maxi_phone_state', 'idle')\n
+            \       and not is_state('binary_sensor.maxi_is_talking', 'on')) }}"
+      - alias: If so, pause again and keep waiting
+        if:
+        - '{{ interrupted }}'
+        then:
+        - alias: Pause it again
+          action: media_player.media_pause
+          target:
+            entity_id: '{{ to_resume }}'
+          continue_on_error: true
+        - alias: Wait for it to stop (max 5 s)
+          wait_template: '{{ to_resume | select(''is_state'', ''playing'') | list
+            | count == 0 }}'
+          timeout: 5
+        - alias: Hold these again with a fresh 2 h deadline
+          variables:
+            held: "{% set ns = namespace(out=[]) %} {% for p in to_resume %}\n  {%
+              set ns.out = ns.out + [{'entity_id': p, 'media': state_attr(p, 'media_content_id')
+              or ''}] %}\n{% endfor %} {{ ns.out }}"
+            deadline: '{{ (now() + timedelta(hours=2)).isoformat() }}'
+      until:
+      - '{{ not interrupted }}'
+  - alias: Unmute the resumed speakers in Maxi's room (music following)
+    if:
+    - condition: state
+      entity_id: input_boolean.following_music
+      state: 'on'
+    then:
+    - alias: Find the muted resumed speakers in Maxi's room
+      variables:
+        room_now: '{% set r = states(''sensor.maxi_location_by_petro_v2'') %}{{ {''entrance'':
+          ''hallway''}.get(r, r) }}'
+        unmute: "{% set room_ents = area_entities(room_now) %} {% set ns = namespace(out=[])
+          %} {% for p in to_resume %}\n  {% set gm = state_attr(p, 'group_members')
+          or [] %}\n  {% for m in (gm if gm | count > 0 else [p]) %}\n    {% if (m
+          in room_ents or ('_' ~ room_now ~ '_') in m)\n       and is_state_attr(m,
+          'is_volume_muted', true)\n       and not (m in muted_at_ring and room_now
+          == room_at_ring) %}\n      {% set ns.out = ns.out + [m] %}\n    {% endif
+          %}\n  {% endfor %}\n{% endfor %} {{ ns.out | unique | list }}"
+    - alias: Unmute them unless an unmuted TV plays there (or, after a room change,
+        a sleeper or microphone is there)
+      if:
+      - '{{ unmute | count > 0 }}'
+      - '{{ room_now | lower not in state_attr(''sensor.active_chromecast_rooms'',
+        ''unmuted_rooms'') | string | lower }}'
+      - '{{ room_now == room_at_ring or (room_now | lower not in states(''sensor.active_sleeper_rooms'')
+        | lower and room_now | lower not in states(''sensor.active_microphones_rooms'')
+        | lower) }}'
+      then:
+      - alias: Unmute
+        action: media_player.volume_mute
+        target:
+          entity_id: '{{ unmute }}'
+        data:
+          is_volume_muted: false
+        continue_on_error: true
+      note: 'Same room as the ring: puts back what was unmuted before the call (so
+        sleep sounds in the bedroom come back audible even with a sleeper there).
+        New room: the same checks as ''Conditionally Unmute Speakers when a room is
+        occupied''. Substring match, so a hotbox_top TV also blocks the hotbox speaker.'
   mode: single
+  max_exceeded: silent
+  trace:
+    stored_traces: 10
 - id: '1741317422533'
   alias: Adjust hallway tablet screen brightness to match the lights
   description: Synchronizes the hallway tablet screen brightness with the hallway
@@ -12877,7 +13111,8 @@
   conditions:
   - alias: Media is from the Movies library
     condition: template
-    value_template: '{{ state_attr(state_attr(trigger.entity_id,''active_child''),''media_library_title'')
+    value_template: '{{ (trigger.to_state.attributes.get(''media_library_title'')
+      or state_attr(state_attr(trigger.entity_id,''active_child''),''media_library_title''))
       == ''Movies''}}'
     enabled: true
   - alias: Media is not a TV series
@@ -22877,3 +23112,67 @@
     target:
       entity_id: button.kiosk_{{ trigger.id }}_go_to_dashboard
   mode: parallel
+- id: '1794268112435'
+  alias: Pause all music when Maxi is alone and a TV starts a show or movie
+  description: When Maxi is alone at home and one of the six TVs (universal Chromecast
+    players) starts playing a TV show or a movie, or switches to one while playing,
+    pauses every Music Assistant player that is playing music (app_id music_assistant),
+    in every room. A show or movie = the TV's media_library_title is 'TV Shows' or
+    'Movies' (Jellyfin HaLibrary tag or Plex library), or its media_content_type is
+    tvshow, episode or movie. Visuals never count. Nothing is resumed afterwards.
+  triggers:
+  - alias: A TV starts playing
+    trigger: state
+    entity_id:
+    - media_player.universal_bedroom_chromecast
+    - media_player.universal_salon_chromecast
+    - media_player.universal_kitchen_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_patio_chromecast
+    - media_player.universal_workshop_chromecast
+    to: playing
+  - alias: A playing TV changes library (e.g. Visuals to a movie)
+    trigger: state
+    entity_id:
+    - media_player.universal_bedroom_chromecast
+    - media_player.universal_salon_chromecast
+    - media_player.universal_kitchen_chromecast
+    - media_player.universal_hotbox_top_chromecast
+    - media_player.universal_patio_chromecast
+    - media_player.universal_workshop_chromecast
+    attribute: media_library_title
+  conditions:
+  - alias: Maxi is alone
+    condition: state
+    entity_id: binary_sensor.maxi_alone
+    state: 'on'
+  - alias: Maxi is home
+    condition: state
+    entity_id: person.maximiliano
+    state: home
+  - alias: The TV is playing
+    condition: template
+    value_template: '{{ trigger.to_state is not none and trigger.to_state.state ==
+      ''playing'' }}'
+  - alias: It is a TV show or a movie (not Visuals)
+    condition: template
+    value_template: '{% set a = trigger.to_state.attributes %}{% set lib = a.media_library_title
+      | default('''') | string %}{{ lib != ''Visuals'' and (lib in [''TV Shows'',
+      ''Movies''] or (a.media_content_type | default('''') | string | lower) in [''tvshow'',
+      ''episode'', ''movie'']) }}'
+  actions:
+  - alias: Find the music playing anywhere
+    variables:
+      playing: '{{ integration_entities(''music_assistant'') | select(''match'', ''media_player[.]'')
+        | select(''is_state'', ''playing'') | select(''is_state_attr'', ''app_id'',
+        ''music_assistant'') | list }}'
+  - alias: Pause it
+    if:
+    - '{{ playing | count > 0 }}'
+    then:
+    - action: media_player.media_pause
+      target:
+        entity_id: '{{ playing }}'
+      continue_on_error: true
+  mode: single
+  max_exceeded: silent
