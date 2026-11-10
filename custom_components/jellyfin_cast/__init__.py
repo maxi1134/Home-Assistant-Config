@@ -30,19 +30,24 @@ sync.
 
 from __future__ import annotations
 
+import copy
 import logging
+from pathlib import Path
 from typing import Any
 
 import aiohttp
 import voluptuous as vol
 
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_FRIENDLY_NAME, CONF_TOKEN, CONF_URL
-from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
+from homeassistant.core import Event, HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.selector import validate_selector
+from homeassistant.helpers.service import async_set_service_schema
 from homeassistant.helpers.entity_component import DATA_INSTANCES
 from homeassistant.helpers.typing import ConfigType
+from homeassistant.util.yaml import load_yaml_dict
 
 from .lookup import EPISODE_CHOICES, SEARCH_TYPES, ItemNotFound, JellyfinLookup, describe
 from .receiver import DEFAULT_APP_ID, JellyfinReceiver, play_now_message, plain_id
@@ -186,4 +191,40 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         schema=PLAY_ITEM_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL,
     )
+
+    # The UI's TV picker: services.yaml can only filter on the cast integration, which also
+    # brings speakers, speaker groups and cast-enabled receivers (device class speaker). The
+    # description is published here with just the cast players that can show video, and
+    # again whenever a media player is added, removed or changed.
+    def load_description() -> dict[str, Any]:
+        """play_item from services.yaml, its selectors normalized as Home Assistant does."""
+        play = load_yaml_dict(str(Path(__file__).parent / "services.yaml"))["play_item"]
+        for field in play["fields"].values():
+            if "selector" in field:
+                field["selector"] = validate_selector(field["selector"])
+        return play
+
+    description = await hass.async_add_executor_job(load_description)
+
+    @callback
+    def describe_play_item(_event: Event | None = None) -> None:
+        tvs = sorted(
+            entry.entity_id
+            for entry in er.async_get(hass).entities.values()
+            if entry.domain == "media_player" and entry.platform == "cast" and not entry.disabled_by
+            and (entry.device_class or entry.original_device_class) != "speaker"
+        )
+        schema = copy.deepcopy(description)
+        if tvs:  # none yet: keep the plain cast filter rather than an empty list
+            picker = schema["fields"]["entity_id"]["selector"]
+            picker["entity"]["include_entities"] = tvs
+            schema["fields"]["entity_id"]["selector"] = validate_selector(picker)
+        async_set_service_schema(hass, DOMAIN, "play_item", schema)
+
+    @callback
+    def media_player_changed(event_data: er.EventEntityRegistryUpdatedData) -> bool:
+        return event_data["entity_id"].startswith("media_player.")
+
+    describe_play_item()
+    hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, describe_play_item, event_filter=media_player_changed)
     return True
