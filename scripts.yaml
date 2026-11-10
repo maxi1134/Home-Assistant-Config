@@ -6230,11 +6230,12 @@ universal_tv_skip:
   alias: Universal TV skip
   description: 'Next/previous for the universal TV players in includes/media_player.yaml.
     Uses the first thing this TV supports: the native TV app that is playing, the
-    cast receiver''s own queue, a Plex client that accepts remote control, the Android
-    TV media key (kept only if the cast''s content then changes), and for Plex TV
-    episodes the neighbouring episode by season/episode number. Previous falls back
-    to restarting the current item. The universals start it with script.turn_on, so
-    a slow fallback never blocks the caller. Who is playing comes from custom_templates/universal_tv.jinja.'
+    cast receiver''s own queue, the official Jellyfin receiver''s queue (jellyfin_cast.next_track
+    / previous_track), a Plex client that accepts remote control, the Android TV media
+    key (kept only if the cast''s content then changes), and for Plex TV episodes
+    the neighbouring episode by season/episode number. Previous falls back to restarting
+    the current item. The universals start it with script.turn_on, so a slow fallback
+    never blocks the caller. Who is playing comes from custom_templates/universal_tv.jinja.'
   mode: parallel
   max: 10
   icon: mdi:skip-next
@@ -6316,6 +6317,25 @@ universal_tv_skip:
       target:
         entity_id: '{{ cast }}'
     - stop: Skipped by the cast receiver
+  - alias: The official Jellyfin receiver - skip through its own queue
+    if:
+    - '{{ state_attr(cast, ''app_id'') == ''F007D354'' }}'
+    then:
+    - action: jellyfin_cast.{{ direction }}_track
+      data:
+        entity_id: '{{ cast }}'
+      response_variable: jellyfin_skip
+      continue_on_error: true
+    - if:
+      - '{{ jellyfin_skip is defined and jellyfin_skip.ok | default(false) }}'
+      then:
+      - stop: Skipped through the Jellyfin receiver's queue
+    note: The Jellyfin receiver (app F007D354) keeps its own playlist and doesn't
+      report next/previous to the Cast integration, so the step above never sees it.
+      jellyfin_cast sends it the NextTrack/PreviousTrack the Jellyfin apps send, which
+      moves through a shuffled show or a season it queued. With nothing that way it
+      answers ok false and the steps below carry on (previous then restarts the current
+      item).
   - alias: The Plex client accepts remote control
     if:
     - '{{ plex != '''' and state_attr(plex, ''supported_features'') | int(0) | bitwise_and(feature)
