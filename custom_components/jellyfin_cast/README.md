@@ -57,6 +57,7 @@ response_variable: cast
 | `item_type` | no | With a name: only look for `Movie`, `Series` (shows), `Episode` or `Video`. With an item_id: its type, `Video` (default), `Episode` or `Movie` |
 | `library` | no | With a name: only look in this library, e.g. `Movies` or `TV Shows` |
 | `episode` | no | For a show found by name: `next_up` (default) or `random` |
+| `shuffle` | no | For a show: play its episodes in random order until stopped (see *Shuffling a show*) |
 | `audio_stream_index` | no | Jellyfin stream index of the audio track |
 | `subtitle_stream_index` | no | Jellyfin stream index of the subtitles, `-1` for none |
 | `start_position_ticks` | no | Start position (10,000,000 ticks per second) |
@@ -96,6 +97,22 @@ matched: exact                 # or partial
 ```
 
 If nothing matches, `ok` is `false` and `candidates` lists what the server suggested instead, which is handy for a voice assistant to answer with.
+
+### Shuffling a show
+
+```yaml
+action: jellyfin_cast.play_item
+data:
+  entity_id: media_player.living_room_tv
+  name: Futurama
+  shuffle: true
+```
+
+With `shuffle: true`, a show (found by name, or given by its own `item_id`) plays all its episodes in random order, then again in a new random order, and so on, until something else plays or you stop it. The integration sends the receiver one queue of 200 episodes: every episode once before any repeats, never the same one twice in a row, about 70 hours of a 22-minute show. A long show gives 200 different episodes. Skipping on the TV or in Jellyfin moves through that queue.
+
+The response has `episode_choice: shuffle`, `queue_length` and the first episode. `shuffle` replaces `episode`, and anything that isn't a show (a movie, an episode, a video) just plays as usual.
+
+Unlike the receiver's own Shuffle command, which queues 50 random episodes and then stops, this one doesn't run out on a short show.
 
 ## Finding the `item_id`
 
