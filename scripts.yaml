@@ -1916,10 +1916,10 @@ set_whole_house_to_cozy_ambiance_2:
         value_template: '{{ include_visuals | default(true) | bool }}'
       then:
       - alias: Start Fireplace Visuals on idle TVs
-        action: script.start_visual_playlist_on_plex
+        action: script.jellyfin_start_visuals_on_idle_tvs
         metadata: {}
         data:
-          requested_playlist: Fireplace Visuals
+          playlist: Fireplace Visuals
           start_on_off_only: false
         continue_on_error: true
     - alias: 'Lounge Christmas tree: ''1 Vintage'' effect, 2668 K, 100%'
@@ -2371,8 +2371,8 @@ set_whole_house_tonsexy_ambiance:
   - alias: Start Fireplace Visuals on idle TVs
     metadata: {}
     data:
-      requested_playlist: Fireplace Visuals
-    action: script.start_visual_playlist_on_plex
+      playlist: Fireplace Visuals
+    action: script.jellyfin_start_visuals_on_idle_tvs
     continue_on_error: true
   - alias: Play Pornosonic on home speakers
     action: music_assistant.play_media
@@ -2404,8 +2404,8 @@ set_whole_house_to_party_ambiance:
     - alias: Start Colorful Backgrounds Visuals on idle TVs
       metadata: {}
       data:
-        requested_playlist: Colorful Backgrounds Visuals
-      action: script.start_visual_playlist_on_plex
+        playlist: Colorful Backgrounds Visuals
+      action: script.jellyfin_start_visuals_on_idle_tvs
     - alias: Random pastel colors on all lights (30%)
       action: script.change_received_lights_to_random_pastel_colors
       metadata: {}
@@ -2511,8 +2511,8 @@ set_whole_house_to_acid_time:
           entity_id: media_player.group_mass_home_group_speakers
     - metadata: {}
       data:
-        requested_playlist: 4k visuals
-      action: script.start_visual_playlist_on_plex
+        playlist: 4k visuals
+      action: script.jellyfin_start_visuals_on_idle_tvs
       alias: Start 4k visuals on idle TVs
     - if:
       - alias: Sun is above the horizon
@@ -2595,8 +2595,8 @@ set_whole_house_to_kinky_ambiance:
     - alias: Start kinky visuals on idle TVs
       metadata: {}
       data:
-        requested_playlist: Local Kinky Time Visuals Playlist
-      action: script.start_visual_playlist_on_plex
+        playlist: Local Kinky Time Visuals Playlist
+      action: script.jellyfin_start_visuals_on_idle_tvs
     - alias: Close All Blinds
       action: cover.close_cover
       metadata: {}
@@ -6608,12 +6608,13 @@ jellyfin_play_random_episode_on_a_tv:
     and phone TV-show buttons call it (they started a shuffled Plex show until 2026-11-04),
     and so does the LLM TV script for a show. Finds the series by its exact Jellyfin
     name (series_id pins a name two series share) and picks a random episode that
-    has a file; script.jellyfin_play_item_on_a_tv casts it (English audio, an HLS
-    stream every Chromecast plays, 720p on a Nest Hub, subtitles per the Jellyfin
-    user). Auto-continue (keep_playing, on by default): after the cast it starts script.jellyfin_continue_random_episodes
-    in the background, which runs this script again when the episode played to the
-    end. Answers with what it cast; when something fails it posts a notification and
-    answers with error.'
+    has a file; script.jellyfin_play_item_on_a_tv casts it (English audio, through
+    the official Jellyfin receiver since 2026-11-09, or the Default Media Receiver
+    on a Nest Hub or when the receiver fails). Auto-continue (keep_playing, on by
+    default): after the cast it starts script.jellyfin_continue_random_episodes in
+    the background with the episode id and, when the stream URL carries one, its PlaySessionId;
+    that script runs this one again when the episode played to the end. Answers with
+    what it cast; when something fails it posts a notification and answers with error.'
   mode: parallel
   max: 10
   icon: mdi:television-play
@@ -6726,10 +6727,10 @@ jellyfin_play_random_episode_on_a_tv:
     response_variable: cast
   - alias: Keep playing - watch for the end of this episode in the background
     if:
-    - alias: keep_playing is on and the stream has a play session to follow
+    - alias: keep_playing is on and an episode went out
       condition: template
-      value_template: '{{ keep_playing and cast.play_session | default('''') != ''''
-        }}'
+      value_template: '{{ keep_playing and cast is mapping and cast.item_id | default('''')
+        != '''' and cast.error is not defined }}'
     then:
     - alias: Start the auto-continue watcher
       action: script.turn_on
@@ -6740,38 +6741,45 @@ jellyfin_play_random_episode_on_a_tv:
           show: '{{ show }}'
           player: '{{ player }}'
           series_id: '{{ series_id }}'
-          play_session: '{{ cast.play_session }}'
+          cast_item_id: '{{ cast.item_id }}'
+          play_session: '{{ cast.play_session | default('''') }}'
   - alias: Answer with what was cast (or why not)
     variables:
-      result: '{{ dict(cast, keep_playing=keep_playing and cast.play_session | default('''')
-        != '''') if cast is mapping and cast else {''error'': ''script.jellyfin_play_item_on_a_tv
-        did not answer.''} }}'
+      result: "{{ dict(cast, keep_playing=keep_playing and cast.item_id | default('')
+        != '' and cast.error is not defined)\n   if cast is mapping and cast else
+        {'error': 'script.jellyfin_play_item_on_a_tv did not answer.'} }}"
   - alias: Done
     stop: Episode cast
     response_variable: result
 jellyfin_continue_random_episodes:
-  alias: 'Jellyfin: Continue random episodes on a TV'
-  description: Auto-continue for script.jellyfin_play_random_episode_on_a_tv, which
-    starts this in the background after each cast (so a button press returns right
-    away). Waits until that episode, recognised by its Jellyfin PlaySessionId in the
-    cast's media_content_id, leaves the TV. Only when the TV went idle at the end
+  alias: 'Jellyfin: Continue playback on a TV'
+  description: 'Auto-continue for the Jellyfin TV scripts, which start it in the background
+    after each cast (so a button press returns right away). After an episode from
+    script.jellyfin_play_random_episode_on_a_tv it starts another random episode of
+    the same show; after a visual from script.jellyfin_play_visual_on_a_tv (visual:
+    true) it runs that script again: the same visual (item_id given) or another random
+    one from the same playlist. Waits until that stream leaves the TV (12 h at most
+    for an episode, 25 h for a visual, some are 12 hours long). It recognises the
+    stream by its Jellyfin PlaySessionId in the cast''s media_content_id, or, when
+    there is none (the official Jellyfin receiver playing a file as it is, since 2026-11-09),
+    by the item id in the URL (cast_item_id). Only when the TV went idle at the end
     of it (playing or buffering just before, at least 30 s after the start, within
-    the last minute or 10% of it) does it start another random episode of the same
-    show. Stop, another button, other media or the TV turning off end the chain; so
-    does an HA restart, which kills the wait.
+    the last minute or 10% of it) does it continue. Stop, another button or Jellyfin
+    cast to that TV (event jellyfin_tv_cast), other media or the TV turning off end
+    the chain; so does an HA restart or a save of this script, which kill the wait.'
   mode: parallel
   max: 20
   icon: mdi:playlist-play
   fields:
     show:
       name: Show
-      description: Series name, passed back to the play script.
-      required: true
+      description: Series name, passed back to the play script (episodes).
+      required: false
       selector:
         text: {}
     player:
       name: TV
-      description: Google Cast media player the episode was cast to.
+      description: Google Cast media player it was cast to.
       required: true
       selector:
         entity:
@@ -6785,15 +6793,53 @@ jellyfin_continue_random_episodes:
         text: {}
     play_session:
       name: Play session
-      description: PlaySessionId of the episode's Jellyfin stream.
-      required: true
+      description: 'PlaySessionId of the Jellyfin stream, when its URL carries one
+        (empty: match cast_item_id).'
+      required: false
+      selector:
+        text: {}
+    cast_item_id:
+      name: Cast item id
+      description: Jellyfin id of the episode that was cast; recognises the stream
+        when it has no PlaySessionId.
+      selector:
+        text: {}
+    visual:
+      name: Visual
+      description: It was a visual (script.jellyfin_play_visual_on_a_tv), not an episode.
+      default: false
+      selector:
+        boolean: {}
+    item_id:
+      name: Visual id
+      description: The visual to play again; empty for random visuals or episodes.
+      selector:
+        text: {}
+    playlist:
+      name: Playlist
+      description: 'Visuals playlist to draw the next random visual from (empty: the
+        whole library).'
+      selector:
+        text: {}
+    title:
+      name: Title
+      description: The visual's display title, passed back.
       selector:
         text: {}
   sequence:
+  - alias: A visual or an episode?
+    variables:
+      is_visual: '{{ visual | default(false) | bool or item_id | default('''', true)
+        | string | trim != '''' }}'
+      session_key: '{{ (''PlaySessionId='' ~ play_session) if play_session | default('''',
+        true) else '''' }}'
+      item_key: "{{ ('/' ~ (cast_item_id | string | replace('-', '') | lower) ~ '/')\n
+        \  if cast_item_id | default('', true) else '' }}"
   - alias: Wait for the TV to start this episode (1 min)
-    wait_template: '{{ states(player) in [''playing'', ''paused'', ''buffering'']
-      and (''PlaySessionId='' ~ play_session) in (state_attr(player, ''media_content_id'')
-      or '''') }}'
+    wait_template: "{%- set cid = state_attr(player, 'media_content_id') or '' -%}\n{{
+      states(player) in ['playing', 'paused', 'buffering']\n   and ((session_key !=
+      '' and session_key in cid)\n        or (session_key == '' and item_key != ''
+      and item_key in (cid | replace('-', '') | lower))) }}"
     timeout: 00:01:00
     continue_on_timeout: true
   - alias: Stop when the TV never started it
@@ -6806,68 +6852,107 @@ jellyfin_continue_random_episodes:
   - alias: Note when it started
     variables:
       started_at: '{{ now().timestamp() }}'
-  - alias: Wait until this episode leaves the TV (12 h at most)
+  - alias: Wait until it leaves the TV (12 h at most for an episode, 25 h for a visual)
     wait_for_trigger:
-    - alias: The TV is no longer playing, pausing or buffering this episode
+    - alias: The TV is no longer playing, pausing or buffering this stream
       trigger: template
-      value_template: '{{ not (states(player) in [''playing'', ''paused'', ''buffering'']
-        and (''PlaySessionId='' ~ play_session) in (state_attr(player, ''media_content_id'')
-        or '''')) }}'
-    timeout: '12:00:00'
+      value_template: "{%- set cid = state_attr(player, 'media_content_id') or ''
+        -%}\n{{ not (states(player) in ['playing', 'paused', 'buffering']\n   and
+        ((session_key != '' and session_key in cid)\n        or (session_key == ''
+        and item_key != '' and item_key in (cid | replace('-', '') | lower)))) }}"
+    - alias: Another Jellyfin cast to this TV
+      trigger: event
+      event_type: jellyfin_tv_cast
+      event_data:
+        player: '{{ player }}'
+    timeout: '{{ ''25:00:00'' if is_visual else ''12:00:00'' }}'
     continue_on_timeout: false
   - alias: Did it play to the end? (idle right after playing, at the last minute of
       it)
     variables:
-      finished: "{%- set f = wait.trigger.from_state if wait.trigger else none -%}
-        {%- set t = wait.trigger.to_state if wait.trigger else none -%} {%- if f is
-        none or t is none -%}\n  false\n{%- else -%}\n  {%- set duration = f.attributes.media_duration
+      finished: "{%- set trig = wait.trigger if wait.trigger else {} -%}\n{%- if trig.platform
+        | default('') != 'template' -%}\n  false\n{%- else -%}\n  {%- set f = trig.from_state
+        -%} {%- set t = trig.to_state -%}\n  {%- set duration = f.attributes.media_duration
         | float(0) -%}\n  {%- set position = f.attributes.media_position | float(0)
         -%}\n  {%- set updated = f.attributes.media_position_updated_at -%}\n  {%-
         set ended_at = position + ((as_timestamp(t.last_changed) - as_timestamp(updated))\n
-        \       if f.state == 'playing' and updated else 0) -%}\n  {%- set still_ours
-        = ('PlaySessionId=' ~ play_session)\n        in (t.attributes.media_content_id
-        or ('PlaySessionId=' ~ play_session)) -%}\n  {{ t.state == 'idle' and f.state
-        in ['playing', 'buffering'] and still_ours\n     and duration > 0 and ended_at
-        >= duration - [60, duration * 0.1] | min\n     and as_timestamp(t.last_changed)
+        \       if f.state == 'playing' and updated else 0) -%}\n  {%- set cid = t.attributes.media_content_id
+        or '' -%}\n  {%- set still_ours = cid == ''\n        or (session_key != ''
+        and session_key in cid)\n        or (session_key == '' and item_key != ''
+        and item_key in (cid | replace('-', '') | lower)) -%}\n  {{ t.state == 'idle'
+        and f.state in ['playing', 'buffering'] and still_ours\n     and duration
+        > 0 and ended_at >= duration - [60, duration * 0.1] | min\n     and as_timestamp(t.last_changed)
         - started_at | float(0) >= 30 }}\n{%- endif -%}"
-  - alias: Start another random episode when this one played to the end
+  - alias: Continue when it played to the end
     if:
     - alias: Played to the end
       condition: template
       value_template: '{{ finished }}'
     then:
-    - alias: Start the play script again in the background
-      action: script.turn_on
-      target:
-        entity_id: script.jellyfin_play_random_episode_on_a_tv
-      data:
-        variables:
-          show: '{{ show }}'
-          player: '{{ player }}'
-          series_id: '{{ series_id }}'
-          keep_playing: true
+    - if:
+      - alias: A visual
+        condition: template
+        value_template: '{{ is_visual }}'
+      then:
+      - alias: Run the visuals script again in the background (same visual, or another
+          random one)
+        action: script.turn_on
+        target:
+          entity_id: script.jellyfin_play_visual_on_a_tv
+        data:
+          variables:
+            item_id: '{{ item_id | default('''', true) }}'
+            playlist: '{{ playlist | default('''', true) }}'
+            player: '{{ player }}'
+            title: '{{ title | default('''', true) }}'
+            loop: true
+      else:
+      - alias: Start the play script again in the background
+        action: script.turn_on
+        target:
+          entity_id: script.jellyfin_play_random_episode_on_a_tv
+        data:
+          variables:
+            show: '{{ show }}'
+            player: '{{ player }}'
+            series_id: '{{ series_id }}'
+            keep_playing: true
 jellyfin_play_item_on_a_tv:
-  alias: 'Jellyfin: Play a movie or episode on a TV'
-  description: 'Casts one Jellyfin movie or episode to a Google Cast TV and answers
-    with what it cast (type, title, the series with season and episode or the year,
-    and the stream''s PlaySessionId), or with error. script.jellyfin_play_random_episode_on_a_tv
-    (the tablet and phone TV-show buttons) and the LLM TV script use it. Picks the
-    English audio track when there is one (the old Plex account setting). Asks Jellyfin
-    for an HLS H.264/AAC stream that every Chromecast plays: remuxed when the file
-    already fits, transcoded on the GPU otherwise. 1080p at up to 12 Mbps, but 720p
-    at 4 Mbps on a Nest Hub (the 1st-gen kitchen hub refuses any 1080p stream; tested
-    2026-11-04). Subtitles follow the Jellyfin user settings (always English): text
-    subtitles go to the TV as a WebVTT track, embedded ones too since "extract subtitles
-    on the fly" was turned on (2026-11-04); image subtitles are burned in. The TV
-    shows the series poster for an episode, the poster for a movie. When something
-    fails it posts a notification and answers with error.'
+  alias: 'Jellyfin: Play a movie, episode or video on a TV'
+  description: 'Casts one Jellyfin movie, episode or video to a Google Cast TV and
+    answers with what it cast (type, title, the series with season and episode or
+    the year, how it went out, and the PlaySessionId when the stream URL carries one),
+    or with error. script.jellyfin_play_random_episode_on_a_tv (the tablet and phone
+    TV-show buttons), script.jellyfin_play_visual_on_a_tv (the tablet visuals) and
+    the LLM TV script use it. Picks the English audio track when there is one (the
+    old Plex account setting). Episodes and movies go through the official Jellyfin
+    cast receiver (jellyfin_cast.play_item, since 2026-11-09: the Default Media Receiver
+    sometimes put the sound out of sync), as a cast from the Jellyfin apps would:
+    the receiver picks the stream (HLS in fMP4 segments played by Shaka, the file
+    as it is when the TV takes it) and reports playback under the hidden Jellyfin
+    user homeassistant, whose subtitle settings match maxi1134 (always English). It
+    waits until the TV plays; if the receiver fails, the old way takes over. The old
+    way, also used for visuals and on a Nest Hub: an HLS H.264/AAC stream for the
+    Default Media Receiver, remuxed when the file already fits and transcoded on the
+    GPU otherwise, 1080p at up to 12 Mbps but 720p at 4 Mbps on a Nest Hub (the 1st-gen
+    kitchen hub refuses any 1080p stream, and the receiver asks it for 4K; tested
+    2026-11-04 and 11-09); max_bitrate lowers the cap. Its text subtitles go to the
+    TV as WebVTT, image subtitles are burned in, the TV shows the series poster, the
+    movie poster or a video''s own image under the title field or the Jellyfin name
+    without its "(2160p_…)" download tag, and the stream URL ends with HaLibrary=<the
+    item''s Jellyfin library>. Either way the universal TVs report media_library_title
+    ("TV Shows", "Movies", "Visuals") like they did for Plex (custom_components/universal),
+    so the movie lights, the dials and the visuals mute keep working. Each cast fires
+    the event jellyfin_tv_cast (player, item_id), which ends the auto-continue watcher
+    of an earlier cast on that TV. When something fails it posts a notification and
+    answers with error.'
   mode: parallel
   max: 10
   icon: mdi:cast
   fields:
     item_id:
       name: Item ID
-      description: Jellyfin id of the movie or episode.
+      description: Jellyfin id of the movie, episode or video.
       required: true
       example: 1ffa07c043d35bab9a1c090831a41d13
       selector:
@@ -6883,12 +6968,31 @@ jellyfin_play_item_on_a_tv:
           filter:
           - domain: media_player
             integration: cast
+    title:
+      name: Title
+      description: 'Name shown on the TV and in Home Assistant for a movie or video
+        (default: the Jellyfin name).'
+      example: Lava Lamps
+      selector:
+        text: {}
+    max_bitrate:
+      name: Max bitrate
+      description: A lower bitrate cap in bit/s (the visuals use 4000000).
+      example: 4000000
+      selector:
+        number:
+          min: 500000
+          max: 12000000
+          step: 500000
+          mode: box
   sequence:
-  - alias: Settings (720p for a Nest Hub)
+  - alias: Settings (720p for a Nest Hub, and the bitrate cap)
     variables:
       jellyfin: http://192.168.0.20:8096
       nest_hub: '{{ (device_attr(player, ''model'') or '''') is search(''Nest Hub|Home
         Hub'', ignorecase=true) }}'
+      cap: '{{ ([4000000 if nest_hub else 12000000] + ([max_bitrate | int(0)] if max_bitrate
+        | default(0, true) | int(0) > 0 else [])) | min }}'
   - alias: Read the movie or episode
     action: rest_command.jellyfin_item
     data:
@@ -6936,93 +7040,166 @@ jellyfin_play_item_on_a_tv:
     - alias: 'Stop: not found'
       stop: Item not found in Jellyfin
       response_variable: result
-  - alias: Ask Jellyfin how to stream it to a Chromecast (720p for a Nest Hub)
-    action: rest_command.jellyfin_playback_info
+  - alias: Find its library (its ancestors)
+    action: rest_command.jellyfin_ancestors
     data:
       item_id: '{{ item.id }}'
-      media_source_id: '{{ item.source }}'
-      audio_stream_index: '{{ item.english }}'
-      max_width: '{{ 1280 if nest_hub else 1920 }}'
-      max_height: '{{ 720 if nest_hub else 1080 }}'
-      max_bitrate: '{{ 4000000 if nest_hub else 12000000 }}'
-    response_variable: playback
+    response_variable: ancestors
     continue_on_error: true
-  - alias: Read the stream URL, its play session and the subtitle track
+  - alias: Read the library name (TV Shows, Movies, Visuals)
     variables:
-      media: "{{ playback.content.MediaSources | first\n   if playback is defined
-        and playback.status == 200 and playback.content is mapping\n      and playback.content.MediaSources
-        | default([], true) | count > 0\n   else {} }}"
-      stream: '{{ jellyfin ~ media.TranscodingUrl if media.TranscodingUrl | default('''',
-        true) else '''' }}'
-      play_session: '{{ (stream | regex_findall(''PlaySessionId=([^&]+)'') + [''''])
-        | first }}'
-      subtitle: "{%- set picked = media.MediaStreams | default([], true)\n      |
-        selectattr('Index', 'eq', (media.DefaultSubtitleStreamIndex if media.DefaultSubtitleStreamIndex
-        is number else -1))\n      | list -%}\n{%- set s = picked | first if picked
-        else {} -%} {{ s if s.DeliveryMethod | default('') == 'External' and s.DeliveryUrl
-        | default('', true)\n   else {} }}"
+      library: "{{ ((ancestors.content | selectattr('Type', 'eq', 'CollectionFolder')\n
+        \     | map(attribute='Name') | list) + [''])[0]\n   if ancestors is defined
+        and ancestors.status == 200 and ancestors.content is list\n   else '' }}"
+  - alias: Name it for the TV and the answer
+    variables:
+      shown: "{{ title | default('', true) | string | trim\n   or item.title | regex_replace('
+        *[(][0-9]{3,4}p_[^)]*[)] *$', '') }}"
       label: "{{ item.series ~ ' S' ~ item.season ~ 'E' ~ item.number ~ ' \"' ~ item.title
-        ~ '\"'\n   if item.type == 'Episode'\n   else item.title ~ (' (' ~ item.year
-        ~ ')' if item.year else '') }}"
-  - alias: Stop when Jellyfin offered no stream
-    if:
-    - alias: No stream URL
-      condition: template
-      value_template: '{{ stream == '''' }}'
-    then:
-    - alias: Say why
-      variables:
-        result:
-          error: Jellyfin offered no stream for {{ label }}.
-    - alias: 'Notify: no stream'
-      action: persistent_notification.create
-      data:
-        notification_id: jellyfin_tv_shortcut
-        title: Jellyfin TV shortcut
-        message: '{{ result.error }} (item {{ item.id }}) The TV was {{ player }}.'
-    - alias: 'Stop: no stream'
-      stop: No stream
-      response_variable: result
-  - alias: Describe it for the TV and Home Assistant (series or movie poster, like
-      Plex)
+        ~ '\"'\n   if item.type == 'Episode'\n   else shown ~ (' (' ~ item.year ~
+        ')' if item.year and item.type == 'Movie' else '') }}"
+  - alias: Episodes and movies go to the official Jellyfin receiver (not on a Nest
+      Hub)
     variables:
-      cast_extra: "{%- if item.type == 'Movie' -%}\n  {%- set m = {'metadataType':
-        1, 'title': item.title} -%}\n  {%- if item.aired -%}{%- set m = dict(m, releaseDate=item.aired[:10])
-        -%}{%- endif -%}\n  {%- if item.image -%}\n    {%- set m = dict(m, images=[{'url':
-        jellyfin ~ '/Items/' ~ item.id\n          ~ '/Images/Primary?tag=' ~ item.image
-        ~ '&maxWidth=600'}]) -%}\n  {%- endif -%}\n{%- else -%}\n  {%- set m = {'metadataType':
-        2, 'seriesTitle': item.series, 'title': item.title} -%}\n  {%- if item.season
-        is number -%}{%- set m = dict(m, season=item.season) -%}{%- endif -%}\n  {%-
-        if item.number is number -%}{%- set m = dict(m, episode=item.number) -%}{%-
-        endif -%}\n  {%- if item.aired -%}{%- set m = dict(m, originalAirdate=item.aired[:10])
-        -%}{%- endif -%}\n  {%- if item.poster and item.series_id -%}\n    {%- set
-        m = dict(m, images=[{'url': jellyfin ~ '/Items/' ~ item.series_id\n          ~
-        '/Images/Primary?tag=' ~ item.poster ~ '&maxWidth=600'}]) -%}\n  {%- elif
-        item.image -%}\n    {%- set m = dict(m, images=[{'url': jellyfin ~ '/Items/'
-        ~ item.id\n          ~ '/Images/Primary?tag=' ~ item.image ~ '&maxWidth=600'}])
-        -%}\n  {%- endif -%}\n{%- endif -%}\n{%- set x = {'stream_type': 'BUFFERED',\n
-        \            'media_info': {'hlsSegmentFormat': 'ts', 'hlsVideoSegmentFormat':
-        'mpeg2_ts'},\n             'metadata': m} -%}\n{%- if subtitle.DeliveryUrl
-        is defined -%}\n  {%- set lang = subtitle.Language | default('', true) -%}\n
-        \ {%- set x = dict(x,\n        subtitles=(subtitle.DeliveryUrl if subtitle.IsExternalUrl
-        | default(false)\n                   else jellyfin ~ subtitle.DeliveryUrl),\n
-        \       subtitles_lang={'eng': 'en', 'fre': 'fr', 'fra': 'fr', 'spa': 'es'}.get(lang,
-        lang or 'en')) -%}\n{%- endif -%}\n{{ x }}"
-  - alias: Cast it to the TV
-    action: media_player.play_media
-    target:
-      entity_id: '{{ player }}'
-    data:
-      media_content_id: '{{ stream }}'
-      media_content_type: application/x-mpegURL
-      extra: '{{ cast_extra }}'
+      use_receiver: '{{ not nest_hub and item.type in [''Episode'', ''Movie''] }}'
+      receiver_data: '{%- set d = {''entity_id'': player, ''item_id'': item.id, ''item_type'':
+        item.type} -%}
+
+        {%- if item.english is number -%}{%- set d = dict(d, audio_stream_index=item.english)
+        -%}{%- endif -%}
+
+        {%- if max_bitrate | default(0, true) | int(0) > 0 -%}{%- set d = dict(d,
+        max_bitrate=max_bitrate | int) -%}{%- endif -%}
+
+        {{ d }}'
+  - alias: Cast it through the Jellyfin receiver
+    if:
+    - alias: An episode or a movie, and not a Nest Hub
+      condition: template
+      value_template: '{{ use_receiver }}'
+    then:
+    - alias: Play it with the receiver (launches the Jellyfin app, waits until the
+        TV plays it)
+      action: jellyfin_cast.play_item
+      data: '{{ receiver_data }}'
+      response_variable: receiver
+      continue_on_error: true
+  - alias: Did the receiver play it?
+    variables:
+      via_receiver: '{{ receiver is defined and receiver is mapping and receiver.ok
+        | default(false) }}'
+      receiver_error: "{{ '' if not use_receiver or via_receiver\n   else (receiver.error
+        | default('no answer') if receiver is defined and receiver is mapping\n         else
+        'jellyfin_cast.play_item failed') }}"
+  - alias: Otherwise cast an HLS stream to the Default Media Receiver (visuals, a
+      Nest Hub, or the receiver failed)
+    if:
+    - alias: Not playing through the receiver
+      condition: template
+      value_template: '{{ not via_receiver }}'
+    then:
+    - alias: Ask Jellyfin how to stream it to a Chromecast (720p for a Nest Hub)
+      action: rest_command.jellyfin_playback_info
+      data:
+        item_id: '{{ item.id }}'
+        media_source_id: '{{ item.source }}'
+        audio_stream_index: '{{ item.english }}'
+        max_width: '{{ 1280 if nest_hub else 1920 }}'
+        max_height: '{{ 720 if nest_hub else 1080 }}'
+        max_bitrate: '{{ cap }}'
+      response_variable: playback
+      continue_on_error: true
+    - alias: Read the stream URL (tagged with the library), its play session and the
+        subtitle track
+      variables:
+        media: "{{ playback.content.MediaSources | first\n   if playback is defined
+          and playback.status == 200 and playback.content is mapping\n      and playback.content.MediaSources
+          | default([], true) | count > 0\n   else {} }}"
+        stream: "{{ jellyfin ~ media.TranscodingUrl ~ ('&HaLibrary=' ~ (library |
+          urlencode) if library else '')\n   if media.TranscodingUrl | default('',
+          true) else '' }}"
+        play_session: '{{ (stream | regex_findall(''PlaySessionId=([^&]+)'') + [''''])
+          | first }}'
+        subtitle: "{%- set picked = media.MediaStreams | default([], true)\n      |
+          selectattr('Index', 'eq', (media.DefaultSubtitleStreamIndex if media.DefaultSubtitleStreamIndex
+          is number else -1))\n      | list -%}\n{%- set s = picked | first if picked
+          else {} -%} {{ s if s.DeliveryMethod | default('') == 'External' and s.DeliveryUrl
+          | default('', true)\n   else {} }}"
+    - alias: Stop when Jellyfin offered no stream
+      if:
+      - alias: No stream URL
+        condition: template
+        value_template: '{{ stream == '''' }}'
+      then:
+      - alias: Say why
+        variables:
+          result:
+            error: Jellyfin offered no stream for {{ label }}.
+      - alias: 'Notify: no stream'
+        action: persistent_notification.create
+        data:
+          notification_id: jellyfin_tv_shortcut
+          title: Jellyfin TV shortcut
+          message: '{{ result.error }} (item {{ item.id }}) The TV was {{ player }}.'
+      - alias: 'Stop: no stream'
+        stop: No stream
+        response_variable: result
+    - alias: Describe it for the TV and Home Assistant (series or movie poster like
+        Plex, else its own image)
+      variables:
+        cast_extra: "{%- if item.type == 'Movie' -%}\n  {%- set m = {'metadataType':
+          1, 'title': shown} -%}\n  {%- if item.aired -%}{%- set m = dict(m, releaseDate=item.aired[:10])
+          -%}{%- endif -%}\n  {%- if item.image -%}\n    {%- set m = dict(m, images=[{'url':
+          jellyfin ~ '/Items/' ~ item.id\n          ~ '/Images/Primary?tag=' ~ item.image
+          ~ '&maxWidth=600'}]) -%}\n  {%- endif -%}\n{%- elif item.type == 'Episode'
+          -%}\n  {%- set m = {'metadataType': 2, 'seriesTitle': item.series, 'title':
+          item.title} -%}\n  {%- if item.season is number -%}{%- set m = dict(m, season=item.season)
+          -%}{%- endif -%}\n  {%- if item.number is number -%}{%- set m = dict(m,
+          episode=item.number) -%}{%- endif -%}\n  {%- if item.aired -%}{%- set m
+          = dict(m, originalAirdate=item.aired[:10]) -%}{%- endif -%}\n  {%- if item.poster
+          and item.series_id -%}\n    {%- set m = dict(m, images=[{'url': jellyfin
+          ~ '/Items/' ~ item.series_id\n          ~ '/Images/Primary?tag=' ~ item.poster
+          ~ '&maxWidth=600'}]) -%}\n  {%- elif item.image -%}\n    {%- set m = dict(m,
+          images=[{'url': jellyfin ~ '/Items/' ~ item.id\n          ~ '/Images/Primary?tag='
+          ~ item.image ~ '&maxWidth=600'}]) -%}\n  {%- endif -%}\n{%- else -%}\n  {%-
+          set m = {'metadataType': 0, 'title': shown} -%}\n  {%- if item.image -%}\n
+          \   {%- set m = dict(m, images=[{'url': jellyfin ~ '/Items/' ~ item.id\n
+          \         ~ '/Images/Primary?tag=' ~ item.image ~ '&maxWidth=600'}]) -%}\n
+          \ {%- endif -%}\n{%- endif -%}\n{%- set x = {'stream_type': 'BUFFERED',\n
+          \            'media_info': {'hlsSegmentFormat': 'ts', 'hlsVideoSegmentFormat':
+          'mpeg2_ts'},\n             'metadata': m} -%}\n{%- if subtitle.DeliveryUrl
+          is defined -%}\n  {%- set lang = subtitle.Language | default('', true) -%}\n
+          \ {%- set x = dict(x,\n        subtitles=(subtitle.DeliveryUrl if subtitle.IsExternalUrl
+          | default(false)\n                   else jellyfin ~ subtitle.DeliveryUrl),\n
+          \       subtitles_lang={'eng': 'en', 'fre': 'fr', 'fra': 'fr', 'spa': 'es'}.get(lang,
+          lang or 'en')) -%}\n{%- endif -%}\n{{ x }}"
+    - alias: Cast it to the TV
+      action: media_player.play_media
+      target:
+        entity_id: '{{ player }}'
+      data:
+        media_content_id: '{{ stream }}'
+        media_content_type: application/x-mpegURL
+        extra: '{{ cast_extra }}'
+  - alias: Tell the auto-continue watchers that this TV got a new cast
+    event: jellyfin_tv_cast
+    event_data:
+      player: '{{ player }}'
+      item_id: '{{ item.id }}'
   - alias: Answer with what was cast
     variables:
-      result: "{%- set r = {'player': player, 'item_id': item.id, 'type': item.type,\n
-        \     'title': item.title, 'play_session': play_session} -%}\n{%- if item.type
-        == 'Episode' -%}\n  {%- set r = dict(r, series=item.series, season=item.season,
-        episode=item.number) -%}\n{%- elif item.year -%}\n  {%- set r = dict(r, year=item.year)
-        -%}\n{%- endif -%}\n{{ r }}"
+      result: "{%- set session = (receiver.play_session | default('', true)\n      if
+        'PlaySessionId=' in receiver.content_id | default('') else '')\n   if via_receiver
+        else play_session -%}\n{%- set r = {'player': player, 'item_id': item.id,
+        'type': item.type, 'library': library,\n      'title': item.title if item.type
+        == 'Episode' else shown,\n      'via': 'Jellyfin receiver' if via_receiver
+        else 'Default Media Receiver',\n      'play_session': session} -%}\n{%- if
+        via_receiver -%}\n  {%- set r = dict(r, play_method=receiver.play_method)
+        -%}\n{%- elif receiver_error -%}\n  {%- set r = dict(r, receiver_error=receiver_error)
+        -%}\n{%- endif -%}\n{%- if item.type == 'Episode' -%}\n  {%- set r = dict(r,
+        series=item.series, season=item.season, episode=item.number) -%}\n{%- elif
+        item.year -%}\n  {%- set r = dict(r, year=item.year) -%}\n{%- endif -%}\n{{
+        r }}"
   - alias: Done
     stop: Cast
     response_variable: result
@@ -7555,3 +7732,807 @@ transit_trip_cancel_reminder:
       reason: cancelled
   - stop: Reminder cancelled
     response_variable: result
+jellyfin_play_visual_on_a_tv:
+  alias: 'Jellyfin: Play a visual on a TV'
+  description: 'Casts a video from the Jellyfin Visuals library (screensaver-style
+    backgrounds) to a Google Cast TV, muted, until something else stops it: the given
+    visual, played again each time it ends (the tablet visuals covers), or random
+    visuals from a Jellyfin playlist, a new one each time one ends (the party visuals,
+    script.jellyfin_start_visuals_on_idle_tvs); with neither, random ones from the
+    whole library. The covers and the party visuals started Plex until 2026-11-06.
+    Mutes the TV before the cast: a visual is a silent background, and a muted TV
+    leaves the room''s music alone in the speaker/TV mutual mute (the TV also reports
+    media_library_title Visuals, as Plex did). script.jellyfin_play_item_on_a_tv casts
+    it at its usual cap (1080p, 12 Mbps): Jellyfin throttles transcodes and deletes
+    played segments since 2026-11-06, so a 12-hour 4K visual no longer fills the transcode
+    disk. Loop (on by default): script.jellyfin_continue_random_episodes watches for
+    the end in the background and runs this script again. Answers with what it cast,
+    or with error.'
+  mode: parallel
+  max: 10
+  icon: mdi:led-strip-variant
+  fields:
+    item_id:
+      name: Visual
+      description: Jellyfin id of the video (Visuals library). Leave empty for random
+        visuals.
+      example: 483ab5cb790f6307410cc56512fb7840
+      selector:
+        text: {}
+    playlist:
+      name: Playlist
+      description: 'Jellyfin visuals playlist to pick random visuals from when no
+        visual is given (All Visuals, 4k visuals, ariel visuals, Blue Visuals, Colorful
+        Backgrounds Visuals, Fireplace Visuals, Local Kinky Time Visuals Playlist,
+        Orange Visuals). Empty: the whole Visuals library.'
+      example: All Visuals
+      selector:
+        text: {}
+    player:
+      name: TV
+      description: Google Cast media player of the TV (the raw cast entity, not the
+        universal).
+      required: true
+      example: media_player.workshop_chromecast
+      selector:
+        entity:
+          filter:
+          - domain: media_player
+            integration: cast
+    title:
+      name: Title
+      description: 'Name shown on the TV and in Home Assistant (default: the Jellyfin
+        name without its "(2160p_…)" download tag).'
+      example: Lava Lamps
+      selector:
+        text: {}
+    loop:
+      name: Loop
+      description: Each time it ends, play it again (a given visual) or another random
+        one.
+      default: true
+      selector:
+        boolean: {}
+  sequence:
+  - alias: Fill in the optional fields
+    variables:
+      requested: '{{ item_id | default('''', true) | string | trim }}'
+      playlist: '{{ playlist | default('''', true) | string | trim }}'
+      title: '{{ title | default('''', true) | string | trim }}'
+      loop: '{{ loop | default(true) | bool }}'
+      parent: 776077893bf40d6c2dce470454089f8e
+      picked: ''
+  - alias: 'Random visuals from a playlist: find it by name'
+    if:
+    - alias: No visual given, a playlist given
+      condition: template
+      value_template: '{{ requested == '''' and playlist != '''' }}'
+    then:
+    - alias: Look up the playlist
+      action: rest_command.jellyfin_find_playlist
+      data:
+        name: '{{ playlist }}'
+      response_variable: found
+      continue_on_error: true
+    - alias: Pick the playlist with that exact name (case ignored)
+      variables:
+        parent: "{%- set items = found.content.Items\n      if found is defined and
+          found.status == 200 and found.content is mapping\n         and found.content.Items
+          is defined\n      else [] -%}\n{%- set ns = namespace(id='') -%}\n{%- for
+          p in items if ns.id == '' and p.Name | lower == playlist | lower -%}\n  {%-
+          set ns.id = p.Id -%}\n{%- endfor -%}\n{{ ns.id }}"
+    - alias: Stop when Jellyfin has no such playlist
+      if:
+      - alias: No playlist
+        condition: template
+        value_template: '{{ parent == '''' }}'
+      then:
+      - alias: Say why
+        variables:
+          result:
+            error: Jellyfin has no visuals playlist named "{{ playlist }}".
+      - alias: 'Notify: playlist not found'
+        action: persistent_notification.create
+        data:
+          notification_id: jellyfin_tv_shortcut
+          title: Jellyfin TV shortcut
+          message: '{{ result.error }} The TV was {{ player }}.'
+      - alias: 'Stop: playlist not found'
+        stop: Playlist not found in Jellyfin
+        response_variable: result
+  - alias: 'No visual given: pick a random one (from the playlist, or the whole Visuals
+      library)'
+    if:
+    - alias: No visual given
+      condition: template
+      value_template: '{{ requested == '''' }}'
+    then:
+    - alias: Draw a random visual
+      action: rest_command.jellyfin_random_video
+      data:
+        parent_id: '{{ parent }}'
+      response_variable: drawn
+      continue_on_error: true
+    - alias: Read its id
+      variables:
+        picked: "{{ (drawn.content.Items | first).Id\n   if drawn is defined and drawn.status
+          == 200 and drawn.content is mapping\n      and drawn.content.Items | default([],
+          true) | count > 0\n   else '' }}"
+    - alias: Stop when nothing came back
+      if:
+      - alias: No visual
+        condition: template
+        value_template: '{{ picked == '''' }}'
+      then:
+      - alias: Say why
+        variables:
+          result:
+            error: Jellyfin returned no visual{{ ' from the playlist "' ~ playlist
+              ~ '"' if playlist else '' }}.
+      - alias: 'Notify: no visual'
+        action: persistent_notification.create
+        data:
+          notification_id: jellyfin_tv_shortcut
+          title: Jellyfin TV shortcut
+          message: '{{ result.error }} The TV was {{ player }}.'
+      - alias: 'Stop: no visual'
+        stop: No visual
+        response_variable: result
+  - alias: Mute the TV first (a silent background; a muted TV leaves the room speaker
+      alone)
+    action: media_player.volume_mute
+    target:
+      entity_id: '{{ player }}'
+    data:
+      is_volume_muted: true
+    continue_on_error: true
+  - alias: Cast the visual (script.jellyfin_play_item_on_a_tv)
+    action: script.jellyfin_play_item_on_a_tv
+    data:
+      item_id: '{{ requested or picked }}'
+      player: '{{ player }}'
+      title: '{{ title }}'
+    response_variable: cast
+  - alias: Loop - watch for the end of it in the background
+    if:
+    - alias: loop is on and the stream has a play session to follow
+      condition: template
+      value_template: '{{ loop and cast.play_session | default('''') != '''' }}'
+    then:
+    - alias: Start the watcher (same visual again, or another random one)
+      action: script.turn_on
+      target:
+        entity_id: script.jellyfin_continue_random_episodes
+      data:
+        variables:
+          visual: true
+          player: '{{ player }}'
+          play_session: '{{ cast.play_session }}'
+          item_id: '{{ requested }}'
+          playlist: '{{ playlist }}'
+          title: '{{ title }}'
+  - alias: Answer with what was cast (or why not)
+    variables:
+      result: '{{ dict(cast, loop=loop and cast.play_session | default('''') != '''',
+        playlist=playlist) if cast is mapping and cast else {''error'': ''script.jellyfin_play_item_on_a_tv
+        did not answer.''} }}'
+  - alias: Done
+    stop: Visual cast
+    response_variable: result
+jellyfin_start_visuals_on_idle_tvs:
+  alias: 'Jellyfin: Start visuals on idle TVs'
+  description: Starts random visuals from a Jellyfin visuals playlist, muted and a
+    new one each time one ends, on every Chromecast (except the bedroom ones) and
+    every Google Hub, skipping rooms where someone is sleeping (sensor.active_sleeper_rooms).
+    By default on every one that is available, even one playing something; with start_on_off_only,
+    only on those that are off. Handles the TVs one at a time, waiting up to 1 minute
+    for each to start playing. The Start Visuals button and the ambiance scripts call
+    it; they started a shuffled Plex playlist through script.start_visual_playlist_on_plex
+    until 2026-11-06, and the Jellyfin playlists carry the Plex names and the videos
+    Plex played. Each TV plays through script.jellyfin_play_visual_on_a_tv.
+  mode: single
+  icon: mdi:led-strip-variant
+  fields:
+    playlist:
+      name: Playlist
+      description: 'Jellyfin visuals playlist: All Visuals, 4k visuals, ariel visuals,
+        Blue Visuals, Colorful Backgrounds Visuals, Fireplace Visuals, Local Kinky
+        Time Visuals Playlist or Orange Visuals. Empty: the whole Visuals library.'
+      example: All Visuals
+      selector:
+        text: {}
+    start_on_off_only:
+      name: Only TVs that are off
+      description: Leave TVs that are on alone (by default every available one gets
+        visuals).
+      default: false
+      selector:
+        boolean: {}
+    tvs:
+      name: TVs
+      description: 'Only these Google Cast players (default: every Chromecast except
+        the bedroom ones, and every hub).'
+      selector:
+        entity:
+          multiple: true
+          filter:
+          - domain: media_player
+            integration: cast
+  sequence:
+  - alias: 'List the TVs: the given ones, else Chromecasts (except bedroom) and hubs'
+    variables:
+      playlist: '{{ playlist | default('''', true) | string | trim }}'
+      only_off: '{{ start_on_off_only | default(false) | bool }}'
+      chromecasts: "{%- set given = tvs | default([], true) -%}\n{%- if given -%}\n
+        \ {{ [given] if given is string else given | list }}\n{%- else -%}\n  {{ (integration_entities('cast')
+        | select('search', 'chromecast') | reject('search', 'bedroom') | list)\n     +
+        (integration_entities('cast') | select('search', 'hub') | list) }}\n{%- endif
+        -%}"
+  - alias: For each TV
+    repeat:
+      for_each: '{{ chromecasts }}'
+      sequence:
+      - alias: If its room has no sleeper and it is off (or just available)
+        if:
+        - alias: TV's room has no active sleeper
+          condition: template
+          value_template: '{{ area_id(repeat.item | string) | replace(''_top'', '''')
+            | replace(''_down'', '''') not in states(''sensor.active_sleeper_rooms'')
+            | string }}'
+        - alias: TV is off, or available when start_on_off_only is off
+          condition: template
+          value_template: '{{ (states(repeat.item) == ''off'' and only_off) or (states(repeat.item)
+            != ''unavailable'' and not only_off) }}'
+        then:
+        - alias: Start random visuals from the playlist (muted, a new one each time
+            one ends)
+          action: script.jellyfin_play_visual_on_a_tv
+          data:
+            player: '{{ repeat.item }}'
+            playlist: '{{ playlist }}'
+          response_variable: started
+          continue_on_error: true
+        - alias: Wait up to 1 min for it to play
+          wait_for_trigger:
+          - alias: TV starts playing
+            trigger: template
+            value_template: '{{ states(repeat.item) == ''playing'' }}'
+          timeout: 00:01:00
+vacuum_deep_clean_room:
+  alias: Deep clean a room with the robot vacuum
+  description: 'Long press on a room key of the tablets'' Vacuum page (Maxi 2026-11-09):
+    cleans that one room with 3 passes at Max plus suction, or at the suction and
+    mop water flow the key asks for (the hard-floor rooms, kitchen and bedroom: Max
+    suction with High water flow). Asking for a water flow also puts the robot in
+    Vacuum and mop first if it was in another mode. What it changed comes back once
+    the robot has been docked for 10 minutes (mid-clean mop washes and bin emptying
+    only dock it for 2-3 minutes), unless someone changed a setting in the meantime.
+    Runs in parallel, so a second deep clean doesn''t cancel the first one''s restore.'
+  icon: mdi:robot-vacuum-variant
+  mode: parallel
+  max: 10
+  fields:
+    segment:
+      name: Room
+      description: The robot's room number (Roborock segment id), e.g. 9 for the kitchen.
+      required: true
+      example: 9
+      selector:
+        number:
+          min: 1
+          max: 32
+          mode: box
+    fan_speed:
+      name: Suction
+      description: Suction for this clean. Max plus if left out.
+      example: max
+      selector:
+        select:
+          options:
+          - value: quiet
+            label: Quiet
+          - value: balanced
+            label: Balanced
+          - value: turbo
+            label: Turbo
+          - value: max
+            label: Max
+          - value: max_plus
+            label: Max plus
+    water_flow:
+      name: Water flow
+      description: Mop water flow for this clean (the kitchen and bedroom keys use
+        High). Left out, the robot's mopping setup isn't touched.
+      example: high
+      selector:
+        select:
+          options:
+          - value: low
+            label: Low
+          - value: medium
+            label: Medium
+          - value: high
+            label: High
+  sequence:
+  - alias: Remember the robot's settings
+    variables:
+      previous_fan_speed: '{{ state_attr(''vacuum.roborock_qrevo_curv_series'', ''fan_speed'')
+        }}'
+      previous_water_flow: '{{ states(''select.roborock_qrevo_curv_series_mop_intensity'')
+        }}'
+      previous_cleaning_mode: '{{ states(''select.workshop_roborock_qrevo_curv_series_cleaning_mode'')
+        }}'
+      previous_mop_route: '{{ states(''select.roborock_qrevo_curv_series_mop_mode'')
+        }}'
+  - alias: 'This clean''s settings: Max plus suction unless the key asks for another,
+      a water flow only if it asks for one'
+    variables:
+      deep_fan_speed: '{{ fan_speed if fan_speed is defined and fan_speed not in [none,
+        ''''] else ''max_plus'' }}'
+      deep_water_flow: '{{ water_flow if water_flow is defined and water_flow not
+        in [none, ''''] else '''' }}'
+      switch_mode: '{{ water_flow is defined and water_flow not in [none, ''''] and
+        previous_cleaning_mode != ''vac_and_mop'' }}'
+  - alias: 'Mopping clean: Vacuum and mop first if the robot is in another mode (that
+      resets suction, water flow and route; suction and water are set right after)'
+    if:
+    - condition: template
+      value_template: '{{ switch_mode }}'
+    then:
+    - action: select.select_option
+      target:
+        entity_id: select.workshop_roborock_qrevo_curv_series_cleaning_mode
+      data:
+        option: vac_and_mop
+    - wait_template: '{{ is_state(''select.workshop_roborock_qrevo_curv_series_cleaning_mode'',
+        ''vac_and_mop'') }}'
+      timeout: 00:00:30
+      continue_on_timeout: true
+  - alias: Suction for this clean
+    action: vacuum.set_fan_speed
+    target:
+      entity_id: vacuum.roborock_qrevo_curv_series
+    data:
+      fan_speed: '{{ deep_fan_speed }}'
+  - alias: Water flow for this clean (only when the key asks for one)
+    if:
+    - condition: template
+      value_template: '{{ deep_water_flow != '''' }}'
+    then:
+    - action: select.select_option
+      target:
+        entity_id: select.roborock_qrevo_curv_series_mop_intensity
+      data:
+        option: '{{ deep_water_flow }}'
+  - alias: Clean the room with 3 passes
+    action: vacuum.send_command
+    target:
+      entity_id: vacuum.roborock_qrevo_curv_series
+    data:
+      command: app_segment_clean
+      params:
+      - segments:
+        - '{{ segment | int }}'
+        repeat: 3
+  - alias: Wait for the robot to leave the dock
+    wait_template: '{{ not is_state(''vacuum.roborock_qrevo_curv_series'', ''docked'')
+      }}'
+    timeout: 00:03:00
+    continue_on_timeout: true
+  - alias: 'Once it left: wait until it has been back on the dock for 10 minutes (the
+      cleaning is over)'
+    if:
+    - condition: template
+      value_template: '{{ wait.completed }}'
+    then:
+    - wait_for_trigger:
+      - trigger: state
+        entity_id: vacuum.roborock_qrevo_curv_series
+        to: docked
+        for:
+          minutes: 10
+      timeout: 04:00:00
+      continue_on_timeout: true
+  - alias: Are the settings still the ones this clean set?
+    variables:
+      untouched: '{{ is_state_attr(''vacuum.roborock_qrevo_curv_series'', ''fan_speed'',
+        deep_fan_speed) and (deep_water_flow == '''' or (is_state(''select.roborock_qrevo_curv_series_mop_intensity'',
+        deep_water_flow) and is_state(''select.workshop_roborock_qrevo_curv_series_cleaning_mode'',
+        ''vac_and_mop''))) }}'
+  - alias: Put back what this clean changed, unless someone changed a setting in the
+      meantime
+    if:
+    - condition: template
+      value_template: '{{ untouched }}'
+    then:
+    - alias: The cleaning mode it had, if this clean switched it (that mode's own
+        defaults come with it)
+      if:
+      - condition: template
+        value_template: '{{ switch_mode and previous_cleaning_mode in (state_attr(''select.workshop_roborock_qrevo_curv_series_cleaning_mode'',
+          ''options'') or []) }}'
+      then:
+      - action: select.select_option
+        target:
+          entity_id: select.workshop_roborock_qrevo_curv_series_cleaning_mode
+        data:
+          option: '{{ previous_cleaning_mode }}'
+        continue_on_error: true
+      - wait_template: '{{ is_state(''select.workshop_roborock_qrevo_curv_series_cleaning_mode'',
+          previous_cleaning_mode) }}'
+        timeout: 00:00:30
+        continue_on_timeout: true
+    - alias: 'The suction it had (never back to Max plus: that''s a deep clean''s
+        own setting)'
+      if:
+      - condition: template
+        value_template: '{{ previous_fan_speed in [''quiet'', ''balanced'', ''turbo'',
+          ''max''] and not is_state_attr(''vacuum.roborock_qrevo_curv_series'', ''fan_speed'',
+          previous_fan_speed) }}'
+      then:
+      - action: vacuum.set_fan_speed
+        target:
+          entity_id: vacuum.roborock_qrevo_curv_series
+        data:
+          fan_speed: '{{ previous_fan_speed }}'
+        continue_on_error: true
+    - alias: The water flow it had, if this clean set one
+      if:
+      - condition: template
+        value_template: '{{ deep_water_flow != '''' and previous_water_flow in [''low'',
+          ''medium'', ''high'', ''custom_water_flow''] and not is_state(''select.roborock_qrevo_curv_series_mop_intensity'',
+          previous_water_flow) }}'
+      then:
+      - action: select.select_option
+        target:
+          entity_id: select.roborock_qrevo_curv_series_mop_intensity
+        data:
+          option: '{{ previous_water_flow }}'
+        continue_on_error: true
+    - alias: The mop route it had, if switching the mode reset it
+      if:
+      - condition: template
+        value_template: '{{ switch_mode and previous_mop_route in [''standard'', ''deep'',
+          ''deep_plus'', ''fast''] and not is_state(''select.roborock_qrevo_curv_series_mop_mode'',
+          previous_mop_route) }}'
+      then:
+      - action: select.select_option
+        target:
+          entity_id: select.roborock_qrevo_curv_series_mop_mode
+        data:
+          option: '{{ previous_mop_route }}'
+        continue_on_error: true
+origami_thermostat_step:
+  alias: Thermostat step
+  description: Moves a thermostat's target temperature up or down, within its range.
+  mode: queued
+  fields:
+    thermostat:
+      description: The thermostat
+      example: climate.bedroom_ac
+      selector:
+        entity:
+          domain: climate
+    step:
+      description: How far, in degrees
+      example: -0.5
+  sequence:
+  - condition: template
+    value_template: '{{ state_attr(thermostat, ''temperature'') is number }}'
+  - action: climate.set_temperature
+    target:
+      entity_id: '{{ thermostat }}'
+    data:
+      temperature: '{% set t = state_attr(thermostat, ''temperature'') + step | float(0)
+        %} {% set s = state_attr(thermostat, ''target_temp_step'') | float(0.1) %}
+        {% set t = ((t / s) | round(0) * s) | round(1) %} {{ [[t, state_attr(thermostat,
+        ''min_temp'') | float(t)] | max, state_attr(thermostat, ''max_temp'') | float(t)]
+        | min }}
+
+        '
+origami_playback:
+  alias: Playback
+  description: Plays, pauses, skips or shuffles on the selected speaker, or saves
+    its song as a favorite in Music Assistant. In a group, the group's leader gets
+    the command.
+  mode: queued
+  fields:
+    speaker:
+      description: The dropdown helper that selects the speaker, or a speaker
+      example: input_select.origami_selected_speaker
+      selector:
+        entity:
+          domain:
+          - input_select
+          - media_player
+    command:
+      description: What to do. Shuffle turns shuffle on or off, and favorite saves
+        the song in Music Assistant.
+      example: play_pause
+      selector:
+        select:
+          options:
+          - play_pause
+          - previous_track
+          - next_track
+          - shuffle
+          - favorite
+  sequence:
+  - variables:
+      selected: '{% set s = states(speaker) if speaker.startswith(''input_select.'')
+        else speaker %} {{ state_attr(s, ''active_child'') or s }}'
+      leader: '{{ (state_attr(selected, ''group_members'') or [selected])[0] }}'
+  - choose:
+    - alias: Shuffle
+      conditions: '{{ command == ''shuffle'' }}'
+      sequence:
+      - action: media_player.shuffle_set
+        target:
+          entity_id: '{{ leader }}'
+        data:
+          shuffle: '{{ not state_attr(leader, ''shuffle'') }}'
+    - alias: Favorite
+      conditions: '{{ command == ''favorite'' }}'
+      sequence:
+      - variables:
+          device: '{{ device_id(selected) }}'
+          button: '{{ (integration_entities(''music_assistant'') | select(''match'',
+            ''button\\.'') | select(''in'', device_entities(device) if device else
+            []) | list + [''''])[0] }}'
+      - condition: template
+        value_template: '{{ button != '''' }}'
+      - action: button.press
+        target:
+          entity_id: '{{ button }}'
+    default:
+    - action: media_player.media_{{ command }}
+      target:
+        entity_id: '{{ leader }}'
+origami_set_group_volume:
+  alias: Set group volume
+  description: Sets the volume of the selected speaker and the speakers in its group.
+    Their average takes the new volume, and the balance between them stays.
+  mode: queued
+  fields:
+    speaker:
+      description: The dropdown helper that selects the speaker, or a speaker
+      example: input_select.origami_selected_speaker
+      selector:
+        entity:
+          domain:
+          - input_select
+          - media_player
+    volume:
+      description: The new volume in percent
+      example: 20
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: '%'
+  sequence:
+  - variables:
+      raw: '{{ states(speaker) if speaker.startswith(''input_select.'') else speaker
+        }}'
+      following: '{{ raw == ''media_player.universal_following_media'' }}'
+      selected: '{{ states(''sensor.origami_room_player'') if following else (state_attr(raw,
+        ''active_child'') or raw) }}'
+      members: '{{ ([selected] if following else (state_attr(selected, ''group_members'')
+        or [selected])) | select(''match'', ''media_player[.]'') | list }}'
+      levels: '{{ members | map(''state_attr'', ''volume_level'') | select(''number'')
+        | list }}'
+      before: '{{ levels | sum / levels | count if levels else 0 }}'
+      after: '{{ volume | float(0) / 100 }}'
+  - repeat:
+      for_each: '{{ members }}'
+      sequence:
+      - action: media_player.volume_set
+        target:
+          entity_id: '{{ repeat.item }}'
+        data:
+          volume_level: '{% set level = state_attr(repeat.item, ''volume_level'')
+            | float(0) %} {% set wanted = level * after / before if before > 0 else
+            after %} {{ 0 if after == 0 else ([[wanted, 0.01 if level > 0 else 0]
+            | max, 1] | min) | round(2) }}'
+origami_group_speakers:
+  alias: Group speakers
+  description: Adds a speaker to the group of the selected speaker or takes it out,
+    adds every free speaker, or ends the group.
+  mode: queued
+  fields:
+    speaker:
+      description: The dropdown helper that selects the speaker, or a speaker
+      example: input_select.origami_selected_speaker
+      selector:
+        entity:
+          domain:
+          - input_select
+          - media_player
+    member:
+      description: The speaker to add to the group or to take out. For the group's
+        leader, the selected speaker leaves the group instead.
+      example: media_player.mass_bedroom_vpe_speaker
+      selector:
+        entity:
+          domain: media_player
+    all:
+      description: Adds every speaker of the helper that plays nothing and uses no
+        input, such as the TV
+      example: true
+      selector:
+        boolean: {}
+    ungroup:
+      description: Ends the group, so each speaker plays on its own
+      example: true
+      selector:
+        boolean: {}
+  sequence:
+  - variables:
+      selected: '{% set s = states(speaker) if speaker.startswith(''input_select.'')
+        else speaker %} {{ state_attr(s, ''active_child'') or s }}'
+      leader: '{{ (state_attr(selected, ''group_members'') or [selected])[0] }}'
+      members: '{{ state_attr(leader, ''group_members'') or [leader] }}'
+  - choose:
+    - alias: End the group
+      conditions: '{{ ungroup | default(false) and members | count > 1 }}'
+      sequence:
+      - action: media_player.unjoin
+        target:
+          entity_id: '{{ members[1:] }}'
+    - alias: Add every free speaker
+      conditions: '{{ all | default(false) }}'
+      sequence:
+      - variables:
+          free: "{% set ns = namespace(free=[]) %} {% for s in state_attr(speaker,
+            'options') or [] %}\n  {% if s not in members\n     and states(s) not
+            in ['playing', 'buffering', 'unavailable', 'unknown']\n     and (state_attr(s,
+            'source') or '') is not search('bluetooth|optical|coax|hdmi|line|aux',
+            ignorecase=true) %}\n    {% set ns.free = ns.free + [s] %}\n  {% endif
+            %}\n{% endfor %} {{ ns.free }}"
+      - if: '{{ free | count > 0 }}'
+        then:
+        - action: media_player.join
+          target:
+            entity_id: '{{ leader }}'
+          data:
+            group_members: '{{ free }}'
+    - alias: Take the speaker out
+      conditions: '{{ member is defined and member in members }}'
+      sequence:
+      - action: media_player.unjoin
+        target:
+          entity_id: '{{ selected if member == leader else member }}'
+    - alias: Add the speaker
+      conditions: '{{ member is defined }}'
+      sequence:
+      - action: media_player.join
+        target:
+          entity_id: '{{ leader }}'
+        data:
+          group_members:
+          - '{{ member }}'
+origami_open_music:
+  alias: Open music
+  description: Opens the music pop-up from another card with a speaker selected, such
+    as a room's speaker. A tap action can open the pop-up or select a speaker, but
+    not both.
+  mode: queued
+  fields:
+    speaker:
+      description: The speaker the pop-up shows. Without it, the pop-up shows the
+        speaker that plays, if only one does, and otherwise the speaker selected before.
+      example: media_player.mass_kitchen_wiim_speaker
+      selector:
+        entity:
+          domain: media_player
+    dropdown:
+      description: The dropdown helper that selects the speaker
+      example: input_select.origami_selected_speaker
+      selector:
+        entity:
+          domain: input_select
+    pop_up:
+      description: The toggle helper that opens the pop-up when it turns on
+      example: input_boolean.origami_music_pop_up
+      selector:
+        entity:
+          domain: input_boolean
+  sequence:
+  - variables:
+      options: '{{ state_attr(dropdown, ''options'') or [] }}'
+      playing: '{% set ns = namespace(found=[]) %} {% for s in options if is_state(s,
+        ''playing'') and (state_attr(s, ''group_members'') or [s])[0] == s %} {% set
+        ns.found = ns.found + [s] %} {% endfor %} {{ ns.found }}'
+      wanted: '{{ speaker if speaker is defined and speaker else (playing[0] if playing
+        | count == 1 else '''') }}'
+  - if: '{{ wanted in options }}'
+    then:
+    - action: input_select.select_option
+      target:
+        entity_id: '{{ dropdown }}'
+      data:
+        option: '{{ wanted }}'
+  - action: input_boolean.turn_on
+    target:
+      entity_id: '{{ pop_up }}'
+origami_tv_key:
+  alias: Origami TV key
+  description: Sends a remote key (up, down, left, right, ok, back, home) to the TV
+    behind a universal TV player. Salon and Workshop go through Android TV Remote,
+    Hotbox through Roku; the other TVs have no remote and do nothing.
+  mode: queued
+  max: 20
+  fields:
+    tv:
+      description: The universal TV player
+      example: media_player.universal_salon_chromecast
+      selector:
+        entity:
+          domain: media_player
+    key:
+      description: up, down, left, right, ok, back or home
+      example: ok
+      selector:
+        select:
+          options:
+          - up
+          - down
+          - left
+          - right
+          - ok
+          - back
+          - home
+  sequence:
+  - variables:
+      remotes:
+        media_player.universal_salon_chromecast: remote.bravia_4k_ae2
+        media_player.universal_workshop_chromecast: remote.salon_google_tv_2
+        media_player.universal_hotbox_top_chromecast: remote.hotbox_roku
+      android:
+        up: DPAD_UP
+        down: DPAD_DOWN
+        left: DPAD_LEFT
+        right: DPAD_RIGHT
+        ok: DPAD_CENTER
+        back: BACK
+        home: HOME
+      roku:
+        up: up
+        down: down
+        left: left
+        right: right
+        ok: select
+        back: back
+        home: home
+      remote: '{{ remotes.get(tv, '''') }}'
+  - condition: template
+    value_template: '{{ remote != '''' and key in android }}'
+  - action: remote.send_command
+    target:
+      entity_id: '{{ remote }}'
+    data:
+      command: '{{ (roku if remote == ''remote.hotbox_roku'' else android)[key] }}'
+origami_media_open:
+  alias: Origami media open
+  description: Runs when the media pop-up opens. Selects the following media player
+    as the speaker, and the TV of the room Maxi is in (sensor.maxi_location_by_petro_v2);
+    in a room without a TV the TV stays as it was.
+  mode: restart
+  sequence:
+  - action: input_select.select_option
+    target:
+      entity_id: input_select.origami_selected_speaker
+    data:
+      option: media_player.universal_following_media
+  - variables:
+      tv: "{{ {'salon': 'media_player.universal_salon_chromecast', 'workshop': 'media_player.universal_workshop_chromecast',\n
+        \   'bedroom': 'media_player.universal_bedroom_chromecast', 'kitchen': 'media_player.universal_kitchen_chromecast',\n
+        \   'hotbox': 'media_player.universal_hotbox_top_chromecast', 'patio': 'media_player.universal_patio_chromecast'}\n
+        \  .get(states('sensor.maxi_location_by_petro_v2'), '') }}"
+  - if: '{{ tv != '''' }}'
+    then:
+    - action: input_select.select_option
+      target:
+        entity_id: input_select.origami_selected_tv
+      data:
+        option: '{{ tv }}'
