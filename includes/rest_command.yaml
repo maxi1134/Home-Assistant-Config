@@ -143,6 +143,36 @@ jellyfin_item:
   headers:
     authorization: !secret jellyfin_authorization
 
+# The item's ancestors as maxi1134 sees them: the CollectionFolder among them is its library
+# ("TV Shows", "Movies", "Visuals", the names the Plex libraries had). The caster tags it onto
+# the stream URL (HaLibrary=…) and custom_components/universal reports it as media_library_title.
+jellyfin_ancestors:
+  url: >-
+    http://192.168.0.20:8096/Items/{{ item_id | urlencode }}/Ancestors?UserId=f3a71871d0e949b38a4be3fe7644501c
+  method: GET
+  timeout: 15
+  headers:
+    authorization: !secret jellyfin_authorization
+
+# Playlists whose name starts with the given one, case ignored (the visuals playlists). A plain
+# database match: the Meilisearch plugin finds new playlists late, or not by their full name.
+jellyfin_find_playlist:
+  url: >-
+    http://192.168.0.20:8096/Items?IncludeItemTypes=Playlist&Recursive=true&UserId=f3a71871d0e949b38a4be3fe7644501c&EnableImages=false&EnableUserData=false&NameStartsWith={{ name | urlencode }}
+  method: GET
+  timeout: 15
+  headers:
+    authorization: !secret jellyfin_authorization
+
+# One random video under a parent: a visuals playlist, or the Visuals library itself.
+jellyfin_random_video:
+  url: >-
+    http://192.168.0.20:8096/Items?ParentId={{ parent_id | urlencode }}&IncludeItemTypes=Video&Recursive=true&SortBy=Random&Limit=1&EnableImages=false&EnableUserData=false
+  method: GET
+  timeout: 15
+  headers:
+    authorization: !secret jellyfin_authorization
+
 # PlaybackInfo with a device profile that every Google Cast receiver plays: no direct play;
 # HLS with MPEG-TS segments, H.264 (8-bit, level <= 4.1, <= 1080p, SDR) and stereo AAC at up
 # to 12 Mbps. Jellyfin remuxes what already fits and transcodes the rest on the GPU (NVENC).
