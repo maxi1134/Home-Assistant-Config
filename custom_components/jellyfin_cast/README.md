@@ -66,6 +66,81 @@ response_variable: cast
 
 On success `cast` holds `ok: true`, `state`, `play_method` (DirectPlay, DirectStream or Transcode), `play_session`, `content_id` (the stream URL, with the token masked) and `seconds`. On failure it holds `ok: false` and an `error` (the receiver's own error, the TV refusing the stream, or a timeout), so a script can fall back to another way of casting.
 
+## Finding the `item_id`
+
+Every movie, episode and video in Jellyfin has an id: 32 hexadecimal characters, with or without dashes (both work). Only playable items have one that works here. A show or a season has an id too, but you can't play it: pick one of its episodes.
+
+### By hand
+
+Open the movie or episode in the Jellyfin web app. The id is in the address bar:
+
+```
+http://jellyfin.local:8096/web/#/details?id=1ffa07c043d35bab9a1c090831a41d13&serverId=…
+```
+
+Good enough for a fixed button, e.g. a dashboard tile that always starts the same movie.
+
+### From Home Assistant
+
+To play things by name, ask Jellyfin's API with a `rest_command` and take the id from its answer. An API key works for these lookups (create one in the Jellyfin dashboard, on the API Keys page). It stays in Home Assistant, unlike the cast token, which goes to the TV.
+
+```yaml
+# configuration.yaml
+rest_command:
+  # Movies or shows whose name contains the title
+  jellyfin_search:
+    url: >-
+      http://jellyfin.local:8096/Items?IncludeItemTypes={{ types }}&Recursive=true&Limit=5&SearchTerm={{ title | urlencode }}
+    method: GET
+    headers:
+      authorization: !secret jellyfin_authorization   # MediaBrowser Token="<API key>"
+  # One random episode of a show that has a file
+  jellyfin_random_episode:
+    url: >-
+      http://jellyfin.local:8096/Items?ParentId={{ series_id }}&IncludeItemTypes=Episode&Recursive=true&IsMissing=false&SortBy=Random&Limit=1
+    method: GET
+    headers:
+      authorization: !secret jellyfin_authorization
+```
+
+The answer's `content.Items` is a list of items, each with its `Id`, `Name` and `Type`:
+
+```yaml
+# A movie by title
+- action: rest_command.jellyfin_search
+  data:
+    title: The Matrix
+    types: Movie
+  response_variable: found
+- action: jellyfin_cast.play_item
+  data:
+    entity_id: media_player.living_room_tv
+    item_id: "{{ found.content.Items[0].Id }}"
+    item_type: Movie
+
+# A random episode of a show
+- action: rest_command.jellyfin_search
+  data:
+    title: Futurama
+    types: Series
+  response_variable: found
+- action: rest_command.jellyfin_random_episode
+  data:
+    series_id: "{{ found.content.Items[0].Id }}"
+  response_variable: drawn
+- action: jellyfin_cast.play_item
+  data:
+    entity_id: media_player.living_room_tv
+    item_id: "{{ drawn.content.Items[0].Id }}"
+    item_type: Episode
+```
+
+The search matches parts of names, so when several items come back, check their `Name` before taking the first one.
+
+My full versions are in this repo:
+- [`includes/rest_command.yaml`](../../includes/rest_command.yaml): the `jellyfin_*` calls.
+- [`scripts.yaml`](../../scripts.yaml): `jellyfin_play_random_episode_on_a_tv` (exact-name match), `jellyfin_play_item_on_a_tv` (English audio track, falls back to the Default Media Receiver when the receiver fails) and the auto-continue that starts the next random episode.
+
 ## Good to know
 
 - Each TV shows up in Jellyfin as a *Chromecast* session named "<TV name> Jellyfin", so the Jellyfin integration may add a media player for it.
