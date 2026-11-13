@@ -6657,17 +6657,21 @@ assist_broadcast:
 jellyfin_play_random_episode_on_a_tv:
   alias: 'Jellyfin: Play random episodes on a TV'
   description: 'Casts a random episode of a Jellyfin TV show to a Google Cast TV and,
-    when it plays to the end, another one, until something else stops it. The tablet
-    and phone TV-show buttons call it (they started a shuffled Plex show until 2026-11-04),
-    and so does the LLM TV script for a show. Finds the series by its exact Jellyfin
-    name (series_id pins a name two series share) and picks a random episode that
-    has a file; script.jellyfin_play_item_on_a_tv casts it (English audio, through
-    the official Jellyfin receiver since 2026-11-09, or the Default Media Receiver
-    on a Nest Hub or when the receiver fails). Auto-continue (keep_playing, on by
-    default): after the cast it starts script.jellyfin_continue_random_episodes in
-    the background with the episode id and, when the stream URL carries one, its PlaySessionId;
-    that script runs this one again when the episode played to the end. Answers with
-    what it cast; when something fails it posts a notification and answers with error.'
+    when it plays to the end, another one, until something else stops it. The kitchen
+    Nest Hub''s TV-show buttons call it, and so does the LLM TV script for a show.
+    The other 275 buttons (tablets and phone) call jellyfin_cast.play_item with shuffle
+    since 2026-11-10: a 200-episode queue in the Jellyfin receiver, so Next and Previous
+    move through it; the 1st-gen hub can''t play what that receiver asks for. The
+    buttons started a shuffled Plex show until 2026-11-04, then this script. Finds
+    the series by its exact Jellyfin name (series_id pins a name two series share)
+    and picks a random episode that has a file; script.jellyfin_play_item_on_a_tv
+    casts it (English audio, through the official Jellyfin receiver since 2026-11-09,
+    or the Default Media Receiver on a Nest Hub or when the receiver fails). Auto-continue
+    (keep_playing, on by default): after the cast it starts script.jellyfin_continue_random_episodes
+    in the background with the episode id and, when the stream URL carries one, its
+    PlaySessionId; that script runs this one again when the episode played to the
+    end. Answers with what it cast; when something fails it posts a notification and
+    answers with error.'
   mode: parallel
   max: 10
   icon: mdi:television-play
@@ -8603,3 +8607,38 @@ origami_media_open:
         entity_id: input_select.origami_selected_tv
       data:
         option: '{{ tv }}'
+origami_toggle_mute:
+  alias: Toggle mute
+  description: Mutes a speaker or a TV, or unmutes it if it is muted (mute keys of the maxi_mobile volume pop-ups).
+  mode: queued
+  icon: mdi:volume-mute
+  fields:
+    player:
+      description: The media player to mute or unmute
+      example: media_player.mass_kitchen_wiim_speaker
+      selector:
+        entity:
+          domain: media_player
+  sequence:
+  - action: media_player.volume_mute
+    target:
+      entity_id: '{{ player }}'
+    data:
+      is_volume_muted: '{{ not (state_attr(player, ''is_volume_muted'') | default(false, true)) }}'
+origami_volume_edit_toggle:
+  alias: Toggle a volume pop-up edit list
+  description: Opens one join/leave list of the maxi_mobile volume pop-up (a group's leader or new) and closes the others, or closes it if it is open.
+  mode: queued
+  icon: mdi:link-variant
+  fields:
+    section:
+      description: The list, the group leader's entity ID or new
+      example: new
+      selector:
+        text: {}
+  sequence:
+  - action: input_select.select_option
+    target:
+      entity_id: input_select.origami_volume_edit
+    data:
+      option: "{{ 'none' if is_state('input_select.origami_volume_edit', section) else section }}"
