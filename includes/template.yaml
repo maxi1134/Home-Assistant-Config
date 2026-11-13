@@ -2286,3 +2286,67 @@
           {% set child = state_attr('media_player.universal_following_media', 'active_child') %}
           {% if child and child != 'media_player.group_mass_home_group_speakers' %}{{ child }}
           {% else %}{{ speakers.get(states('sensor.maxi_location_by_petro_v2'), 'none') }}{% endif %}
+
+  # ─── Origami media pop-up heart (maxi_mobile, 2026-11-12) ───
+  # On while the track playing on the pop-up's selected speaker (Following resolves to its active child) is a
+  # Music Assistant favorite. Asks MA's library on every track/speaker change and after a favorite button press.
+  - trigger:
+      - trigger: state
+        entity_id: input_select.origami_selected_speaker
+      - trigger: state
+        entity_id:
+          - media_player.universal_following_media
+          - media_player.mass_salon_wiim_speaker
+          - media_player.mass_lounge_wiim_speaker
+          - media_player.mass_hallway_wiim_speaker
+          - media_player.mass_workshop_wiim_speaker
+          - media_player.mass_bedroom_vpe_speaker
+          - media_player.mass_kitchen_wiim_speaker
+          - media_player.mass_hotbox_wiim_speaker
+          - media_player.mass_bathroom_vpe_speaker
+          - media_player.mass_closet_aux2_speaker
+          - media_player.mass_patio_wiim_speaker
+        attribute: media_content_id
+      - trigger: state
+        entity_id:
+          - button.salon_wiim_favorite_current_song
+          - button.lounge_wiim_favorite_current_song
+          - button.hallway_wiim_favorite_current_song
+          - button.workshop_wiim_favorite_current_song
+          - button.bedroom_vpe_assistant_favorite_current_song
+          - button.kitchen_wiim_favorite_current_song
+          - button.hotbox_hotbox_wiim_favorite_current_song
+          - button.bathroom_assistant_media_player_favorite_current_song
+          - button.home_assistant_connect_aux_2_170944_favorite_current_song
+          - button.patio_wiim_favorite_current_song
+          - button.group_mass_home_speakers_favorite_current_song
+      - trigger: homeassistant
+        event: start
+    action:
+      - delay: 2   # MA saves a favorite a moment after the button press; a track change settles in the meantime
+      - variables:
+          s: "{{ states('input_select.origami_selected_speaker') }}"
+          player: "{{ state_attr(s, 'active_child') or s }}"
+          uri: "{{ state_attr(player, 'media_content_id') or '' }}"
+          title: "{{ state_attr(player, 'media_title') or '' }}"
+      - if: "{{ uri.startswith('library://track/') and title != '' }}"
+        then:
+          - action: music_assistant.get_library
+            data:
+              config_entry_id: 01KKZ600J454H620W2PQ9CHK4E
+              media_type: track
+              favorite: true
+              search: "{{ title }}"
+              limit: 25
+            response_variable: lib
+            continue_on_error: true
+      - variables:
+          fav: "{{ uri != '' and uri in ((lib | default({})).get('items', []) | map(attribute='uri') | list) }}"
+    binary_sensor:
+      - name: "Origami now playing favorite"
+        unique_id: origami_now_playing_favorite
+        icon: mdi:heart
+        state: "{{ fav }}"
+        attributes:
+          player: "{{ player }}"
+          uri: "{{ uri }}"
